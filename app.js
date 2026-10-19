@@ -1,12 +1,12 @@
 /* Browser-only interactions; core content remains readable without JavaScript. */
 (() => {
   'use strict';
-  const KEY = 'ragnor-learning-v1';
-  const QUESTION_COUNT = Number(document.body.dataset.questionCount) || 140;
+  const KEY = 'ai-fullstack-roadmap-v1';
+  const QUESTION_COUNT = Number(document.body.dataset.questionCount) || 480;
   let state = { learned: {}, bookmarks: {}, notes: {}, theme: 'dark' };
   let storageOK = true;
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    const saved = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('ragnor-learning-v1') || 'null');
     if (saved && typeof saved === 'object') state = validate(saved);
   } catch { storageOK = false; }
   function validate(input) {
@@ -79,13 +79,6 @@
   if (practicing) practice(true);
   document.querySelector('#practice')?.addEventListener('click', () => practice(!practicing));
   document.querySelector('#expand')?.addEventListener('click', () => practice(false));
-  let printClosed = [];
-  window.addEventListener('beforeprint', () => {
-    printClosed = [...document.querySelectorAll('details:not([open])')];
-    document.querySelectorAll('.answer,.code-panel').forEach(el => { el.open = true; });
-  });
-  window.addEventListener('afterprint', () => { printClosed.forEach(el => { el.open = false; }); printClosed = []; });
-  document.querySelector('#print')?.addEventListener('click', () => window.print());
   const all = window.GUIDE_SEARCH || [];
   const query = document.querySelector('#query');
   const chapter = document.querySelector('#chapter-filter');
@@ -134,14 +127,14 @@
   });
   document.querySelector('#export')?.addEventListener('click', () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, ...state }, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'ragnor-study-progress.json'; link.click();
+    const link = document.createElement('a'); link.href = url; link.download = 'ai-fullstack-study-progress.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   document.querySelector('#import')?.addEventListener('change', async event => {
     const file = event.target.files[0]; if (!file) return;
     const message = document.querySelector('#storage-status');
     try {
-      if (file.size > 8000000) throw new Error('File is too large.');
+      if (file.size > 32000000) throw new Error('File is too large.');
       const data = JSON.parse(await file.text());
       if (!data || data.version !== 1 || typeof data.learned !== 'object' || typeof data.notes !== 'object') throw new Error('Choose a version 1 handbook progress export.');
       const incoming = validate(data);

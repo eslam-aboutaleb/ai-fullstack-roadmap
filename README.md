@@ -1,17 +1,21 @@
-# RAG and AI full-stack learning guide
+# AI Full-Stack Engineering Roadmap
 
-Open [index.html](index.html) to use the interactive, self-contained guide: 300 interview questions across 30 chapters, searchable answers, local notes and bookmarks, print mode, examples, diagrams, and line-addressable source snapshots. It is a static site; no server, package install, model key, or backend is needed.
+A general-purpose interactive learning website with **480 detailed questions across 48 chapters**, 48 practical labs, 48 original synthetic code examples, and four interactive diagram explainers.
 
-## GitHub Pages
+The journey covers RAG, databases, concurrency, authentication, agent frameworks, evaluation, observability, context engineering and optimization, prompt techniques, MCP server creation, agent skills, orchestration patterns, harnesses, backend integration, SSE, WebSockets, voice, OCR, and live agents.
 
-The workflow in `.github/workflows/pages.yml` publishes the site from the `main` branch. Push this repository to a new GitHub repository, then select **Settings → Pages → GitHub Actions** if Pages is not already configured. The workflow also supports manual runs. Project site links are relative and work under the repository subpath.
+## Learning approach
 
-**Visibility:** a private source repository does not make a GitHub Pages site private. GitHub Pages sites are public by default, and private site access is limited to supported GitHub Enterprise Cloud organization configurations. This guide includes frozen source code from the Ragnor project and an insurance backend. Review whether that source may be shared before enabling deployment. The repository itself can remain private while the published site is public.
+Use the search, practice mode, bookmarks, notes, and progress tracking. Every answer explains mechanisms, risks, safeguards, trade-offs, and a practical exercise. Browser study data stays local and can be exported.
 
-## Study data
+The case is a fictional support platform. No private repository snapshots or project-specific source excerpts are published. Examples use synthetic data, and optional framework integrations state their execution limits.
 
-Progress, theme, bookmarks, and notes are stored in browser local storage. Export progress for backup. Treat exports as private if notes contain personal information.
+## Rebuild and preview
 
-## Contents
+Requires Python 3.10+ for authoring and stdlib examples. Rebuild with `python3 -B authoring/build.py`. Serve this directory with `python3 -m http.server 8765 --bind 127.0.0.1` and open `http://localhost:8765`. No backend or model provider is needed to read and use the website.
 
-This repository is the static learning-guide site. `sources/` contains frozen, line-addressable project excerpts, and `diagrams/` contains the explorable diagram pages used by the guide. The original host repositories are not included. See [provenance](provenance.html) for source revisions, scope, and limitations.
+`authoring/core.json` contains the first 300 generalized questions. `authoring/advanced.txt` contains 180 advanced questions. `authoring/examples.py` contains original teaching examples. `authoring/diagrams/` holds finalized diagram assets. `authoring/build.py` creates the static pages and search index; `authoring/package.py` packages only public files.
+
+## Deployment
+
+The repository remains private; GitHub Pages is public. Pushes to `main` rebuild and deploy via `.github/workflows/pages.yml`. The published artifact contains HTML, CSS, JavaScript, examples, diagrams, and the manifest. Authoring files and Git history are excluded.
