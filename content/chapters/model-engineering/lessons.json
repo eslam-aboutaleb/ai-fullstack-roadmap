@@ -1,0 +1,47 @@
+[
+  {
+    "Q": "How do you choose between retrieval work and model adaptation?",
+    "explain": "Locate whether necessary evidence is missing, poorly ranked, or misused after selection. Improve the stage responsible before introducing training infrastructure. Keep a baseline and compare matched cases.",
+    "example": "A wrong vector profile needs reindexing; repeated misuse of correctly supplied conditions needs information-use investigation.",
+    "takeaway": "Match the intervention to the observed cause."
+  },
+  {
+    "Q": "What do LoRA and quantization change?",
+    "explain": "LoRA is one parameter-efficient adaptation method; quantization changes numerical precision for storage or computation. They address different costs and can affect behavior differently. Evaluate the actual hardware and task rather than treating either as a free optimization.",
+    "example": "Reduced serving memory is useful only if latency and task quality still satisfy requirements.",
+    "takeaway": "Training efficiency and inference efficiency are different dimensions."
+  },
+  {
+    "Q": "Why evaluate synthetic training data?",
+    "explain": "Generated examples can repeat errors, narrow diversity, and leak evaluation templates into training. Review labels and provenance and keep held-out tasks separate. More generated rows do not guarantee more useful learning signal.",
+    "example": "A synthetic dataset confidently labels every ambiguous return as refundable and teaches the wrong policy behavior.",
+    "takeaway": "Synthetic data needs the same quality discipline as human data."
+  },
+  {
+    "Q": "What should a serving experiment report?",
+    "explain": "Report task quality, answer coverage, latency tails, throughput, memory, hardware, context policy, and cost under a described workload. Separate unknown values from measured results. Version model and index profiles together when necessary.",
+    "example": "Faster batches improve throughput while making an individual voice response too slow.",
+    "takeaway": "Efficiency depends on the user workload and its constraints."
+  },
+  {
+    "Q": "What should a small adaptation experiment prove?",
+    "explain": "Identify a repeated behavior failure that is not caused by missing evidence or broken permissions. Curate representative training examples, remove duplicates and leakage, keep validation and test sets separate, and compare with a fixed baseline. Record optimizer settings, seed, training budget, checkpoint selection, and exact model/tokenizer profiles. Evaluate both the target behavior and important regressions.",
+    "example": "Adapt a classifier for routing support requests, then check whether accuracy on rare escalation cases worsens even if overall accuracy rises. Keep a non-neural baseline in the report.",
+    "takeaway": "Training is a controlled intervention with a specific hypothesis.",
+    "added": true
+  },
+  {
+    "Q": "How do quantization and the KV cache affect serving memory?",
+    "explain": "Weight memory depends roughly on parameter count times stored bits per parameter, plus overhead. For a synthetic 7-billion-parameter model, 16-bit weights alone require about 14 billion bytes, while 4-bit weights alone require about 3.5 billion bytes before scales and other overhead. Runtime memory also includes activations, workspaces, and the attention key/value cache, which grows with sequence lengths and concurrent requests.",
+    "example": "A model's weights fit on a device, yet long concurrent contexts exhaust memory through cache growth. Benchmark realistic context and output lengths instead of claiming capacity from weight size alone.",
+    "takeaway": "Model storage size is only one part of inference capacity.",
+    "added": true
+  },
+  {
+    "Q": "How do batching, caching, and routing change serving trade-offs?",
+    "explain": "Batching shares compute across requests but can add queue delay. Prefix caching can reuse compatible computation while cache occupancy consumes memory. Routing can send tasks to different models but needs a quality policy and may change privacy or latency boundaries. Measure throughput, first-token and completion latency, rejection rate, and task quality under the same workload.",
+    "example": "A larger batch improves tokens per second but worsens the interactive p95 wait. Separate offline indexing throughput goals from live conversation latency goals.",
+    "takeaway": "Optimize the workload's quality and latency constraints rather than a single hardware number.",
+    "added": true
+  }
+]

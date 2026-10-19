@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "What happens inside a typed retrieval request?",
+    "A": "RetrievalRequest carries the query, candidate and final counts, threshold, filters, isolation scope, expected generation, metadata projection, session, and mandatory capabilities. It makes execution constraints explicit instead of hiding them in loosely interpreted keyword arguments.",
+    "Why": "A hybrid retriever coerces legacy calls into this form and validates supported constraints before delegating to a store or strategy. Effective filters and required metadata help preserve scope checks across the execution path.",
+    "Risk": "A well-typed request can still contain an unauthorized scope if the host trusts the user's input. Authentication must establish which scope the caller is allowed to request.",
+    "Trade": "A richer request object improves composability and inspection but requires a stable public contract and deliberate defaults. A small positional API is easier for toy usage.",
+    "Try": "Construct one request for tenant A with a larger candidate pool and a smaller final result set. Explain every field that affects authorization, ranking, or visibility."
+  },
+  {
+    "Q": "Why separate candidate_k from final_k?",
+    "A": "Candidate_k determines how many initial hits later stages can inspect; final_k determines how many results the caller receives. A reranker cannot promote a relevant passage that the candidate stage never retrieved. Fetching only five candidates and returning five wastes much of the value of reranking.",
+    "Why": "The strategy API carries both counts through retrieval and applies final slicing after optional reranking and scope validation. Evidence budgeting is yet another limit and should not be confused with either count.",
+    "Risk": "Very large candidate pools increase backend work, reranker cost, and exposure of material to external services. Candidates sent to a reranker must already respect applicable permissions.",
+    "Trade": "More candidates can improve recall with diminishing returns. Tune using recall, final ranking quality, and latency rather than assuming larger is always better.",
+    "Try": "Compare candidate pools of 10, 30, and 100 while holding final_k at five. Track whether missing answers were absent from the pool or simply ranked too low."
+  },
+  {
+    "Q": "How does Reciprocal Rank Fusion work here?",
+    "A": "RRF sums reciprocal rank contributions from independent result lists. This implementation uses 1/(60 + rank) with one-based ranks, then sorts by descending sum and breaks ties by document ID. It avoids directly adding incomparable raw distance and keyword scores.",
+    "Why": "The shared rrf_merge helper constructs rank maps for vector and lexical lists. A document appearing in both gets two contributions; a document missing from a stage receives no contribution from that stage.",
+    "Risk": "RRF discards score magnitudes, so a near-tie and a decisive first-place win contribute identically at the same rank. Candidate truncation also limits which documents can benefit from fusion.",
+    "Trade": "Rank fusion is simple and robust across scoring scales, while weighted or learned fusion may capture more signal at the cost of calibration and training data.",
+    "Try": "Calculate scores for a document ranked first in one stage and another ranked tenth in both. Verify the ordering with rrf_merge and inspect deterministic ties."
+  },
+  {
+    "Q": "Are dense and lexical stages executed concurrently?",
+    "A": "Dense and lexical search can run concurrently when they are independent and the backend supports the combined load. They can also run sequentially or inside one SQL statement. Choose deliberately and measure the actual execution path.",
+    "Why": "Parallelize independent I/O with a bounded task group and preserve separate failure outcomes. A combined database query has its own query plan; Python-level concurrency cannot be inferred from its SQL shape.",
+    "Risk": "Assuming stage concurrency understates latency. Conversely, parallelizing blindly can violate a shared database session's rules or increase load beyond intended limits.",
+    "Trade": "Sequential execution is easier to reason about with one session. Parallel execution may reduce latency for independent backends but requires separate safe resources, cancellation, and error policy.",
+    "Try": "Instrument start and finish events for both stages. Propose a parallel variant only after specifying which sessions and connections may be used concurrently."
+  },
+  {
+    "Q": "When does a reranker help, and what can it not fix?",
+    "A": "A reranker reorders a candidate set using a more expensive relevance model, often evaluating the query and passage together. It helps distinguish closely related passages after a fast first-stage search. It cannot recover a document that never entered the candidate pool.",
+    "Why": "Hybrid retrieval accepts an optional Reranker protocol. a model-backed reranker is one adapter, while a host can supply another implementation. Typed responses preserve richer score information where required.",
+    "Risk": "External reranking may transmit document content to another provider, add latency, or fail. Authorization and data-handling policy must apply before transmission, and timeout or failure behavior should be explicit.",
+    "Trade": "Reranking spends more per candidate to improve final ordering. It may be unnecessary for exact identifier queries or small corpora with strong lexical matches.",
+    "Try": "Inspect ten candidates with similar vocabulary but different policy conditions. Compare fused ordering with reranked ordering and classify whether improvement justifies added cost."
+  },
+  {
+    "Q": "How should query rewriting and multi-query retrieval be bounded?",
+    "A": "Query rewriting can make a conversational or ambiguous question more searchable; multi-query retrieval explores alternative phrasings. Both add work and can drift away from the original intent. Bounds should cover variant count, text length, time, and downstream calls.",
+    "Why": "A bounded query transformer wraps a host-provided transformer with limits and a timeout. Query generation should be an explicit optional dependency with measured cost and failure behavior.",
+    "Risk": "Generated variants may invent identifiers or broaden the scope of meaning. Scope filters must remain fixed across variants, and deduplication does not by itself calibrate rankings across all variants.",
+    "Trade": "Expansion can improve recall for difficult language while multiplying embedding and search cost. Start with a baseline and add it only for demonstrated failures.",
+    "Try": "Supply a transformer returning duplicates, blank strings, too many variants, and a slow response. Explain which limits protect cost and which protect meaning."
+  },
+  {
+    "Q": "How does multi-query merging differ from a fully calibrated global ranker?",
+    "A": "The generic hybrid strategy fuses each query variant's dense and lexical results, extends a candidate list, and deduplicates by ID in first-seen order before optional reranking. That is not a learned global calibration of all variant scores.",
+    "Why": "The implementation is a bounded composition mechanism. Its optional reranker is the natural place to compare the combined candidates against the original question, but absent that stage the ordering reflects implementation choices.",
+    "Risk": "The first query variant can dominate which duplicate representation and ordering survive. More variants therefore need not improve final ranking and can increase noise.",
+    "Trade": "First-seen deduplication is simple and deterministic. A second fusion across variants or a global reranker adds complexity and should be justified by evaluation.",
+    "Try": "Reverse the order of two transformer variants and compare final results without a reranker. Explain any changed ordering using the execution policy."
+  },
+  {
+    "Q": "Why must filters be applied during each retrieval stage?",
+    "A": "If unauthorized documents consume the initial top-k pool, post-filtering can leave too few permitted results and may send forbidden text to later components. Applying constraints inside dense and lexical stages improves both isolation and eligible-candidate recall.",
+    "Why": "Strategies pass effective filters to each backend, validate filter support, and run scope defense checks before returning results. These checks complement authorization at the transport or host boundary.",
+    "Risk": "A backend that ignores a filter can still leak data. Defense in depth detects some invalid results, but tests must also ensure a reranker or external processor does not receive unauthorized candidates before that final check.",
+    "Trade": "Filter-aware search can affect query plans and approximate recall. Security requirements take precedence; tune backend indexes rather than dropping constraints for speed.",
+    "Try": "Place many high-similarity forbidden records ahead of a permitted record. Verify eligible recall and inspect exactly which records reach the reranker."
+  },
+  {
+    "Q": "How should I interpret distance thresholds and relevance scores?",
+    "A": "Distance is a geometric measurement, not a truth probability. RRF is a rank-fusion score, not a calibrated confidence. Reranker scores have provider-specific meaning. A distance threshold must match the selected metric and embedding profile.",
+    "Why": "Result types preserve distance, keyword score, and fusion or reranker scores separately rather than pretending they share a universal numerical scale. The retriever can apply a configured threshold and explicit final result limit.",
+    "Risk": "Displaying 0.92 as 92 percent correct misleads users. A low distance can retrieve an obsolete, unauthorized, or merely related passage; those require separate checks.",
+    "Trade": "Thresholding removes weak candidates but can reduce coverage and varies across corpus changes. Product confidence should be evaluated empirically using multiple signals and abstention policy.",
+    "Try": "Collect score distributions for answerable and unanswerable questions. Evaluate a threshold's false acceptance and false rejection rates before choosing a UI label."
+  },
+  {
+    "Q": "How would you debug a relevant document missing from the final answer?",
+    "A": "Walk the chain: was the source discovered, extracted, indexed under the active profile and generation, eligible under filters, retrieved into either candidate list, retained by fusion, ranked high enough, selected into evidence, and actually used by generation? Each step can independently remove useful information.",
+    "Why": "The retrieval service exposes distinct modules and result shapes for these stages. That separation supports inspection of intermediate artifacts rather than guessing that every wrong answer is an embedding problem.",
+    "Risk": "Debug logging can expose queries or private passages. Prefer controlled fixtures and sanitized IDs, and do not bypass scope checks simply to make a document appear during investigation.",
+    "Trade": "Stage-by-stage diagnosis takes longer than tweaking a single constant but targets the actual cause and prevents compensating errors.",
+    "Try": "Create a failure report containing the first stage where an expected passage disappears, the supporting observation, and one focused change to test."
+  }
+]

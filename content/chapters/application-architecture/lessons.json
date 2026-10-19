@@ -1,0 +1,54 @@
+[
+  {
+    "Q": "What happens between the chat box and the model?",
+    "explain": "The API authenticates the caller, creates a task, applies limits, and gathers permitted context. The agent runtime then calls the model and routes proposed tools. The application decides which results may reach the user and which actions may execute.",
+    "example": "Asking about R17 first establishes whether the caller can read R17. The model does not get to choose that permission.",
+    "takeaway": "Identity and policy belong before model discretion."
+  },
+  {
+    "Q": "Which part owns a real business change?",
+    "explain": "A business service validates the action and commits authoritative state. The agent can collect intent and propose parameters, but should not replace transaction and authorization rules. Keep the same service available to non-agent API callers so rules do not diverge.",
+    "example": "Both a form and an agent can prepare a request through the same validated service.",
+    "takeaway": "One business rule should have one authoritative implementation."
+  },
+  {
+    "Q": "Why can the UI and database disagree temporarily?",
+    "explain": "Indexing, notifications, and analytics often run after a business transaction. A request can exist before search can find it. Give those projections separate status and recovery rather than interpreting a search miss as absence from the database.",
+    "example": "Immediately after creation, exact lookup returns R17 while semantic search is still waiting for its indexing job.",
+    "takeaway": "Show accepted, searchable, and notified as distinct facts."
+  },
+  {
+    "Q": "How should you trace a failure across components?",
+    "explain": "Use a task ID to connect API, model, tool, database, and public events. At each boundary record a safe outcome and ask what input arrived and what output actually left. This locates the first incorrect assumption.",
+    "example": "A correct tool result followed by an unsupported answer points to synthesis; a denied lookup points to identity or scope.",
+    "takeaway": "Diagnose boundaries rather than blaming the model for every failure."
+  },
+  {
+    "Q": "What happens between clicking Submit and seeing an answer?",
+    "explain": "The browser handles a form event and sends an HTTP request to a server address. DNS resolves a host name; HTTPS protects the connection; a reverse proxy may route the request to the application. The application authenticates, validates, calls services, and returns a status, headers, and body. JSON is a text format for structured values. Parsing JSON does not validate that the values satisfy your business contract.",
+    "example": "A browser sends POST /questions with {'question': 'Can I return this?'}. The server rejects a blank question with a documented validation error and returns an accepted task ID for a valid long-running request.",
+    "takeaway": "Learn the request lifecycle before hiding it inside an SDK.",
+    "added": true
+  },
+  {
+    "Q": "How do JavaScript, promises, and types make an API usable?",
+    "explain": "JavaScript connects page events to data and rendering. A promise represents a future result; await lets an async function wait without blocking other browser work. A fetch response must be checked with response.ok before its body is treated as success, because HTTP errors do not automatically reject the promise. TypeScript types help catch incompatible code, but received JSON still needs runtime checks.",
+    "example": "On submit, prevent the default navigation, read the labeled input, set loading state, await fetch, check status, validate the JSON shape, and render result text with textContent. Catch network failure separately and restore the submit control in a finally block.",
+    "takeaway": "Asynchronous transport, HTTP success, and valid data are three separate checks.",
+    "added": true
+  },
+  {
+    "Q": "How do data structures and complexity affect a first backend?",
+    "explain": "An array or list is suitable for ordered results, a map for lookup by identity, a set for membership and deduplication, and a queue for pending work. Big-O describes how work grows with input size rather than giving a measured runtime. Scanning every record for each lookup is linear; a suitable hash map has expected constant-time lookup, while database indexes have their own costs and plans. Bound result sizes even when a toy fixture is tiny.",
+    "example": "Repeatedly scanning 100,000 task rows for one ID wastes work. Use an indexed identity query and cursor pagination for lists; measure query time under a representative fixture.",
+    "takeaway": "Choose structures from access patterns and verify them with measured workloads.",
+    "added": true
+  },
+  {
+    "Q": "What is dependency injection in an ordinary application?",
+    "explain": "Pass a service its collaborators instead of having it construct remote clients internally. The answer service can receive a retriever, a generator, and a clock. A test can supply deterministic implementations; the deployed application supplies real adapters. Keep domain validation in the service so changing framework or provider does not bypass it.",
+    "example": "A fake generator always returns an exchange answer. A second fake raises TimeoutError. Both exercise the same API and UI contract before any model budget is spent.",
+    "takeaway": "A replaceable boundary makes the first vertical slice testable.",
+    "added": true
+  }
+]

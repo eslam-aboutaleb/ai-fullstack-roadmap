@@ -1,0 +1,52 @@
+[
+  {
+    "Q": "What should the first server implement?",
+    "explain": "Start with one read-only capability backed by synthetic data. Verify discovery, argument validation, successful results, empty results, and failures through a compatible client. This isolates protocol learning from business-side-effect risks.",
+    "example": "The supplied v1-style stdio example returns one synthetic office-hours article and performs no write.",
+    "takeaway": "Begin with a contract you can fully inspect."
+  },
+  {
+    "Q": "Where should business logic live?",
+    "explain": "The tool handler should parse and translate, then call a service that owns validation and resource permissions. Reuse that service from HTTP or workers rather than embedding a separate business workflow in the MCP adapter.",
+    "example": "The MCP and HTTP versions of read_request both call the same owner-scoped repository operation.",
+    "takeaway": "Protocol adapters should not fork business rules."
+  },
+  {
+    "Q": "How does remote authorization reach a resource check?",
+    "explain": "Authenticate according to the selected deployment and protocol profile, resolve the principal, and check the requested operation and resource. Validate token audience and required scopes; do not blindly forward credentials to unrelated systems.",
+    "example": "A valid token for server A does not authorize a tool on server B.",
+    "takeaway": "Identity must be appropriate to the receiving service."
+  },
+  {
+    "Q": "How should tools report expected failures?",
+    "explain": "Distinguish invalid arguments, denied access, missing resources, empty search, service unavailability, and uncertain completion. Keep diagnostic stack traces private and return a stable category plus correlation identifier.",
+    "example": "An outage must not become items: [] and then the answer no help article exists.",
+    "takeaway": "Meaningful outcomes let the agent choose a valid next step."
+  },
+  {
+    "Q": "What makes a write tool safe to retry?",
+    "explain": "Bind a durable operation key to the intended effect and enforce it at the authoritative write boundary. Approval must match exact owner, parameters, revision, and expiry. Query operation status after an uncertain response.",
+    "example": "A repeated confirmation returns the existing request instead of creating another.",
+    "takeaway": "Protocol retries require business-level idempotency."
+  },
+  {
+    "Q": "What must a server release test cover?",
+    "explain": "Test discovery, schema compatibility, authorization, malformed input, timeouts, cancellation, replay where supported, and resource limits. Add business invariant tests separately and record which client and protocol versions actually ran.",
+    "example": "A working local client does not establish remote origin validation or fleet-wide quotas.",
+    "takeaway": "State tested compatibility instead of claiming universal support."
+  },
+  {
+    "Q": "What makes a first tool implementation bounded?",
+    "explain": "Define a narrow operation with required identifiers, explicit limits, a stable result shape, and expected error categories. Delegate business work to an existing service and enforce permissions from trusted request context. Bound execution time and returned bytes, and provide pagination or artifact lookup for larger results.",
+    "example": "get_document_excerpt accepts a document ID, revision, and allowed span length. It cannot arbitrarily read server paths or return an entire collection because the model requested more context.",
+    "takeaway": "A tool contract should describe and constrain one useful capability.",
+    "added": true
+  },
+  {
+    "Q": "What should contract tests prove before adding write tools?",
+    "explain": "Exercise discovery and schemas as well as actual behavior: invalid arguments, missing identity, forbidden resources, dependency failures, timeouts, and safe result rendering. For writes, verify exact operation parameters, review requirements, idempotency, and reconciliation after response loss. Test the service directly and through the protocol adapter.",
+    "example": "A client repeats create_request after losing the response. The same operation key returns the same request, while reusing that key with different parameters is rejected.",
+    "takeaway": "A successful demo call is only one part of a release contract.",
+    "added": true
+  }
+]

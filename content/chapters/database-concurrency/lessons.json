@@ -1,0 +1,52 @@
+[
+  {
+    "Q": "Why does check-then-write race?",
+    "explain": "Both callers can read pending before either writes. Each then believes it may create the record. The problem is the gap between checking and enforcing the invariant, not whether the code contains await.",
+    "example": "Worker A and B both pass an if pending check. A database lock or guarded transition must decide which can actually proceed.",
+    "takeaway": "Observe the interleaving, not just one function's order."
+  },
+  {
+    "Q": "What does a transaction make atomic?",
+    "explain": "A successful transaction commits its included database changes together. It does not automatically include a model call, email, or another service's database. Keep transaction ownership explicit so nested code cannot commit only part of the intended operation.",
+    "example": "Request creation and an outbox event share one transaction; sending the email happens later.",
+    "takeaway": "Atomicity applies to the actual transaction boundary."
+  },
+  {
+    "Q": "How does optimistic concurrency detect a stale edit?",
+    "explain": "Read a version with the record and include that expected version in the update predicate. If another writer advanced it, your update affects no rows. Reload and reconsider the user's intent rather than silently overwriting the new state.",
+    "example": "Update R17 only where version = 4. If it is now version 5, show a conflict instead of losing someone else's change.",
+    "takeaway": "A zero-row update is a meaningful outcome."
+  },
+  {
+    "Q": "What does SELECT FOR UPDATE protect?",
+    "explain": "It coordinates cooperating transactions over selected rows for the lock's lifetime. Recheck the pending operation inside that protected transaction. Keep slow external work outside the lock and understand which other writes can bypass the chosen coordination.",
+    "example": "Lock the owner-scoped pending confirmation, verify expiry, create the request, and mark completion before committing.",
+    "takeaway": "Locks protect a defined invariant, not an entire distributed system."
+  },
+  {
+    "Q": "Why does a persisted JSON session still lose updates?",
+    "explain": "Two workers may load the same object, modify different fields, and save the whole object. The later save replaces the earlier worker's change. Persistence prevents process-local loss but does not define merge semantics.",
+    "example": "One worker stores an address while another stores a preference from an old copy. Use serialization, guarded versions, or a deliberately safe field merge.",
+    "takeaway": "Durable storage and concurrency correctness are separate properties."
+  },
+  {
+    "Q": "How do you test a race deliberately?",
+    "explain": "Control when workers read and write using barriers or test hooks. Arrange the dangerous interleaving, then inspect durable state and each caller's outcome. Random sleep tests often pass without exercising the race.",
+    "example": "Pause both callers after reading pending, release them together, and assert one operation identity and one created record.",
+    "takeaway": "A concurrency test should prove which race it exercised."
+  },
+  {
+    "Q": "What is a lost update and how can a conditional write prevent it?",
+    "explain": "Two requests can read the same old state and each write a result that ignores the other. Use database-supported atomic updates, version predicates, or appropriate row locking to express the invariant. Check affected-row counts and return a conflict or exhausted outcome when the predicate fails. An application lock in one process does not coordinate other replicas.",
+    "example": "Both workers see quota=1. An atomic UPDATE that decrements only WHERE quota>0 lets one succeed and the other affect zero rows, preserving the nonnegative invariant.",
+    "takeaway": "Express concurrency rules at the authoritative write boundary.",
+    "added": true
+  },
+  {
+    "Q": "What should be retried after a serialization failure or deadlock?",
+    "explain": "Some concurrency failures require rerunning the transaction from a fresh snapshot. Bound attempts and use jitter where appropriate. Keep remote effects outside a blindly retried transaction, or connect them through an idempotent operation ledger and an outbox. Reusing old calculated values can reproduce the conflict or violate a rule even if the second write succeeds.",
+    "example": "A transaction reserves quota and inserts an outbox row with a unique operation key. On retry it rereads quota; the dispatcher later sends the external request with the same operation identity.",
+    "takeaway": "Retry a well-defined unit of work with fresh state and duplicate-effect protection.",
+    "added": true
+  }
+]

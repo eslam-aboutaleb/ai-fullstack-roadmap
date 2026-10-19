@@ -1,0 +1,108 @@
+[
+  {
+    "explain": "Trusted request identity is compared with authoritative resource ownership at the service boundary. A caller-supplied owner field cannot grant access.",
+    "steps": "Load the object from an authoritative fixture. || Check its owner against the authenticated principal before returning its data.",
+    "expect": "denied",
+    "name": "ownership",
+    "language": "python",
+    "filename": "ownership.py",
+    "questions": [
+      520,
+      523,
+      184,
+      185,
+      632,
+      348,
+      412,
+      101
+    ]
+  },
+  {
+    "explain": "A token acceptance decision requires independently verified signature and expected claims. These booleans model validator outputs; decoding JSON is not signature verification.",
+    "steps": "Use the result of an established token-verification library for signature status. || Require issuer, audience, and time checks before constructing the principal.",
+    "expect": "False",
+    "name": "jwt-boundary",
+    "language": "python",
+    "filename": "jwt-boundary.py",
+    "questions": [
+      521,
+      181
+    ]
+  },
+  {
+    "explain": "Cookie attributes, CSRF validation, and CORS are separate controls. This configuration inspection shows that an allowed origin alone cannot authorize a state-changing request.",
+    "steps": "Describe the cookie attributes as independent settings. || Require a CSRF check for the fixture's credentialed mutation.",
+    "expect": "False",
+    "name": "cookie-controls",
+    "language": "python",
+    "filename": "cookie-controls.py",
+    "questions": [
+      522,
+      724,
+      182
+    ]
+  },
+  {
+    "explain": "ContextVar stores request-local identity and a token restores the prior context. Actual resource authorization is still required in services.",
+    "steps": "Set a principal for a bounded operation. || Reset it in finally so the previous value is restored even on failure.",
+    "expect": "A None",
+    "name": "context-identity",
+    "language": "python",
+    "filename": "context-identity.py",
+    "questions": [
+      183
+    ]
+  },
+  {
+    "reference": "https://argon2-cffi.readthedocs.io/en/stable/howto.html",
+    "language": "python-sketch",
+    "explain": "A password-hashing library creates a salted hash, verifies a candidate, and supports rehashing when parameters change. Plaintext and hash values must not be logged; login also needs rate limits and safe failure handling.",
+    "steps": "Use a compatible argon2-cffi PasswordHasher rather than implementing a hash. || Verify the candidate and check whether the stored hash needs replacement under the current policy.",
+    "expect": "True with a compatible argon2-cffi installation; the salted hash itself varies and is not printed.",
+    "limit": "Optional argon2-cffi integration sketch; syntax-checked only. Benchmark the current library policy under your server's concurrency and memory limits before deployment.",
+    "name": "password-hashing",
+    "filename": "password-hashing.py",
+    "questions": [
+      186
+    ]
+  },
+  {
+    "explain": "Request bytes, per-user admission, and tool-call budgets protect different resources. Passing one limit does not waive the others.",
+    "steps": "Evaluate all three limits for the same task. || Reject before executing expensive work when any required limit fails.",
+    "expect": "False",
+    "name": "layered-limits",
+    "language": "python",
+    "filename": "layered-limits.py",
+    "questions": [
+      188,
+      108,
+      418
+    ]
+  },
+  {
+    "explain": "Expected business failures use a stable public code and safe message. Internal diagnostic details remain outside the response.",
+    "steps": "Translate a private failure into an application outcome. || Assert that the serialized public fields do not contain internal connection details.",
+    "expect": "{'code': 'not_available', 'retryable': False}",
+    "name": "safe-errors",
+    "language": "python",
+    "filename": "safe-errors.py",
+    "questions": [
+      189,
+      633,
+      355,
+      197
+    ]
+  },
+  {
+    "explain": "A basic URL policy rejects non-HTTPS and literal private addresses before any fetch. Production SSRF defense must also validate DNS results, every redirect, and network egress.",
+    "steps": "Parse scheme and hostname rather than searching URL text. || Reject the loopback fixture without making a network request.",
+    "expect": "False",
+    "name": "safe-url",
+    "language": "python",
+    "filename": "safe-url.py",
+    "questions": [
+      725,
+      25
+    ]
+  }
+]

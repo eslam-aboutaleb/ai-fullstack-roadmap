@@ -1,0 +1,40 @@
+[
+  {
+    "Q": "Why does arrival order fail as a truth rule?",
+    "explain": "Different tasks and networks can finish in a different order from their inputs. Bind work to the state revision it used and verify applicability before publication or commit.",
+    "example": "A slow answer to revision 3 arrives after revision 4 completed; the client rejects it as stale.",
+    "takeaway": "Later arrival does not mean newer intent."
+  },
+  {
+    "Q": "How do connection, session, and task lifetimes differ?",
+    "explain": "A connection may drop while a task continues. A session groups interaction state. A task records specific accepted work and outcomes. Give each an explicit identity, expiry, and recovery policy.",
+    "example": "Reconnecting creates a new socket but retrieves the same completed task rather than rerunning it.",
+    "takeaway": "Separate lifecycles make recovery understandable."
+  },
+  {
+    "Q": "What should overload behavior preserve?",
+    "explain": "Bound new work and queue age while reserving capacity for cancellation, status, and safety controls. Reject or degrade honestly instead of silently accumulating impossible deadlines.",
+    "example": "A flood of progress events must not prevent a user from cancelling expensive work.",
+    "takeaway": "Responsiveness includes the ability to stop."
+  },
+  {
+    "Q": "How do you demonstrate that an agent is genuinely live?",
+    "explain": "Declare the latency and freshness contract, then show corrections, duplicate events, out-of-order delivery, disconnects, provider failures, and restart recovery. Inspect both the visible interaction and durable effects.",
+    "example": "A restart demo preserves one approved operation while rejecting the stale pre-restart draft.",
+    "takeaway": "Live behavior needs measured recovery, not only animation."
+  },
+  {
+    "Q": "How do event time and processing time change a decision?",
+    "explain": "Event time is when something happened at the source; processing time is when your system handled it. Network delay can reverse arrival order. Carry source identity, revision, and relevant timestamps, and define a policy for late events. A later arrival must not automatically replace a higher authoritative revision.",
+    "example": "Revision 12 arrives after revision 13 because one request was delayed. Record the late observation but do not publish revision 12 as the latest state.",
+    "takeaway": "Freshness follows source semantics, not arrival timing alone.",
+    "added": true
+  },
+  {
+    "Q": "When should work be debounced, coalesced, or rejected?",
+    "explain": "Debouncing waits briefly for related changes before starting work. Coalescing replaces obsolete pending state updates with a newer state. Rejection refuses work that cannot meet capacity or deadlines. Choose by event meaning: state refreshes can often coalesce, while distinct business commands must retain separate identities and outcomes.",
+    "example": "Ten edits to a draft can trigger one analysis of the latest revision. Ten submitted customer operations require ten explicit results, even if some are rejected under a quota.",
+    "takeaway": "Scheduling policy must preserve the meaning of the event.",
+    "added": true
+  }
+]

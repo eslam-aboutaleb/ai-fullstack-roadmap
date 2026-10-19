@@ -1,0 +1,84 @@
+[
+  {
+    "Q": "Why is answer evaluation insufficient for an agent?",
+    "A": "An answer can sound correct after using the wrong tool, revealing unauthorized information, repeating an expensive action, or failing to commit the intended operation. Agent evaluation needs task success, tool choice and arguments, permissions, side effects, recovery, and final communication.",
+    "Why": "Define task outcomes and forbidden effects before choosing metrics. Evaluate tools and durable state as well as final text, then use traces to identify the failing layer.",
+    "Risk": "A model judge can reward a statement that a service request was submitted even when no claim exists. Conversely, a safely rejected operation may sound less helpful while being the correct outcome.",
+    "Trade": "Multi-layer evaluation needs more fixtures and gives actionable diagnosis. One aggregate answer score is easier to display and weaker as a release gate.",
+    "Try": "Create three cases with identical final text but different underlying tool and database histories. Define which pass and why.",
+    "reference": "https://adk.dev/evaluate/"
+  },
+  {
+    "Q": "How do reference trajectories and invariant-based trajectories differ?",
+    "A": "A reference trajectory compares observed calls with an expected sequence. An invariant checks necessary properties such as owner scoping, no duplicate confirmation, and policy retrieval before an eligibility determination. Different valid tool sequences may satisfy the same task.",
+    "Why": "Use exact reference sequences only for required order. Prefer invariants or partial orders when several legitimate trajectories can complete the task without violating scope or approval.",
+    "Risk": "Exact sequence tests can fail harmless reordering; very loose rubrics can miss a missing critical step. Tool names alone also ignore whether arguments or results were correct.",
+    "Trade": "Reference paths are easy to inspect and brittle under valid variation. Invariants need careful definition and better express safety and business requirements.",
+    "Try": "Evaluate a mixed coverage/status request with two valid call orders, then reject both if the service request lookup lacks the correct owner context.",
+    "reference": "https://github.com/google/adk-docs/blob/main/docs/evaluate/criteria.md"
+  },
+  {
+    "Q": "What do retrieval-only, context, and end-to-end evaluations measure?",
+    "A": "Retrieval-only evaluation measures candidate quality. Context evaluation examines the evidence assembled for generation. End-to-end evaluation checks the actual answer, agent actions, and relevant durable outcome. Each localizes a different failure class.",
+    "Why": "Record whether an output came from retrieval, context assembly, a baseline, or the live agent. Compare the same path across releases and label synthetic substitutes explicitly.",
+    "Risk": "Comparing proxy scores with live-agent scores without checking labels can create a false regression or improvement. Availability fallbacks should never silently change the meaning of the reported metric.",
+    "Trade": "Offline proxies are cheap and useful for early diagnosis. Actual agent evaluation costs provider calls and measures a different layer.",
+    "Try": "Run or inspect configurations for all modes and assert the reported answer_source. Separate proxy and live results in your report."
+  },
+  {
+    "Q": "How should a multi-turn request-preparation test be structured?",
+    "A": "Model the user's progressive facts, corrections, missing fields, preparation, and explicit confirmation boundary. Assert the prepared payload and server effects at each step, not only whether the assistant eventually produces a token.",
+    "Why": "Create multi-turn fixtures with missing fields, corrections, stale approvals, cancellation, and repeated submission. Assert both the user interaction and the final business state.",
+    "Risk": "A user simulator may accidentally supply hints or accept a fabricated success. Test fixtures should inspect the database and use deterministic assertions for required fields and token state.",
+    "Trade": "Multi-turn tests take more execution and reveal memory and correction failures absent from isolated prompts. Keep a small high-value regression set alongside larger sampled evaluations.",
+    "Try": "Create a scenario that changes the amount after preparation and attempts the old token. Report both current behavior and the desired contract."
+  },
+  {
+    "Q": "How should refusal and clarification be evaluated separately?",
+    "A": "Refusal is appropriate when the task is unsupported or evidence cannot justify an answer. Clarification is appropriate when obtaining missing facts could make the task answerable. Escalation is another outcome requiring truthful operational status.",
+    "Why": "Distinguish unavailable evidence, unsupported intent, missing user information, and denied authority. Evaluate whether the response chooses the correct refusal, clarification, or retry behavior.",
+    "Risk": "Rewarding all refusals as safe can produce an unusable assistant. Rewarding direct answers to ambiguous eligibility questions can produce unsupported decisions.",
+    "Trade": "Rich outcome labels cost annotation effort and better match product expectations. A binary correct/incorrect label is simpler and loses diagnostic detail.",
+    "Try": "Label cases as answer, clarify, refuse, retry, or escalate. Require evidence for every final coverage claim and an actual handoff result before claiming transfer."
+  },
+  {
+    "Q": "How can evaluation verify that writes happened exactly as intended?",
+    "A": "Assert durable rows, ownership, consumed-token state, lifecycle events, and outbox records after the operation. Repeat and race requests to verify logical uniqueness. Evaluate external deliveries separately from database acceptance.",
+    "Why": "Run against disposable services with an effect ledger. Count writes, approvals, owners, and operation keys; a convincing success message cannot replace database assertions.",
+    "Risk": "A mocked submit function can return success without exercising SQL locks or commits. A judge of answer text cannot establish atomicity or idempotency.",
+    "Trade": "Real integration tests are slower and necessary for authoritative effects. Cheap fake-model tests remain useful for routing and error mapping around them.",
+    "Try": "Build a failure-injection table for every write in confirmation. For each failure, assert the visible claim, submission, event, and job state."
+  },
+  {
+    "Q": "How should a judge be calibrated and protected from the answer being judged?",
+    "A": "Use a precise rubric, trusted references, known positive and negative cases, and human review to measure agreement. Treat candidate answer and retrieved text as untrusted data in the judge prompt. Record judge model, prompt, and sampling settings.",
+    "Why": "Calibrate judges against human-reviewed labels, keep answer text untrusted, and version the rubric and model. Track disagreements and test adversarial scoring instructions.",
+    "Risk": "A candidate can contain instructions to the judge, and a judge can favor style over factual support. A second model is not independent truth when it shares the same missing evidence.",
+    "Trade": "Model judging scales nuanced review and costs money and uncertainty. Deterministic checks should handle exact citations, amounts, permissions, and state transitions where possible.",
+    "Try": "Add a fluent unsupported answer and a judge-injection answer to a calibration set. Compare model verdicts with explicit human labels."
+  },
+  {
+    "Q": "How do uncertainty intervals and category slices improve evaluation?",
+    "A": "A score from a small sample is an estimate, not a universal property. Report sample counts, uncertainty, and important categories such as exclusions, limits, corrections, unanswerable questions, and authorization failures. Inspect severity as well as frequency.",
+    "Why": "Report sample counts, confidence or uncertainty intervals, and meaningful task slices. Avoid claiming a small aggregate score proves equivalent quality across languages or difficult cases.",
+    "Risk": "Repeatedly tuning on the same visible cases overfits the benchmark. Averaging a cross-user disclosure with several harmless formatting errors gives a misleading quality summary.",
+    "Trade": "Category reporting creates more numbers and reveals actionable regressions. Small categories need cautious interpretation rather than overconfident ranking.",
+    "Try": "Split a benchmark by answerability and category, publish counts, and flag critical failures as release blockers instead of averaging them away."
+  },
+  {
+    "Q": "How should evaluation control cost and side effects?",
+    "A": "Separate deterministic unit tests, offline retrieval checks, fake-model trajectories, and opt-in live-agent runs. Use synthetic identities and a sandbox, forbid real irreversible actions, and bound tokens, calls, and total spend. Record which execution mode actually ran.",
+    "Why": "Use synthetic identities, isolated data, and sandbox endpoints. Bound judge calls and agent retries, and never let an evaluation trigger real payments or customer notifications.",
+    "Risk": "A live agent can prepare records or call real services if its test capabilities are not constrained. Test traces may also export fixtures containing private data.",
+    "Trade": "Offline checks are fast and less realistic; live runs expose provider behavior and require stronger controls. Use both without conflating their scores.",
+    "Try": "Define a CI budget and a nightly live-evaluation budget with safe tool replacements and explicit answer-source assertions."
+  },
+  {
+    "Q": "What should an agent release gate require?",
+    "A": "Require critical authorization and write invariants, non-regression on held-out task outcomes, acceptable latency and cost, and a rollback path. Keep quality thresholds distinct from informational efficiency metrics. A release gate should reflect product harm and operational capacity.",
+    "Why": "Predeclare release gates for critical invariants, task quality, latency, and cost. Keep immutable run manifests, reviewed failures, and a rollback artifact for the selected release.",
+    "Risk": "A changing judge or proxy fallback can move metrics without a real behavior change. A passing average must never excuse a critical cross-user disclosure or duplicate write.",
+    "Trade": "Strict gates slow some releases and prevent expensive regressions. Narrow deterministic checks should fail quickly before costly live evaluation.",
+    "Try": "Write a gate with hard denials, category quality thresholds, p95 latency, cost per successful task, and explicit metadata compatibility checks."
+  }
+]

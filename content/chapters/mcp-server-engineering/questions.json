@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "How should an MCP server be layered?",
+    "A": "Keep transport handling, tool schemas, application services, and persistence adapters separate. The MCP handler should translate requests rather than embed the entire business workflow.",
+    "Why": "Inject a service with a narrow interface and derive the principal from request authentication. Reuse the same application service from HTTP and MCP adapters.",
+    "Risk": "Duplicated business logic can enforce different permissions through different protocols.",
+    "Trade": "Layering adds interfaces while keeping behavior consistent.",
+    "Try": "Implement one search service behind both an HTTP route and an MCP tool."
+  },
+  {
+    "Q": "How do you create a minimal Python MCP tool?",
+    "A": "Use a supported official SDK interface, define a typed function, and expose it through a server with an explicitly selected transport. Keep the first example read-only.",
+    "Why": "The accompanying SDK example uses the v1 FastMCP style and synthetic data. Pin a compatible v1 SDK; evaluate migration separately for another major version.",
+    "Risk": "A minimal decorator example omits production authentication, quotas, and shutdown handling.",
+    "Trade": "SDK convenience reduces boilerplate and introduces version coupling.",
+    "Try": "Run the example locally with a compatible client and inspect the advertised schema."
+  },
+  {
+    "Q": "How should tool argument validation work?",
+    "A": "Validate shape, length, allowed identifiers, numeric bounds, and application invariants before contacting downstream services. Derive tenant and user scope outside model arguments.",
+    "Why": "Reject arbitrary SQL, paths, or URLs unless the capability is explicitly designed and constrained for them. Use allowlisted operations and parameter binding.",
+    "Risk": "A well-typed string can still contain a dangerous destination or a cross-tenant identifier.",
+    "Trade": "Narrow inputs reduce flexibility and improve control.",
+    "Try": "Try oversized queries, unexpected properties, and unauthorized resource IDs."
+  },
+  {
+    "Q": "How do you secure a remote MCP deployment?",
+    "A": "Apply request authentication, resource authorization, encrypted transport, origin and host validation where relevant, outbound restrictions, quotas, and secret management.",
+    "Why": "Follow the selected protocol security guidance and deploy behind an explicit ingress policy. Log security outcomes without storing credentials.",
+    "Risk": "A reverse proxy does not automatically validate application-level permissions or block server-side request forgery.",
+    "Trade": "More controls add operational work and reduce exposure.",
+    "Try": "Threat-model both a malicious client and a compromised downstream API."
+  },
+  {
+    "Q": "How should tool errors be modeled?",
+    "A": "Separate transport or protocol failures from expected application outcomes such as not found, permission denied, unavailable, and needs confirmation. Return stable machine-readable categories.",
+    "Why": "Map internal exceptions to a controlled envelope and preserve a trace or operation ID for support. Do not expose stack traces or query strings containing private data.",
+    "Risk": "Returning an empty list for every failure causes an agent to misreport outages as no matches.",
+    "Trade": "Typed outcomes require client handling and support reliable decisions.",
+    "Try": "Simulate one normal empty result and one timeout and compare agent behavior."
+  },
+  {
+    "Q": "How should write tools require human confirmation?",
+    "A": "Preparation should produce a reviewable operation with exact parameters, owner, expiry, and revision. Execution should validate an approval bound to that operation.",
+    "Why": "Keep approval verification and the business transaction server-side. A natural-language yes or model-provided approved flag is insufficient.",
+    "Risk": "Reusing approval after parameters change can authorize a different action.",
+    "Trade": "Two-step operations add interaction and reduce accidental changes.",
+    "Try": "Change the amount after approval and verify execution rejects the stale approval."
+  },
+  {
+    "Q": "How do you control concurrency and retries for tools?",
+    "A": "Apply per-tenant quotas, bounded execution concurrency, downstream deadlines, and an idempotency policy for side effects. Retries must depend on outcome and operation semantics.",
+    "Why": "Keep the same durable operation key across retry attempts, and query status after an ambiguous failure. Avoid holding database locks during remote model calls.",
+    "Risk": "Retrying a timeout can repeat a committed write.",
+    "Trade": "Conservative retry limits may surface more transient failures while protecting correctness.",
+    "Try": "Inject a timeout immediately after commit and recover through the operation ledger."
+  },
+  {
+    "Q": "What should MCP observability record?",
+    "A": "Record tool name, schema version, permitted principal category, latency, outcome, retry count, and trace linkage. Store arguments only under a reviewed privacy policy.",
+    "Why": "Use an allowlist of safe attributes and attach task or operation IDs across adapters. Separate user-visible outcomes from instrumentation success.",
+    "Risk": "A tool returning a domain failure may still look like a successful function call.",
+    "Trade": "Detailed payload logging improves diagnosis and increases disclosure risk.",
+    "Try": "Show metrics that distinguish validation rejection, denied access, empty search, and provider outage."
+  },
+  {
+    "Q": "How should MCP contract tests be organized?",
+    "A": "Test schema discovery, normal execution, denied access, malformed inputs, cancellation, timeouts, and client-version compatibility. Add backend invariants separately.",
+    "Why": "Use synthetic data and a sandbox service. Assert what actions occurred, not only what text the agent returned.",
+    "Risk": "Mock-only tests cannot establish behavior of real transport framing or token validation.",
+    "Trade": "End-to-end tests cost more and catch boundary failures unit tests miss.",
+    "Try": "Publish a small compatibility matrix for the clients and protocol revisions you actually ran."
+  },
+  {
+    "Q": "How should tool changes be released?",
+    "A": "Treat schema, semantic, permission, and outcome changes as API changes. Version incompatible contracts and evaluate tool selection after description edits.",
+    "Why": "Pin the deployed artifact, announce deprecations, retain rollback, and compare tool trajectories before expanding traffic.",
+    "Risk": "Renaming a field can break stored plans or cached tool metadata.",
+    "Trade": "Backward compatibility costs maintenance and prevents abrupt client failure.",
+    "Try": "Design a migration from one search field to a structured query without silently changing behavior."
+  }
+]

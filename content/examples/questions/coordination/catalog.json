@@ -1,0 +1,87 @@
+[
+  {
+    "explain": "The business mutation and outbox event must commit together. The dispatcher may deliver more than once, so the receiving effect still needs idempotency.",
+    "steps": "Insert the record and event in one SQLite transaction. || Verify that both are present after commit.",
+    "expect": "1 1",
+    "name": "transactional-outbox",
+    "language": "python",
+    "filename": "transactional-outbox.py",
+    "questions": [
+      560,
+      98,
+      610,
+      389
+    ]
+  },
+  {
+    "explain": "A lease can expire while its worker continues running. The authoritative write compares a fencing token and rejects the stale worker at commit time.",
+    "steps": "Advance ownership from token 7 to token 8. || Require the submitted token to match the authoritative current token in the guarded write.",
+    "expect": "False True",
+    "name": "fencing",
+    "language": "python",
+    "filename": "fencing.py",
+    "questions": [
+      562,
+      744,
+      92,
+      93
+    ]
+  },
+  {
+    "explain": "Lease release must compare the owner token before deleting. A worker that lost ownership must not erase its replacement's lease.",
+    "steps": "Read the current lease token. || Delete only if it still belongs to the releasing worker.",
+    "expect": "B",
+    "name": "compare-delete",
+    "language": "python",
+    "filename": "compare-delete.py",
+    "questions": [
+      563
+    ]
+  },
+  {
+    "explain": "A bounded failure becomes visible in a dead-letter record. Replay uses a new attempt identity while preserving the business operation key.",
+    "steps": "Preserve input identity and failure reason after attempts are exhausted. || Construct a replay attempt without creating a new intended business effect.",
+    "expect": "op1 attempt4",
+    "name": "dead-letter",
+    "language": "python",
+    "filename": "dead-letter.py",
+    "questions": [
+      745
+    ]
+  },
+  {
+    "explain": "Sync needs durable checkpoints and shutdown recovery in addition to one ingestion run. The next worker resumes acknowledged work and reclaims expired ownership.",
+    "steps": "Record a safe checkpoint before shutdown. || Detect that the old lease has expired and resume the unfinished stage.",
+    "expect": "page2 resume",
+    "name": "sync-lifecycle",
+    "language": "python",
+    "filename": "sync-lifecycle.py",
+    "questions": [
+      91,
+      100
+    ]
+  },
+  {
+    "explain": "Compare-and-swap publishes only if the active manifest still matches the expected old generation. Document-level and collection-level activation use different scope keys.",
+    "steps": "Read the expected manifest generation. || Reject an activation based on a stale expectation.",
+    "expect": "False",
+    "name": "compare-activate",
+    "language": "python",
+    "filename": "compare-activate.py",
+    "questions": [
+      94,
+      95
+    ]
+  },
+  {
+    "explain": "Metadata-only updates can avoid re-embedding when content and representation profile stay unchanged. Access changes must still affect query eligibility immediately.",
+    "steps": "Compare content and embedding identities. || Detect a changed owner without changing the vector representation.",
+    "expect": "False True",
+    "name": "metadata-only",
+    "language": "python",
+    "filename": "metadata-only.py",
+    "questions": [
+      96
+    ]
+  }
+]

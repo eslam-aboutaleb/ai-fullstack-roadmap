@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "Why does evidence assembly deserve a separate module?",
+    "A": "Search ranking and prompt construction optimize different things. Ranking selects likely relevant hits; assembly must remove redundancy, preserve source identity, fit a budget, and communicate whether usable evidence exists. A list of raw top-k records does not meet all those needs.",
+    "Why": "An evidence assembler coerces supported hit shapes, deduplicates, merges eligible spans, balances source diversity, selects items, and renders stable citation labels. This deterministic layer can be tested independently of an unpredictable generator.",
+    "Risk": "Assuming all retrieved text is safe prompt instruction invites source-driven manipulation. The bundle treats text as evidence and escapes selected delimiters, while host prompt policy and tool permissions remain necessary.",
+    "Trade": "An extra layer adds types and decisions but centralizes budgeting and attribution. Ad hoc prompt concatenation is shorter and easier to get subtly wrong.",
+    "Try": "Feed duplicate and overlapping hits from two sources into the assembler. Inspect both selected text and the counters explaining what was removed or merged."
+  },
+  {
+    "Q": "How is the context budget calculated?",
+    "A": "Available evidence capacity equals total budget minus reserved instructions, user input, and answer tokens, floored at zero. The assembler must account for rendered framing and citation text, not only passage body tokens. A positive capacity does not imply that even one candidate will fit.",
+    "Why": "A context budget exposes reserved_total, available_evidence_tokens, and is_valid. Assembly checks the rendered form as items are added and returns insufficient_budget when no candidate fits.",
+    "Risk": "Reserving too little for generation can cause provider truncation; counting with an approximate tokenizer cannot guarantee an actual model limit. The host must include its complete message framing and any tool schema costs.",
+    "Trade": "Larger answer reservations reduce evidence capacity. Larger evidence budgets increase cost and can include irrelevant or distracting material.",
+    "Try": "For a 16,000-token window, reserve 2,000 instructions, 1,000 user input, and 3,000 answer tokens. Compute evidence room, then explain what additional host framing must be counted."
+  },
+  {
+    "Q": "Why is an approximate token estimator not a strict context guarantee?",
+    "A": "It estimates from characters and whitespace-separated words. Actual model tokenization depends on its vocabulary and encoding, so a heuristic can undercount some inputs even when intended to be conservative. The class explicitly marks is_exact as false.",
+    "Why": "The retrieval service offers an exact token-counting adapter for a model-specific counter. That adapter is only as exact as the supplied counting function and the host's representation of the final serialized request.",
+    "Risk": "A function labeled exact but counting the wrong model or omitting message wrappers still gives unsafe limits. Multilingual text, code, and unusual characters deserve explicit verification.",
+    "Trade": "Approximation keeps core dependency-free and supports offline use. Exact counting adds a tokenizer dependency or integration step and stronger budget fidelity.",
+    "Try": "Compare heuristic and actual counts for prose, code, Arabic, and long identifiers. Explain why agreement on one example does not establish a global upper bound."
+  },
+  {
+    "Q": "How do deduplication and span merging differ?",
+    "A": "Deduplication removes repeated hits representing the same chunk. Span merging combines compatible overlapping or contiguous material from the same source context, preserving a larger coherent excerpt. They solve redundancy at different identity and text-boundary levels.",
+    "Why": "An evidence assembler has separate _deduplicate and _merge_spans stages and records counts. Proper merging depends on source and revision information plus usable offsets; arbitrary neighboring ranked hits are not automatically one passage.",
+    "Risk": "Merging across revisions or unrelated documents can fabricate a source excerpt that never existed. Missing or inconsistent offsets should not be guessed into a false provenance claim.",
+    "Trade": "Merging can restore context and save repeated framing, but may create a large item that fails the budget. Keeping chunks separate provides finer selection at the cost of repetition.",
+    "Try": "Construct overlapping spans from the same document revision and one from a different revision. Predict which may merge and verify the emitted provenance."
+  },
+  {
+    "Q": "Why balance evidence across sources?",
+    "A": "A single document can occupy the candidate pool with many similar chunks. Source diversity can expose corroborating or contrasting material and reduce redundant context. It is a selection heuristic, not a guarantee that independent sources agree or are trustworthy.",
+    "Why": "The assembler ranks within sources and interleaves them before budget selection. This can preserve diversity even when a long source produces many high-scoring chunks.",
+    "Risk": "Diversity may demote the only authoritative source in favor of weaker material. Source quality and authority are product knowledge rules that may need explicit weighting or filtering outside the default heuristic.",
+    "Trade": "Pure relevance order maximizes one ranking signal; diversity spreads context coverage. Evaluate questions requiring one detailed source separately from questions requiring synthesis across sources.",
+    "Try": "Give one source eight high-ranked chunks and another one relevant chunk. Compare evidence selection with the product's expected authority policy."
+  },
+  {
+    "Q": "What failure states should an evidence consumer handle?",
+    "A": "An evidence-status type includes success, empty_search, backend_failure, insufficient_budget, stale_index, and revision_unavailable. These represent different next actions: answer, clarify, retry, change capacity, refresh indexing, or explain that a historical source cannot be retrieved.",
+    "Why": "The assembler explicitly returns backend and stale-index states rather than assembling ungrounded material. Revision-aware lookup raises a distinct error instead of silently substituting the example document.",
+    "Risk": "Flattening every state into no answer hides outages and can trigger unsafe generation fallbacks. Success also means usable selected evidence, not proof of a correct final answer.",
+    "Trade": "Rich states require more UI and API branches but let users respond appropriately. A single boolean is simpler and loses important operational meaning.",
+    "Try": "Write user-facing messages for each status and specify which states may be retried automatically without changing the user's question."
+  },
+  {
+    "Q": "What makes a citation reproducible?",
+    "A": "A reproducible citation identifies a stable source, document, revision, and bounded location or span. A URL pointing only to the latest page may no longer support an old answer after an update. Display labels such as [1] are local presentation, not durable source identities.",
+    "Why": "Revision-aware source lookup retrieves retained snapshots and rejects unavailable revisions. Evidence items carry revision and span fields, while source-reference helpers encode identifiers for later verification.",
+    "Risk": "Historical snapshots can contain sensitive material even after current content changes. Retention and revocation knowledge rules must apply to lookup as well as search, and a host must provide durable snapshot storage when needed.",
+    "Trade": "Retention improves auditability and costs storage and policy management. Current-only lookup is lighter but must admit when a historical request cannot be verified.",
+    "Try": "Cite revision A, update the source to B, and attempt lookup. Verify that A is returned if retained and that missing A never silently becomes B."
+  },
+  {
+    "Q": "What does delimiter escaping mitigate, and what does it leave open?",
+    "A": "Escaping selected instruction-like tags and code fences reduces the chance that source text visually or syntactically breaks out of an evidence wrapper. It does not recognize every malicious natural-language instruction or make a model incapable of following one.",
+    "Why": "Escape_untrusted_delimiters replaces known markers in evidence rendering, and URI sanitization removes embedded credentials or disallowed active schemes. These are narrow input-handling mechanisms within a larger trust model.",
+    "Risk": "A passage can say ignore previous instructions without using any special delimiter. Host instructions must classify evidence as untrusted data, and tool permissions must prevent source text from gaining authority.",
+    "Trade": "Escaping preserves useful text with modest complexity but can alter literal code examples. More aggressive sanitization may damage legitimate content and still cannot solve all prompt injection.",
+    "Try": "Compare a tag-based injection and a plain-language injection. Explain why both should remain untrusted even if only one changes during escaping."
+  },
+  {
+    "Q": "How can evidence compression preserve usefulness without fabricating support?",
+    "A": "Compression shortens selected material to fit a budget. Extractive compression selects original spans; abstractive compression generates a shorter restatement. The latter can change meaning or omit conditions, so provenance and faithfulness require explicit checks.",
+    "Why": "An evidence assembler accepts an optional compressor, passes a copy of the item, checks selected provenance fields, recounts the rendered result, and falls back when compression fails. No universal learned compressor is installed by default.",
+    "Risk": "Preserving source ID and revision does not prove the compressed words accurately represent the source. The host must evaluate the compressor and decide whether the compressed text is quoteable or should be labeled as a summary.",
+    "Trade": "Compression increases context coverage but adds cost and potential distortion. Dropping a low-value item is often safer than aggressively rewriting essential evidence.",
+    "Try": "Compress a rule containing an exception. Verify both metadata invariance and semantic preservation; show a failure that passes metadata checks but changes the rule."
+  },
+  {
+    "Q": "How should the host turn evidence into a safe answer policy?",
+    "A": "The host should specify when to answer, how to cite, when to ask for clarification, and when to abstain. It should pass authorized evidence as data, preserve status signals, and check that important service requests are supported. This policy is part of the application, not an automatic property of the retrieval service.",
+    "Why": "The bridge returns a structured EvidenceBundle that a generator or source-viewing UI can consume. Its explicit status and attribution fields make a disciplined policy feasible without binding the subsystem to one chat model.",
+    "Risk": "A host that discards bundle status, regenerates citation identifiers, or allows source text to choose tools can undermine the safeguards upstream. Streaming service requests before evidence selection is settled creates another verification gap.",
+    "Trade": "Strict evidence-only answering improves traceability but can feel less helpful for general questions. Clearly separated modes can preserve user expectations.",
+    "Try": "Draft a generation policy for answerable, ambiguous, empty, stale, and failed retrieval cases. Create one acceptance example for each branch."
+  }
+]

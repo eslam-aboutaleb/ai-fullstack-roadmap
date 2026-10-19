@@ -1,0 +1,64 @@
+[
+  {
+    "explain": "A small protocol adapter delegates to an existing authorized domain function. Business rules stay at the service boundary so other entry points cannot bypass them.",
+    "steps": "Validate the authenticated principal against document ownership. || Return a bounded excerpt through the adapter.",
+    "expect": "Exchange only",
+    "name": "read-tool-service",
+    "language": "python",
+    "filename": "read-tool-service.py",
+    "questions": [
+      630,
+      631,
+      351,
+      350
+    ]
+  },
+  {
+    "reference": "https://github.com/modelcontextprotocol/python-sdk/tree/v1.x",
+    "language": "python-sketch",
+    "explain": "The MCP Python SDK v1 FastMCP interface registers a typed function as a tool and runs a stdio server. Use a compatible v1 release for this example; v2 has a different documented server interface.",
+    "steps": "Install a compatible optional mcp v1 SDK (mcp>=1,<2) in an isolated environment. || Register a bounded read-only synthetic tool and start it using the SDK's stdio entry point.",
+    "expect": "A client sees the synthetic_excerpt tool; a valid call returns Exchange only.",
+    "limit": "Optional SDK integration sketch: syntax-checked only; not executed by offline checks. The synthetic tool has no real user identity or private data.",
+    "name": "mcp-sdk-registration",
+    "filename": "mcp-sdk-registration.py",
+    "questions": [
+      352
+    ]
+  },
+  {
+    "explain": "Contract tests exercise rejection and output limits as well as a happy path. All assertions use a local synthetic function without remote capabilities.",
+    "steps": "Define the tool's accepted identity and maximum result size. || Assert valid behavior and expected validation failures.",
+    "expect": "contract checks passed",
+    "name": "tool-contract-tests",
+    "language": "python",
+    "filename": "tool-contract-tests.py",
+    "questions": [
+      635,
+      775,
+      359
+    ]
+  },
+  {
+    "explain": "A semaphore bounds simultaneous work inside one process. This does not establish a fleet-wide quota or a durable command identity.",
+    "steps": "Acquire the semaphore before entering the simulated tool. || Count maximum active calls and ensure it never exceeds the bound.",
+    "expect": "2",
+    "name": "tool-concurrency",
+    "language": "python",
+    "filename": "tool-concurrency.py",
+    "questions": [
+      357
+    ]
+  },
+  {
+    "explain": "Tool telemetry records safe operation metadata and distinguishes execution errors from business outcomes. Payloads and secrets are omitted.",
+    "steps": "Construct one event after a successful transport returning not_found. || Preserve the business outcome instead of turning it into a transport exception.",
+    "expect": "ok not_found",
+    "name": "tool-observation",
+    "language": "python",
+    "filename": "tool-observation.py",
+    "questions": [
+      358
+    ]
+  }
+]

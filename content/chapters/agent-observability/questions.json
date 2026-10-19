@@ -1,0 +1,84 @@
+[
+  {
+    "Q": "How do logs, metrics, traces, audit records, and evaluations differ?",
+    "A": "Logs describe events, metrics aggregate measurements, traces connect causal execution spans, audit records document selected authoritative actions, and evaluations assess behavior against expectations. They can correlate through operation IDs but are not substitutes for one another.",
+    "Why": "Use metrics for trends, logs for events, traces for causal execution, audit for required accountability, and evaluation for quality. Give each a retention and failure policy suited to its purpose.",
+    "Risk": "A successful trace export does not prove a business committed, and an audit row does not explain a model's poor retrieval. Confusing these roles produces incomplete incident diagnosis.",
+    "Trade": "Multiple signals add operational work and answer different questions. Start with a small coherent schema rather than unrelated dashboards.",
+    "Try": "For a failed confirmation after a successful model turn, state which signal proves the transaction result and which explains the preceding tool choice."
+  },
+  {
+    "Q": "What should a useful agent trace tree contain?",
+    "A": "One request or turn root should connect relevant model, tool, retrieval, and persistence activity with durations and sanitized outcomes. Include operation and version metadata needed to reproduce the failure, while excluding secrets and unnecessary private content.",
+    "Why": "Create a task or request root and connect model, retrieval, tool, and persistence spans. Include safe operation and release references without storing unnecessary user content.",
+    "Risk": "Orphan model spans can hide which user-visible turn incurred cost. Copying entire state into attributes creates a privacy problem and a noisy trace.",
+    "Trade": "Rich trace structure improves diagnosis but adds instrumentation complexity. Keep high-value boundaries stable and avoid tracing every tiny helper.",
+    "Try": "Draw the trace tree for coverage review with two tool calls, retrieval, one retry, and final persistence. Mark parallel versus sequential time honestly.",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/traces/"
+  },
+  {
+    "Q": "Why does the runtime-to-model tracing bridge need explicit context stitching?",
+    "A": "Different instrumentation layers may not share the same active trace context. A parent turn recorded by one SDK and a completion recorded by another callback can otherwise appear as unrelated runs. Correlation metadata bridges that boundary.",
+    "Why": "Propagate trace context through supported async and adapter hooks. Verify parentage and avoid brittle monkey patches unless version-specific tests justify the integration.",
+    "Risk": "Patching a framework seam is sensitive to dependency changes. A successful import does not prove nesting remains correct after an upgrade, and duplicate callbacks can double recorded usage.",
+    "Trade": "A localized bridge preserves business-code independence and needs targeted compatibility tests. Provider-native tracing can be simpler but may not connect all application activity.",
+    "Try": "Assert one root turn with nested tool and model spans before and after repeated startup. Verify parent IDs using synthetic data."
+  },
+  {
+    "Q": "How do you distinguish tool exceptions from business failures in telemetry?",
+    "A": "Record transport/runtime success separately from domain outcome. A function that returns error='backend unavailable' has executed without raising but did not satisfy the user task. An empty successful search is another distinct outcome.",
+    "Why": "Record function exceptions and returned business failures separately. A successful function invocation may still mean not found, denied, unavailable, or needs confirmation.",
+    "Risk": "A dashboard based only on exceptions can report excellent tool reliability while users receive failed searches or validations. Mixing not-found with outages also obscures incident severity.",
+    "Trade": "Typed outcome categories require consistent tool schemas and provide actionable alerts. Raw exception counts are simple and incomplete.",
+    "Try": "Add outcome dimensions for completed, empty, validation_rejected, unauthorized, backend_failed, and cancelled. Test each without logging private arguments."
+  },
+  {
+    "Q": "How should token and cost telemetry handle unknown prices?",
+    "A": "Record observed usage, estimated cost, pricing source, and whether pricing is known. Unknown should not be silently interpreted as free. Compare cost per successful task and per stage rather than only per model request.",
+    "Why": "Resolve usage and pricing independently, retaining unknown and estimated values explicitly. Compare total cost per completed task, including retries and failed runs, with a known pricing source.",
+    "Risk": "A zero-cost metric can hide a new provider or unsupported model price. Retries, embedding, and reranking may also be omitted from a narrow generation-only dashboard.",
+    "Trade": "Detailed accounting adds metadata and improves budget control. Provider invoices remain a reconciliation source rather than assuming local estimates are exact bills.",
+    "Try": "Send a synthetic unknown-model usage record and verify it is reported as unpriced, not confidently free. Attribute all calls in one successful task."
+  },
+  {
+    "Q": "Why are in-process metrics different from fleet-wide monitoring?",
+    "A": "Process-local counters and bounded event buffers describe one process since its start. They do not automatically aggregate across replicas, survive restarts, or provide a durable long-term time series. Fleet monitoring requires collection and identity rules.",
+    "Why": "Aggregate across replicas through an external collection system and stable metric definitions. Process-local counters cannot establish a deployment-wide rate or survive restart by themselves.",
+    "Risk": "Summing request snapshots repeatedly can double count, and restarting a process can look like a sudden drop in demand. High-cardinality labels such as raw request IDs can overwhelm a metrics backend.",
+    "Trade": "Local metrics are lightweight and useful for debugging; shared systems add infrastructure and coherent operational visibility.",
+    "Try": "Run two replicas and restart one. Specify how counters, gauges, and histograms should be exported and queried without inventing fleet totals."
+  },
+  {
+    "Q": "How can trace collection disclose private customer data?",
+    "A": "Tool arguments, results, prompts, completions, exception strings, and URLs can contain customer or claim information. Tracing a trusted tool does not make its payload safe to export. Data minimization must apply before or at the instrumentation/export boundary.",
+    "Why": "Apply an allowlist before export, redact necessary payloads, and control access and retention. Review embeddings, transcripts, documents, and identifiers as potential disclosure sources.",
+    "Risk": "Trace readers or vendors may gain access broader than the product's owner-scoped API permits. Confirmation tokens and source text should not appear by accident in support exports.",
+    "Trade": "Content-rich traces help reproduce model failures and increase privacy obligations. Prefer sanitized fixtures and reviewed sampled content when necessary.",
+    "Try": "Inventory actual exported payloads for one synthetic request preparation. Define an allowlist and prove a fake token and private description are absent.",
+    "reference": "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+  },
+  {
+    "Q": "Should tracing failures be allowed to fail business operations?",
+    "A": "Optional telemetry often uses best-effort failure containment to preserve availability. Mandatory business audit may require a different policy. Decide per signal rather than declaring that every kind of observation may be dropped harmlessly.",
+    "Why": "Keep optional telemetry failure from blocking business work where the product permits it. Required audit may need transactional delivery or a controlled fail-closed policy instead.",
+    "Risk": "Silent instrumentation failure can leave an incident undiagnosable. Conversely, blocking every request on a slow telemetry vendor can create an avoidable outage.",
+    "Trade": "Fail-open telemetry improves availability and needs health signals for lost coverage. Transactional audit or a durable audit outbox increases assurance and operational coupling.",
+    "Try": "Simulate unavailable tracing and unavailable audit storage separately. Define the expected request, readiness, and alert behavior for each."
+  },
+  {
+    "Q": "What SLOs and alerts are useful for a support assistant?",
+    "A": "Monitor successful authorized task completion, stream completion, backend failures, indexing lag, oldest pending job age, provider throttling, and cost per completed task. Use freshness and correctness signals alongside request latency.",
+    "Why": "Define SLOs around useful outcomes, response delay, evidence freshness, and recovery. Alert on sustained user impact and preserve a path from aggregate metrics to safe trace identifiers.",
+    "Risk": "Alerting only on average HTTP latency misses stuck jobs and quality failures. Sampling can also miss rare severe authorization incidents, which need deterministic denial monitoring and tests.",
+    "Trade": "More nuanced SLOs require definitions and ownership. A small set linked to concrete user impact is more maintainable than dozens of disconnected thresholds.",
+    "Try": "Define a stream-success SLO and an indexing-lag SLO, including numerator, denominator, window, and corrective action."
+  },
+  {
+    "Q": "How should observability produce better evaluation cases?",
+    "A": "Triage a failure trace, minimize and sanitize it, establish the correct outcome with a reviewer, and add a versioned regression case. Keep raw production data access restricted and preserve which failure the new case is intended to catch.",
+    "Why": "Turn reviewed incidents into redacted reproducible fixtures. Keep task category, configuration lineage, observed failure, and expected invariant while avoiding unnecessary customer-data retention.",
+    "Risk": "Automatically adding model answers as gold labels reinforces errors. Copying production conversations into broad datasets can violate data-minimization policy.",
+    "Trade": "Reviewed case creation costs human time and improves relevance. Fully synthetic tests scale cheaply and may miss real ambiguity.",
+    "Try": "Turn one synthetic wrong-policy trace into a case with expected revision, required tool steps, allowed final outcomes, and a clear privacy review."
+  }
+]

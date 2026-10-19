@@ -1,0 +1,95 @@
+[
+  {
+    "language": "sql",
+    "explain": "Columns encode relationships and invariants while an optional JSON-shaped metadata field handles noncritical flexible content. The database rejects invalid relationships independently of API checks.",
+    "steps": "Create documents and revisions with a foreign key and uniqueness rule. || Join revision rows to documents using the relationship key.",
+    "expect": "One row: D1, A, 2. Run in a disposable SQLite database with foreign keys enabled.",
+    "limit": "This portable SQL fixture is validated with SQLite; PostgreSQL-specific types and concurrency are separate exercises.",
+    "name": "relational-schema",
+    "filename": "relational-schema.sql",
+    "questions": [
+      509,
+      722,
+      151,
+      154,
+      155
+    ]
+  },
+  {
+    "explain": "Decimal calculations preserve decimal money values when created from strings. Quantization applies an explicit currency rounding rule.",
+    "steps": "Parse amounts as decimal strings instead of passing through binary float. || Multiply and round at the declared financial boundary.",
+    "expect": "0.30",
+    "name": "decimal-money",
+    "language": "python",
+    "filename": "decimal-money.py",
+    "questions": [
+      510,
+      153,
+      267
+    ]
+  },
+  {
+    "explain": "Database constraints still reject invalid writes when a caller skips API validation. The temporary in-memory database is discarded after the exercise.",
+    "steps": "Add a CHECK constraint on quota. || Attempt an invalid insert and verify that the database raises an integrity error.",
+    "expect": "rejected",
+    "name": "constraint-check",
+    "language": "python",
+    "filename": "constraint-check.py",
+    "questions": [
+      511
+    ]
+  },
+  {
+    "language": "sql",
+    "explain": "The owner-and-created-time index matches a user's task-history filter and ordering. EXPLAIN reveals whether the database chooses it; this does not establish production latency.",
+    "steps": "Create a composite index whose leading field matches the owner filter. || Inspect the plan for an owner-scoped ordered query with a bounded result count.",
+    "expect": "The query plan uses the owner_time index; exact EXPLAIN text depends on the SQLite version.",
+    "limit": "Run on a disposable database. Benchmark real PostgreSQL query plans and realistic row counts separately.",
+    "name": "index-plan",
+    "filename": "index-plan.sql",
+    "questions": [
+      512,
+      156
+    ]
+  },
+  {
+    "explain": "Expand-and-contract keeps old readers working until backfill and new readers are ready. This state model makes the required sequence explicit.",
+    "steps": "Add the new field while keeping the old one. || Permit old-field removal only after backfill and retirement of old readers.",
+    "expect": "False True",
+    "name": "expand-contract",
+    "language": "python",
+    "filename": "expand-contract.py",
+    "questions": [
+      513,
+      723,
+      158,
+      159,
+      693,
+      282
+    ]
+  },
+  {
+    "explain": "Internal identity and a human-readable request code serve different consumers. Both refer to the same record rather than being conflated.",
+    "steps": "Store a stable opaque primary key and separate display code. || Return only the necessary public identity to a user-facing workflow.",
+    "expect": "REQ-0042",
+    "name": "internal-public-id",
+    "language": "python",
+    "filename": "internal-public-id.py",
+    "questions": [
+      152
+    ]
+  },
+  {
+    "explain": "A prepared revision becomes searchable only after activation. The activation marker selects a complete generation rather than partially uploaded chunks.",
+    "steps": "Keep revision artifacts and the active pointer separate. || Change the pointer only when the new generation is complete.",
+    "expect": "1 2",
+    "name": "active-revision",
+    "language": "python",
+    "filename": "active-revision.py",
+    "questions": [
+      157,
+      556,
+      81
+    ]
+  }
+]

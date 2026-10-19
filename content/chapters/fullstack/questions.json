@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "What application components are still needed around the retrieval service?",
+    "A": "A complete product needs identity, authorized API routes, a document-management workflow, durable adapters, background workers, generation policy, a user interface, monitoring, deployment, and evaluation. The reference design supplies important subsystem pieces and examples, not all of these production services.",
+    "Why": "Build around the evidence contract: the API obtains authorized evidence, then a host generator produces an answer, while the UI can open source spans and show status. This keeps source verification useful even without generation.",
+    "Risk": "Assuming the library owns users or migrations can leave critical responsibilities unimplemented. A polished chat screen does not compensate for missing tenant isolation or recovery behavior.",
+    "Trade": "Explicit host ownership requires more work but fits an existing backend. A monolithic demo can be quicker and should be labeled according to its actual guarantees.",
+    "Try": "Draw your target application with browser, API, workers, identity provider, source system, vector store, snapshot store, and model provider. Mark every trust boundary."
+  },
+  {
+    "Q": "How would you design the search and chat API contracts?",
+    "A": "Expose structured request and response objects with query, permitted collection choice, bounded retrieval options, operation identity, status, evidence, and citations. Resolve user identity and allowed scope on the server. Keep internal database names and arbitrary backend filters out of the public API unless deliberately supported.",
+    "Why": "RetrievalRequest and EvidenceBundle provide useful internal shapes, but the host should create a stable transport contract rather than expose all library internals. Errors should distinguish validation, denied access, backend outage, and successful empty search.",
+    "Risk": "Letting a browser select raw table names or trusted client IDs bypasses the composition boundary. Returning provider exceptions directly may leak secrets or infrastructure details.",
+    "Trade": "A narrow API is safer and easier to evolve; an expert administration API may expose more controls under stronger permissions.",
+    "Try": "Write example request and response JSON for success, denied scope, and backend failure. Explain which fields the server derives instead of trusting the client."
+  },
+  {
+    "Q": "How should streaming work without misleading the user?",
+    "A": "Complete authorization and evidence selection before presenting factual generated service requests as supported. Stream generation events with an operation ID and explicit stages, then preserve a final status and citation mapping. The exact HTTP transport is a host design choice, not a provided chat server feature.",
+    "Why": "Evidence assembly produces a stable bundle before a generator consumes it. The UI can show searching, assembling, generating, complete, cancelled, or failed states without pretending that partial text is a verified final answer.",
+    "Risk": "A network disconnect can leave server work running, and partial output may contain incomplete citation syntax. Propagate cancellation where possible and never silently mark a truncated stream complete.",
+    "Trade": "Early streaming improves perceived responsiveness while complicating error recovery and state handling. A non-streaming first version is easier to validate.",
+    "Try": "Design events for evidence_ready, answer_delta, complete, and failure. Simulate a disconnect after two deltas and specify what remains visible and retryable."
+  },
+  {
+    "Q": "What should a useful RAG interface show besides the answer text?",
+    "A": "Show source titles and bounded excerpts, revision or freshness when relevant, citation navigation, loading and failure states, and a clear way to refine an ambiguous question. Make evidence accessible by keyboard and avoid presenting similarity as factual confidence.",
+    "Why": "The bundle already contains attribution and status data that a frontend can render. revision-aware source lookup provides a verification path when the user opens a citation; that path must retain the same identity and scope policy.",
+    "Risk": "Rendering document text as raw HTML can create cross-site scripting. Use safe text rendering or a deliberately sanitized markup pipeline, and treat citation URLs as untrusted input.",
+    "Trade": "More evidence improves transparency but can overwhelm users. Start with concise source summaries and progressive disclosure of full spans.",
+    "Try": "Build a search-only UI before chat. Include empty, stale, failed, and insufficient-budget examples, then test it entirely with keyboard navigation."
+  },
+  {
+    "Q": "How should frontend state be separated from backend truth?",
+    "A": "Keep local interaction state such as expanded sources or draft input separate from server state such as operation status, evidence, and active document versions. Key cached results by the relevant identity, scope, query, and configuration or revision where necessary.",
+    "Why": "The retrieval service returns structured results, leaving the browser framework and caching library to the host. A frontend must preserve status distinctions and invalidate data when permissions or active generations change.",
+    "Risk": "Reusing a browser cache across sign-out or tenant switching can expose another user's evidence. Optimistically marking ingestion complete before activation can also misrepresent searchability.",
+    "Trade": "Explicit invalidation and cache partitioning add complexity but preserve correct user expectations. A simple no-cache first implementation can be preferable to unsafe reuse.",
+    "Try": "Switch tenants while a request is in flight. Ensure its late response cannot populate the new tenant's visible state or source drawer."
+  },
+  {
+    "Q": "How should document upload and indexing progress be designed?",
+    "A": "Treat upload acceptance, source storage, extraction, embedding, activation, and searchability as distinct states. Persist the accepted source and enqueue background work according to the host's transaction policy. Return an operation identifier rather than blocking the request until every provider call completes.",
+    "Why": "Outbox and drainer interfaces decouple request latency from processing. Sync reports and events provide lifecycle information that a host can translate into progress, while active visibility determines when content can actually be searched.",
+    "Risk": "A successful upload can later fail extraction or embedding. The UI must not claim indexed status solely because bytes were received, and retry actions must avoid duplicate logical documents.",
+    "Trade": "Background workflows need polling or event delivery and durable state. Synchronous ingestion is simpler for small local experiments but less resilient under provider latency.",
+    "Try": "Define a document state machine from uploaded to searchable, with retry and failed states. Associate each transition with the component that can authoritatively report it."
+  },
+  {
+    "Q": "What does production deployment require beyond installing optional extras?",
+    "A": "Provision durable stores and schemas, configure credentials and network access, run workers, set identity and permissions, select compatible profiles, validate startup, and establish backups, monitoring, and rollback. An optional dependency installs client code; it does not provision or secure its service.",
+    "Why": "The dependency manifest separates backend extras from dependency-free core, while health checks and integration examples help validate wiring. Actual database indexes and extension configuration remain deployment responsibilities.",
+    "Risk": "Multiple replicas using in-memory manifests or rate limits do not share authoritative state. Secrets in configuration fingerprints or public diagnostics can also create exposure.",
+    "Trade": "Managed services reduce some operations work and add cost or provider dependence. Self-hosting gives control and requires deeper operational expertise.",
+    "Try": "Produce a deployment inventory with ownership, persistence, backup, restart behavior, and secret source for every component. Include what happens when one replica restarts."
+  },
+  {
+    "Q": "How would you plan capacity and handle overload?",
+    "A": "Model request arrival, per-stage service time, concurrency, queue capacity, database pools, and provider quotas. Apply admission control before expensive work, bound jobs, and shed optional processing when appropriate. Interactive search and batch ingestion should not starve each other accidentally.",
+    "Why": "The executor semaphore, transport limiter, job store, and health signals are local building blocks. The host must coordinate quotas across replicas and enforce end-to-end budgets.",
+    "Risk": "Increasing worker count can increase throttling rather than throughput. An unbounded backlog hides overload until memory, storage, or freshness collapses.",
+    "Trade": "Separate worker pools and queues improve isolation but add infrastructure. A shared small deployment is economical until contention becomes measurable.",
+    "Try": "Estimate sustainable throughput from provider concurrency and observed call duration, then load-test around that estimate. Report queue age as well as requests per second."
+  },
+  {
+    "Q": "What portfolio project would demonstrate AI full-stack competence?",
+    "A": "Build a multi-tenant knowledge assistant with a search-first interface, revision-aware citations, background ingestion, a grounded answer policy, and a reproducible evaluation report. Show a failure and its diagnosis, not only a polished happy-path recording.",
+    "Why": "This combines frontend state, API design, identity, async jobs, data modeling, retrieval, generation, evaluation, and operations. the retrieval service provides the subsystem foundation while your work proves the application integration.",
+    "Risk": "A public demo can accidentally expose private sample documents or provider credentials. Use a reviewed fixture corpus and document implemented guarantees rather than aspirational architecture.",
+    "Trade": "A narrow reliable project is more convincing than many unfinished advanced features. Add reranking or multi-query only when your benchmark shows why they help.",
+    "Try": "Deliver a README with architecture, a threat-boundary map, benchmark results, three recovery demonstrations, and a five-minute walkthrough that opens a cited source revision."
+  },
+  {
+    "Q": "How should I answer a senior system-design interview using this reference design?",
+    "A": "Start with requirements and constraints, then describe the offline and online flows, data identities, permission boundary, consistency model, failure recovery, quality evaluation, and capacity plan. Defend choices with case-based mechanisms and acknowledge which guarantees depend on host adapters.",
+    "Why": "The reference design's strongest lessons are explicit boundaries: prepare versus commit, candidates versus final evidence, logical visibility versus physical cleanup, and retrieval quality versus answer faithfulness. These distinctions scale beyond one library.",
+    "Risk": "Memorized pattern names and invented timing claims collapse under follow-up questions. Be ready to explain a crash interleaving, an authorization failure, and a measured quality trade-off in concrete terms.",
+    "Trade": "A good design is conditional on requirements. State when a keyword-only system, one transactional database, or a simpler synchronous workflow would be the better choice.",
+    "Try": "Give a 45-minute mock interview: five minutes requirements, ten architecture, ten consistency and security, ten evaluation and scale, and ten trade-offs and alternatives."
+  }
+]

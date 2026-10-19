@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "How are JWTs validated and converted into database ownership?",
+    "A": "Validate the token under an explicit issuer, audience, algorithm, and lifetime profile, resolve the subject to a trusted application principal, and authorize access to each resource. A model-generated owner identifier cannot replace authenticated identity.",
+    "Why": "Validate signature, allowed algorithm, issuer, audience, expiry, and required claims under the token profile. Resolve the trusted principal and enforce resource ownership in services, not model arguments.",
+    "Risk": "A valid token may remain usable after access should be revoked unless the product checks revocation or session versions. Choose lifetime and refresh behavior from the threat model.",
+    "Trade": "Stateless token checks scale well, while immediate revocation needs additional state or shorter-lived credentials. Database user lookup already provides one current-state validation point.",
+    "Try": "Test expired, malformed, deleted-user, wrong-signature, and valid tokens. Verify that a known request ID still requires owner authorization."
+  },
+  {
+    "Q": "Why are HttpOnly, Secure, SameSite, CORS, and CSRF different controls?",
+    "A": "HttpOnly limits script access to cookies, Secure limits cookie transport to HTTPS, and SameSite constrains some cross-site sending. CORS controls browser access across origins. CSRF protection addresses unwanted state-changing requests made with ambient credentials. None is interchangeable with user authorization.",
+    "Why": "Set cookie and origin policies explicitly for the deployment. Review state-changing routes for CSRF and XSS exposure; CORS, SameSite, HttpOnly, and Secure address different browser behaviors.",
+    "Risk": "These settings do not establish a complete CSRF review of all mutations and deployment origins. XSS can still issue authorized actions even when it cannot read an HttpOnly cookie.",
+    "Trade": "Cookie authentication simplifies browser sessions but requires deliberate origin and state-change policy. Bearer clients have different storage and transport concerns.",
+    "Try": "Build a matrix for sign-in, confirmation, cancellation, and logout across trusted and untrusted origins. State which server-side checks enforce each result."
+  },
+  {
+    "Q": "How does ContextVar prevent cross-request identity leakage?",
+    "A": "ContextVar associates a value with an asynchronous execution context rather than one mutable process-global variable. Concurrent requests can therefore carry different identities through await boundaries. It is a context propagation mechanism, not an authorization decision or durable identity store.",
+    "Why": "Bind task-local identity at the authenticated boundary and reset it in a finally block. A background task must receive a deliberate identity rather than rely on accidental inherited context.",
+    "Risk": "Capturing context for a task that outlives a request can retain stale identity. Failing to reset temporary bindings can also confuse tests or reused execution contexts. Server code must define where identity begins and ends.",
+    "Trade": "Implicit context reduces parameter threading and can hide dependencies. Explicit identity parameters improve local clarity and require more signatures.",
+    "Try": "Run two concurrent tool calls under separate context bindings. Test missing identity and an outliving background task; verify both fail or receive an explicit service identity as intended."
+  },
+  {
+    "Q": "Why must case ownership be checked in tools as well as routes?",
+    "A": "Agent tools may execute through a runner, test harness, or future remote protocol without passing through a particular HTTP route. A protected route cannot be the only place a domain operation learns whose data it may access.",
+    "Why": "Authorize the resource inside the service called by every adapter. A protected chat endpoint cannot make a later model-selected identifier trustworthy.",
+    "Risk": "A model-supplied user_id is untrusted even if it is a valid UUID. A future LangChain adapter must not expose that internal parameter as a tool argument the model can freely choose.",
+    "Trade": "Repeated enforcement at domain boundaries adds code and protects alternate callers. Duplicated policy implementations can drift, so centralize shared service authorization where possible.",
+    "Try": "Invoke the service request-search tool directly without an HTTP request and with the wrong user context. Verify that knowing another user's request ID does not reveal it."
+  },
+  {
+    "Q": "What is the distinction between RBAC and resource ownership here?",
+    "A": "Role-Based Access Control determines whether a principal may perform a category of action; ownership determines which records that principal may affect. A support operator role does not automatically justify unrestricted access to every customer's service requests.",
+    "Why": "Use roles for permitted categories of action and ownership for access to a particular resource. Check both when a privileged operation also targets tenant-scoped data.",
+    "Risk": "Replacing the allowlist with a broad role check without resource policy can overgrant authority. Tests that widen the allowlist for fixtures do not prove production administration is configured.",
+    "Trade": "Combining role and attribute checks is more expressive and more complex. A deny-by-default seam is safer than silently pretending a missing administrative policy exists.",
+    "Try": "Define reader, customer, handler, and administrator actions with both role and record-scope rules. Map each rule to its actual enforcement point."
+  },
+  {
+    "Q": "Why does password hashing require more than naming Argon2?",
+    "A": "A password hash uses intentionally costly computation and salt to resist offline guessing. Operational parameters, input limits, verification errors, rehash policy, and login rate limiting matter too. A hash algorithm name alone does not establish timing-safe user enumeration resistance.",
+    "Why": "Use a valid dummy hash with a reviewed work factor for unknown accounts. Compare timing distributions under load and keep authentication errors consistent without suppressing operational diagnostics.",
+    "Risk": "Malformed dummy verification can return faster than a real check. Unbounded password input or excessive concurrent hashing can also consume resources before the agent is involved.",
+    "Trade": "Higher hashing cost protects stolen hashes and increases authentication resource use. Choose measured parameters and a valid equivalent dummy path.",
+    "Try": "Benchmark known-user wrong-password and unknown-user checks with reviewed test data. Verify hash validity and compare distributions without asserting perfect constant time."
+  },
+  {
+    "Q": "How should confirmation tokens be treated as capabilities?",
+    "A": "A confirmation token identifies a specific prepared action and should be bound to the user, payload, pending state, and expiry. Possession alone should not bypass authentication. Material edits should produce a new reviewed operation and invalidate or supersede the old one server-side.",
+    "Why": "Bind confirmation to owner, exact parameters, revision, expiry, and pending state. Supersede earlier approvals explicitly after material changes and reject reused completed tokens.",
+    "Risk": "A model's statement cannot revoke a still-pending token. Some preparation logs also include tokens, increasing the audience that may see them even though owner binding remains required.",
+    "Trade": "Server-enforced supersession adds lifecycle bookkeeping and prevents stale confirmation. Keeping multiple live preparations is simpler but needs an honest user-visible model.",
+    "Try": "Prepare an amount, correct it, then try both tokens. Document current behavior and specify the desired supersession invariant."
+  },
+  {
+    "Q": "Why must rate limiting, request-size limits, and tool budgets coexist?",
+    "A": "Request rate bounds arrival frequency, size limits bound per-request input, and tool or token budgets bound work initiated by one accepted request. An agent can turn one small request into many expensive provider calls, so requests per minute alone do not control cost.",
+    "Why": "Apply limits at request, run, model, and tool boundaries. Account for nested calls and retries so one accepted HTTP request cannot expand into unbounded downstream work.",
+    "Risk": "Fail-open Redis behavior preserves availability and can weaken fleet-wide limits during an outage. Model-generated loops may also stay within HTTP request limits while exhausting provider budgets.",
+    "Trade": "Layered budgets increase configuration and improve predictable resource use. Tight limits can interrupt legitimate multi-intent conversations and need explicit completion states.",
+    "Try": "Estimate worst-case cost from maximum turns, tool calls, retries, candidates, and output tokens. Test overload without using real private service requests."
+  },
+  {
+    "Q": "How can error responses leak information even when access is denied?",
+    "A": "Different messages, status codes, timings, trace payloads, and raw exception strings can reveal record existence or internal details. A denial response should reveal only what the caller is entitled to learn, while internal diagnostics remain appropriately protected.",
+    "Why": "Return appropriately indistinguishable not-found or inaccessible responses when disclosure policy requires it. Keep private diagnostic detail in protected logs rather than client exception text.",
+    "Risk": "A model may repeat an internal error returned by a tool. Sanitizing only the final HTTP exception leaves tool results and streaming error events as additional channels.",
+    "Trade": "Generic external messages reduce detail for users and support; structured internal error categories preserve diagnosis without exposing private values.",
+    "Try": "Compare responses for unknown and foreign-owned request IDs, invalid tokens, provider failures, and database errors. Inspect both the streamed events and final response."
+  },
+  {
+    "Q": "What does an effective threat-model review produce?",
+    "A": "It produces a concrete asset and actor map, trust boundaries, abuse cases, enforcement points, and tests. For this product, include private claim text, confirmation tokens, knowledge versions, prompt data, provider keys, session history, and traces.",
+    "Why": "List assets, actors, entry points, trust boundaries, and forbidden effects. Convert identified threats into owners, controls, and observable acceptance tests rather than a generic security checklist.",
+    "Risk": "A checklist detached from actual call sites can certify controls that are merely configured or documented. Threat modeling should include alternate paths such as evaluation, administration, scripts, and workers.",
+    "Trade": "A focused model tied to major workflows is maintainable. An exhaustive speculative catalog can consume time without improving concrete denial behavior.",
+    "Try": "Pick cross-user disclosure, duplicate submission, and malicious-source instructions. For each, identify the earliest reliable enforcement point and a test proving denial."
+  }
+]

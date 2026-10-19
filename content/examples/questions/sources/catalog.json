@@ -1,0 +1,103 @@
+[
+  {
+    "explain": "Only a completed authoritative empty scan supports removing absent records. A failed or partial scan must not silently clear the active corpus.",
+    "steps": "Record scan completion and authority independently of item count. || Permit deletion reconciliation only when both guarantees hold.",
+    "expect": "False True",
+    "name": "scan-outcome",
+    "language": "python",
+    "filename": "scan-outcome.py",
+    "questions": [
+      532,
+      558,
+      22,
+      87,
+      733
+    ]
+  },
+  {
+    "explain": "A listed page cursor and a committed processing checkpoint mean different things. A failure after listing must not advance the restart boundary.",
+    "steps": "List the next page without changing the durable checkpoint. || Advance the checkpoint only after the fixture's page processing succeeds.",
+    "expect": "page1 page2",
+    "name": "checkpoint",
+    "language": "python",
+    "filename": "checkpoint.py",
+    "questions": [
+      533,
+      23,
+      732
+    ]
+  },
+  {
+    "explain": "A location identifies where bytes came from while a content digest identifies which bytes were processed. Equal URLs do not establish equal content.",
+    "steps": "Hash downloaded synthetic bytes. || Compare the digest after changing the file while retaining the same location.",
+    "expect": "True",
+    "name": "source-digest",
+    "language": "python",
+    "filename": "source-digest.py",
+    "questions": [
+      534,
+      27,
+      29
+    ]
+  },
+  {
+    "explain": "Reconciliation compares authoritative source identities with indexed state and finds missed additions and deletions. Watcher events alone cannot guarantee completeness.",
+    "steps": "Build source and index identity sets. || Calculate the required upsert and remove operations.",
+    "expect": "['D3'] ['D1']",
+    "name": "reconciliation",
+    "language": "python",
+    "filename": "reconciliation.py",
+    "questions": [
+      535,
+      30
+    ]
+  },
+  {
+    "explain": "Discovery, fetching, extraction, and ingestion produce different intermediate artifacts. Separating them helps identify the first bad transformation.",
+    "steps": "Model a listing record separately from downloaded bytes. || Decode text and prepare an indexed object while retaining source identity.",
+    "expect": "D1 policy",
+    "name": "source-stages",
+    "language": "python",
+    "filename": "source-stages.py",
+    "questions": [
+      21
+    ]
+  },
+  {
+    "explain": "Resolving a candidate path and verifying its permitted root prevents a basic traversal. Real file access also needs defenses against symlink races and an OS-enforced boundary.",
+    "steps": "Resolve root and candidate before comparing ancestry. || Reject a parent-directory traversal without opening a file.",
+    "expect": "False",
+    "name": "path-boundary",
+    "language": "python",
+    "filename": "path-boundary.py",
+    "questions": [
+      24,
+      365,
+      771
+    ]
+  },
+  {
+    "explain": "A retryable rate limit pauses progress rather than activating a partial crawl. Redirect and destination checks remain separate controls.",
+    "steps": "Classify the synthetic response status. || Preserve the previous checkpoint when the source asks the client to retry later.",
+    "expect": "retry page1",
+    "name": "crawl-policy",
+    "language": "python",
+    "filename": "crawl-policy.py",
+    "questions": [
+      26
+    ]
+  },
+  {
+    "explain": "Recognized text and usable document structure are different outputs. A requested field must retain its row/header association rather than being chosen solely because its characters are correct.",
+    "steps": "Keep line labels with recognized values. || Select amount_due instead of the first number on the page.",
+    "expect": "200",
+    "name": "extraction-quality",
+    "language": "python",
+    "filename": "extraction-quality.py",
+    "questions": [
+      28,
+      536,
+      451
+    ]
+  }
+]

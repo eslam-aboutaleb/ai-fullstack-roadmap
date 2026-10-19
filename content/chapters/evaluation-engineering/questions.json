@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "Why does an agent need evaluation even when its answers look good?",
+    "A": "An agent can write convincing text while choosing the wrong tool, exposing data, repeating a transaction, or failing to finish. Evaluation checks outcomes and the process that produced them.",
+    "Why": "Define task success and forbidden effects before implementation. Combine deterministic assertions, human review, and calibrated model judging where appropriate.",
+    "Risk": "A style-only score can reward unsafe behavior.",
+    "Trade": "Broad evaluation costs effort and prevents expensive hidden failures.",
+    "Try": "Create a fluent answer paired with a duplicate write and ensure it fails the suite."
+  },
+  {
+    "Q": "How should evaluation datasets be partitioned?",
+    "A": "Separate development examples, prompt-tuning data, held-out release cases, and ongoing production monitoring samples. Keep adversarial and regression sets visible as distinct categories.",
+    "Why": "Track provenance and versioning, prevent duplicate leakage across splits, and retain hard cases after fixes.",
+    "Risk": "Repeatedly tuning against the release set turns it into training data.",
+    "Trade": "Larger held-out sets improve confidence and cost more to curate.",
+    "Try": "Deduplicate a dataset by task template and source document, not only exact text."
+  },
+  {
+    "Q": "What is the difference between outcome and trajectory evaluation?",
+    "A": "Outcome evaluation checks the final answer or durable business result. Trajectory evaluation checks tool choices, arguments, ordering constraints, permissions, and recovery behavior along the way.",
+    "Why": "Use invariants when multiple sequences are valid. Reserve exact sequence matching for workflows whose order is actually required.",
+    "Risk": "A correct final record may hide an unauthorized read that happened earlier.",
+    "Trade": "Trajectory checks improve diagnosis and require richer event capture.",
+    "Try": "Accept two valid search sequences but reject either if it crosses a tenant boundary."
+  },
+  {
+    "Q": "How should model judges be calibrated?",
+    "A": "Compare judge labels with reviewed human labels across representative failures. Measure agreement, systematic bias, and sensitivity to irrelevant wording before trusting the score.",
+    "Why": "Use an explicit rubric and structured reasons, randomize answer order, and keep judged content untrusted. Recalibrate after judge changes.",
+    "Risk": "A judge can favor its own style or follow injected scoring instructions.",
+    "Trade": "Human calibration is costly and anchors automation.",
+    "Try": "Build a disagreement table and revise the rubric before increasing judge volume."
+  },
+  {
+    "Q": "How do Ragas, DeepEval, and Promptfoo fit different needs?",
+    "A": "Ragas provides RAG-oriented evaluation components, DeepEval supplies model-testing abstractions and metrics, and Promptfoo supports configuration-driven comparisons and assertions. Their metrics and defaults are not interchangeable.",
+    "Why": "Choose the library that fits your workflow, inputs, privacy requirements, and required assertions. Pin a compatible version and document your judge configuration.",
+    "Risk": "A library name or metric label does not establish measurement validity.",
+    "Trade": "Multiple tools can fill gaps and duplicate infrastructure.",
+    "Try": "Run the same small dataset through two tools and explain score differences from their contracts."
+  },
+  {
+    "Q": "How do tracing platforms support evaluation?",
+    "A": "Traces reveal actual inputs, tools, timing, and outcomes so evaluation failures can be diagnosed. Platforms such as LangSmith, Phoenix, and TruLens connect observation with experiment or feedback workflows in different ways.",
+    "Why": "Capture safe trace identifiers and attach evaluation labels to immutable run versions. Evaluate retention and data export policies before sending payloads.",
+    "Risk": "Rich traces can leak private user or document content.",
+    "Trade": "Hosted workflows simplify collaboration and add privacy and cost decisions.",
+    "Try": "Diagnose one failed task using metadata-only traces and identify what additional redacted evidence is necessary."
+  },
+  {
+    "Q": "How should performance and quality be reported together?",
+    "A": "Report completion, unsupported-answer rate, policy violations, p50 and p95 latency, and total cost per completed task. Include sample sizes and uncertainty rather than one blended score.",
+    "Why": "Use paired fixtures when comparing releases and segment by task difficulty and user context. Count retries and failed tasks in cost.",
+    "Risk": "Average latency can hide severe tail delays or one vulnerable subgroup.",
+    "Trade": "Multi-dimensional reporting is harder to summarize and supports honest trade-offs.",
+    "Try": "Build a comparison table where one variant is cheaper but fails more difficult tasks."
+  },
+  {
+    "Q": "How should side-effecting agents be evaluated safely?",
+    "A": "Use sandbox services, synthetic users, isolated databases, and explicit effect ledgers. Assert that only permitted writes occur and reset fixtures between runs.",
+    "Why": "Separate replayed model decisions from live provider experiments. Never point a benchmark at real payment or notification systems.",
+    "Risk": "A mocked success response can conceal real transaction or concurrency failures.",
+    "Trade": "Realistic isolated tests require infrastructure and establish stronger behavior evidence.",
+    "Try": "Race two confirmation requests against a disposable database and count durable records."
+  },
+  {
+    "Q": "How should online feedback differ from offline evaluation?",
+    "A": "Online feedback reflects real user experience but is selective and often incomplete. Offline evaluation provides controlled repeatability but may miss new task distributions. Use both.",
+    "Why": "Review sampled failures, add approved examples to datasets, and monitor changes in task mix and rejection rates.",
+    "Risk": "Positive feedback is not proof of factual correctness or privacy compliance.",
+    "Trade": "Production learning improves relevance and requires careful data governance.",
+    "Try": "Define a process for converting a redacted support incident into a reproducible test fixture."
+  },
+  {
+    "Q": "What should block an agent release?",
+    "A": "Block on breached safety invariants, unacceptable task failure, degraded recovery, or a measured performance regression beyond the agreed threshold. Define these gates before seeing results.",
+    "Why": "Require immutable release manifests and a rollback path. Distinguish critical deterministic failures from noisy judge-score fluctuations.",
+    "Risk": "Choosing a threshold after evaluation invites cherry-picking.",
+    "Trade": "Strict gates slow release and protect known obligations.",
+    "Try": "Write a release policy with one absolute invariant, one statistical quality target, and one latency budget."
+  }
+]

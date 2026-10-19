@@ -1,0 +1,40 @@
+[
+  {
+    "Q": "What does a tool wrapper add to an existing function?",
+    "explain": "It describes the function in a model-usable form and translates between runtime input and the service contract. It should not duplicate authorization or invent a second version of business rules. Inject trusted identity outside model-editable arguments.",
+    "example": "The model supplies a request reference; the wrapper supplies the authenticated principal from runtime context.",
+    "takeaway": "Adapt the interface while preserving the authority boundary."
+  },
+  {
+    "Q": "When do you want an agent instead of a fixed composition?",
+    "explain": "A fixed composition follows known stages. An agent selects actions based on observations. Use the flexibility where it solves varied intent or incomplete information, and keep deterministic paths for exact known workflows.",
+    "example": "An extraction-and-validation endpoint may need no tool-selection loop at all.",
+    "takeaway": "A simpler execution structure is often easier to verify."
+  },
+  {
+    "Q": "What should middleware handle?",
+    "explain": "Place shared budgeting, safe tracing, model routing, and context transformations around calls. Keep resource ownership and transaction invariants in the domain service so HTTP routes and background jobs enforce the same rules.",
+    "example": "A budget middleware can stop a fifth model call; it cannot replace the service's check that R17 belongs to the caller.",
+    "takeaway": "Cross-cutting controls and business rules occupy different layers."
+  },
+  {
+    "Q": "How should framework output reach the frontend?",
+    "explain": "Translate it into your own versioned event and result contract. The browser should not depend on every internal runtime event name. Filter private tool data and preserve explicit errors and final result identity.",
+    "example": "A runtime upgrade changes token event shape; only the backend adapter changes, while the UI still receives text_delta.",
+    "takeaway": "Stable application contracts contain framework churn."
+  },
+  {
+    "Q": "What should remain stable when a framework is replaced?",
+    "explain": "The public API, domain rules, operation identity, outcome categories, and UI event meanings should not depend on a framework's private classes. Translate framework messages and errors at an adapter boundary. Keep domain fixtures unchanged so a replacement is judged by behavior rather than how many lines were rewritten.",
+    "example": "A runtime emits different internal tool-progress events after migration. The adapter still publishes the application's documented task_started, progress, and terminal outcomes.",
+    "takeaway": "Make framework change a contained implementation decision.",
+    "added": true
+  },
+  {
+    "Q": "When should I stop adding framework abstractions?",
+    "explain": "Begin with one runtime and one useful tool. Add middleware, memory services, or orchestration only for a demonstrated responsibility. Compare each addition with an ordinary function or service and document its operational cost. Learning every framework is not a prerequisite for shipping one reliable application.",
+    "example": "A fixed classify-then-search sequence may need two functions and typed data rather than an autonomous loop, graph runtime, and supervisor agent at once.",
+    "takeaway": "Adopt a framework feature when it solves a named problem you can test.",
+    "added": true
+  }
+]

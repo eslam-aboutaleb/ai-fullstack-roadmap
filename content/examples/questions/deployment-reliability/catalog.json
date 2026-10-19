@@ -1,0 +1,86 @@
+[
+  {
+    "explain": "Database capacity sums every process's pool and overflow plus workers and operational headroom. Raising async concurrency does not create database connections.",
+    "steps": "Multiply per-process settings by replicas and processes. || Add worker usage before comparing with the database allowance.",
+    "expect": "70 False",
+    "name": "connection-capacity",
+    "language": "python",
+    "filename": "connection-capacity.py",
+    "questions": [
+      695,
+      285
+    ]
+  },
+  {
+    "language": "dockerfile",
+    "explain": "This container recipe installs a declared application and runs it as a nonroot user. Runtime secrets and durable state must be injected or hosted outside the image.",
+    "steps": "Start from an organization-reviewed pinned Python base. || Install dependencies, switch to a nonroot user, and launch the application entry point.",
+    "expect": "A buildable image only after the base digest and application files are supplied; no credentials are baked into the recipe.",
+    "limit": "Configuration sketch, not built here. Replace the placeholder base with a reviewed digest and supply requirements.txt and app.py; deployment, scanning, and storage need separate verification.",
+    "name": "container-config",
+    "filename": "container-config.Dockerfile",
+    "questions": [
+      803,
+      286
+    ]
+  },
+  {
+    "explain": "A delivery artifact should be tied to source, passing checks, configuration, and rollback evidence. Recording an image name alone does not prove readiness.",
+    "steps": "Record required gate results for the exact artifact. || Block promotion when restore or rollback evidence is missing.",
+    "expect": "False",
+    "name": "delivery-gates",
+    "language": "python",
+    "filename": "delivery-gates.py",
+    "questions": [
+      804,
+      290,
+      137,
+      477
+    ]
+  },
+  {
+    "explain": "Under a stable workload, arrival rate times mean service time estimates average in-flight work. Bursts, latency tails, and dependencies still require load testing.",
+    "steps": "Define workload assumptions explicitly. || Calculate the estimate without presenting it as measured maximum capacity.",
+    "expect": "10",
+    "name": "capacity-estimate",
+    "language": "python",
+    "filename": "capacity-estimate.py",
+    "questions": [
+      805,
+      138
+    ]
+  },
+  {
+    "explain": "Startup indexing on every replica multiplies shared work. A separately owned indexing job prevents uncontrolled duplicate initialization, with a durable claim required in production.",
+    "steps": "Separate web replica count from indexing-job ownership. || Compare uncoordinated startup work with one controlled generation job.",
+    "expect": "4 1",
+    "name": "separate-indexing",
+    "language": "python",
+    "filename": "separate-indexing.py",
+    "questions": [
+      283
+    ]
+  },
+  {
+    "explain": "Graceful shutdown stops admission, persists safe progress, and leaves unfinished work recoverable. It must not mark uncommitted work completed merely because the process exited.",
+    "steps": "Stop accepting new tasks before saving the checkpoint. || Keep the unfinished task recoverable with its original operation identity.",
+    "expect": "False recoverable op1",
+    "name": "shutdown-recovery",
+    "language": "python",
+    "filename": "shutdown-recovery.py",
+    "questions": [
+      287
+    ]
+  },
+  {
+    "explain": "A provider outage produces a declared degraded outcome rather than a fabricated answer. Retry and fallback policies must preserve access and model-quality requirements.",
+    "steps": "Record dependency availability independently from the task question. || Offer retry when the declared source cannot be used.",
+    "expect": "temporarily_unavailable",
+    "name": "provider-degradation",
+    "language": "python",
+    "filename": "provider-degradation.py",
+    "questions": [
+      288
+    ]
+  }
+]

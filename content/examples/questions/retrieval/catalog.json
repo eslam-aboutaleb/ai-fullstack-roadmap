@@ -1,0 +1,77 @@
+[
+  {
+    "explain": "Retrieve a larger pool, then apply a task-specific reranker before selecting the final evidence. The reranker cannot recover a document absent from its candidates.",
+    "steps": "Preserve all first-stage candidates. || Sort by supplied reviewed relevance scores and keep only the final count.",
+    "expect": "['D2']",
+    "name": "candidate-rerank",
+    "language": "python",
+    "filename": "candidate-rerank.py",
+    "questions": [
+      565,
+      567,
+      62,
+      65
+    ]
+  },
+  {
+    "explain": "Reciprocal rank fusion adds rank-derived contributions rather than incompatible raw scores. The same identity receives evidence from both lists.",
+    "steps": "Add 1/(k+rank) for every appearance. || Sort the accumulated scores by descending value.",
+    "expect": "['B', 'A', 'C']",
+    "name": "rrf",
+    "language": "python",
+    "filename": "rrf.py",
+    "questions": [
+      566,
+      746,
+      63,
+      67
+    ]
+  },
+  {
+    "explain": "A typed request distinguishes trusted filters, candidate count, and final count. Validation prevents impossible or unbounded retrieval settings.",
+    "steps": "Build the request explicitly. || Enforce positive counts and a bounded candidate ceiling before dispatch.",
+    "expect": "True",
+    "name": "retrieval-contract",
+    "language": "python",
+    "filename": "retrieval-contract.py",
+    "questions": [
+      61
+    ]
+  },
+  {
+    "explain": "Independent read operations can run concurrently and their separate results are preserved. This fixture yields to the event loop without making network calls.",
+    "steps": "Start both awaitable read operations with gather. || Inspect both returned values before applying a merge policy.",
+    "expect": "['dense', 'lexical']",
+    "name": "parallel-reads",
+    "language": "python",
+    "filename": "parallel-reads.py",
+    "questions": [
+      64,
+      611,
+      373
+    ]
+  },
+  {
+    "explain": "Query expansion preserves the original request and exact identifiers while limiting variants. Multilingual behavior still requires evaluated model and corpus support.",
+    "steps": "Keep the original query as one candidate. || Deduplicate proposed variants and apply a maximum count without translating the product identifier.",
+    "expect": "['SKU17 refund', 'SKU17 exchange']",
+    "name": "bounded-rewrites",
+    "language": "python",
+    "filename": "bounded-rewrites.py",
+    "questions": [
+      66,
+      747
+    ]
+  },
+  {
+    "explain": "Distance and similarity use different ordering and threshold directions. A numerical value is not a universal probability of relevance.",
+    "steps": "Name the metric explicitly. || Apply the comparison direction associated with that metric.",
+    "expect": "True False",
+    "name": "score-direction",
+    "language": "python",
+    "filename": "score-direction.py",
+    "questions": [
+      69
+    ]
+  }
+]

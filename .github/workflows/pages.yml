@@ -1,19 +1,44 @@
-name: Publish learning guide
+name: Validate and publish learning guide
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: github-pages
+  group: learning-guide-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Set up Node.js for example checks
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Build, package, and verify
+        run: make check
+      - name: Upload public Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
   deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: check
     permissions:
       contents: read
       pages: write
@@ -23,20 +48,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Build the standalone roadmap
-        run: python3 -B authoring/build.py
-      - name: Package public files
-        run: python3 -B authoring/package.py
-      - name: Verify public content and examples
-        run: python3 -B authoring/check.py
       - name: Configure Pages
         uses: actions/configure-pages@v5
-      - name: Upload static site
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: _site
-      - name: Deploy
+      - name: Deploy verified artifact
         id: deployment
         uses: actions/deploy-pages@v4

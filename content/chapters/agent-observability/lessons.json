@@ -1,0 +1,40 @@
+[
+  {
+    "Q": "How do logs, traces, and metrics answer different questions?",
+    "explain": "Logs record events, traces connect related operations, and metrics show trends across runs. Audit and evaluation have their own accountability and quality purposes. Decide failure and retention policy per signal.",
+    "example": "A metric shows rising failures; a trace identifies the slow provider call; a reviewed event explains its error category.",
+    "takeaway": "Use each signal for a clear diagnostic question."
+  },
+  {
+    "Q": "What makes a trace useful?",
+    "explain": "Preserve parent-child relationships and safe identifiers across async work and service adapters. Include release and operation references needed to reproduce the failure. Avoid collecting payloads merely because instrumentation makes it easy.",
+    "example": "The task root connects the tool rejection to the user-visible incomplete result instead of leaving an orphan model span.",
+    "takeaway": "Causality matters more than a large pile of events."
+  },
+  {
+    "Q": "Why distinguish exceptions from business outcomes?",
+    "explain": "A function can successfully return not_found or denied. The transport succeeded while the task did not complete. Record outcome categories separately from execution exceptions so dashboards and alerts reflect user impact.",
+    "example": "HTTP 200 contains needs_confirmation. Counting it as a completed business action is incorrect.",
+    "takeaway": "Success must name the layer being measured."
+  },
+  {
+    "Q": "How should cost and privacy be recorded?",
+    "explain": "Keep usage, estimated prices, pricing source, and unknown values explicit. Export an allowlist of necessary metadata, with redaction and controlled retention for reviewed payloads. An ID can still be sensitive.",
+    "example": "Unknown pricing stays unknown instead of appearing as a free successful run.",
+    "takeaway": "Honest telemetry records uncertainty and minimizes disclosure."
+  },
+  {
+    "Q": "How do trace context and metric cardinality affect operations?",
+    "explain": "Propagate trace context across supported service and queue boundaries so spans remain related. Use bounded metric labels such as operation and outcome, not arbitrary user IDs, prompts, or task IDs, which create unbounded series and can disclose data. Put appropriately protected identifiers in traces or logs when necessary for diagnosis.",
+    "example": "Count task failures by safe category and release version. Link an individual failure to a trace through a protected correlation ID rather than adding every task ID as a metric label.",
+    "takeaway": "Make aggregate signals bounded and individual investigation controlled.",
+    "added": true
+  },
+  {
+    "Q": "What turns a dashboard into a useful operational alert?",
+    "explain": "Define a user-facing service objective, identify a measurable failure or delay, and specify who should act and how. Separate symptoms from possible causes: a rising task age can show user harm even when the web process is healthy. Add a runbook with safe checks, mitigation, and recovery verification, then test the alert.",
+    "example": "A worker stops consuming while health probes stay green. Queue age crosses its budget and the runbook checks worker progress, dependency errors, and safe restart/reconciliation steps.",
+    "takeaway": "An alert should correspond to impact and lead to a concrete action.",
+    "added": true
+  }
+]

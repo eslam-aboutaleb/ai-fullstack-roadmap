@@ -1,0 +1,135 @@
+[
+  {
+    "explain": "Two writers using the same old value lose one update. A version predicate detects the stale second write; this in-memory model is not a distributed lock.",
+    "steps": "Give both writers version 1. || Accept the first conditional update and reject the second after the stored version advances.",
+    "expect": "True False 1",
+    "name": "lost-update",
+    "language": "python",
+    "filename": "lost-update.py",
+    "questions": [
+      514,
+      728,
+      518,
+      167,
+      196
+    ]
+  },
+  {
+    "explain": "A transaction groups authoritative changes so failure rolls them back together. An external service call is not automatically part of this database transaction.",
+    "steps": "Start with one committed record. || Write inside a new transaction, force failure, and inspect the durable value after rollback.",
+    "expect": "1",
+    "name": "transaction-rollback",
+    "language": "python",
+    "filename": "transaction-rollback.py",
+    "questions": [
+      515,
+      162,
+      89
+    ]
+  },
+  {
+    "language": "sql",
+    "explain": "A version predicate makes a stale edit affect zero rows. The caller must inspect rowcount or RETURNING and report a conflict rather than assume success.",
+    "steps": "Create one versioned record. || Apply two edits that both expect version 1 and inspect the final value.",
+    "expect": "The final row is revision 2 with text first; the second UPDATE matches no rows.",
+    "limit": "Portable SQL shown against SQLite; concurrent database behavior needs a real integration test.",
+    "name": "optimistic-write",
+    "filename": "optimistic-write.sql",
+    "questions": [
+      516,
+      164
+    ]
+  },
+  {
+    "language": "sql",
+    "explain": "A PostgreSQL row lock serializes competing confirmations while the transaction is active. The write also needs a unique operation key for retries after response loss.",
+    "steps": "Lock the review row in a short transaction. || Recheck state and perform the guarded transition before committing.",
+    "expect": "A competing transaction cannot modify the locked row until this transaction releases its lock.",
+    "limit": "PostgreSQL integration sketch requiring existing synthetic tables and two sessions to observe contention; not executed offline.",
+    "name": "row-lock",
+    "filename": "row-lock.sql",
+    "questions": [
+      517,
+      161
+    ]
+  },
+  {
+    "explain": "Under statement-level Read Committed visibility, separate statements can see different committed data. This model illustrates why an earlier read is not a permanent business guarantee.",
+    "steps": "Capture the first statement's view. || Apply another transaction's committed change before the second statement reads.",
+    "expect": "1 2",
+    "name": "read-committed",
+    "language": "python",
+    "filename": "read-committed.py",
+    "questions": [
+      163
+    ]
+  },
+  {
+    "explain": "Selecting a job is not durable ownership. A lease and conditional claim must be committed so another worker can distinguish available from owned work.",
+    "steps": "Observe a job's eligibility. || Record owner and lease expiry before treating the work as claimed.",
+    "expect": "eligible B",
+    "name": "lease-vs-selection",
+    "language": "python",
+    "filename": "lease-vs-selection.py",
+    "questions": [
+      165,
+      561,
+      99
+    ]
+  },
+  {
+    "explain": "Each concurrent task should own its mutable transaction/session state. The example checks object identities without pretending to emulate an actual ORM session.",
+    "steps": "Construct a separate state holder for each task. || Verify that mutation in one task does not affect the other.",
+    "expect": "True 0",
+    "name": "independent-sessions",
+    "language": "python",
+    "filename": "independent-sessions.py",
+    "questions": [
+      166
+    ]
+  },
+  {
+    "explain": "Retry only a classified transient failure and stop after a declared attempt bound. Each retry begins the demonstrated operation again; external effects require their own idempotency.",
+    "steps": "Raise a retryable error on the first two fixture attempts. || Succeed on the third while permanent exceptions would propagate.",
+    "expect": "completed 3",
+    "name": "bounded-retry",
+    "language": "python",
+    "filename": "bounded-retry.py",
+    "questions": [
+      729,
+      169,
+      45,
+      614,
+      217
+    ]
+  },
+  {
+    "explain": "A barrier deliberately gives two threads the same stale read, making a lost update reproducible without random sleeps. The example demonstrates a failure, not a safe counter.",
+    "steps": "Both workers read before either writes. || Release them together and observe that the final count loses one increment.",
+    "expect": "1",
+    "name": "deterministic-race",
+    "language": "python",
+    "filename": "deterministic-race.py",
+    "questions": [
+      519,
+      170
+    ]
+  },
+  {
+    "explain": "A durable unique operation key can return the original result after response loss. The in-memory ledger below models the contract but does not provide durability or concurrency safety.",
+    "steps": "Bind the operation key to an exact payload. || Reuse the stored result for the same payload and reject key reuse with changed parameters.",
+    "expect": "R1 R1 1",
+    "name": "durable-idempotency",
+    "language": "python",
+    "filename": "durable-idempotency.py",
+    "questions": [
+      168,
+      559,
+      84,
+      634,
+      642,
+      416,
+      226
+    ]
+  }
+]

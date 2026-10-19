@@ -1,0 +1,83 @@
+[
+  {
+    "Q": "What must change when scaling from one process to multiple replicas?",
+    "A": "Shared sessions, idempotency, rate limits, jobs, migrations, and telemetry need explicit cross-process semantics. Process-local dictionaries, locks, and counters remain local even when replicas run identical code.",
+    "Why": "Move authoritative tasks, sessions, rate accounting, and operation identity into deliberately shared stores where required. Test concurrent replicas instead of extrapolating from one process.",
+    "Risk": "Adding replicas can multiply quotas, repeat model calls, and split conversational state. A load balancer does not make local state shared.",
+    "Trade": "Shared services improve continuity and introduce network dependencies. One process with honest limitations can be a simpler initial deployment.",
+    "Try": "Test retries routed to another replica, session continuation, worker claiming, and global quota behavior during Redis failure."
+  },
+  {
+    "Q": "Should migrations run on every application startup?",
+    "A": "Startup migration is convenient for small deployments but couples readiness to schema changes and can make replicas compete to migrate. A controlled migration job followed by compatible application rollout is an alternative.",
+    "Why": "Give one deployment step ownership of reviewed migrations and deploy compatible application versions. Define upgrade failure and rollback behavior before enabling multiple startup processes.",
+    "Risk": "Concurrent DDL, long locks, and destructive changes can affect all replicas. A schema change can also prevent rollback to the prior image.",
+    "Trade": "Self-initializing services reduce manual steps; dedicated migration stages improve sequencing. Either requires tested failure behavior and appropriate database privileges.",
+    "Try": "Design a rolling deployment with one migrator, compatible schema, application rollout, verification, and delayed cleanup."
+  },
+  {
+    "Q": "Why does startup ingestion need separate operational treatment?",
+    "A": "Ingestion performs provider calls and writes unrelated to accepting a web request. Running it during every replica startup can duplicate preparation, delay readiness, and couple scaling to source and model availability.",
+    "Why": "Run ingestion as a versioned background workflow with freshness state, deduplication, deadlines, and retry policy. Avoid repeating expensive source preparation on each replica startup.",
+    "Risk": "A service can start successfully with missing knowledge. Database connectivity does not prove usable policy evidence exists.",
+    "Trade": "Startup ingestion suits a sample corpus; a scheduled or operator-triggered worker gives clearer ownership, progress, and recovery.",
+    "Try": "Start two replicas with an unchanged source, then with an unavailable provider. Report effective readiness, freshness, and duplicate preparation."
+  },
+  {
+    "Q": "What does the minimal health endpoint prove?",
+    "A": "A bounded database probe establishes only that a basic connection and query worked at that moment. It does not prove model availability, current evidence, healthy workers, correct permissions, or functioning event delivery.",
+    "Why": "Separate process liveness, dependency readiness, index freshness, and task-quality signals. Bound probes and avoid costly model calls on every health check.",
+    "Risk": "Calling this fully healthy can conceal an assistant unable to answer or index. Putting expensive evaluations in every probe can instead overload the service.",
+    "Trade": "Cheap probes suit frequent checks. Readiness and scheduled consistency checks should cover critical product dependencies separately.",
+    "Try": "Define probe outcomes for database failure, provider failure, stale corpus, and a stopped embedding worker."
+  },
+  {
+    "Q": "How should connection pools and worker concurrency be sized together?",
+    "A": "Count API requests, background jobs, agent-session writes, migrations, and probes that need connections. Bound concurrency and pool waits so one workload cannot consume all capacity. Async I/O does not remove database connection limits.",
+    "Why": "Multiply pool limits by processes and replicas, then reserve database headroom for workers and operations. Bound simultaneous queries separately from model or HTTP concurrency.",
+    "Risk": "Increasing replicas can exceed the total connection budget. Provider waits inside open transactions amplify occupancy even when CPU usage is low.",
+    "Trade": "Larger pools reduce local waiting until database saturation; smaller pools protect the database and need admission control.",
+    "Try": "Calculate connections across replicas and workers, reserve operational headroom, and measure pool checkout latency under load."
+  },
+  {
+    "Q": "How should container and dependency hardening be evaluated?",
+    "A": "Review non-root execution, image contents, dependency resolution, vulnerability handling, secrets, and runtime privileges. A production filename or non-root USER is one control rather than complete supply-chain assurance.",
+    "Why": "Review base images, non-root execution, dependency resolution, runtime packages, and artifact provenance. Exact direct pins alone do not establish a reproducible environment or safe deployment.",
+    "Risk": "Without constrained resolution and compatibility checks, upgrades can break ADK events, tracing patches, or provider behavior. Build tools and unnecessary files also add maintenance surface.",
+    "Trade": "Strict locking improves repeatability and requires planned updates. Broad ranges support experimentation and weaken deployment reproducibility.",
+    "Try": "Compare resolved dependencies from two clean builds and propose a tested update policy without changing the support repository."
+  },
+  {
+    "Q": "How should worker shutdown and stale-job recovery be verified?",
+    "A": "Stop accepting new work, allow bounded completion, release resources, and use durable job state for later recovery. A finally block helps graceful shutdown but cannot be guaranteed after abrupt process death.",
+    "Why": "Stop accepting new work, allow or cancel active operations under a deadline, persist state, and recover stale leases safely. Verify shutdown through controlled worker interruption.",
+    "Risk": "Reclaiming too early overlaps workers; never reclaiming strands jobs. A crash after external delivery but before completion marking can repeat delivery.",
+    "Trade": "Graceful draining improves continuity and slows replacement. Abrupt replacement is faster and demands stronger recovery invariants.",
+    "Try": "Terminate a worker after claim, after embedding, and after delivery. Verify the next worker converges without duplicate logical effects."
+  },
+  {
+    "Q": "How should an external provider outage affect the product?",
+    "A": "Distinguish unavailable generation, unavailable embeddings, failed retrieval, and degraded tracing. Preserve committed business state and expose retryable status. Do not fabricate policy answers or report unperformed actions as successful.",
+    "Why": "Classify affected capabilities and provide explicit degraded outcomes. Apply bounded retries and circuit or admission policies without generating unsupported answers when evidence or tools are unavailable.",
+    "Risk": "Nested retries can exhaust pools and budgets. Switching providers can change tool and privacy behavior and must be an explicit evaluated policy.",
+    "Trade": "Structured status lookup can preserve useful service while generation is unavailable. Full-availability service requests are inappropriate when essential evidence is missing.",
+    "Try": "Define an outage matrix for PostgreSQL, Redis, embedding, generation, and tracing, with permitted operations and recovery behavior."
+  },
+  {
+    "Q": "What is a meaningful disaster-recovery drill?",
+    "A": "Restore authoritative data, recover or rebuild derived indexes, reconcile jobs, validate ownership, and demonstrate post-restart application behavior. Measure actual recovery time and data loss against declared objectives.",
+    "Why": "Restore a known fixture and reconcile authoritative records, outbox state, indexes, and access policy. Measure actual recovery duration and data-loss exposure rather than relying on backup existence.",
+    "Risk": "Old jobs may replay and stale vectors may remain visible. Backups themselves also need secure access, retention, and credential-restoration procedures.",
+    "Trade": "Frequent drills cost effort and reveal dependencies that documents miss. Backup configuration alone is not proof of recoverability.",
+    "Try": "Restore a fixture with a service request, pending job, rule revision, and archived conversation. Produce a reconciliation report.",
+    "reference": "https://www.postgresql.org/docs/current/backup.html"
+  },
+  {
+    "Q": "What evidence supports a production-readiness claim?",
+    "A": "Show effective configuration, tested authorization and transaction boundaries, migration ownership, restore evidence, queue and latency measurements, quality limits, privacy policy, and incident ownership. State the workload and scope under which the service request holds.",
+    "Why": "Collect deployment-specific evidence for invariants, capacity, recovery, security, and quality. Document limits honestly and retain rollback; a container build or green process probe is only one check.",
+    "Risk": "A polished architecture or passing unit suite can conceal untested runtime behavior. Secure, scalable, and exactly once are service requests requiring specific evidence.",
+    "Trade": "Readiness work is slower than a demo and establishes a defensible operational contract. A prototype may ship earlier with narrower commitments.",
+    "Try": "Assemble a release packet with concurrency results, quality report, dependency inventory, privacy review, restore drill, and rollback plan."
+  }
+]

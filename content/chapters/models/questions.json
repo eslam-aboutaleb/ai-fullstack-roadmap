@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "How do AI, ML, DL, NLP, and GenAI relate?",
+    "A": "Artificial Intelligence is the broad field of building systems that perform intelligent tasks. Machine Learning learns behavior from data. Deep Learning uses layered neural networks. Natural Language Processing concerns language tasks. Generative AI produces new outputs such as text. A RAG application combines these ideas with conventional data and backend engineering.",
+    "Why": "The retrieval service can call learned embedding and reranking providers, but much of its code is deterministic orchestration, validation, indexing, and coordination. Understanding that division prevents attributing every system behavior to a neural model.",
+    "Risk": "Acronyms can hide missing skills. Knowing how to call a model API is different from understanding representation learning, and understanding attention is different from securing a multi-tenant API.",
+    "Trade": "An AI full-stack engineer needs practical breadth and selective depth. Research-level model training is not required for every product, but model limitations must inform system design.",
+    "Try": "Label each reference component as deterministic infrastructure, learned-model adapter, or application boundary. Explain why several components require more than one learning discipline."
+  },
+  {
+    "Q": "What does attention compute, and why does context length matter?",
+    "A": "Scaled dot-product attention forms weights from queries and keys, then combines value vectors: softmax(QK-transpose divided by square-root d) times V. This lets token representations depend on other tokens. Standard dense attention has pairwise interactions whose work and memory grow quadratically with sequence length, though implementations vary.",
+    "Why": "A retrieval application supplies selected context rather than every document. the retrieval service's evidence budget controls that supplied material; it does not implement Transformer attention or determine a provider's internal serving architecture.",
+    "Risk": "A model accepting a long context does not guarantee equal use of every passage. More evidence can increase cost and distraction, so context limits and useful context are different concepts.",
+    "Trade": "Larger context can preserve more information while reducing the pressure to retrieve precisely. Retrieval remains useful for selection, access control, attribution, and cost even with long windows.",
+    "Try": "Draw token-to-token attention for four tokens, then estimate how pair counts change when sequence length doubles."
+  },
+  {
+    "Q": "How are encoder embeddings, decoder generation, bi-encoders, and cross-encoders different?",
+    "A": "An embedding encoder maps text into a reusable representation. A decoder language model generates tokens conditioned on prior context. A bi-encoder embeds query and document separately for efficient comparison. A cross-encoder jointly processes a query-document pair for more detailed scoring.",
+    "Why": "The retrieval service's embedding interface fits reusable vector production, while the Reranker protocol permits more expensive pairwise relevance scoring. The application generator remains outside the ordinary search pipeline.",
+    "Risk": "A provider's model name or API endpoint does not prove which architecture or training objective it uses. Follow its documented task contract and validate retrieval quality rather than assuming all embeddings or rerankers are interchangeable.",
+    "Trade": "Separate encoding enables indexing documents once and searching quickly. Joint scoring spends more work per pair and often belongs after candidate retrieval.",
+    "Try": "Estimate how many model computations are needed to retrieve from 100,000 documents using precomputed bi-encoder vectors versus scoring every pair with a cross-encoder."
+  },
+  {
+    "Q": "What is contrastive learning, and why does it matter for retrieval?",
+    "A": "Contrastive learning trains representations so relevant pairs score above irrelevant pairs. A common objective compares a query's positive passage with negatives using a softmax-based loss. Negative selection, label quality, and the task distribution shape what similarity means.",
+    "Why": "The retrieval service consumes pretrained embedding functions rather than training them. Understanding their objective helps explain why a general embedding may confuse domain-specific exceptions or why a specialized model improves some queries and harms others.",
+    "Risk": "False negatives can teach a model to separate two genuinely relevant passages. Training leakage can also inflate benchmark scores, and same-dimension models remain incompatible despite similar training goals.",
+    "Trade": "Domain adaptation can improve ranking but needs representative data, compute, evaluation, and a new index generation. Better query and chunk design may solve the problem more cheaply.",
+    "Try": "Create one query, one positive passage, one easy negative, and one hard negative. Explain what an accidental false negative would teach."
+  },
+  {
+    "Q": "What are pretraining, SFT, and instruction tuning?",
+    "A": "Pretraining learns broad statistical structure from large datasets. Supervised Fine-Tuning trains on task examples or desired responses. Instruction tuning is supervised adaptation aimed at following instructions across tasks. These change model parameters; indexing new documents changes external knowledge storage instead.",
+    "Why": "The reference design does not include a model-training pipeline. Its datasets and answer evaluators support application evaluation, not an automatic SFT trainer. A host can use evaluation failures to decide whether behavior adaptation is warranted.",
+    "Risk": "Fine-tuning on private facts can create memorization and retention problems without solving freshness or citation. Poor examples can also teach confident unsupported answering.",
+    "Trade": "Behavior tuning may improve format and task consistency, while retrieval is usually more direct for changing private documents. Combining them requires separate evaluation of behavior and knowledge access.",
+    "Try": "Divide twenty failures into missing evidence, bad ranking, bad prompt policy, and persistent behavioral problems. Choose which, if any, justify SFT."
+  },
+  {
+    "Q": "What are LoRA, PEFT, and quantization?",
+    "A": "Parameter-Efficient Fine-Tuning adapts a subset or compact parameterization instead of updating all weights. LoRA is one PEFT method that adds low-rank updates to frozen weights. Quantization represents weights or activations with reduced numerical precision; it addresses memory and compute rather than directly supplying new knowledge.",
+    "Why": "These methods belong to a different responsibility from retrieval orchestration. They belong to the model layer a host may select, while embedding-profile changes still require compatible indexing and evaluation.",
+    "Risk": "Reduced precision or adaptation can change quality, and an efficient technique is not automatically safe for every model or hardware target. Avoid promising universal speedups or equal accuracy.",
+    "Trade": "These methods can reduce adaptation or serving resources while adding tooling and compatibility considerations. Provider-hosted models transfer much of that operational work elsewhere.",
+    "Try": "Compare full fine-tuning, LoRA adaptation, and quantized inference in a table of what changes, what stays frozen, and which evaluation is needed."
+  },
+  {
+    "Q": "How do RLHF and DPO differ from RAG?",
+    "A": "Reinforcement Learning from Human Feedback uses human preference information to shape model behavior, often through a learned reward and policy optimization. Direct Preference Optimization trains from preferred and rejected response pairs without the same explicit reinforcement-learning loop. RAG supplies external evidence at inference time.",
+    "Why": "These methods operate at different layers and can coexist. This reference design provides retrieval and evaluation components, not RLHF or DPO training. Its answer-quality failures may motivate better behavior data, but indexing is not preference optimization.",
+    "Risk": "Preferences can reward pleasing or verbose answers instead of faithful ones. A preference-trained model can still hallucinate, and a retrieved passage can still be wrong.",
+    "Trade": "Alignment training addresses behavioral tendencies and requires datasets and training infrastructure. Retrieval addresses access to evidence and requires corpus infrastructure. Neither replaces the other's evaluation.",
+    "Try": "Write a preferred and rejected answer pair where the preference is justified by citation faithfulness. Explain what that pair teaches and what source freshness it cannot teach permanently."
+  },
+  {
+    "Q": "What are temperature, top-p, tokens, and structured output?",
+    "A": "Tokens are the model's discrete input and output units. Temperature changes the sharpness of sampling probabilities; top-p restricts sampling to a cumulative probability mass. Structured output constrains response form, such as a schema. These are generation controls, not retrieval relevance measures.",
+    "Why": "A host chooses generation parameters and serialization outside the library's search path. Evidence budgets reserve output capacity, but the actual generator must honor the chosen output contract and handle parse or validation failures.",
+    "Risk": "Low temperature does not guarantee truth or reproducibility across providers. Valid JSON can still contain unsupported claims or unauthorized source references.",
+    "Trade": "Tighter structure improves integration and can constrain expressive answers. More stochastic generation can help creative tasks while making faithful factual workflows harder to evaluate.",
+    "Try": "Define an answer schema with status, text, and citation references. Validate citation membership against the actual EvidenceBundle rather than only validating JSON syntax."
+  },
+  {
+    "Q": "What are HyDE, agentic RAG, GraphRAG, and multimodal RAG?",
+    "A": "HyDE retrieves using an embedding of a generated hypothetical answer or document. Agentic RAG lets a controller choose repeated retrieval or tool actions. GraphRAG adds graph relationships to retrieval or synthesis. Multimodal RAG includes non-text modalities. These are families of techniques, not automatically enabled project features.",
+    "Why": "Query-transform, strategy, tool-bridge, and extractor seams can support experiments, but a host must implement the actual controller, graph, modality representation, and evaluation. A source connector alone does not create multimodal reasoning.",
+    "Risk": "Each added generative or traversal step expands cost and failure modes. Hypothetical content can introduce invented facts; agents can loop; graph edges can be stale; modality extraction can lose evidence fidelity.",
+    "Trade": "Advanced methods can solve demonstrated complex cases while making the baseline harder to understand and operate. Add them incrementally with bounded execution.",
+    "Try": "Pick one baseline failure and design the smallest extension that addresses it. Define a cost ceiling and a benchmark that could prove the extension unnecessary."
+  },
+  {
+    "Q": "How should an AI full-stack engineer learn deep learning alongside this reference design?",
+    "A": "Learn vectors and similarity first, then tokenization, neural training objectives, attention, model adaptation, and inference. Tie each topic to an observable product failure: incompatible vectors, poor paraphrase recall, context overflow, unsupported generation, or latency under load.",
+    "Why": "The code offers a concrete laboratory for interfaces around learned systems while keeping infrastructure inspectable. Training a small encoder or language model is a separate learning exercise that deepens understanding without requiring a rewrite of the retrieval subsystem.",
+    "Risk": "Studying only theory misses deployment and security; studying only APIs leaves model behavior mysterious. A portfolio should demonstrate both a measured model comparison and a robust application boundary.",
+    "Trade": "Breadth requires sustained practice. Sequence small, testable projects rather than attempting to master distributed storage and large-model training simultaneously.",
+    "Try": "Follow the roadmap labs, then train a tiny contrastive encoder on a reviewed toy dataset. Compare it with the hashing baseline and a pretrained model using the same held-out queries."
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "How does a cascaded voice pipeline differ from speech-to-speech?",
+    "A": "A cascaded system uses speech recognition, a text-based agent, and speech synthesis. A speech-to-speech model processes and generates audio more directly, with provider-specific capabilities.",
+    "Why": "Compare transcript control, latency, language support, observability, and tool integration. Evaluate the complete spoken conversation rather than only transcript quality.",
+    "Risk": "Direct audio generation can make textual audit and output filtering harder.",
+    "Trade": "Cascades add stage latency and offer clearer intermediate boundaries.",
+    "Try": "Diagram both designs for the same support task and identify their dominant delays."
+  },
+  {
+    "Q": "What are ASR, STT, TTS, and VAD?",
+    "A": "ASR and STT refer to speech recognition or speech-to-text; TTS converts text to speech; VAD detects speech activity. They address different parts of a voice interaction.",
+    "Why": "VAD segments activity, recognition produces hypotheses, the agent resolves intent, and synthesis produces playback audio. Track timing and errors at each stage.",
+    "Risk": "VAD can confuse background noise with speech or clip quiet words.",
+    "Trade": "Separate components improve diagnosis and increase integration complexity.",
+    "Try": "Record a noisy phrase and identify which stage first introduced an error."
+  },
+  {
+    "Q": "How should partial transcripts be handled?",
+    "A": "Treat partial recognition as revisable hypotheses. Only finalized or explicitly confirmed content should drive consequential actions.",
+    "Why": "Attach utterance IDs and revisions to transcript events and replace earlier hypotheses rather than appending them as independent facts.",
+    "Risk": "Acting on an unfinished phrase can invert intent when the user adds a negation.",
+    "Trade": "Waiting for finalization adds latency and improves intent stability.",
+    "Try": "Stream I want to cancel followed by not the order, the reminder and inspect tool behavior."
+  },
+  {
+    "Q": "What is turn detection and why is it difficult?",
+    "A": "Turn detection decides when the user has finished speaking and when the agent should respond. Silence alone may reflect hesitation, language patterns, or network delay.",
+    "Why": "Combine acoustic activity with configurable timeouts and conversational signals. Let users correct premature interruptions.",
+    "Risk": "Overly aggressive endpointing can cut off names, numbers, or accessibility-related speech patterns.",
+    "Trade": "Longer waits improve completeness and increase perceived delay.",
+    "Try": "Evaluate turn boundaries across slow speech, pauses, background noise, and multiple languages."
+  },
+  {
+    "Q": "How should barge-in and interruption work?",
+    "A": "When the user interrupts, stop or duck playback, cancel obsolete generation where possible, and update conversation state to reflect what was actually delivered.",
+    "Why": "Use generation IDs to reject stale audio after cancellation. Track played audio duration separately from generated audio.",
+    "Risk": "The agent may assume the user heard content that remained in a playback buffer.",
+    "Trade": "Precise interruption handling adds state and improves conversational control.",
+    "Try": "Interrupt halfway through a confirmation and verify that no action is authorized by unplayed content."
+  },
+  {
+    "Q": "How should a voice agent confirm sensitive actions?",
+    "A": "Present the material parameters in a clear review and obtain a valid confirmation under the product's authorization policy. Recognition confidence alone is insufficient for consequential intent.",
+    "Why": "Bind confirmation to the exact operation and require a stronger authenticated channel when appropriate.",
+    "Risk": "Background speech, spoofed audio, or transcript errors can trigger false intent.",
+    "Trade": "Stronger confirmation adds friction and protects high-impact operations.",
+    "Try": "Change an amount after spoken review and verify the old confirmation cannot execute it."
+  },
+  {
+    "Q": "How should audio latency be measured?",
+    "A": "Measure capture-to-transcript, end-of-turn-to-first-response-audio, tool delay, synthesis delay, jitter, and playback buffering. User-perceived latency spans all stages.",
+    "Why": "Correlate monotonic timestamps across client and server where possible, and report p95 delays under realistic networks.",
+    "Risk": "A fast model token metric can hide slow endpoint detection or playback buffering.",
+    "Trade": "More instrumentation increases complexity and identifies the real bottleneck.",
+    "Try": "Build a timing waterfall for one interrupted spoken conversation."
+  },
+  {
+    "Q": "How do WebRTC and WebSockets differ for voice?",
+    "A": "WebRTC provides media-oriented transport and real-time communication features; WebSockets provide a general ordered duplex channel. The best choice depends on client, provider, and infrastructure support.",
+    "Why": "Evaluate audio encoding, network behavior, media controls, authentication, and deployment complexity. Use short-lived credentials for direct client sessions when supported.",
+    "Risk": "A long-lived provider secret must not be embedded in browser code.",
+    "Trade": "WebRTC can suit interactive media while requiring signaling and session setup.",
+    "Try": "Explain the credential flow for a browser-to-provider audio connection."
+  },
+  {
+    "Q": "How should voice privacy and accessibility be designed?",
+    "A": "Decide whether raw audio, transcripts, and derived summaries are retained, for how long, and who can access them. Provide a usable text alternative and visible recording state.",
+    "Why": "Minimize collection, redact sensitive content where appropriate, and evaluate speech quality across accents, noise, and assistive needs.",
+    "Risk": "Voice can reveal identity and sensitive traits beyond the spoken words.",
+    "Trade": "Reduced retention limits diagnosis and exposure.",
+    "Try": "Design a deletion request that covers audio artifacts, transcripts, and searchable derivatives."
+  },
+  {
+    "Q": "How should voice agents be evaluated?",
+    "A": "Measure task completion, transcription errors affecting intent, interruption quality, unsafe actions, latency, and accessibility across representative speakers and conditions.",
+    "Why": "Use consented or synthetic fixtures and human listening review for aspects text metrics miss. Validate durable outcomes in sandbox services.",
+    "Risk": "Word error rate alone cannot measure whether the correct task was completed.",
+    "Trade": "Audio evaluation costs more and captures real interaction failures.",
+    "Try": "Compare two agents on noisy numeric inputs, corrections, interruptions, and failed tool calls."
+  }
+]

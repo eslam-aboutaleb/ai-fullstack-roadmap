@@ -1,0 +1,80 @@
+[
+  {
+    "explain": "Structure-aware chunks keep complete rule units instead of arbitrary fragments. The synthetic section delimiter stands in for a real document parser.",
+    "steps": "Split on known section boundaries. || Preserve the exception in the same passage as the rule it qualifies.",
+    "expect": "['Returns: allowed except final-sale items.', 'Shipping: 3 days.']",
+    "name": "chunk-boundaries",
+    "language": "python",
+    "filename": "chunk-boundaries.py",
+    "questions": [
+      541,
+      542,
+      31,
+      35
+    ]
+  },
+  {
+    "explain": "This window counts words, repeats overlap, and rejects an overlap that prevents forward progress. It makes units and duplication explicit.",
+    "steps": "Validate that size is positive and overlap is smaller than size. || Advance by size minus overlap rather than by the whole window.",
+    "expect": "['a b c', 'c d e', 'e f']",
+    "name": "sliding-windows",
+    "language": "python",
+    "filename": "sliding-windows.py",
+    "questions": [
+      543,
+      32,
+      33,
+      34
+    ]
+  },
+  {
+    "explain": "Source bytes and processing profile jointly determine representation identity. Changing chunk size or embedding profile requires compatibility handling even when the source is unchanged.",
+    "steps": "Serialize both source identity and transformation settings. || Compare fingerprints after changing only the chunk size.",
+    "expect": "True",
+    "name": "processing-fingerprint",
+    "language": "python",
+    "filename": "processing-fingerprint.py",
+    "questions": [
+      544,
+      37,
+      83,
+      739,
+      41
+    ]
+  },
+  {
+    "explain": "Compare chunk configurations on the same labeled queries and include context cost. A recall gain alone does not decide which configuration fits the product.",
+    "steps": "Keep the dataset identity fixed. || Compare evidence coverage together with rendered context tokens.",
+    "expect": "0.9 1200",
+    "name": "chunk-experiment",
+    "language": "python",
+    "filename": "chunk-experiment.py",
+    "questions": [
+      545,
+      737,
+      40
+    ]
+  },
+  {
+    "explain": "A deterministic chunk identity can include source revision, processing profile, and position. This demonstrates one identity policy, not a claim that all backends use it.",
+    "steps": "Build the identity from explicit stable components. || Change the processing profile and observe a different chunk identity.",
+    "expect": "True",
+    "name": "stable-chunk-id",
+    "language": "python",
+    "filename": "stable-chunk-id.py",
+    "questions": [
+      36
+    ]
+  },
+  {
+    "explain": "Search a small child passage but recover the bounded parent context needed to interpret it. Parent retrieval must retain the same access and revision scope.",
+    "steps": "Resolve the child's parent identity. || Fetch the matching parent text rather than concatenating arbitrary neighboring results.",
+    "expect": "Returns allowed. Exception: final sale.",
+    "name": "parent-child",
+    "language": "python",
+    "filename": "parent-child.py",
+    "questions": [
+      38
+    ]
+  }
+]

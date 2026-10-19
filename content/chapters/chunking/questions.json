@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "Why chunk documents at all?",
+    "A": "Chunking creates retrieval units small enough to match a question and fit a context budget. A whole manual can contain many unrelated topics; embedding it as one vector blends signals and returning all of it wastes context. A tiny fragment can lose the conditions that make its meaning correct.",
+    "Why": "The retrieval service injects a Chunker into ingestion. This makes chunking a replaceable strategy whose version and configuration participate in snapshot comparison, rather than an untracked preprocessing script.",
+    "Risk": "A boundary can separate a rule from its exception or a table heading from its values. Overlap and section-aware parsing mitigate some boundary loss, but only corpus-specific evaluation reveals whether the chosen units preserve meaning.",
+    "Trade": "Smaller chunks improve targeting and increase index size; larger chunks preserve context and can dilute relevance. There is no universally best chunk size.",
+    "Try": "Split the same policy into small and large chunks. Use questions about exceptions and compare whether each retrieved unit contains enough information to answer safely."
+  },
+  {
+    "Q": "Does a sliding-window chunker count tokens, words, or characters?",
+    "A": "It counts whitespace-separated words using text.split(). chunk_size and overlap therefore measure words. They do not define a model tokenizer's context size, and they do not behave identically for every language or code-heavy input.",
+    "Why": "The implementation steps through words by chunk_size minus overlap and rejoins each slice. This simple algorithm has no model dependency and is suitable as a transparent baseline.",
+    "Risk": "Treating 600 words as 600 tokens can overflow a downstream budget. Languages without whitespace and punctuation-heavy text can also produce surprising retrieval units. The evidence layer has a separate tokenizer abstraction for context accounting.",
+    "Trade": "Word splitting is fast and dependency-free, while token-aware or structure-aware splitting can better match actual model and document constraints.",
+    "Try": "Chunk an English paragraph, a Python file, and Arabic text with identical settings. Count actual model tokens separately and compare the ratios."
+  },
+  {
+    "Q": "How does overlap affect recall and ingestion cost?",
+    "A": "Overlap repeats material near neighboring boundaries so that a question spanning a split still has a chance to retrieve a coherent chunk. The stride is chunk_size minus overlap. With long text, the repetition factor is roughly chunk_size divided by stride, ignoring the final partial window.",
+    "Why": "For size 600 and overlap 100, the stride is 500 and the approximate repeated-word factor is 1.2. This is a mathematical estimate of chunked input, not a measured provider billing factor or a quality guarantee.",
+    "Risk": "Excessive overlap produces near-duplicate hits and increases embedding work. Evidence deduplication and eligible span merging reduce redundant context, but they do not undo ingestion cost.",
+    "Trade": "More overlap can improve boundary coverage while reducing diversity among top hits. Tune against a labeled question set rather than maximizing repetition.",
+    "Try": "Calculate chunk counts for 1,100 words at several overlaps, then verify them with sliding_window_chunk. Explain why the loop stops after the final covered window."
+  },
+  {
+    "Q": "Why validate that overlap is smaller than chunk_size?",
+    "A": "The stride must be positive for the window to advance. An overlap equal to the chunk size creates a zero stride; a larger overlap creates an invalid or backward progression. These are algorithm validity constraints, not optional quality preferences.",
+    "Why": "Both the function and the chunker constructor validate positive size and overlap in the interval from zero inclusive to size exclusive. Invalid configuration fails early before ingestion mutates versions or spends embedding calls.",
+    "Risk": "A malformed chunking configuration can block all ingestion or unexpectedly produce no chunks. Startup validation and focused boundary tests make such failures easier to diagnose than late failures inside a scheduled job.",
+    "Trade": "Strict validation rejects configurations that a permissive implementation might silently repair. Silent repair would conceal the actual indexing configuration and make snapshot identity less meaningful.",
+    "Try": "Exercise zero size, negative overlap, overlap equal to size, and empty text. Distinguish invalid configuration from a valid empty result."
+  },
+  {
+    "Q": "How does a section-aware chunker preserve semantic structure?",
+    "A": "It splits Markdown on H2 headings, reconstructs a section with its title, and delegates that section to an inner chunker. Section titles therefore participate in embedded text rather than existing only as metadata. The inner strategy still controls subdivision of a long section.",
+    "Why": "Composition reuses the sliding-window algorithm while adding section, chunk index, and sub-chunk index metadata. File reading remains in the source adapter; the chunker operates on text.",
+    "Risk": "A regular expression for H2 headings is not a complete Markdown parser. Unusual markup and headings inside fenced code can create misleading boundaries. Evaluate actual corpus syntax before relying on section semantics.",
+    "Trade": "This wrapper is lightweight and understandable, while a full syntax-tree parser handles richer structure at higher implementation and dependency cost.",
+    "Try": "Use a document with a preamble, H2 sections, H3 headings, and a fenced code sample containing a heading-like line. Inspect the exact emitted chunk text."
+  },
+  {
+    "Q": "Are chunk IDs deterministic in this implementation?",
+    "A": "Chunk IDs may be content-derived, position-derived, randomly generated, or scoped to an index generation. No choice is universally stable. Define identity around the operations it must support: deduplication, revision tracking, source lookup, and safe replacement.",
+    "Why": "Store document revision, span, chunker profile, and generation separately where needed. Test repeated chunking and document edits; stable identity requires an explicit contract rather than an assumption about UUIDs.",
+    "Risk": "Conflating position metadata with the actual store ID can break deduplication, deletion, and citation mapping. Comments about position-based chunk identifiers should be interpreted in the relevant adapter context, not generalized to every chunker.",
+    "Trade": "Random physical IDs avoid some collisions but need lifecycle tracking. Deterministic IDs simplify repeat writes but must include enough scope and revision information to avoid accidental replacement.",
+    "Try": "Chunk identical input twice, edit a paragraph, and compare the identity guarantees of content-based, positional, and generation-scoped IDs."
+  },
+  {
+    "Q": "Why must chunker configuration be part of an ingestion fingerprint?",
+    "A": "The same source text produces a different index when chunk size, overlap, section handling, or algorithm version changes. Hashing only file content would incorrectly classify that index as current and skip the required rebuild.",
+    "Why": "The snapshot builder records chunker identity, version, and sanitized configuration alongside source and embedding information. snapshot_matches therefore represents compatibility of the indexing process rather than only equality of input bytes.",
+    "Risk": "A custom chunker that hides meaningful configuration can keep stale vectors active after a behavior change. A version property is useful only if maintainers update it when output semantics change.",
+    "Trade": "Detailed fingerprints trigger more rebuilds and improve reproducibility. Minimal fingerprints save work while making silent configuration drift more likely.",
+    "Try": "Ingest unchanged text, change overlap, and ingest again. Verify that the snapshot changes even though the source hash remains equal."
+  },
+  {
+    "Q": "What would parent-child or hierarchical retrieval add?",
+    "A": "Parent-child retrieval searches fine-grained child chunks, then expands selected hits into a larger parent section or document for context. Hierarchical retrieval can first choose a topic or summary and then search within it. These are design extensions, not a default pipeline implemented by this reference design.",
+    "Why": "The retrieval service's metadata, fetch capabilities, and evidence assembly seams provide useful building blocks, but a host must implement expansion, identity mapping, authorization, and evaluation. Expansion should occur before final budgeting so its actual rendered size is counted.",
+    "Risk": "Parent expansion can expose unauthorized neighboring text or overwhelm context. A child being authorized does not automatically authorize every parent span or sibling chunk.",
+    "Trade": "More context may resolve ambiguity while increasing latency and irrelevant material. A simple section-aware chunker may be sufficient for a small structured corpus.",
+    "Try": "Design an extension that expands a hit to its section. State which metadata is required and where scope checks and budget checks must run."
+  },
+  {
+    "Q": "How should chunking change for code, tables, and multilingual documents?",
+    "A": "Use boundaries that preserve the relationships questions depend on: functions and classes for code, row and column context for tables, and language-appropriate segmentation for text. A word window is a baseline, not proof that all these formats retain their semantics.",
+    "Why": "The Chunker protocol lets a host substitute a parser-based strategy without changing the entire ingestion pipeline. Metadata can preserve symbols, table identifiers, or locations for evidence presentation.",
+    "Risk": "Combining unrelated rows or truncating a function's preconditions can generate a misleading answer from faithfully quoted text. Arbitrary structure metadata also needs stable versioning and source lookup support.",
+    "Trade": "Specialized chunkers improve some domains while increasing maintenance and creating less comparable retrieval units. Maintain a shared evaluation interface across them.",
+    "Try": "Build three questions that require a function's error branch, a table's unit header, and a multilingual synonym. Compare a structural chunker with the word-window baseline."
+  },
+  {
+    "Q": "How do I tune chunking scientifically?",
+    "A": "Hold the corpus, query set, embedding profile, backend settings, and evaluation procedure fixed while varying chunking. Measure retrieval recall and rank, evidence fit, answer faithfulness, index size, and embedding volume. Record configurations so the result is reproducible.",
+    "Why": "The retrieval service separates chunking from embedding and evaluation, making controlled experiments possible. Its snapshots help identify configuration changes, but they are not an experiment tracker by themselves.",
+    "Risk": "Optimizing on a handful of visible questions overfits the benchmark. Split tuning and held-out questions and include boundary cases, exact identifiers, long sections, and unanswerable queries.",
+    "Trade": "A full grid search costs indexing time. Start with a small set of plausible configurations and investigate failure examples before expanding the search.",
+    "Try": "Compare three sizes with two overlaps and publish a table containing quality, indexed chunk count, and estimated embedding input. Explain the winning configuration's remaining failure cases."
+  }
+]

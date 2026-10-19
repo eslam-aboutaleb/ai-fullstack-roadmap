@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "What makes this an agent rather than a fixed retrieval pipeline?",
+    "A": "A model can select tools, inspect results, and decide whether to continue before answering. A fixed pipeline executes a predetermined path for a known request shape. The example agent has bounded domain capabilities but flexible intent routing and multi-tool turns.",
+    "Why": "An agent chooses its next permitted action from observations; a fixed pipeline follows application-defined stages. Use model discretion only where it improves the task under measured constraints.",
+    "Risk": "Flexible selection introduces wrong-tool, repeated-tool, and premature-answer failures beyond retrieval quality. Tool availability should reflect server authorization, not only instructions saying which tools are appropriate.",
+    "Trade": "Agents handle conversational ambiguity and multiple intents while requiring trajectory evaluation and execution limits. A deterministic route remains preferable for exact confirmation and lifecycle mutation.",
+    "Try": "Compare a fixed policy-search endpoint with an ADK turn asking both a coverage and request-status question. Identify the additional decisions the agent makes."
+  },
+  {
+    "Q": "How does the tool registry become a model-facing contract?",
+    "A": "The registry returns callable handlers. Their signatures and docstrings inform tool declarations; registry metadata and human descriptions are not automatically security enforcement or the exact text the model sees.",
+    "Why": "Define small tools with precise descriptions and typed inputs. Bind trusted identity outside model arguments and preserve business validation inside the service behind the tool.",
+    "Risk": "Adding requires_auth metadata does not prove authentication runs. Wrappers that alter signatures can also accidentally expose internal configuration or remove required field information.",
+    "Trade": "Function-derived tools are convenient and reduce duplicated schemas. They require disciplined annotations, docstrings, wrapper preservation, and server validation.",
+    "Try": "Inspect the generated declaration of prepare_request and compare it with a tool specification. Verify that owner identity is absent from model-controlled arguments."
+  },
+  {
+    "Q": "Why preserve function signatures when instrumenting tools?",
+    "A": "Agent runtimes introspect callable signatures and annotations to construct schemas. A tracing wrapper can add internal parameters or change annotation resolution, causing the model to see a contract the underlying function does not support.",
+    "Why": "Instrumentation wrappers should preserve callable metadata used for schema generation. Verify the resulting advertised tool contract and avoid double wrapping or duplicate spans.",
+    "Risk": "A wrapper that preserves results but changes the model declaration can still break behavior. Likewise, exception-only success recording can classify a returned error payload as a successful call.",
+    "Trade": "Transparent instrumentation needs careful compatibility tests but keeps business tools vendor-neutral. Hand-instrumenting every function is simpler locally and prone to inconsistent coverage.",
+    "Try": "Compare inspect.signature and generated schema before and after instrumentation. Test both a raised exception and a returned success=False payload."
+  },
+  {
+    "Q": "What does LiteLLM abstract, and what remains provider-specific?",
+    "A": "LiteLLM offers a common access surface for different model providers. Provider capabilities still vary in tool calling, structured output, token accounting, streaming, pricing, context windows, and error behavior. A common adapter does not make all models behaviorally interchangeable.",
+    "Why": "Treat the adapter as a compatibility layer rather than proof of identical provider behavior. Record the actual model and test tool use, structured output, cancellation, and usage reporting.",
+    "Risk": "A provider switch can change tool selection or output schemas without a Python type error. The example temperature override uses truthiness, so an explicit zero does not follow the same branch as a positive configured value.",
+    "Trade": "Routing flexibility reduces provider coupling while expanding the compatibility matrix. A single well-tested provider can be a sound early production choice.",
+    "Try": "Compare two providers on the same safe tool trajectories and output contracts. Test temperature zero separately from an omitted value."
+  },
+  {
+    "Q": "How should agent memory be bounded and rehydrated?",
+    "A": "Retain enough recent user, assistant, and tool context to resolve references, while bounding replay and clearly separating temporary invocation state from persistent session state. Long history is not automatically useful context and may contain obsolete instructions or private data.",
+    "Why": "Select relevant recent history and validated working state under a budget. Rehydrate from authorized conversation records and retain durable operation identities across compaction.",
+    "Risk": "A lossy summary can forget corrected facts, retain an obsolete confirmation token, or misrepresent a previous tool failure. Message order and tool-result pairing need explicit tests.",
+    "Trade": "Compaction reduces tokens and latency while losing detail. Retrieving structured prior facts can be more reliable for critical values than trusting an unconstrained summary.",
+    "Try": "Create a conversation that corrects an amount, cancels a preparation, and returns later. Verify memory does not revive the old action."
+  },
+  {
+    "Q": "Does a database-backed session service guarantee cross-replica continuity?",
+    "A": "It provides shared stored events and state when configured and healthy. Continuity also requires stable user/session resolution, compatible serialization, correct ordering, migration ownership, and a concurrency policy for overlapping turns. Durable storage alone does not serialize reasoning.",
+    "Why": "Choose a shared durable session store when cross-replica continuity is required. Test concurrent updates, message order, ownership, restart recovery, and migration rather than assuming persistence solves all continuity.",
+    "Risk": "Silent fallback can make one replica forget or diverge from another while health appears generally available. Runtime-created session tables also sit outside the ordinary Alembic ownership model.",
+    "Trade": "Fallback preserves some availability and weakens continuity. Production may need fail-closed readiness when shared conversation state is a required guarantee.",
+    "Try": "Start two replicas with explicit database sessions, then simulate storage initialization failure. Inspect the effective backend and continuity behavior."
+  },
+  {
+    "Q": "Why distinguish a returned tool error from a raised exception?",
+    "A": "A tool can complete its Python call while returning found=False, success=False, or an error field. Those are domain outcomes, not necessarily exceptions. The agent, stream mapper, telemetry, and evaluation need a shared interpretation of those payloads.",
+    "Why": "Record transport success, function completion, and business outcome separately. A normal returned value can describe rejection or unavailability and must not become a successful task metric.",
+    "Risk": "Reporting every returned dictionary as success inflates reliability metrics. Treating every no-result as an error also misleads the user and can trigger unnecessary retries.",
+    "Trade": "Structured result types require more explicit schemas and simplify downstream interpretation. Free-form dictionaries are flexible and can accumulate incompatible conventions.",
+    "Try": "Define expected stream and metric outcomes for found=False, empty search, validation_errors, backend error, and a raised exception."
+  },
+  {
+    "Q": "Why must a human handoff be more than a sentence in a prompt?",
+    "A": "A handoff needs an actual destination, case or ticket identity, permitted context transfer, status, and recovery if delivery fails. Saying that a specialist is being connected does not establish that any operational transfer occurred.",
+    "Why": "Create a real handoff record through a queue or case service. Report assignment state honestly and preserve a fallback when escalation infrastructure is unavailable.",
+    "Risk": "Users may believe a dispute or urgent request is being handled when the system only generated text. Evaluation should distinguish an escalation recommendation from a completed transfer.",
+    "Trade": "A real handoff integration adds external dependencies and privacy choices. An honest support-contact response is simpler and preferable to an unsupported promise.",
+    "Try": "Simulate a dispute and inspect all tool events. Specify a proposed escalation tool with success, pending, failed, and authorized-payload contracts."
+  },
+  {
+    "Q": "How should agent execution be bounded?",
+    "A": "Bound model calls, tool calls, wall time, tokens, retries, and repeated identical actions. Use deterministic server checks for irreversible operations. A prompt asking the model not to repeat a tool is helpful guidance but not a hard execution ceiling.",
+    "Why": "Use a shared call, cost, and deadline budget for the whole task. Bound retries and repeated equivalent actions, and propagate cancellation through providers and tools.",
+    "Risk": "A looping agent can accumulate cost or keep a stream open while request-rate limits remain satisfied. A process-level cancellation may not stop already-started provider or worker operations.",
+    "Trade": "Tight limits improve predictability and can interrupt complex legitimate requests. Explicit partial-completion and escalation states preserve useful progress.",
+    "Try": "Use a fake model repeatedly requesting the same tool. Verify the host stops within a declared time and count budget and returns a truthful incomplete status."
+  },
+  {
+    "Q": "How can deterministic tools and flexible reasoning coexist safely?",
+    "A": "Let the model interpret requests and propose a narrow operation; let deterministic validation, authorization, and transaction code decide whether and how that operation takes effect. The model's narrative should describe the authoritative result rather than manufacture it.",
+    "Why": "Keep flexible intent resolution outside deterministic authorization and transaction logic. The same narrow business service should enforce its rules regardless of the orchestration framework.",
+    "Risk": "A future tool that directly approves service requests or writes arbitrary status values would bypass the example authority model. Pattern consistency matters more than the orchestrator's brand.",
+    "Trade": "Narrow tools reduce open-ended autonomy but make actions auditable and testable. High-autonomy systems need equally strong capability and approval boundaries.",
+    "Try": "Design a proposed handler-assistance tool that recommends a decision without committing one. State who may approve it and which exact record becomes authoritative."
+  }
+]

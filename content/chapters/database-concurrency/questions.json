@@ -1,0 +1,86 @@
+[
+  {
+    "Q": "How does SELECT FOR UPDATE prevent duplicate confirmation?",
+    "A": "Confirmation locks the pending submission selected by token, owner, and pending status. A second transaction targeting the same row waits; after the first commits, the second must observe the updated state under the actual isolation rules. The lock protects a database transition, not the browser button.",
+    "Why": "Select the pending operation by trusted owner and token, acquire the appropriate row lock, recheck expiry and state, then apply the effect and final state in one transaction.",
+    "Risk": "An internal commit would release the lock before the pending row changes, enabling duplicate creation. A request timeout or double click is expected behavior to test, not evidence that the client will never retry.",
+    "Trade": "Pessimistic locking simplifies this contested transition but makes lock duration important. Keep remote model work out of the locked transaction.",
+    "Try": "Start two confirmations simultaneously in separate database sessions. Assert one logical claim and one consumed submission, then inspect the losing request's result.",
+    "reference": "https://www.postgresql.org/docs/current/explicit-locking.html"
+  },
+  {
+    "Q": "What is the difference between flush, commit, and rollback?",
+    "A": "Flush sends pending ORM changes to the transaction, allowing generated identities and database constraints to be observed. Commit makes the transaction's successful changes durable. Rollback discards its transactional changes. Flushed data is not therefore committed, and another session's visibility depends on isolation.",
+    "Why": "Flush exposes transactional changes and constraint errors without committing. Keep one owner for commit and rollback so nested services cannot partially finalize a larger business operation.",
+    "Risk": "Catching a database exception and continuing with the same failed transaction can produce further errors. A swallowed exception is not a successful recovery; rollback or a correctly scoped savepoint is needed.",
+    "Trade": "Caller-owned transactions permit atomic composition but require explicit ownership. Helpers that commit themselves are easier in isolation and unsafe inside larger workflows.",
+    "Try": "Inject failure after the service request flush but before the final commit. Inspect all related tables from another session after rollback."
+  },
+  {
+    "Q": "What does PostgreSQL Read Committed mean for an application workflow?",
+    "A": "Ordinary statements see committed state as of each statement's snapshot, so two reads in one transaction can observe intervening commits. A transaction boundary alone does not make a sequence of business decisions appear serial. Locking or conditional updates must protect the relevant invariant.",
+    "Why": "Under Read Committed, separate statements may observe different committed snapshots. Protect a multi-statement invariant with appropriate constraints, locks, or guarded updates instead of assuming one stable view.",
+    "Risk": "A pattern that reads pending, calls external work, then updates completed can race under ordinary concurrency. Shared data snapshots and write authority are different properties.",
+    "Trade": "Stronger isolation can reduce anomalies while increasing retries and contention. It does not eliminate the need for idempotent external effects.",
+    "Try": "Reproduce a changing read in two sessions, then compare a locked confirmation and a conditional UPDATE. Record actual transaction settings.",
+    "reference": "https://www.postgresql.org/docs/current/transaction-iso.html"
+  },
+  {
+    "Q": "When would optimistic concurrency control be useful?",
+    "A": "Optimistic control updates a row only when its version or prior state matches what the caller observed. A zero-row update signals a conflict. It suits edits where collisions are uncommon and a caller can reload rather than hold a lock during long user interaction.",
+    "Why": "Include the expected version in the update predicate and require exactly one affected row. On conflict, reload state and revalidate intent before deciding whether retry is safe.",
+    "Risk": "Checking a version in Python and then issuing an unconditional update is not optimistic concurrency control. The comparison and mutation must be one database operation.",
+    "Trade": "Short conditional writes reduce waiting but require conflict handling. Row locks can be simpler for a small critical transition with many related writes.",
+    "Try": "Write a versioned update for a hypothetical claim note. Make two editors submit the same expected version and verify only one succeeds."
+  },
+  {
+    "Q": "How does job selection differ from durable job ownership?",
+    "A": "A selection transaction can return candidate IDs and then release its locks. If acquisition happens later, a guarded update and its returned rows establish which worker owns each job. Alternatively, select and claim atomically in one transaction. Inspect the full lifecycle before asserting exclusive ownership.",
+    "Why": "If candidate selection ends its transaction before acquisition, a later conditional update establishes ownership. Alternatively, claim atomically in one transaction; inspect the whole lifecycle before asserting exclusivity.",
+    "Risk": "Describing selection alone as exclusive ownership hides a race and encourages unsafe future changes. Completion and reclamation also need ownership-aware conditions to prevent obsolete workers from overwriting newer outcomes.",
+    "Trade": "Split selection and guarded claiming compose with the generic protocol but require more careful reasoning. One atomic claim statement can simplify the implementation at the cost of adapter-specific SQL.",
+    "Try": "Interleave two workers between selection and marking. Verify the loser receives no processing payload for the contested job."
+  },
+  {
+    "Q": "Why is one AsyncSession per concurrent task important?",
+    "A": "AsyncSession represents mutable transactional and ORM state. Independent concurrent operations should use independent sessions rather than sharing one session inside asyncio.gather. An async driver does not make one transaction object safe for arbitrary concurrent use.",
+    "Why": "Create an independent AsyncSession per independently concurrent transaction. Bound database concurrency separately from provider calls and avoid sharing mutable ORM state across unrelated async tasks.",
+    "Risk": "Sharing can cause state errors, unintended transaction coupling, or unpredictable query sequencing. Creating too many sessions instead can exhaust the pool, so concurrency also needs a bound.",
+    "Trade": "Separate sessions allow independent I/O while consuming additional connections and potentially observing different snapshots. Sequential queries on one session are easier when one consistent transaction is required.",
+    "Try": "Compare concurrent reads with separate sessions and sequential reads with one session. Measure pool checkout waits and document the required consistency model.",
+    "reference": "https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html"
+  },
+  {
+    "Q": "Can persistent ADK session state still suffer lost updates?",
+    "A": "Yes. Persistence retains state but does not automatically merge concurrent updates. If two workers read one version, modify different fields, and overwrite the whole JSON object, the later write can discard the earlier change.",
+    "Why": "Choose session serialization, optimistic versions, or explicit field-level merge semantics. Test two stale readers changing different fields; durable storage alone does not protect against a lost update.",
+    "Risk": "An append-only event record can survive while the latest state loses another turn's field. Sequence numbers also do not prove the model saw a serial conversational history.",
+    "Trade": "Per-session turn serialization improves consistency and reduces same-conversation throughput. Delta updates or optimistic versions offer alternatives with their own conflict policy.",
+    "Try": "Load the same session twice, apply different state keys concurrently, and inspect both the event log and final state."
+  },
+  {
+    "Q": "Why is the Redis idempotency claim a best-effort mechanism rather than exactly-once execution?",
+    "A": "The claim has a finite TTL, waiters stop waiting after a bounded time, and Redis outages permit local execution. A slow winner can still run while another replica gives up and recomputes. The claim value is not a durable operation result or a fencing token for a business write.",
+    "Why": "A short-lived Redis lease can reduce duplicate model work while expiring during a slow call. Use an owner token with checked release, and enforce business idempotency through a durable operation key in the authoritative database.",
+    "Risk": "An obsolete worker can delete or overwrite a newer lease if ownership is not checked. Duplicate model calls may add cost; repeated business writes require a separate durable protection.",
+    "Trade": "Best-effort deduplication improves responsiveness. Stronger operation state requires ownership tokens, durable result identity, and explicit timeout/retry semantics.",
+    "Try": "Make a model turn outlast the service request TTL and waiter deadline. Count model executions separately from durable business effects."
+  },
+  {
+    "Q": "How should deadlocks, lock timeouts, and serialization failures be handled?",
+    "A": "Acquire shared resources in a consistent order, keep transactions short, bound waiting, and retry only the whole appropriate transactional unit when the database reports a retryable conflict. Reusing a partially failed session or blindly retrying external effects is unsafe.",
+    "Why": "Classify database errors and retry only an entire safely repeatable transaction under a bounded deadline. Preserve the business operation key and avoid retrying partial side effects blindly.",
+    "Risk": "Retrying a transaction can repeat already-sent emails or model calls if they occur inside the unit. Outbox writes let the database retry without repeating external delivery synchronously.",
+    "Trade": "Retries improve recovery while increasing tail latency. An overloaded system needs admission control, not only more retry attempts.",
+    "Try": "Create a two-row opposite-order locking exercise in a disposable database. Record the failure class and retry the complete unit with a bounded policy.",
+    "reference": "https://www.postgresql.org/docs/current/explicit-locking.html"
+  },
+  {
+    "Q": "How do you test concurrency without relying on random sleeps?",
+    "A": "Use controlled barriers or events to pause workers at known boundaries, then force a specific interleaving. Assert durable state and ownership outcomes, not only response codes. Use a real PostgreSQL instance for lock and isolation service requests.",
+    "Why": "Use barriers or explicit synchronization to control the interleaving. Assert final rows and operation outcomes after takeover, duplicate confirmation, deadlock recovery, and stale-worker completion attempts.",
+    "Risk": "A test that runs two coroutines on one session may test an invalid integration rather than a real race. An in-memory SQLite database cannot establish PostgreSQL row-lock semantics.",
+    "Trade": "Deterministic integration tests take setup but produce stronger evidence and fewer flaky timing assumptions. Broad stress tests complement them and do not replace them.",
+    "Try": "Specify barriers for two confirmations, two job service requests, and two session-state updates. State the invariant each test could falsify."
+  }
+]

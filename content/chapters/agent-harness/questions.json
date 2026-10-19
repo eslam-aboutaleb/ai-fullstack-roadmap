@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "What is an agent harness?",
+    "A": "A harness is the surrounding execution environment: model invocation, tool dispatch, context assembly, state, permissions, budgets, event handling, observability, and recovery. The model is one component inside it.",
+    "Why": "Make the run lifecycle explicit and give each task a durable ID. Keep authoritative writes in application services reachable only through validated dispatch.",
+    "Risk": "A powerful model in an unconstrained harness can amplify errors through its tools.",
+    "Trade": "Strong runtime controls take engineering effort and improve predictability.",
+    "Try": "Draw the harness around a model and identify every external effect it can initiate."
+  },
+  {
+    "Q": "How should stop conditions be designed?",
+    "A": "Stop on verified completion, denied action, exhausted budget, cancellation, unrecoverable failure, or a request for necessary clarification. Completion must reference observable results.",
+    "Why": "Check limits before each model and tool operation. Detect repeated equivalent calls and preserve a final reason code.",
+    "Risk": "Natural-language declarations of done can precede actual persistence.",
+    "Trade": "Conservative stopping reduces runaway work and may interrupt recoverable tasks.",
+    "Try": "Trigger each terminal state in a synthetic run and inspect its user-facing explanation."
+  },
+  {
+    "Q": "How should tool dispatch enforce policy?",
+    "A": "Validate the requested tool against the run's permitted registry, parse arguments, bind trusted identity, check resource access, and apply a deadline before execution.",
+    "Why": "Record a typed outcome and operation identifier. Treat the model's arguments as proposals rather than trusted execution parameters.",
+    "Risk": "A schema validator cannot establish ownership or approval.",
+    "Trade": "Centralized dispatch adds a consistent policy boundary and can become a bottleneck.",
+    "Try": "Submit a valid tool schema with another user's record ID and verify denial."
+  },
+  {
+    "Q": "How should shell or code execution be sandboxed?",
+    "A": "Use an isolated environment with restricted files, network, process capabilities, credentials, runtime, and output size. Review whether the task needs execution at all.",
+    "Why": "Supply synthetic fixtures or scoped artifacts and export only approved results. Tear down the environment and redact outputs before tracing.",
+    "Risk": "Containerization alone does not prove isolation from every host resource or network destination.",
+    "Trade": "Strong isolation reduces convenience and limits blast radius.",
+    "Try": "Run a harmless script that attempts to read an unmounted file and verify rejection."
+  },
+  {
+    "Q": "How should budgets be implemented across nested calls?",
+    "A": "Use a shared task budget with reservations for model calls, tools, elapsed time, and estimated spend. Reconcile estimated and actual usage after each operation.",
+    "Why": "Children inherit remaining limits and cannot reset the parent's budget. Stop scheduling new work when the deadline or capacity is exhausted.",
+    "Risk": "Per-agent counters do not bound a fleet of nested agents.",
+    "Trade": "Accurate accounting adds complexity and prevents hidden cost multiplication.",
+    "Try": "Simulate two children competing for the final allowed model call."
+  },
+  {
+    "Q": "How should harness state survive restarts?",
+    "A": "Persist task status, completed operation IDs, checkpoint versions, and pending work in a durable store. Reconstruct context from verified state after restart.",
+    "Why": "Use schema versions for checkpoints and reject unsupported migrations. Recover uncertain operations through their authoritative status endpoint.",
+    "Risk": "A memory-only checkpoint disappears during deployment or process failure.",
+    "Trade": "Durable state adds operational cost and supports recovery.",
+    "Try": "Restart immediately after a write commits and verify that it is not executed again."
+  },
+  {
+    "Q": "How should cancellation propagate?",
+    "A": "Carry a cancellation signal and absolute deadline through model requests, tools, child tasks, and stream writers. Record what work stopped and what already completed.",
+    "Why": "Cancel cooperative tasks, close connections, and retain operation IDs for uncertain effects. Provide a task-status query independent of the stream.",
+    "Risk": "Cancelling a coroutine does not roll back an external transaction that already committed.",
+    "Trade": "Waiting for cleanup increases cancellation latency and reduces orphaned work.",
+    "Try": "Disconnect the browser during a tool call and inspect both server state and the next retry."
+  },
+  {
+    "Q": "How should a harness defend against injected instructions?",
+    "A": "Keep permissions, approved destinations, tool availability, and secret access outside model control. Minimize untrusted context and evaluate attacks at every input channel.",
+    "Why": "A policy gate checks the proposed action against trusted principal and task state. Sensitive actions require bound approval.",
+    "Risk": "A classifier or safety prompt can miss an attack and should not be the only control.",
+    "Trade": "Layered controls add false rejections and prevent high-impact unauthorized effects.",
+    "Try": "Place an exfiltration request in an OCR result and verify outbound restrictions remain active."
+  },
+  {
+    "Q": "How should runtime events be designed?",
+    "A": "Emit typed, ordered events with task, run, sequence, timestamp, and version fields. Separate model text, tool progress, durable completion, errors, and cancellation.",
+    "Why": "Persist only events required for recovery or audit, and create a user-safe projection for streaming. Never expose private chain-of-thought as a progress feed.",
+    "Risk": "Raw internal events can contain secrets and misleading intermediate claims.",
+    "Trade": "Stable public events require adaptation when providers change.",
+    "Try": "Translate two provider event formats into one documented UI contract."
+  },
+  {
+    "Q": "What should a production harness dashboard show?",
+    "A": "Show active and queued tasks, completion and failure rates, policy denials, uncertain operations, budget exhaustion, p95 latency, spend, and provider health. Drill down through safe trace identifiers.",
+    "Why": "Distinguish infrastructure failures from business rejections and quality failures. Alert on sustained symptoms tied to user impact.",
+    "Risk": "A green HTTP-success graph can hide tools returning domain errors.",
+    "Trade": "Detailed categories increase instrumentation work and improve diagnosis.",
+    "Try": "Demonstrate a run that returns HTTP 200 but fails its task invariant."
+  }
+]

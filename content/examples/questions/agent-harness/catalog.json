@@ -1,0 +1,92 @@
+[
+  {
+    "explain": "A controlled loop receives model proposals, dispatches permitted tools, and stops on a final response or budget. The proposals are scripted so the mechanics are reproducible offline.",
+    "steps": "Iterate a bounded proposal sequence. || Validate a tool name before dispatch and stop immediately at the final outcome.",
+    "expect": "completed 1",
+    "name": "agent-loop",
+    "language": "python",
+    "filename": "agent-loop.py",
+    "questions": [
+      591,
+      758,
+      391,
+      760,
+      191,
+      604,
+      381
+    ]
+  },
+  {
+    "explain": "Nested work reserves from one parent budget rather than each child receiving a fresh allowance. This in-process object models the rule; a fleet needs atomic distributed accounting.",
+    "steps": "Give all children the same remaining-call counter. || Reject a reservation that would exceed the parent allowance.",
+    "expect": "True True False",
+    "name": "shared-budget",
+    "language": "python",
+    "filename": "shared-budget.py",
+    "questions": [
+      592,
+      593,
+      392,
+      395,
+      199,
+      379
+    ]
+  },
+  {
+    "explain": "Local timeout or cancellation does not prove the remote effect stopped. Reconcile by stable operation identity before deciding whether a retry is safe.",
+    "steps": "Mark local waiting as cancelled. || Consult the authoritative operation fixture and preserve the already committed result.",
+    "expect": "cancelled_wait completed",
+    "name": "uncertain-effect",
+    "language": "python",
+    "filename": "uncertain-effect.py",
+    "questions": [
+      595,
+      759,
+      397,
+      638,
+      227,
+      653,
+      427
+    ]
+  },
+  {
+    "explain": "Durable workflow state stores execution position, schema, pending action, and operation identity. The dictionary models the record; the example itself is not durable storage.",
+    "steps": "Save the completed step and current waiting reason. || Resume from the recorded position instead of restarting the entire task.",
+    "expect": "review op1",
+    "name": "durable-run-state",
+    "language": "python",
+    "filename": "durable-run-state.py",
+    "questions": [
+      396,
+      613,
+      766,
+      372,
+      375
+    ]
+  },
+  {
+    "explain": "A public event envelope carries version, task, sequence, type, and bounded payload. Consumers validate the envelope rather than depending on private runtime objects.",
+    "steps": "Construct a versioned event with a stable sequence number. || Reject unsupported versions before processing payload data.",
+    "expect": "True T1 7",
+    "name": "runtime-events",
+    "language": "python",
+    "filename": "runtime-events.py",
+    "questions": [
+      399,
+      424,
+      655,
+      433
+    ]
+  },
+  {
+    "explain": "A useful harness view distinguishes active work, stopped runs, and unknown effects. Raw token counts alone cannot establish task completion.",
+    "steps": "Count runs by recorded terminal meaning. || Preserve a separate bucket for operations that still need reconciliation.",
+    "expect": "{'completed': 1, 'budget_exhausted': 1, 'unknown_effect': 1}",
+    "name": "harness-dashboard",
+    "language": "python",
+    "filename": "harness-dashboard.py",
+    "questions": [
+      400
+    ]
+  }
+]

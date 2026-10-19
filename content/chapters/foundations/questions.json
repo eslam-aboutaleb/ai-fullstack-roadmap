@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "What is RAG, and how does a retrieval service fit into an AI application?",
+    "A": "RAG means Retrieval-Augmented Generation. Before asking a language model to answer, your application finds relevant information and puts that information into the model request. The model can then explain your actual document instead of guessing from its training. A retrieval service is the part that finds and returns those passages. It does not automatically supply the chat interface, user permissions, or final answer checks.",
+    "Why": "First, prepare the documents for search: read them, split them into passages, and store those passages with searchable representations. Later, when a user asks a question, search for useful passages and send their text to the model together with the question. These are two different workflows. Updating the searchable document can change the next answer without changing the model weights.",
+    "Risk": "A search may return the wrong passage, or the model may misread the right passage. Check whether the selected source actually supports the answer. If the required rule is missing or the search service failed, report that state rather than inventing a rule.",
+    "Trade": "RAG supports changing information and inspectable sources, but you must operate indexing, permissions, search, context selection, and evaluation. A simple structured lookup is a better choice for an exact request status or a financial total.",
+    "Try": "Trace one document through ingestion and one question through search. Draw the boundary where your own generator must be called."
+  },
+  {
+    "Q": "Why can an LLM sound confident while being wrong?",
+    "A": "A Large Language Model predicts token sequences using learned patterns. Fluent continuation and factual verification are different capabilities. If the prompt lacks the relevant fact, or includes ambiguous evidence, a plausible continuation can still be false. Confidence in the prose is not a calibrated probability that the service request is correct.",
+    "Why": "In the reference design, the retrieval and evidence layers supply inspectable material before a host invokes generation. an evidence-status type distinguishes missing evidence from a failed backend, giving the application a basis for abstaining or asking a follow-up question.",
+    "Risk": "Presenting a citation does not establish that the citation supports the attached sentence. the retrieval service preserves evidence identity, while claim-to-evidence checking and appropriate abstention remain host responsibilities.",
+    "Trade": "Restricting answers to supplied evidence improves auditability but can reduce coverage. Allowing general model knowledge expands coverage while weakening the promise that every answer reflects the indexed corpus.",
+    "Try": "Ask one answerable, one ambiguous, and one unanswerable question. Write separate expected behaviors before evaluating any generated output."
+  },
+  {
+    "Q": "How are search, retrieval, and generation different responsibilities?",
+    "A": "Search ranks records against a query. Retrieval includes query preparation, backend selection, constraint enforcement, candidate fetching, and optional reranking. Generation turns the resulting evidence and instructions into a new answer. Treating these as one function hides whether an error came from missing data, ranking, or answer synthesis.",
+    "Why": "A hybrid retriever and the strategy classes orchestrate search; an evidence assembler builds a bounded evidence bundle. Their return types are useful without a chat model. This separation also supports source verification tools and ordinary search interfaces.",
+    "Risk": "A fallback that silently generates when search fails can convert an infrastructure outage into misinformation. Use strict retrieval and propagate backend failure into the host's response state.",
+    "Trade": "Explicit stages require more wiring and more status handling. They also let you benchmark retrieval independently and switch generation providers without rebuilding the corpus.",
+    "Try": "Design three response payloads: successful evidence, successful empty search, and backend failure. Explain which may safely reach generation."
+  },
+  {
+    "Q": "When should I use RAG instead of fine-tuning or a SQL query?",
+    "A": "Use retrieval when answers depend on a changing collection and need source attribution. Use a structured query when the task is exact aggregation over authoritative fields. Consider fine-tuning when the persistent problem is behavior, style, or task adaptation rather than missing up-to-date facts. These approaches can be combined.",
+    "Why": "The retrieval service's document and evidence abstractions suit passage retrieval. A question such as total approved invoices this month should usually reach a database computation; nearest passages cannot guarantee an exact total. Fine-tuning is not implemented by this subsystem.",
+    "Risk": "A semantic similarity score can make an approximate answer look exact. The host must route tasks appropriately and preserve authorization on both document search and structured tools.",
+    "Trade": "Task routing adds complexity but avoids forcing every question through a vector index. A single retrieval path is easier to prototype and easier to misuse.",
+    "Try": "Classify ten realistic product questions into passage retrieval, database computation, general explanation, or behavior adaptation. Defend two borderline cases."
+  },
+  {
+    "Q": "What is the difference between a document, a chunk, a vector, and evidence?",
+    "A": "A document is a source-level unit of text and metadata. A chunk is a searchable subdivision. An embedding vector is a numerical representation of that subdivision. Evidence is selected, attributed text prepared for a consuming model or user. These objects have different lifetimes and should not share one overloaded identity field.",
+    "Why": "The canonical Chunk, Document, and SearchResult dataclasses separate ingestion and search shapes; evidence types add revision, source, span, and citation information. A chunk hit becomes useful evidence only after selection and attribution.",
+    "Risk": "Confusing a chunk ID with a document ID breaks deletion, citation lookup, and version switching. the retrieval service carries metadata through the pipeline, but hosts must supply stable source identities and meaningful provenance.",
+    "Trade": "More explicit types require conversion at boundaries. They reduce accidental field loss and make changes to storage independent of the user-facing citation contract.",
+    "Try": "Annotate a sample result with its source ID, document ID, revision, chunk ID, text, vector dimension, and evidence label. Identify which fields can change after reindexing."
+  },
+  {
+    "Q": "What do dense and sparse retrieval mean?",
+    "A": "Dense retrieval compares learned vectors, making semantic paraphrases discoverable. Sparse or lexical retrieval scores token-based signals, making exact names, identifiers, and unusual terms discoverable. They capture different notions of relevance. Neither should be described as understanding the user's authorization or guaranteeing truth.",
+    "Why": "The retrieval service separates a vector index and a lexical index capabilities and composes them in hybrid retrieval. PostgreSQL offers native full-text search; some other adapters approximate lexical ranking with token overlap. Those are different implementations, not equivalent language models.",
+    "Risk": "Dense retrieval can confuse related concepts; lexical retrieval can miss synonyms. Hybrid fusion reduces dependence on one signal but adds its own ranking choices and cannot recover absent source material.",
+    "Trade": "Two signals increase implementation and evaluation cost. A keyword-only strategy can be preferable for exact support codes or a prototype with no embedding service.",
+    "Try": "Create queries containing a product code, a paraphrase, and a misspelling. Predict which retrieval stage should help, then inspect both ranked lists."
+  },
+  {
+    "Q": "What does grounding actually guarantee?",
+    "A": "Grounding means giving an answer process explicit evidence it can use. It is a relationship between a service request and supporting material, not a property conferred by vector search alone. A grounded workflow must preserve provenance, show the relevant revision, and handle insufficient evidence honestly.",
+    "Why": "An evidence assembler deduplicates, merges eligible spans, budgets rendered context, and creates citation labels. revision-aware source lookup can retrieve a bounded span from a retained revision. These mechanisms make verification possible rather than automatically performing every verification step.",
+    "Risk": "A wrong retrieved passage, stale document, or unsupported inference can survive into the answer. Host-side citation checks and evaluation are still necessary; delimiter escaping is only one mitigation against untrusted source instructions.",
+    "Trade": "Strong attribution needs snapshot retention and richer metadata. Minimal text-only search is cheaper but cannot support reliable historical verification.",
+    "Try": "Write an answer with three factual claims. Map each claim to an exact evidence span; flag any sentence whose support requires an unstated inference."
+  },
+  {
+    "Q": "How do relevance, correctness, faithfulness, and freshness differ?",
+    "A": "Relevance asks whether material addresses the question. Correctness asks whether the service request is true. Faithfulness asks whether the answer follows the provided evidence. Freshness asks whether the evidence reflects an appropriate time or revision. An answer can be faithful to an obsolete policy and therefore be incorrect for today's user.",
+    "Why": "The reference design separates retrieval evaluation from answer evaluation and carries freshness and revision fields in evidence. These signals allow a host to assess different failure modes rather than collapse quality into a single score.",
+    "Risk": "High retrieval recall does not establish answer correctness. A heuristic overlap score also cannot establish that a reasoning step is valid or that the source itself is authoritative.",
+    "Trade": "Multiple metrics complicate release decisions but expose regressions that one average hides. The right acceptance criteria depend on the product's questions and corpus.",
+    "Try": "Construct four answers that each fail a different dimension. Explain which measurement and which code boundary would reveal each failure."
+  },
+  {
+    "Q": "What are the main cost and latency stages in a RAG request?",
+    "A": "Typical stages are query transformation, query embedding, candidate search, fusion, reranking, evidence assembly, and host generation. Ingestion has separate extraction, chunking, embedding, and storage costs. The relative expense depends on providers, data size, network placement, and configuration; this reference design does not establish universal timings.",
+    "Why": "Separating candidate_k from final_k permits a larger search pool without necessarily sending every hit to generation. Telemetry records stage events and durations, and the embedding executor bounds concurrency and provider call duration when configured.",
+    "Risk": "Increasing query variants, candidate counts, and retries together can multiply load. No single semaphore controls an entire fleet or gives an end-to-end request deadline.",
+    "Trade": "Higher candidate recall often costs more latency and money. Optimize against a quality target using measured stage distributions, not guessed millisecond service requests.",
+    "Try": "Create a latency budget spreadsheet with p50 and p95 per stage and an overall deadline. Mark every number as a hypothesis until you measure it."
+  },
+  {
+    "Q": "What does domain-agnostic mean, and what does it not solve?",
+    "A": "Domain-agnostic means the core can work with different application schemas, sources, settings, and storage implementations through explicit interfaces. It does not mean every domain has identical chunking needs, permissions, legal retention rules, or quality thresholds. Those knowledge rules remain part of the host's product design.",
+    "Why": "The retrieval service receives settings, sessions, version storage, embedders, and retrieval strategies rather than importing a host's models. The same core can serve a knowledge corpus or a support corpus while their adapters and evaluation datasets differ.",
+    "Risk": "Generic abstractions can hide important domain constraints if the host never models them. A tenant filter is useful only when trusted identity selects the correct scope and every storage path respects it.",
+    "Trade": "Reusability reduces coupling but requires deliberate integration work. A specialized application may be quicker initially and harder to reuse safely later.",
+    "Try": "Compare an HR policy assistant and a public FAQ assistant. List five knowledge rules that differ even if they use identical the retrieval service components."
+  }
+]

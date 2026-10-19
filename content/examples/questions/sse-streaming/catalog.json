@@ -1,0 +1,102 @@
+[
+  {
+    "explain": "Incremental UTF-8 decoding preserves a character split across transport chunks. Event framing must still buffer until the full SSE event delimiter arrives.",
+    "steps": "Split bytes inside a multibyte character. || Decode with retained state and join the pieces before parsing the event.",
+    "expect": "True True",
+    "name": "utf8-framing",
+    "language": "python",
+    "filename": "utf8-framing.py",
+    "questions": [
+      648,
+      784,
+      272
+    ]
+  },
+  {
+    "explain": "SSE separates fields by lines and dispatches a complete event after a blank line. Multiple data lines form one event payload joined by newline.",
+    "steps": "Read the event's id and data fields. || Join data lines only after the fixture reaches its terminating blank line.",
+    "expect": "7 hello|world",
+    "name": "sse-frame",
+    "language": "python",
+    "filename": "sse-frame.py",
+    "questions": [
+      649,
+      422
+    ]
+  },
+  {
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "language": "javascript",
+    "explain": "Fetch streaming supports request headers and cancellation when standard EventSource is unsuitable for the application's authentication or POST contract.",
+    "steps": "Attach the runtime credential and AbortSignal without embedding a real secret. || Check HTTP success before passing the byte stream to an incremental parser.",
+    "expect": "With a compatible authenticated endpoint, returns a ReadableStream or rejects on HTTP failure.",
+    "limit": "Browser integration sketch requiring your endpoint and safe credential handling; no live request is made during verification.",
+    "name": "fetch-stream-choice",
+    "filename": "fetch-stream-choice.js",
+    "questions": [
+      423,
+      650
+    ]
+  },
+  {
+    "explain": "Ordered event identities let a reconnect resume without appending repeated text. Expired retention requires an explicit snapshot or resume failure.",
+    "steps": "Keep the last applied sequence number. || Apply only later events and advance the checkpoint after each accepted event.",
+    "expect": "bc 9",
+    "name": "replay-events",
+    "language": "python",
+    "filename": "replay-events.py",
+    "questions": [
+      651,
+      425,
+      786,
+      437
+    ]
+  },
+  {
+    "explain": "Application writes can still be buffered by proxies or clients. A deployment checklist needs actual stream timing as well as heartbeat configuration.",
+    "steps": "Record buffering and idle-timeout assumptions separately. || Flag the fixture whose proxy buffering prevents prompt delivery.",
+    "expect": "investigate_buffering",
+    "name": "proxy-stream",
+    "language": "python",
+    "filename": "proxy-stream.py",
+    "questions": [
+      652,
+      426
+    ]
+  },
+  {
+    "explain": "Stream closure without a terminal completion event leaves partial output incomplete. An explicit failure event also must not be displayed as successful completion.",
+    "steps": "Track terminal events independently from accumulated text. || Mark the stream interrupted when no declared terminal outcome arrived.",
+    "expect": "incomplete",
+    "name": "terminal-stream",
+    "language": "python",
+    "filename": "terminal-stream.py",
+    "questions": [
+      785,
+      429,
+      133
+    ]
+  },
+  {
+    "explain": "Server-to-client progress can use a unidirectional event stream while cancellation remains a separate authenticated HTTP operation. Duplex transport is not required merely to show progress.",
+    "steps": "Separate the progress subscription from the mutation endpoint. || Inspect the operation methods rather than coupling task lifetime to one connection.",
+    "expect": "GET POST",
+    "name": "sse-purpose",
+    "language": "python",
+    "filename": "sse-purpose.py",
+    "questions": [
+      421
+    ]
+  },
+  {
+    "explain": "A framing regression test feeds the same UTF-8 fixture at every possible byte split. It checks the decoding boundary deterministically without a real network.",
+    "steps": "Recreate the incremental decoder for each split point. || Assert identical decoded text for all byte partitions.",
+    "expect": "partitions passed",
+    "name": "stream-partition-test",
+    "language": "python",
+    "filename": "stream-partition-test.py",
+    "questions": [
+      430
+    ]
+  }
+]

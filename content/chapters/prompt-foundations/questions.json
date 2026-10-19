@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "What makes a useful system instruction?",
+    "A": "A useful instruction defines the assistant's purpose, allowed capabilities, evidence requirements, interaction style, and escalation behavior. It should make decision rules observable rather than merely assigning a persona.",
+    "Why": "Separate stable product policy from task-specific instructions and user-provided data. Version the instruction alongside tool schemas and evaluation fixtures.",
+    "Risk": "Long conflicting instructions can obscure the rules that matter most.",
+    "Trade": "Concise rules are easier to maintain while examples may be needed for ambiguous behavior.",
+    "Try": "Rewrite a vague helpful-assistant prompt into five testable behavior requirements."
+  },
+  {
+    "Q": "How do role, task, context, and output specification work together?",
+    "A": "The role supplies the operating perspective, the task defines the work, context supplies relevant facts, and the output contract defines the required result. None should imply capabilities the backend lacks.",
+    "Why": "Use explicit sections and a small validated schema for structured answers. Include what to do when required facts are missing.",
+    "Risk": "A detailed role description can encourage unjustified confidence without improving evidence.",
+    "Trade": "Structured outputs simplify integration and reduce free-form flexibility.",
+    "Try": "Design an extraction prompt that returns unknown rather than inventing a missing date."
+  },
+  {
+    "Q": "When are zero-shot and few-shot prompts appropriate?",
+    "A": "Zero-shot prompts rely on instructions alone. Few-shot prompts add examples showing the desired mapping, especially useful when labels or output conventions are ambiguous.",
+    "Why": "Include diverse normal, boundary, and abstention examples. Keep test cases separate so reported performance does not merely reflect prompt memorization.",
+    "Risk": "Biased examples can teach spurious formatting or demographic associations.",
+    "Trade": "Examples improve clarity but consume context and require maintenance.",
+    "Try": "Compare a classification task with no examples and four balanced examples on a held-out set."
+  },
+  {
+    "Q": "How do negative instructions compare with positive alternatives?",
+    "A": "A prohibition is easier to follow when paired with an allowed replacement behavior. For example, require a clarification when a required field is absent.",
+    "Why": "Turn each major restriction into a condition and action: if evidence is insufficient, state the gap and ask the smallest useful question.",
+    "Risk": "Repeating long lists of forbidden content can distract from the actual task and still cannot enforce permissions.",
+    "Trade": "Explicit alternatives add length while making behavior easier to evaluate.",
+    "Try": "Replace five vague do-not rules with observable conditional actions."
+  },
+  {
+    "Q": "How should a prompt express uncertainty?",
+    "A": "Require the assistant to distinguish supported facts, assumptions, unresolved conflicts, and missing information. Confidence should follow an evaluated policy rather than an adjective chosen by the model.",
+    "Why": "Attach source-backed statements to evidence IDs and use typed unresolved reasons for downstream handling.",
+    "Risk": "Numerical self-reported confidence is not automatically calibrated.",
+    "Trade": "More abstention can reduce harmful errors while increasing follow-up effort.",
+    "Try": "Create cases that require a direct answer, a qualified answer, and an abstention."
+  },
+  {
+    "Q": "Why is output parsing a backend responsibility?",
+    "A": "The model produces untrusted output even when a schema is requested. The backend must validate structure, types, allowed values, and business invariants before downstream use.",
+    "Why": "Parse with a schema validator and apply separate domain checks. Reject extra properties where they create ambiguity, and never execute returned code by default.",
+    "Risk": "Schema-valid output can still name an unauthorized resource or unsupported amount.",
+    "Trade": "Strict validation causes recoverable failures instead of silently accepting malformed data.",
+    "Try": "Send a schema-valid but unauthorized record ID through your proposed handler."
+  },
+  {
+    "Q": "How should prompt templates avoid accidental instruction injection?",
+    "A": "Keep trusted instructions and variable data separate. Treat documents, user messages, and tool descriptions as data that may contain adversarial instructions.",
+    "Why": "Render variables through a controlled template, label sources, and enforce action permissions in backend policy regardless of model output.",
+    "Risk": "Escaping characters and adding delimiters do not guarantee resistance to semantic injection.",
+    "Trade": "Layered controls take more work than a prompt-only defense and provide stronger boundaries.",
+    "Try": "Insert a malicious instruction into a document field and inspect the resulting tool permissions."
+  },
+  {
+    "Q": "What should be versioned with a prompt?",
+    "A": "Version the instruction, examples, tool descriptions, output schema, retrieval policy, model settings, and evaluation dataset references. An instruction string alone does not identify system behavior.",
+    "Why": "Store a release manifest and attach its ID to traces and evaluation runs. Use immutable artifacts for comparisons.",
+    "Risk": "Changing the tool schema while retaining an old prompt version makes regressions difficult to explain.",
+    "Trade": "Detailed manifests add bookkeeping and enable reproducibility.",
+    "Try": "Create two releases that differ only in one instruction and compare matched tasks."
+  },
+  {
+    "Q": "What is the right way to debug a poor answer?",
+    "A": "Inspect the task contract, evidence, tool trajectory, model output, and parser outcome in order. A bad answer may arise before the prompt ever reaches the model.",
+    "Why": "Reproduce the failure with captured non-sensitive fixtures. Change the smallest identified cause and add a regression example.",
+    "Risk": "Editing instructions for a retrieval bug can produce a brittle prompt that hides the real problem.",
+    "Trade": "Focused fixes are slower initially than ad hoc tweaking and accumulate more reliable behavior.",
+    "Try": "Classify five failures as missing context, wrong tool, unsupported generation, or parser rejection."
+  },
+  {
+    "Q": "How do you evaluate prompt quality beyond personal preference?",
+    "A": "Define task-specific success criteria and compare prompts on the same held-out examples. Evaluate correctness, groundedness, unsafe actions, latency, and user effort separately.",
+    "Why": "Blind reviewers to prompt variant, calibrate any model judge against humans, and report subgroup and failure-category results.",
+    "Risk": "A fluent response can win a style preference while failing a business requirement.",
+    "Trade": "Human review costs time but anchors automated judging.",
+    "Try": "Build a rubric that scores both factual support and whether the correct next action was taken."
+  }
+]

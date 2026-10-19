@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "When should a task be decomposed into smaller prompts?",
+    "A": "Decompose when subtasks have different evidence, validation rules, or failure recovery. Extraction followed by validation and drafting is often easier to inspect than a single opaque request.",
+    "Why": "Pass typed intermediate results, not unbounded prose. Validate each boundary before invoking the next stage.",
+    "Risk": "Errors in an early stage can become authoritative inputs to later stages.",
+    "Trade": "Decomposition improves diagnosis and adds latency and orchestration cost.",
+    "Try": "Split a support response into intent extraction, authorized evidence lookup, and answer generation."
+  },
+  {
+    "Q": "What is chain-of-thought prompting useful for, and what should users see?",
+    "A": "Some reasoning tasks benefit from structured intermediate work, but private internal reasoning is not a reliable audit record. Ask for concise conclusions, checkable calculations, evidence, or a plan when useful.",
+    "Why": "Verify the observable result using tools or deterministic checks. Use public explanations that cite the facts needed to assess the conclusion.",
+    "Risk": "A persuasive reasoning narrative can rationalize an incorrect result.",
+    "Trade": "Additional reasoning can improve some tasks while increasing cost and latency.",
+    "Try": "Compare direct answers with a short checkable calculation and validate both against known outcomes."
+  },
+  {
+    "Q": "How does self-consistency work?",
+    "A": "Generate multiple candidate solutions and aggregate their observable results under a defined rule. Agreement can improve some tasks but does not establish truth when samples share a bias.",
+    "Why": "Normalize answers before aggregation and track the extra model cost. Require external evidence for factual questions.",
+    "Risk": "Five matching hallucinations are still wrong.",
+    "Trade": "Sampling increases compute and may be unnecessary for deterministic tool-backed tasks.",
+    "Try": "Compare single-sample accuracy with majority voting on a bounded reasoning dataset."
+  },
+  {
+    "Q": "What is retrieval-grounded prompting?",
+    "A": "Supply task-relevant evidence and require answers to distinguish supported statements from unresolved gaps. The retrieval and citation contracts matter as much as the instruction.",
+    "Why": "Include source IDs, revisions, and applicability notes, then validate citations and critical facts after generation.",
+    "Risk": "A model can copy an irrelevant passage accurately and still answer the wrong question.",
+    "Trade": "Strong grounding improves traceability while limiting unsupported coverage.",
+    "Try": "Add one irrelevant but plausible passage and check whether the answer cites the right source."
+  },
+  {
+    "Q": "What is plan-and-execute prompting?",
+    "A": "A planner proposes steps; an executor performs permitted actions and records outcomes. The plan is a hypothesis that may need revision when tools reveal new facts.",
+    "Why": "Validate steps against capability and permission constraints, set a budget, and checkpoint durable progress.",
+    "Risk": "Executing a model's plan without backend checks turns a reasoning error into a system action.",
+    "Trade": "Separate planning improves visibility but adds state and recovery complexity.",
+    "Try": "Require a plan to pause before an irreversible action and resume after approval."
+  },
+  {
+    "Q": "When is a critique-and-revise loop helpful?",
+    "A": "Use it when a critic has a specific rubric, additional evidence, or a stronger verification method. Generic requests to improve the answer often produce stylistic churn.",
+    "Why": "Bound revision count and require each revision to address an identified defect. Re-evaluate against independent acceptance criteria.",
+    "Risk": "A critic can hallucinate errors or remove a correct qualification.",
+    "Trade": "Additional passes improve some outputs and consume latency and tokens.",
+    "Try": "Give the critic a citation-support rubric and measure whether factual errors actually decrease."
+  },
+  {
+    "Q": "How should constrained decoding be distinguished from semantic validation?",
+    "A": "Constrained decoding can restrict output structure or allowed tokens. Semantic validation checks whether the selected values are true, authorized, and meaningful for the application.",
+    "Why": "Use both when integrating model output with software. Apply ownership checks, numeric constraints, and state-transition rules after parsing.",
+    "Risk": "A perfectly valid JSON object can still request an impermissible action.",
+    "Trade": "Strong output constraints simplify parsing and may limit model expressiveness.",
+    "Try": "Produce valid JSON containing a nonexistent resource and ensure the domain layer rejects it."
+  },
+  {
+    "Q": "What is prompt chaining versus tool use?",
+    "A": "Prompt chaining connects model calls through application-controlled stages. Tool use lets a model request an external capability under host control. A workflow may combine both.",
+    "Why": "Keep a typed boundary between the proposed tool call and actual execution. Feed the operation outcome back as an observation.",
+    "Risk": "Treating tool-call text as execution proof creates false success.",
+    "Trade": "Chaining is predictable; tool selection is flexible and harder to evaluate exhaustively.",
+    "Try": "Draw one fixed extraction chain and one agent loop for the same task."
+  },
+  {
+    "Q": "How should prompt injection be evaluated?",
+    "A": "Use direct and indirect attacks that attempt data exfiltration, permission escalation, instruction replacement, and false completion. Evaluate resulting actions as well as response wording.",
+    "Why": "Include attacks inside retrieved documents, OCR text, remote tool metadata, and conversation history. Verify the backend rejects forbidden operations.",
+    "Risk": "Passing a few known jailbreak strings does not establish general resistance.",
+    "Trade": "Adversarial coverage costs maintenance and exposes high-impact gaps.",
+    "Try": "Add one injection fixture per untrusted input channel and define an invariant for each."
+  },
+  {
+    "Q": "When should you stop optimizing the prompt?",
+    "A": "Stop when the dominant failures require better evidence, a reliable tool, changed product scope, or model capability rather than clearer instructions. Optimize the full system against a release target.",
+    "Why": "Categorize remaining failures and estimate the expected value of the next intervention. Keep a simple baseline for comparison.",
+    "Risk": "Prompt complexity can grow while task reliability remains flat.",
+    "Trade": "Backend improvements take engineering effort but often provide durable guarantees.",
+    "Try": "Rank your ten largest failures by whether a prompt change could plausibly resolve them."
+  }
+]

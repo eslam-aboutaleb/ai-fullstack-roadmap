@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "When is a fixed workflow better than an autonomous agent?",
+    "A": "Prefer a fixed workflow when the valid sequence is known and business rules dominate. Use an agent where choosing among tools or exploring uncertain evidence adds measurable value.",
+    "Why": "Put deterministic validation and writes in application services. Limit model discretion to decisions that benefit from language understanding or flexible planning.",
+    "Risk": "An autonomous loop can add latency and unpredictable paths to an otherwise simple operation.",
+    "Trade": "Fixed flows are easier to verify and less adaptable to unexpected tasks.",
+    "Try": "Compare a password-reset workflow with an open-ended technical investigation."
+  },
+  {
+    "Q": "How should orchestration state be modeled?",
+    "A": "Represent goal, principal reference, completed steps, pending actions, evidence IDs, budget, and terminal status explicitly. Keep durable operation outcomes separate from model-generated plans.",
+    "Why": "Use typed transitions and immutable identifiers. Persist checkpoints at recoverable boundaries and validate loaded state before resuming.",
+    "Risk": "A checkpoint can be stale relative to the business database.",
+    "Trade": "Explicit state adds modeling work and makes restart behavior understandable.",
+    "Try": "Resume after a crash between a completed tool call and the next model call."
+  },
+  {
+    "Q": "What is fan-out and fan-in orchestration?",
+    "A": "Fan-out runs independent tasks concurrently; fan-in combines their results under a declared policy. Parallel execution is useful only when tasks do not require each other's outputs.",
+    "Why": "Bound concurrency and define whether aggregation requires all results, a quorum, or best-effort partial output. Preserve per-branch errors and provenance.",
+    "Risk": "One slow branch can delay completion or cause unbounded task growth.",
+    "Trade": "Parallelism reduces latency and raises peak load and coordination cost.",
+    "Try": "Search three authorized corpora concurrently and report one failed branch without hiding it."
+  },
+  {
+    "Q": "How should dependencies be represented?",
+    "A": "Use a directed dependency graph when tasks require earlier outputs. Validate that the graph is acyclic unless a bounded loop has deliberate semantics.",
+    "Why": "Execute ready nodes, propagate typed outputs, and make failure handling explicit per edge. A task plan does not establish permission.",
+    "Risk": "Incorrect dependency declarations can execute a write before validation.",
+    "Trade": "Graphs improve visibility while increasing orchestration machinery.",
+    "Try": "Model extract, validate, review, and submit with a required approval edge."
+  },
+  {
+    "Q": "How does durable execution differ from retrying the whole agent?",
+    "A": "Durable execution resumes from recorded progress instead of blindly repeating every prior action. It requires deliberate handling of nondeterministic work and external side effects.",
+    "Why": "Persist operation keys and results, and make repeated execution safe at each resumable boundary. Checkpoint behavior depends on the runtime and version.",
+    "Risk": "Replaying a node can duplicate a write if the business operation is not idempotent.",
+    "Trade": "Durability adds storage and state evolution work.",
+    "Try": "Demonstrate a crash after external execution but before checkpoint persistence."
+  },
+  {
+    "Q": "What should an orchestrator do when one tool fails?",
+    "A": "Classify failure by cause and effect: invalid input, denied access, transient outage, uncertain completion, or terminal business rejection. Select retry, clarification, status lookup, fallback, or escalation accordingly.",
+    "Why": "Apply a remaining-deadline budget and preserve the original operation ID across uncertain retries.",
+    "Risk": "Treating every exception as retryable can multiply writes or provider load.",
+    "Trade": "Detailed policies require maintenance and avoid broad unsafe retries.",
+    "Try": "Write a failure table with an allowed recovery action for each category."
+  },
+  {
+    "Q": "How should human approval be represented in a workflow?",
+    "A": "Approval is a server-verified event bound to a specific principal, operation, parameters, expiry, and revision. A waiting workflow state should reference that approval requirement.",
+    "Why": "Resume only after checking the approval and current business state. Reject stale approvals after material parameter changes.",
+    "Risk": "A graph interrupt or chat message is not an authorization proof.",
+    "Trade": "Explicit approvals add latency and auditability.",
+    "Try": "Modify an approved operation and verify that the workflow returns to review."
+  },
+  {
+    "Q": "How should shared memory work across multiple agents?",
+    "A": "Share only scoped facts and artifacts that each participant needs. Use a coordinator-owned task record and explicit output contracts instead of a writable universal scratchpad.",
+    "Why": "Track who produced each fact and which service can verify it. Merge conflicts through rules rather than last-writer-wins prose.",
+    "Risk": "One agent's unsupported assumption can spread to all others.",
+    "Trade": "Restricted sharing reduces context reuse and limits error propagation.",
+    "Try": "Have two agents disagree on a version and require evidence-based reconciliation."
+  },
+  {
+    "Q": "How do you prevent orchestration cost explosions?",
+    "A": "Bound total model calls, tool calls, elapsed time, parallel tasks, and spend per user task. Include retries and critic loops in the same budget.",
+    "Why": "Stop at an explicit terminal state and explain incomplete work using recorded outcomes. Apply fleet-level quotas in addition to local semaphores.",
+    "Risk": "Nested agents can each obey a local limit while exceeding the parent task budget.",
+    "Trade": "Tight budgets reduce task coverage and control operational risk.",
+    "Try": "Build a parent budget that every child operation must reserve before execution."
+  },
+  {
+    "Q": "How should orchestration be evaluated?",
+    "A": "Measure end-to-end outcomes, permission invariants, valid state transitions, recovery behavior, latency, and total task cost. Inspect trajectories to explain failures.",
+    "Why": "Use deterministic replay where possible, sandbox external effects, and inject crashes at durable boundaries.",
+    "Risk": "Matching one reference sequence can reject alternative valid solutions.",
+    "Trade": "Invariant-based evaluation accepts valid diversity and requires thoughtful specifications.",
+    "Try": "Evaluate two different successful tool sequences against the same business invariants."
+  }
+]

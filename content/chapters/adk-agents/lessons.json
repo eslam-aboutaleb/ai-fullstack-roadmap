@@ -1,0 +1,40 @@
+[
+  {
+    "Q": "What does defining an agent actually configure?",
+    "explain": "It configures a runtime's model, instructions, tools, and related policies. The application still needs authenticated entry points, a session strategy, domain services, and an execution lifecycle. Read the compatible SDK contract rather than assuming the constructor is the whole product.",
+    "example": "A LlmAgent with a synthetic hours tool demonstrates model-tool wiring, not production authorization or durability.",
+    "takeaway": "Runtime construction is one layer of integration."
+  },
+  {
+    "Q": "Why do tool signatures and descriptions matter?",
+    "explain": "Runtimes may build model-facing schemas from function metadata. Explain purpose and required fields precisely, and preserve signatures when instrumenting functions. Validate the advertised schema after wrapping.",
+    "example": "A wrapper that replaces query: str with unrestricted args can break tool selection or validation.",
+    "takeaway": "Tool metadata is part of the interface the model sees."
+  },
+  {
+    "Q": "Which memory belongs in the runtime session?",
+    "explain": "Keep state needed for the active execution, but distinguish it from user-visible conversation history and durable business facts. Define ownership, persistence, compaction, and concurrency deliberately.",
+    "example": "A restored conversation can display a completed request even if the runtime session must be rebuilt. Re-read authoritative operation state.",
+    "takeaway": "Session persistence is not the entire memory design."
+  },
+  {
+    "Q": "How should you decide whether ADK fits your application?",
+    "explain": "Evaluate actual tool behavior, event handling, state needs, provider compatibility, failure recovery, and operational cost. Compare against the same domain services and tasks when considering another runtime.",
+    "example": "Re-run correction, approval, outage, and cancellation fixtures before declaring migration parity.",
+    "takeaway": "Choose a runtime by tested contracts, not package popularity."
+  },
+  {
+    "Q": "What should I understand before adopting an agent SDK?",
+    "explain": "Build a small function-call loop first so messages, tool dispatch, state, and stop conditions are concrete. An SDK may coordinate those operations, but you still own identity propagation, persistence, tool correctness, and release checks. Read the documentation matching the installed version and inspect actual event shapes rather than copying assumptions from another runtime.",
+    "example": "Compare a plain order-status function with an SDK tool wrapper around that same function. The wrapper changes invocation mechanics; it should not create a second copy of the authorization rule.",
+    "takeaway": "Framework learning builds on a known application contract.",
+    "added": true
+  },
+  {
+    "Q": "How do I make SDK experiments reproducible?",
+    "explain": "Record runtime and package versions, provider configuration names without secrets, fixture identity, and the exact invocation command. Keep synthetic credentials and deterministic adapters separate from live provider experiments. State whether an example was executed, syntax-checked, or presented as pseudocode. SDK updates should pass the same service and event-contract checks before adoption.",
+    "example": "A lesson's tool wrapper parses successfully but requires optional packages and a provider key to run. Report that boundary and provide a fake-tool path for learning the service behavior offline.",
+    "takeaway": "Reproducibility includes clear limits on what was actually exercised.",
+    "added": true
+  }
+]

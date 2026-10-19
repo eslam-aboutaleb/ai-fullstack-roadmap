@@ -1,0 +1,58 @@
+[
+  {
+    "Q": "How does ReAct differ from a fixed chain?",
+    "explain": "A ReAct-style loop alternates deciding an action, executing it through the host, and using the observation to decide again. A fixed chain already knows its next stage. Bound the loop and verify observations.",
+    "example": "After search returns no evidence, the agent may clarify; a fixed chain might always attempt drafting.",
+    "takeaway": "Flexible control flow needs stopping and outcome checks."
+  },
+  {
+    "Q": "When does a router help?",
+    "explain": "Use a router to send distinct intents to suitable bounded workflows. Evaluate routing separately so a good specialist is not blamed for tasks it should never receive. Provide an ambiguous or unsupported route.",
+    "example": "Exact order IDs go to lookup, knowledge questions go to retrieval, and unclear requests ask for clarification.",
+    "takeaway": "Route selection is itself a testable decision."
+  },
+  {
+    "Q": "What does planner-executor separation buy you?",
+    "explain": "The planner proposes steps while an executor validates and performs only supported actions. This lets the application inspect dependencies, budgets, and approval requirements before effects occur. Plans must adapt when observations invalidate assumptions.",
+    "example": "A plan containing send_refund is rejected if the run permits only prepare_refund.",
+    "takeaway": "A readable plan is still an untrusted proposal."
+  },
+  {
+    "Q": "When are specialist workers justified?",
+    "explain": "Specialists can help when capabilities, evidence, permissions, or ownership genuinely differ. Give each a narrow task and verify its output. Compare against one competent agent before accepting extra calls and coordination.",
+    "example": "A document reviewer and an account service need different access, not simply different agent names.",
+    "takeaway": "Decompose real responsibilities rather than assigning fictional personalities."
+  },
+  {
+    "Q": "How does a handoff differ from a delegated subtask?",
+    "explain": "In delegation the original coordinator retains responsibility for the user task. A handoff transfers responsibility under a declared protocol. Record who owns the next action and who must communicate failure or completion.",
+    "example": "A human queue accepts the case and becomes the next owner; an unavailable queue leaves ownership with the current application.",
+    "takeaway": "Avoid gaps where every participant assumes someone else will respond."
+  },
+  {
+    "Q": "When should a critic revise an answer?",
+    "explain": "Use a critic with a specific rubric and relevant evidence, and bound the revision loop. Evaluate whether corrections improve factual support or task success rather than merely sounding more polished.",
+    "example": "A critic removes an unsupported refund promise because the source allows exchanges only.",
+    "takeaway": "Verification needs a checkable reason to change the answer."
+  },
+  {
+    "Q": "Why do outbox and saga patterns still matter around agents?",
+    "explain": "Agents do not remove distributed consistency problems. An outbox preserves downstream intent with a business transaction; a saga defines recovery across multiple effects. Some effects cannot be fully undone.",
+    "example": "Cancelling a booking may compensate a reservation, but cannot unsend the confirmation email already received.",
+    "takeaway": "Business consistency needs explicit engineering beyond model reasoning."
+  },
+  {
+    "Q": "How do I choose between a workflow and an agent experimentally?",
+    "explain": "A fixed workflow has declared control flow; an agent chooses some next steps from model output. Start with the least flexible mechanism that can complete the supported task, then compare alternatives on inputs that require real branching. Include failures and total resource use, not just successful demonstrations.",
+    "example": "A known refund eligibility checklist runs predictably as code. Open-ended document investigation may benefit from tool selection, but still needs a bounded search scope and final evidence checks.",
+    "takeaway": "More autonomy must earn its additional uncertainty and cost.",
+    "added": true
+  },
+  {
+    "Q": "Why can an ensemble or critic repeat the same mistake?",
+    "explain": "Multiple calls can share training biases, missing evidence, prompts, and flawed tools. Their agreement is correlated and does not establish independent confirmation. A critic needs an external rubric or authoritative checks, and an ensemble needs a justified aggregation policy. Include all branches and retries in the parent budget.",
+    "example": "Three agents all read an obsolete policy and agree. A deterministic effective-date check catches the shared error more cheaply than a fourth vote.",
+    "takeaway": "Agreement helps only when the evidence and verification process justify it.",
+    "added": true
+  }
+]

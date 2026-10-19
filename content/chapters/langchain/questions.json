@@ -1,0 +1,90 @@
+[
+  {
+    "Q": "What would LangChain replace or add in this application?",
+    "A": "LangChain can supply model, message, tool, middleware, structured-output, and agent-building abstractions. Adopting its agent factory would replace part of the example ADK orchestration, not PostgreSQL, the retrieval service, domain validation, or the confirmation transaction.",
+    "Why": "Wrap existing services through compatible tool interfaces and retain business ownership and transactions. Compare the runtime with the baseline using identical application tasks and measured integration cost.",
+    "Risk": "Installing a framework without deciding who owns sessions, tool errors, and streaming can create two overlapping runtimes. A dependency change alone does not migrate behavioral contracts.",
+    "Trade": "LangChain offers a broad integration surface; staying with ADK avoids migration cost. Choose based on a demonstrated need and an equivalent behavioral benchmark.",
+    "Try": "Map each current ADK constructor argument to the proposed LangChain composition. Identify the contracts that should remain unchanged.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/agents"
+  },
+  {
+    "Q": "What are messages, chat models, and invocation methods?",
+    "A": "Messages represent roles, text, tool calls, and tool results. A chat model consumes a message sequence and produces model output. Invocation, streaming, and batch methods are execution interfaces, not different authorization knowledge rules or independent guarantees of model quality.",
+    "Why": "Inject a compatible model interface and record provider-specific capabilities. A common constructor does not guarantee identical tool, streaming, or structured-output behavior.",
+    "Risk": "Dropping a tool result, role boundary, or corrected user value can change behavior. A model supporting text may not support the tool or structured-output features the application requires.",
+    "Trade": "Standard interfaces ease experimentation while provider capabilities still require testing. A single-provider direct adapter can be smaller for a narrow workload.",
+    "Try": "Translate a user question, tool call, tool result, and assistant answer into an explicit message sequence and verify the pairing identifiers.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/models"
+  },
+  {
+    "Q": "How can an existing domain service become a LangChain tool?",
+    "A": "Wrap the existing async domain function with a narrow typed tool whose arguments contain only user-searchable input. Resolve trusted identity in server context and retain the domain function's validation and owner filters. The wrapper should not expose internal session or owner parameters to the model.",
+    "Why": "Expose a narrow model-facing function that calls an authorized service with trusted runtime context. Keep internal owner and tenant arguments out of user-editable tool schemas.",
+    "Risk": "A convenient wrapper accepting user_id from the model defeats the example scoping boundary. Context setup and reset must be defined for HTTP, evaluation, and background execution.",
+    "Trade": "Thin adapters reuse tested business logic and add a small compatibility surface. Rewriting tools inside each framework risks policy drift.",
+    "Try": "Inspect the proposed read-only policy wrapper in the worked examples. Add a service requests wrapper that obtains identity from a trusted service context.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/tools"
+  },
+  {
+    "Q": "How do runnable composition and an agent loop differ?",
+    "A": "A composed chain follows a known sequence such as retrieve, assemble, and answer. An agent loop lets a model choose tools and continuation. Both can use the same model and retriever interfaces, but they create different testing and cost requirements.",
+    "Why": "Use fixed composition when stage order is known; use an agent loop when tool selection depends on observations. Evaluate the extra flexibility against latency and failure complexity.",
+    "Risk": "Calling a fixed chain an agent can hide the absence of planning; calling an agent a simple chain can hide repeated calls and nondeterministic routing. Name the actual control flow.",
+    "Trade": "Fixed composition is easier to bound and diagnose; flexible routing handles ambiguity. Start from the least flexible flow that meets the requirement.",
+    "Try": "Build a deterministic retrieval-and-answer baseline and compare it with agent orchestration on single-intent and multi-intent cases."
+  },
+  {
+    "Q": "What does structured output validate, and what does it not validate?",
+    "A": "A structured schema constrains the form and types of a model result, such as an answer with citation IDs and a status. It does not prove the citations exist, the amounts match policy text, or the caller may execute a proposed action.",
+    "Why": "Choose a compatible structured-output strategy, parse the result, and run domain validation. Schema compliance does not establish factual correctness or action authority.",
+    "Risk": "A valid JSON decision saying approved is still not an authorized claim transition. Schema conformance can otherwise create a false impression of factual or business correctness.",
+    "Trade": "Typed outputs simplify UI integration and require explicit parse, retry, and semantic-validation branches. Free-form prose is flexible and harder to validate reliably.",
+    "Try": "Define a recommendation schema with status, cited evidence IDs, missing facts, and explanation. Reject unknown citations before presentation.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/structured-output"
+  },
+  {
+    "Q": "What belongs in middleware instead of a business tool?",
+    "A": "Cross-cutting knowledge rules such as call budgets, model selection, standardized error mapping, and context preparation can sit around execution. Business tools should still own their domain authorization, validation, and transaction behavior.",
+    "Why": "Use middleware for cross-cutting policy, budget, logging, and context transformations. Keep business validation in application services so non-agent callers enforce the same invariants.",
+    "Risk": "A middleware-only authorization check can be bypassed by direct service calls. Overly broad retry middleware can also repeat side effects whose business idempotency is not established.",
+    "Trade": "Central hooks reduce repetition while increasing execution-order and wrapper-compatibility complexity. Keep critical invariants enforceable independently of orchestration hooks.",
+    "Try": "Classify budget checking, owner filtering, signature preservation, and pending-token consumption by the layer that must enforce each one.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/middleware/overview"
+  },
+  {
+    "Q": "How should short-term memory map to support conversations?",
+    "A": "Short-term memory stores a thread's evolving conversational context. It needs a stable thread identity and a persistence policy. Long-term customer facts, authoritative service requests, and pending confirmation state should remain in domain storage rather than only in a message buffer.",
+    "Why": "Map conversation and thread ownership explicitly, define retention and compaction, and test concurrent updates. Framework memory is neither a business ledger nor a universal persistence contract.",
+    "Risk": "Reusing thread IDs across users or forgetting ownership checks can disclose history. Memory summaries can also retain obsolete tokens or knowledge facts after a correction.",
+    "Trade": "Persistent memory improves continuity and increases retention obligations. Stateless turns simplify privacy and require more explicit context from the user.",
+    "Try": "Design a user-and-conversation thread key and a migration test for archived history, corrected facts, and sign-out followed by another user.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/short-term-memory"
+  },
+  {
+    "Q": "How should LangChain streams be adapted to the existing UI contract?",
+    "A": "Translate framework-specific chunks into the application's typed events rather than exposing raw runtime objects. Preserve text deltas, tool activity, errors, persisted message IDs, and a truthful terminal status.",
+    "Why": "Translate framework events into a stable user-safe schema. Preserve task identity, event order, cancellation, errors, and persistence-before-completion semantics across adapters.",
+    "Risk": "A tool error or cancelled stream can otherwise be mislabeled complete. Forwarding arbitrary runtime state may leak internal or private fields.",
+    "Trade": "A stable application event layer costs adapter code and decouples UI releases from framework changes. Raw framework streams are faster to demo and fragile to evolve.",
+    "Try": "Feed equivalent synthetic ADK and LangChain event sequences into two adapters and compare the resulting public events.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/streaming"
+  },
+  {
+    "Q": "Are framework guardrails a replacement for deterministic permissions?",
+    "A": "No. Guardrails can classify inputs, validate outputs, or interrupt unsafe model behavior, but backend authorization must still deny prohibited reads and writes. A classifier can be wrong or unavailable, and a prompt can be ignored.",
+    "Why": "Validate both proposed arguments and actual service outcomes. A tool description improves selection but cannot prevent a model from proposing unauthorized or invalid operations.",
+    "Risk": "A content-safety pass does not certify that a customer may access another claim or approve a payout. Combining unrelated notions of safety into one boolean hides authority errors.",
+    "Trade": "Guardrails add useful signals and latency. Deploy them as complementary checks with explicit error behavior, not as the sole permission system.",
+    "Try": "Make a simulated model issue an unauthorized operation after a guardrail reports safe text. Verify the service still denies it.",
+    "reference": "https://docs.langchain.com/oss/python/langchain/guardrails"
+  },
+  {
+    "Q": "How would you decide whether a runtime-to-LangChain migration is worthwhile?",
+    "A": "Compare required integrations, operational complexity, framework support, team familiarity, migration risk, and measured behavior. Require parity on tool routing, scope enforcement, confirmation, streaming, memory, evaluation, and tracing before changing the production runtime.",
+    "Why": "Compare routing, scope enforcement, approval, memory, streaming, recovery, and trace privacy on the same fixtures. Preserve product contracts or explicitly redesign them with migration and rollback evidence.",
+    "Risk": "Benchmarking only a successful coverage response misses multi-turn correction, tool failure, and duplicate writes. New abstractions can also change trace payload disclosure.",
+    "Trade": "A better-fit ecosystem can justify the cost; keeping the example stack may be more valuable when problems are domain contracts rather than orchestration limitations.",
+    "Try": "Write an architecture decision record with one concrete unmet need, a parity checklist, a limited experiment, and a rollback condition."
+  }
+]

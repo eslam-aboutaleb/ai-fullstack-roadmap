@@ -1,0 +1,46 @@
+[
+  {
+    "Q": "Why combine word matching with semantic matching?",
+    "explain": "Exact identifiers and unusual terms often benefit from lexical retrieval, while paraphrases benefit from embeddings. Combining both can reduce their individual blind spots. Evaluate whether each adds useful candidates in your corpus.",
+    "example": "SKU A17 needs exact matching; swap this jacket may need a semantic connection to exchange.",
+    "takeaway": "Different search signals cover different failure cases."
+  },
+  {
+    "Q": "Why retrieve more candidates than the final answer uses?",
+    "explain": "A broader first pass improves the chance that a relevant passage enters the pipeline. A later reranker or selector can remove weak candidates before context assembly. Too many candidates cost latency and can add noise.",
+    "example": "Search retrieves 30 candidates, reranking keeps five, and the context budget admits three nonduplicate passages.",
+    "takeaway": "Candidate recall and final context size need separate controls."
+  },
+  {
+    "Q": "What does Reciprocal Rank Fusion combine?",
+    "explain": "It adds contributions based on each item's rank within separate lists. This avoids directly mixing incomparable raw similarity scales. The fusion constant and candidate lists still influence the result.",
+    "example": "A passage ranked second in both searches can beat one ranked first in only one list.",
+    "takeaway": "Rank fusion combines ranking evidence, not calibrated probabilities."
+  },
+  {
+    "Q": "When is reranking useful?",
+    "explain": "Reranking examines query-candidate relevance more carefully after a cheaper candidate search. It helps when correct evidence is present but poorly ordered. It cannot fix missing documents, inaccessible sources, or incompatible embeddings.",
+    "example": "The correct exception is candidate 18. Reranking can move it upward; it cannot help if candidate search never returned it.",
+    "takeaway": "Diagnose candidate recall before paying for better ordering."
+  },
+  {
+    "Q": "How should you debug a missing answer?",
+    "explain": "Check source availability, indexing revision, filters, candidate retrieval, ranking, context selection, and synthesis in order. Record where the necessary passage first disappears. This turns an ambiguous failure into a specific experiment.",
+    "example": "The passage ranks well but is dropped as a duplicate. The fix belongs in selection, not the embedding model.",
+    "takeaway": "Follow the evidence through every stage."
+  },
+  {
+    "Q": "How does reciprocal rank fusion combine incomparable scores?",
+    "explain": "Different retrieval systems can have scores on unrelated scales. Reciprocal rank fusion combines ranks: each item receives the sum of 1/(k+rank) over lists in which it appears, for a chosen constant k. It avoids directly adding a lexical score to a cosine score, but its constant and input depths still influence results. Missing candidates cannot be recovered by fusion.",
+    "example": "With k=60, an item ranked first in one list and third in another scores 1/61 + 1/63. An item appearing only first scores 1/61. Calculate the ordering and then check whether it improves labeled evidence coverage.",
+    "takeaway": "Fusion is a ranking rule to evaluate, not a truth detector.",
+    "added": true
+  },
+  {
+    "Q": "How should query intent and language influence retrieval experiments?",
+    "explain": "Exact IDs, broad concepts, time-sensitive rules, and ambiguous questions need different evidence behavior. Keep the original query and record transformations so expansion errors are visible. Evaluate native-language and cross-language retrieval separately, including scripts, accents, abbreviations, and right-to-left text where supported. A reranker cannot fix an authorization error or missing source.",
+    "example": "An Arabic question about an English policy may benefit from multilingual embeddings, but an exact product code should survive translation unchanged. Include both cases in the same reproducible evaluation set.",
+    "takeaway": "Test the queries the product serves, with the original intent preserved.",
+    "added": true
+  }
+]

@@ -1,0 +1,52 @@
+[
+  {
+    "Q": "Why can't every network chunk be parsed as JSON?",
+    "explain": "A read can contain half a character, half an event, or several events. First decode text incrementally, then frame SSE messages, then parse each completed payload. These layers have different boundaries.",
+    "example": "One read ends at da and the next begins ta:. Neither is a complete SSE field on its own.",
+    "takeaway": "Transport chunks are not application messages."
+  },
+  {
+    "Q": "What ends an SSE event?",
+    "explain": "A blank line ends an event under SSE framing rules. Multiple data fields combine into the event's data value; comments and other fields have their own meaning. Handle line endings and partial final input deliberately.",
+    "example": "Two data lines are one event with a newline between their values, not two independently dispatched answers.",
+    "takeaway": "Decode framing before interpreting business content."
+  },
+  {
+    "Q": "When should you use EventSource versus fetch?",
+    "explain": "EventSource supports the browser's SSE connection behavior over GET, but not arbitrary custom headers. Fetch provides method and header control while leaving parsing and reconnect policy to your application. Choose from your authentication and replay contract.",
+    "example": "A bearer-header flow can use fetch streaming; a suitable cookie-authenticated GET flow may use EventSource.",
+    "takeaway": "The convenient client must fit the credential model."
+  },
+  {
+    "Q": "How does replay avoid duplicate text?",
+    "explain": "Use ordered event IDs and a declared retention policy. Resume after the last processed ID and deduplicate repeats. If history expired, return an explicit snapshot or resume failure instead of silently skipping content.",
+    "example": "Replaying event seven should not append its text twice after reconnect.",
+    "takeaway": "Reconnection needs application-level state semantics."
+  },
+  {
+    "Q": "Why can a correct local stream arrive in bursts in production?",
+    "explain": "Proxies or platforms may buffer output or close idle connections. Configure supported streaming behavior and measure actual browser arrival times through the deployed path. Heartbeats help idle connections but do not prove the application is progressing.",
+    "example": "The server writes every 100 milliseconds while the proxy forwards once per second. The model is not the bottleneck.",
+    "takeaway": "Measure end-to-end delivery rather than server writes alone."
+  },
+  {
+    "Q": "How do cancellation and completion differ?",
+    "explain": "Disconnect can stop generation or leave durable work running according to policy. A final completion event should reference the recorded result. Neither a closed socket nor the model's final token proves that a business action finished.",
+    "example": "The browser disconnects after commit; the result endpoint still returns the completed operation.",
+    "takeaway": "Task state must survive transport ambiguity when the product requires it."
+  },
+  {
+    "Q": "Why must text decoding and event parsing be incremental?",
+    "explain": "Transport chunks can end inside a UTF-8 character, a line, or a JSON value. Preserve decoder state across byte chunks, buffer incomplete lines, and dispatch only complete events according to the SSE framing rules. Impose a maximum event size and explicitly handle malformed or unfinished input. A fetch chunk is not an application event.",
+    "example": "Split an event containing an Arabic character in the middle of that character's byte sequence, then split again before the blank line. The incremental decoder and parser should produce the same event as the unsplit fixture.",
+    "takeaway": "Decode bytes into text before interpreting framed application events.",
+    "added": true
+  },
+  {
+    "Q": "How do errors change once a stream has started?",
+    "explain": "Before headers, the server can return an ordinary HTTP error. After the response starts, it needs a documented failure event or a detectable interrupted stream. The client should distinguish transport closure from an explicit terminal completion. Replay must use stable ordered event identities and a retention policy rather than blindly starting a new model run.",
+    "example": "The provider fails after two answer deltas. Publish a failure outcome if possible and keep the text marked incomplete. A reconnect resumes the same task or reports that history expired.",
+    "takeaway": "Stream closure, task failure, and task completion have different meanings.",
+    "added": true
+  }
+]

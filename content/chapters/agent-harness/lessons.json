@@ -1,0 +1,46 @@
+[
+  {
+    "Q": "What happens outside the model during an agent run?",
+    "explain": "The harness builds context, invokes the model, checks proposed calls, executes approved tools, records outcomes, and decides whether another step is allowed. It also handles timeouts, cancellation, and recovery. The model does not supply these guarantees merely by being capable.",
+    "example": "An invalid resource ID is rejected before the business service is called. The next model step receives a typed rejection.",
+    "takeaway": "The runtime turns language proposals into controlled computation."
+  },
+  {
+    "Q": "What should stop a run?",
+    "explain": "Stop on verified completion, needed clarification, denied authority, cancellation, exhausted budget, or terminal failure. Store a reason the UI can explain. Repeated equivalent calls should not continue indefinitely just because each call individually succeeds.",
+    "example": "Three repeated searches return identical evidence. Stop or change strategy under a declared limit instead of looping forever.",
+    "takeaway": "Completion and stopping need explicit semantics."
+  },
+  {
+    "Q": "How do shared budgets prevent nested agents from multiplying cost?",
+    "explain": "Children must reserve from the parent task's remaining call, time, and spend allowance. Independent local counters can each look safe while the complete task grows without bound. Fleet capacity also needs shared accounting.",
+    "example": "A parent has two model calls left; two workers cannot each start five more under new private budgets.",
+    "takeaway": "Limits must follow the complete task."
+  },
+  {
+    "Q": "Why must execution be isolated when tools run code?",
+    "explain": "Generated code can read files, contact networks, spawn processes, or exhaust resources. Use a reviewed sandbox with constrained capabilities and limited outputs. A prompt instructing code to behave is not an isolation boundary.",
+    "example": "A document-analysis script receives only an approved synthetic file, not the developer's home directory or production credentials.",
+    "takeaway": "Restrict what execution can access independently of model intent."
+  },
+  {
+    "Q": "How should a restart recover an uncertain action?",
+    "explain": "Preserve task and operation identities and query authoritative operation status before retrying a side effect. A model summary or lost HTTP response cannot establish whether a transaction completed.",
+    "example": "The server committed R17 but crashed before telling the model. Recovery reads R17's operation record rather than creating R18.",
+    "takeaway": "Recover from durable facts instead of replaying intentions blindly."
+  },
+  {
+    "Q": "What does the smallest controlled agent loop do?",
+    "explain": "Construct context, call the model, validate its proposed output, and either finish or dispatch an allowed tool. Append a bounded tool result and repeat only while the shared run budget permits. Track terminal states such as completed, failed, cancelled, and needs_review separately. Permissions and input validation belong in the dispatcher even when descriptions tell the model the same rules.",
+    "example": "A fake model requests a document, receives a typed result, then proposes a forbidden export. The dispatcher rejects the export without executing it, and the run records that rejection.",
+    "takeaway": "The harness owns execution authority and termination.",
+    "added": true
+  },
+  {
+    "Q": "Why does cancelling a coroutine not prove an external action stopped?",
+    "explain": "Cancellation can stop local waiting while a remote service continues or has already committed. Propagate cancellation where supported, stop obsolete publication, and reconcile the external operation by its stable identity. A forced process kill also needs recovery of jobs whose outcomes are unknown. Distinguish cancelled intent from confirmed absence of an effect.",
+    "example": "A request times out after a ticket was created remotely. Query the ticket by operation key before offering retry; otherwise cancellation can become duplicate creation.",
+    "takeaway": "Cancellation needs an outcome model and a reconciliation path.",
+    "added": true
+  }
+]

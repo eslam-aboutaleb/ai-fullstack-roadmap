@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "How are Recall@K, Precision@K, and MRR calculated?",
+    "A": "Recall@K is the fraction of labeled relevant items found in the first K results. Precision@K is the fraction of those K positions that are relevant under the chosen denominator convention. Mean Reciprocal Rank averages one divided by the rank of the first relevant hit, using zero when none is found.",
+    "Why": "An evaluation runner evaluates an injected retrieval function against labeled chunk IDs and records latency and errors. Always inspect denominator and short-result handling in the implementation before comparing scores with another tool.",
+    "Risk": "Labels can be incomplete, and chunk IDs can change after reindexing. A correct passage may be marked wrong if labels are tied to obsolete physical chunks.",
+    "Trade": "Retrieval metrics are cheap and diagnostic but do not evaluate final answer faithfulness. Use them alongside source-span or document labels and answer-level evaluation.",
+    "Try": "For relevant IDs A and B and ranking C,A,D,B, calculate metrics at K=3. Then compare with the harness's exact conventions."
+  },
+  {
+    "Q": "How should I create a useful evaluation dataset?",
+    "A": "Include realistic questions, expected sources or spans, answerability, permissions, and failure cases. Cover exact identifiers, paraphrases, ambiguous requests, stale knowledge rules, multi-document synthesis, multilingual inputs, and unanswerable questions. Keep a held-out set separate from tuning examples.",
+    "Why": "The evaluation modules accept datasets and injected retrieval or answer functions, so the same cases can compare chunkers, profiles, strategies, and host generation knowledge rules. Record the corpus revision and configuration alongside each run.",
+    "Risk": "Synthetic questions can mirror the source wording too closely and overstate quality. Data leakage from tuning into evaluation also produces misleading improvements.",
+    "Trade": "Human-labeled cases cost effort but reveal product relevance. Synthetic expansion is useful when reviewed and balanced against real user questions.",
+    "Try": "Author 30 questions with source-level gold evidence and five deliberate non-answerable cases. Have another reviewer check labels without seeing your retrieval output."
+  },
+  {
+    "Q": "Why is retrieval-only evaluation useful before generation exists?",
+    "A": "It isolates whether the system can locate supporting material. If relevant passages never reach the candidate or evidence set, a better generator cannot reliably repair that failure. Retrieval-only runs are also cheaper and more deterministic than end-to-end model evaluation.",
+    "Why": "The runner supports distinct evaluation modes and accepts host callbacks. the retrieval service can be evaluated as a subsystem without pretending it ships a complete production chat application.",
+    "Risk": "Strong retrieval metrics can hide poor evidence budgeting, unsupported claims, and an unhelpful UI. They are a stage gate, not the final product score.",
+    "Trade": "Early isolation speeds diagnosis and reduces API cost, while end-to-end testing is still needed to assess user outcomes. Use both at different stages of development.",
+    "Try": "Establish a retrieval baseline before adding a generator. Record cases where the correct source is retrieved but later excluded from the evidence budget."
+  },
+  {
+    "Q": "How do heuristic answer scoring and LLM-as-judge differ?",
+    "A": "Heuristic scoring uses deterministic text-overlap signals and is cheap to run offline. LLM-as-judge asks a configured model to assess qualities such as faithfulness, relevance, completeness, and conciseness. Neither is an infallible measure of truth.",
+    "Why": "The corresponding service module implements both strategies with standardized score containers. Heuristics provide a stable baseline; judges can assess richer language relationships but add provider cost and evaluation-model variability.",
+    "Risk": "Overlap can reward copying a wrong answer, while judges can exhibit bias, prompt sensitivity, and correlated mistakes. A judge may also be influenced by adversarial content in the answer or evidence.",
+    "Trade": "Use deterministic metrics for broad regression feedback and calibrated human review for critical cases. Model judging can expand coverage if its agreement with humans is measured.",
+    "Try": "Score a faithful paraphrase, a copied incorrect answer, and a fluent unsupported answer using both approaches. Explain disagreements rather than averaging them away."
+  },
+  {
+    "Q": "What does a high-value test strategy look like for this reference design?",
+    "A": "Test behavioral invariants at seams: no mutation after invalid preparation, scope constraints on both stages, explicit backend failure, stale-worker rejection, revision-correct lookup, and safe repeated job processing. Use focused fakes for deterministic races and real adapter tests for actual storage semantics.",
+    "Why": "The test suite has targeted modules for ingestion locking, embedding execution, retrieval capabilities, and sync coordination. These boundaries are more consequential than mirroring every helper's internal implementation.",
+    "Risk": "Passing fake-based tests cannot prove production rollback, SQL locking, or vendor filter behavior. Conversely, an enormous end-to-end suite can be slow and poor at locating failures.",
+    "Trade": "A layered mix gives fast feedback and credible integration evidence. Choose the smallest test that can actually falsify the relevant guarantee.",
+    "Try": "For one transaction guarantee and one retrieval filter guarantee, state which test needs a real database and which can use a controlled fake."
+  },
+  {
+    "Q": "What is the difference between liveness, readiness, and degraded health?",
+    "A": "Liveness asks whether a process can run. Readiness asks whether it can serve its intended work. Degraded health means some useful behavior remains but a dependency or freshness condition is impaired. One healthy HTTP process does not prove its index is current or its embedding provider works.",
+    "Why": "A health collector collects configuration, connectivity, counts, sync, job, and evaluation information. a health report exposes distinctions that a host can map to probes and user-facing status.",
+    "Risk": "An expensive consistency scan in every readiness probe can overload the database. A permissive count returning zero after an error can also mask a dependency failure if interpreted carelessly.",
+    "Trade": "Deeper checks improve diagnosis and cost more I/O. Separate cheap frequent probes from scheduled expensive consistency checks.",
+    "Try": "Define probe behavior when the process is alive, the vector store is down, and the index is stale but readable. Explain whether traffic should continue in each case."
+  },
+  {
+    "Q": "What operational signals should be monitored?",
+    "A": "Track ingestion lag, scan authority failures, embedding retries and queue pressure, active-generation age, job backlog and oldest age, search latency, empty and failed retrieval rates, evidence truncation, and quality regressions. Each signal should connect to a user-visible consequence.",
+    "Why": "Events and health checks expose stage and lifecycle information. Optional OpenTelemetry integration can connect this information to a host's tracing system without making it a mandatory runtime dependency.",
+    "Risk": "Large numbers of document IDs or tenant IDs as metric labels create cardinality and privacy problems. Raw query logging can expose sensitive user intent.",
+    "Trade": "Aggregated metrics are scalable but less detailed; controlled traces aid diagnosis. Correlate with sanitized operation identifiers and use retention knowledge rules appropriate to the data.",
+    "Try": "Define an alert for rising stale-index age and another for rising backend-failure rate. Explain why their remediation differs even if both reduce answer quality."
+  },
+  {
+    "Q": "How should a system meet an end-to-end latency target?",
+    "A": "Allocate a request deadline across stages, measure tail latency, and propagate cancellation and remaining time. Per-call timeouts and retry ceilings are ingredients, not an end-to-end deadline. Query variants, sequential stages, reranking, and generation can each consume the budget.",
+    "Why": "A bounded embedding executor and query transformation expose local bounds; telemetry gives stage durations. The host must compose them into a product-level deadline and decide which optional stages can be skipped safely.",
+    "Risk": "Summing independent p95 measurements does not yield an exact request p95, and a timeout can leave remote work running. Retry storms can worsen the same overload they attempt to recover from.",
+    "Trade": "Tight deadlines improve responsiveness while reducing recovery and ranking opportunities. A slower asynchronous ingestion path can tolerate different retry policy from an interactive search.",
+    "Try": "Trace a request with one retry and two query variants. Compare actual elapsed time with your budget and identify which optional stage should be shed first."
+  },
+  {
+    "Q": "How do you roll out a retrieval change safely?",
+    "A": "Pin the corpus and configuration, evaluate the candidate offline, compare shadow traffic where permitted, deploy to a limited audience, and watch quality plus operational signals. Preserve a rollback path to the prior profile, generation, and strategy configuration.",
+    "Why": "Explicit snapshots, profiles, typed requests, and replaceable strategies make changes observable. They do not automatically implement feature flags, traffic splitting, or deployment rollback; the host supplies those controls.",
+    "Risk": "A model change can alter score distributions and invalidate thresholds, caches, and labels. A schema change can also break an older application version during rollback.",
+    "Trade": "Parallel operation costs resources but exposes regressions before broad impact. A direct cutover is simpler and appropriate only when risk and recovery are well understood.",
+    "Try": "Write a release plan for enabling reranking with acceptance thresholds, cost limits, denial tests, and a one-step configuration rollback."
+  },
+  {
+    "Q": "How should you investigate quality drift over time?",
+    "A": "Separate source drift, query-distribution drift, model or provider changes, extraction changes, index freshness, and application-policy changes. Re-run a stable benchmark and inspect newly failing real-world cases. A single aggregate score rarely identifies the cause.",
+    "Why": "Profiles and ingestion snapshots record important configuration identity, while telemetry and evaluation capture operational and quality observations. A host should retain run metadata tying them together.",
+    "Risk": "Silent provider updates or hidden preprocessing changes may not be visible unless a model revision and adapter configuration are recorded. Privacy limits also constrain how production questions can be retained for analysis.",
+    "Trade": "Stable benchmarks preserve comparability but can become unrepresentative. Add reviewed new cases while keeping a fixed core set for historical comparison.",
+    "Try": "Simulate an unchanged corpus with a changed query mix, then a changed extractor with the old query mix. Show how you would distinguish the resulting metric changes."
+  }
+]

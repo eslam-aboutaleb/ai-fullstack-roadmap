@@ -1,0 +1,97 @@
+[
+  {
+    "explain": "A cascaded voice pipeline has separate recognition, agent, and synthesis stages. These injected functions use symbolic bytes and are not real audio engines.",
+    "steps": "Turn a synthetic audio fixture into text. || Pass text through the agent and synthesize a symbolic response to expose the stage boundaries.",
+    "expect": "b'audio:Exchange only'",
+    "name": "voice-pipeline",
+    "language": "python",
+    "filename": "voice-pipeline.py",
+    "questions": [
+      659,
+      441,
+      442
+    ]
+  },
+  {
+    "explain": "Partial recognition hypotheses can be revised and must not trigger irreversible effects. The final utterance is kept under a stable identity and revision.",
+    "steps": "Replace the earlier hypothesis with the newer transcript. || Allow only finalized intent to reach the sensitive-action check.",
+    "expect": "False True",
+    "name": "partial-transcript",
+    "language": "python",
+    "filename": "partial-transcript.py",
+    "questions": [
+      660,
+      443
+    ]
+  },
+  {
+    "explain": "Silence thresholds affect responsiveness and premature endpointing. A timeout is a turn-detection heuristic, not evidence that the speaker intended an action.",
+    "steps": "Compare observed silence with the configured threshold. || Show how changing the threshold changes the turn-end decision on the same sample.",
+    "expect": "True False",
+    "name": "turn-detection",
+    "language": "python",
+    "filename": "turn-detection.py",
+    "questions": [
+      661,
+      444
+    ]
+  },
+  {
+    "explain": "Interruption changes the active generation and rejects late audio from the old one. Stopping playback and cancelling generation are separate operations in a real client.",
+    "steps": "Increment the active generation on interruption. || Filter queued audio frames by that identity before playback.",
+    "expect": "['new']",
+    "name": "barge-in",
+    "language": "python",
+    "filename": "barge-in.py",
+    "questions": [
+      662,
+      445
+    ]
+  },
+  {
+    "explain": "Recognition confidence does not establish authorization or exact confirmation. A sensitive action requires a verified principal and an approved current parameter set.",
+    "steps": "Keep ASR confidence separate from review state. || Require all trusted action prerequisites before committing.",
+    "expect": "False",
+    "name": "voice-confirmation",
+    "language": "python",
+    "filename": "voice-confirmation.py",
+    "questions": [
+      663,
+      446
+    ]
+  },
+  {
+    "explain": "Audio and transcript retention are separate product decisions, and text fallback supports users who cannot or do not want to speak. This is a policy fixture, not a legal compliance assertion.",
+    "steps": "Explicitly disable raw-audio retention for this scenario. || Preserve a text interaction path when microphone access is unavailable.",
+    "expect": "False text",
+    "name": "audio-privacy",
+    "language": "python",
+    "filename": "audio-privacy.py",
+    "questions": [
+      665,
+      449
+    ]
+  },
+  {
+    "explain": "Uncompressed PCM bytes depend on sample rate, channels, and bit depth. Codec compression and network overhead are outside this calculation.",
+    "steps": "Convert bit depth to bytes per sample. || Calculate one second and one 20 ms frame with the same declared format.",
+    "expect": "32000 640",
+    "name": "audio-size",
+    "language": "python",
+    "filename": "audio-size.py",
+    "questions": [
+      788
+    ]
+  },
+  {
+    "explain": "Voice evaluation includes final intent, interruption recovery, and first audible response. A correct transcript alone does not establish a successful conversation.",
+    "steps": "Define separate checks for recognition, intent, and playback recovery. || Fail the task when a late generation remains audible despite correct text.",
+    "expect": "False",
+    "name": "voice-evaluation",
+    "language": "python",
+    "filename": "voice-evaluation.py",
+    "questions": [
+      450
+    ]
+  }
+]

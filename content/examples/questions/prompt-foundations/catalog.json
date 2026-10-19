@@ -1,0 +1,81 @@
+[
+  {
+    "explain": "A useful instruction names the task, allowed evidence, and observable output. Positive behavior is explicit rather than relying only on prohibitions.",
+    "steps": "Build a versioned prompt contract. || Assert that its output policy defines what to do when evidence is missing.",
+    "expect": "insufficient_evidence",
+    "name": "prompt-contract",
+    "language": "python",
+    "filename": "prompt-contract.py",
+    "questions": [
+      493,
+      321,
+      322,
+      324
+    ]
+  },
+  {
+    "explain": "Few-shot examples add input/output pairs to the current request. The model's weights are not modified by constructing this data.",
+    "steps": "Provide a supported example and a missing-evidence example. || Keep the actual question outside the demonstrations.",
+    "expect": "2 warranty?",
+    "name": "few-shot",
+    "language": "python",
+    "filename": "few-shot.py",
+    "questions": [
+      495,
+      713,
+      323
+    ]
+  },
+  {
+    "explain": "Parse JSON, validate its shape and allowed values, then leave business correctness to a separate check. The small validator demonstrates boundaries without an external schema library.",
+    "steps": "Parse untrusted text into a value. || Reject extra fields, a missing status, or an unsupported status before downstream use.",
+    "expect": "insufficient_evidence",
+    "name": "output-validation",
+    "language": "python",
+    "filename": "output-validation.py",
+    "questions": [
+      496,
+      326,
+      205
+    ]
+  },
+  {
+    "explain": "The adapter normalizes a provider-shaped response into application text, completion, and usage. A missing usage value remains unknown rather than zero.",
+    "steps": "Read provider-specific fields in one place. || Return a stable application outcome that the caller can inspect.",
+    "expect": "incomplete None",
+    "name": "provider-boundary",
+    "language": "python",
+    "filename": "provider-boundary.py",
+    "questions": [
+      712,
+      419,
+      194
+    ]
+  },
+  {
+    "explain": "A reason-coded outcome selects an honest user message. Uncertainty in available evidence is distinguished from an infrastructure outage.",
+    "steps": "Keep separate messages for a completed search without support and a timeout. || Select the message from recorded execution state rather than model confidence.",
+    "expect": "Search is temporarily unavailable; retry later.",
+    "name": "uncertainty-policy",
+    "language": "python",
+    "filename": "uncertainty-policy.py",
+    "questions": [
+      325,
+      270
+    ]
+  },
+  {
+    "explain": "Experiment identity includes data, prompt, model, and processing configuration. A content digest changes when any declared input changes.",
+    "steps": "Serialize the profile in a stable key order. || Compare fingerprints before and after changing the prompt revision.",
+    "expect": "True",
+    "name": "experiment-lineage",
+    "language": "python",
+    "filename": "experiment-lineage.py",
+    "questions": [
+      328,
+      298,
+      690,
+      295
+    ]
+  }
+]

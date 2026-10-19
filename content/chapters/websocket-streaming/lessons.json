@@ -1,0 +1,46 @@
+[
+  {
+    "Q": "When does duplex communication justify WebSockets?",
+    "explain": "Use it when the client must send timely commands or media while the server is streaming. One-way answer text often works with SSE. Compare actual message needs and infrastructure rather than assuming WebSockets are inherently faster.",
+    "example": "Audio frames travel upward while transcripts, speech, and cancel commands travel during the same session.",
+    "takeaway": "Choose the transport from the interaction pattern."
+  },
+  {
+    "Q": "What belongs in a message contract?",
+    "explain": "Define type, version, session, message ID, sequence, correlation, and payload constraints. Validate before dispatch and reject oversized or unsupported messages. Critical effects need stable identity beyond the connection.",
+    "example": "A cancel command identifies generation G4 rather than cancelling whichever work happens to be latest.",
+    "takeaway": "A protocol prevents ambiguous commands."
+  },
+  {
+    "Q": "Why do acknowledgments matter after reconnect?",
+    "explain": "Reliable bytes while connected do not establish that a business operation committed before disconnection. Track processed command identities and make repeats safe. Query durable operation status when the acknowledgment was lost.",
+    "example": "The server processed confirm but its reply vanished. Replaying a new confirm must not create another request.",
+    "takeaway": "Delivery and processing are separate facts."
+  },
+  {
+    "Q": "What happens when the client cannot keep up?",
+    "explain": "Bound queues and buffered bytes, monitor delay, and define which nonessential updates may be coalesced. Do not silently drop arbitrary answer text. Prioritize control traffic so cancellation is not buried behind stale output.",
+    "example": "Drop obsolete audio from an interrupted generation rather than playing it seconds after the user corrected the task.",
+    "takeaway": "A slow consumer needs an explicit policy."
+  },
+  {
+    "Q": "How should permission changes affect a long session?",
+    "explain": "Authenticate the connection and recheck sensitive resource actions as permissions expire or change. Review browser origins and credential handling for the actual client. One successful handshake should not grant permanent unrestricted access.",
+    "example": "A user's membership is revoked while the socket remains open; the next private lookup must fail.",
+    "takeaway": "Long-lived transport needs ongoing authorization semantics."
+  },
+  {
+    "Q": "What should ordering mean across reconnects?",
+    "explain": "A connection preserves an ordered byte stream while established, but reconnect creates a new connection and can repeat or lose application-level observations. Use per-session or per-task sequence numbers for events, stable command identities for effects, and a snapshot/resume contract. Do not infer a completed command from connection state alone.",
+    "example": "A create command commits, but the acknowledgment is lost. On reconnect, query by command ID or resend it under an idempotent contract rather than creating a new operation ID.",
+    "takeaway": "Recover application meaning separately from restoring the socket.",
+    "added": true
+  },
+  {
+    "Q": "How do bounded queues protect a duplex product?",
+    "explain": "Define maximum message bytes, queued events, buffered bytes, and acceptable lag. Coalesce replaceable state updates while preserving critical ordered content and command outcomes. Reserve capacity for cancellation and heartbeat processing, and close or degrade slow sessions according to policy. A connected client consuming nothing can otherwise exhaust server memory.",
+    "example": "Presence updates can be replaced by the latest presence snapshot. Final operation receipts and ordered answer segments need a different retention and replay policy.",
+    "takeaway": "Backpressure needs event-specific behavior and observable limits.",
+    "added": true
+  }
+]

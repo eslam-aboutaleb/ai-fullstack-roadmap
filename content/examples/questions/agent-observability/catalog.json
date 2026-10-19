@@ -1,0 +1,61 @@
+[
+  {
+    "explain": "Logs describe events, traces relate operations, metrics aggregate trends, and audit/evaluation records serve separate purposes. One signal cannot replace all the others.",
+    "steps": "Build a minimal artifact for each operational signal. || Inspect their distinct structures without exporting private data.",
+    "expect": "task_failed span2 1",
+    "name": "signals",
+    "language": "python",
+    "filename": "signals.py",
+    "questions": [
+      684,
+      251
+    ]
+  },
+  {
+    "explain": "A function can execute successfully while the business task returns not_found. Separate those categories in telemetry and alerts.",
+    "steps": "Record transport execution separately from domain outcome. || Count the business failure without inventing an exception.",
+    "expect": "ok not_found False",
+    "name": "outcome-not-exception",
+    "language": "python",
+    "filename": "outcome-not-exception.py",
+    "questions": [
+      686,
+      254
+    ]
+  },
+  {
+    "explain": "Metric labels should use bounded categories rather than per-user or per-task values. High-cardinality IDs belong only in appropriately controlled diagnostic records.",
+    "steps": "Select low-cardinality labels from the event. || Exclude task and user identity from the aggregate metric dimensions.",
+    "expect": "['operation', 'outcome']",
+    "name": "metric-cardinality",
+    "language": "python",
+    "filename": "metric-cardinality.py",
+    "questions": [
+      798,
+      256
+    ]
+  },
+  {
+    "explain": "Missing usage or pricing is unknown, not zero spend. Preserve that state so billing and operational reconciliation can distinguish it.",
+    "steps": "Check usage and price availability before multiplication. || Leave cost unset when the inputs are unavailable.",
+    "expect": "None",
+    "name": "cost-unknown",
+    "language": "python",
+    "filename": "cost-unknown.py",
+    "questions": [
+      255
+    ]
+  },
+  {
+    "explain": "An alert corresponds to user impact and points to a runbook. Queue age can reveal stalled work even when process liveness remains green.",
+    "steps": "Compare the oldest task age with the declared budget. || Emit a bounded alert name and response reference rather than a raw payload dump.",
+    "expect": "task_delay worker-recovery",
+    "name": "impact-alert",
+    "language": "python",
+    "filename": "impact-alert.py",
+    "questions": [
+      799,
+      259
+    ]
+  }
+]

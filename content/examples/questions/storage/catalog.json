@@ -1,0 +1,77 @@
+[
+  {
+    "explain": "Store provenance and access metadata beside vectors so retrieved candidates remain attributable and filterable.",
+    "steps": "Include source, revision, owner scope, and vector profile. || Return a public evidence view without exposing the vector itself.",
+    "expect": "{'source': 'D1', 'revision': 2}",
+    "name": "vector-record",
+    "language": "python",
+    "filename": "vector-record.py",
+    "questions": [
+      552,
+      51
+    ]
+  },
+  {
+    "explain": "Approximate search can miss exact eligible neighbors. Compare its returned identities with an exact reference ranking under the same scope and metric.",
+    "steps": "Define the exact top two for the fixture. || Calculate recall of an approximate top-two result against that reference.",
+    "expect": "0.5",
+    "name": "ann-baseline",
+    "language": "python",
+    "filename": "ann-baseline.py",
+    "questions": [
+      553,
+      740,
+      53
+    ]
+  },
+  {
+    "explain": "Filtering only after a small global top-k can discard all results despite eligible evidence existing below the cutoff. Apply the scope inside candidate selection.",
+    "steps": "Filter the fixture to trusted tenant A. || Rank and limit only the eligible candidates.",
+    "expect": "['A1']",
+    "name": "eligible-candidates",
+    "language": "python",
+    "filename": "eligible-candidates.py",
+    "questions": [
+      554,
+      68,
+      97
+    ]
+  },
+  {
+    "explain": "Compare backend guarantees, not just a shared method name. An adapter must reject requests whose required capability is absent.",
+    "steps": "Describe native filter and durability support explicitly. || Check required capabilities before choosing the adapter for this task.",
+    "expect": "False",
+    "name": "backend-capability",
+    "language": "python",
+    "filename": "backend-capability.py",
+    "questions": [
+      555,
+      57,
+      60
+    ]
+  },
+  {
+    "explain": "Atomicity depends on shared transaction ownership, not on APIs having similar names. Two stores with independent commits cannot promise one atomic update.",
+    "steps": "Compare transaction identities for metadata and vectors. || Require a common transaction before claiming atomic publication.",
+    "expect": "False",
+    "name": "unified-storage",
+    "language": "python",
+    "filename": "unified-storage.py",
+    "questions": [
+      52,
+      56,
+      85
+    ]
+  },
+  {
+    "explain": "A storage timeout must remain distinguishable from a successful empty result. Different typed outcomes support different retry and user policies.",
+    "steps": "Model success and failure as separate status variants. || Compare their meaning before turning them into public responses.",
+    "expect": "ok unavailable",
+    "name": "error-semantics",
+    "language": "python",
+    "filename": "error-semantics.py",
+    "questions": [
+      58
+    ]
+  }
+]

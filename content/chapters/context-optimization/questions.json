@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "How do you calculate a safe context budget?",
+    "A": "Reserve space for instructions, tool schemas, conversation, retrieved evidence, and expected output before adding optional material. Use the provider's tokenizer or conservative model-specific accounting.",
+    "Why": "Compute remaining input allowance from the model limit and output reservation, then apply per-section caps. Multimodal inputs and hidden protocol overhead may require separate estimates.",
+    "Risk": "A character-based guess can exceed the limit or remove important content unpredictably.",
+    "Trade": "Large reservations reduce available evidence but improve completion reliability.",
+    "Try": "Calculate budgets for two models with different context windows and output limits."
+  },
+  {
+    "Q": "How should evidence be selected under a token budget?",
+    "A": "Select passages for relevance, novelty, applicability, and source coverage rather than filling the window with the first ranked hits. A second near-duplicate passage often adds less value than a missing condition.",
+    "Why": "Deduplicate by document span, group related chunks, and reserve room for contradictory or qualifying passages. Track why a candidate was included or dropped.",
+    "Risk": "Greedy selection can omit a long decisive clause. Evaluate answerable cases that require multiple passages.",
+    "Trade": "Sophisticated selection adds latency; simple baselines remain useful.",
+    "Try": "Compare top-k selection with diversity-aware selection on a fixture containing repeated FAQs."
+  },
+  {
+    "Q": "What is the difference between truncation and compression?",
+    "A": "Truncation discards material according to a rule; compression rewrites or extracts a smaller representation. Compression can preserve more useful information, but generated summaries can introduce errors.",
+    "Why": "Prefer extractive spans for authoritative numbers and conditions. If a model summarizes, retain the raw source and evaluate factual preservation before using the summary.",
+    "Risk": "A summary may drop a negation, exception, or unit while remaining fluent.",
+    "Trade": "Compression uses extra inference and can be reused across turns.",
+    "Try": "Compress a rule with an exception and verify every condition against the original."
+  },
+  {
+    "Q": "How should conversation compaction work?",
+    "A": "Preserve the task goal, confirmed facts, unresolved questions, operation IDs, authorization boundaries, and recent state changes. Keep recent turns verbatim when their exact wording affects intent.",
+    "Why": "Generate a structured checkpoint, validate required fields, then continue with the checkpoint plus recent messages. Durable actions must be read from backend state.",
+    "Risk": "A summary is not a substitute for an audit log or a completed transaction record.",
+    "Trade": "Frequent compaction saves context but introduces recurring summarization error.",
+    "Try": "Resume a long conversation from a checkpoint and check whether any completed action is repeated."
+  },
+  {
+    "Q": "What is lost-in-the-middle behavior?",
+    "A": "Models may use evidence differently depending on where it appears in a long context. The existence and size of the effect depend on the model, task, and data.",
+    "Why": "Evaluate important evidence placed at the beginning, middle, and end, with realistic distractors. Adjust context structure only after observing the failure.",
+    "Risk": "Treating a published positional effect as a universal ordering rule can worsen a different workload.",
+    "Trade": "Reordering is cheap but cannot recover missing evidence.",
+    "Try": "Rotate one decisive passage through a long fixture and measure supported-answer rate."
+  },
+  {
+    "Q": "How do prompt caching and semantic caching differ?",
+    "A": "Prompt caching reuses computation for supported repeated input prefixes. Semantic caching reuses an earlier application answer for a sufficiently similar request under a defined validity policy.",
+    "Why": "Keep cache keys tied to tenant, policy, model configuration, evidence version, and required freshness where relevant. Inspect provider caching rules separately from application response reuse.",
+    "Risk": "A semantically similar question from another user can require a different answer or authorization scope.",
+    "Trade": "Reuse saves latency and cost while increasing invalidation complexity.",
+    "Try": "Design cache keys and invalidation tests for two users with different entitlements."
+  },
+  {
+    "Q": "How should memory retrieval avoid overwhelming the prompt?",
+    "A": "Retrieve a small set of task-relevant memory entries using ownership, recency, applicability, and confidence constraints. Long-term memory should remain selective.",
+    "Why": "Separate user-declared preferences from inferred observations and verified system facts. Rank within the authorized scope, then apply a token budget and expiry checks.",
+    "Risk": "Stale inferred preferences can override a new explicit user request if presented as privileged context.",
+    "Trade": "Narrow retrieval reduces noise but may repeat questions when recall misses a useful fact.",
+    "Try": "Introduce an expired preference and verify that the current user instruction wins."
+  },
+  {
+    "Q": "When should you compress tool results instead of retrieving fewer records?",
+    "A": "Compress when the selected records are necessary but their representation is verbose. Retrieve fewer records when the extras do not contribute to the task. These solve different causes of context growth.",
+    "Why": "Keep authoritative identifiers and outcome fields, remove repeated schema descriptions, and store detailed payloads behind access-controlled artifact references.",
+    "Risk": "Dropping row-level provenance can make aggregates impossible to verify.",
+    "Trade": "Compact schemas improve efficiency while requiring schema version discipline.",
+    "Try": "Replace a verbose 50-record tool response with an aggregate and scoped drill-down IDs."
+  },
+  {
+    "Q": "What is token efficiency, and how do you avoid optimizing the wrong metric?",
+    "A": "Token efficiency is useful work per cost under a quality and safety constraint. Reducing input tokens while increasing failed turns is not a product improvement.",
+    "Why": "Compare total task cost, completion rate, supported-answer rate, p95 latency, and repeat calls. Count summarization and cache misses in the same experiment.",
+    "Risk": "A cheaper model call can produce more retries and a more expensive complete journey.",
+    "Trade": "Multi-metric evaluation complicates ranking alternatives but reflects real users.",
+    "Try": "Run a paired comparison where both context policies face the same task fixtures."
+  },
+  {
+    "Q": "How should context policies be rolled out?",
+    "A": "Version the assembly policy, evaluate it offline, compare it on a limited traffic slice, and retain rollback. Include permission and long-conversation cases in release gates.",
+    "Why": "Record the selected policy version in traces and experiment outputs. Change one dominant factor at a time so regressions can be attributed.",
+    "Risk": "A silent tokenizer or model revision change can invalidate an old budget assumption.",
+    "Trade": "Controlled rollout delays broad savings while reducing unknown failure exposure.",
+    "Try": "Write a rollout plan with a regression threshold and an explicit rollback trigger."
+  }
+]

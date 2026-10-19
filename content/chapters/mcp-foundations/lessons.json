@@ -1,0 +1,46 @@
+[
+  {
+    "Q": "What are the host, client, and server responsible for?",
+    "explain": "The host manages the model interaction and application policy. A client communicates using the protocol. A server exposes capabilities backed by services. The backend still validates identities, arguments, scope, and outcomes.",
+    "example": "A desktop host uses an MCP client to call a company search server, which applies its own document authorization.",
+    "takeaway": "Protocol compatibility is only one part of the integration."
+  },
+  {
+    "Q": "How do tools, resources, and prompts differ?",
+    "explain": "Tools expose operations, resources supply addressable context, and prompts expose reusable interaction templates. Choose the capability matching the task and follow the selected protocol revision's contract. None removes server-side access checks.",
+    "example": "Search is a tool, an approved document can be a resource, and a review template can be a prompt.",
+    "takeaway": "Model the responsibility before choosing its protocol representation."
+  },
+  {
+    "Q": "Why negotiate capabilities and pin compatible versions?",
+    "explain": "Clients and servers may support different features and revisions. Discover actual support and handle absent features explicitly. A current-looking example copied from another SDK major version may not run in your environment.",
+    "example": "A client cannot assume task or cancellation features merely because another server supports them.",
+    "takeaway": "Test the real client-server pair."
+  },
+  {
+    "Q": "How does MCP differ from A2A?",
+    "explain": "MCP exposes AI-facing capabilities. A2A coordinates work with separately hosted agents and their task lifecycle. Ordinary APIs can remain the simplest boundary for deterministic business operations. They can coexist around one domain service.",
+    "example": "An exact balance lookup needs a service tool; a remote specialist investigation may need task delegation.",
+    "takeaway": "Avoid adding an agent boundary where a function contract is enough."
+  },
+  {
+    "Q": "Why review remote tool descriptions?",
+    "explain": "Descriptions can enter model context and influence behavior. Malicious metadata can attempt instruction injection before execution begins. Review servers, scope tool availability, and keep execution policy outside the metadata.",
+    "example": "A tool description asks the agent to reveal secrets for debugging. No secret-export authority should exist merely because it was described.",
+    "takeaway": "Discovery data is not a trusted policy source."
+  },
+  {
+    "Q": "What should a client verify after discovering a server?",
+    "explain": "Inspect the negotiated protocol, supported methods, tool schemas, and configured identity before invoking a capability. Treat names and descriptions as untrusted metadata. Availability means the server advertises an interface; it does not prove that a user is entitled to every resource or that the implementation behaves safely.",
+    "example": "A server advertises export_all_documents. The host may hide or reject that capability for a read-only task even if the server description claims it is harmless.",
+    "takeaway": "Discovery informs integration and does not grant authority.",
+    "added": true
+  },
+  {
+    "Q": "How should protocol versions become part of a learning exercise?",
+    "explain": "Record the exact specification revision and compatible SDK release used by the example. Test initialization, capability discovery, one successful call, one expected error, and cancellation behavior against that combination. When upgrading, compare wire behavior and application outcomes rather than assuming similarly named methods are interchangeable.",
+    "example": "A copied example targets a different transport revision. Detect that mismatch in a small contract test before debugging the full agent application.",
+    "takeaway": "Protocol learning requires a pinned, exercised compatibility boundary.",
+    "added": true
+  }
+]

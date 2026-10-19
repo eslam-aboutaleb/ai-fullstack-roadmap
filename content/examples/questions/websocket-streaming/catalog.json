@@ -1,0 +1,70 @@
+[
+  {
+    "explain": "A missing acknowledgment leaves the client uncertain even after the server committed. Reconnect should query or reuse the same command identity, not invent a new effect.",
+    "steps": "Record the authoritative command receipt. || Resolve a repeated command ID to the existing result.",
+    "expect": "completed receipt1",
+    "name": "command-ack",
+    "language": "python",
+    "filename": "command-ack.py",
+    "questions": [
+      656,
+      434
+    ]
+  },
+  {
+    "explain": "Long-lived connections must recheck sensitive resource actions as identity or permissions expire. A successful handshake does not authorize the session forever.",
+    "steps": "Record initial authentication and expiry. || Deny a later action when the current time is outside that validity.",
+    "expect": "False",
+    "name": "session-recheck",
+    "language": "python",
+    "filename": "session-recheck.py",
+    "questions": [
+      658,
+      432
+    ]
+  },
+  {
+    "explain": "A responsive connection can coexist with a stalled worker. Transport heartbeat and application progress need independent signals.",
+    "steps": "Keep last pong and last task-progress times separately. || Detect a stalled task even when the connection is alive.",
+    "expect": "True True",
+    "name": "heartbeat-vs-task",
+    "language": "python",
+    "filename": "heartbeat-vs-task.py",
+    "questions": [
+      436
+    ]
+  },
+  {
+    "explain": "A new connection may reach another replica, so durable task state cannot live only on the original socket server. A shared-store abstraction provides the recoverable identity.",
+    "steps": "Reconnect to a different replica. || Read the task from shared authoritative state rather than the local connection registry.",
+    "expect": "completed",
+    "name": "websocket-scale",
+    "language": "python",
+    "filename": "websocket-scale.py",
+    "questions": [
+      438
+    ]
+  },
+  {
+    "explain": "Binary media and structured control events require explicit framing and limits. Their queue policies can differ because dropping stale media is different from losing a business receipt.",
+    "steps": "Classify a binary payload separately from a JSON-shaped control envelope. || Enforce media bytes and allowed control types independently.",
+    "expect": "audio cancel",
+    "name": "binary-control",
+    "language": "python",
+    "filename": "binary-control.py",
+    "questions": [
+      439
+    ]
+  },
+  {
+    "explain": "A meaningful duplex test suite includes reconnect, duplicate effects, slow consumers, and permission expiry. The manifest identifies required cases and fails when evidence is absent.",
+    "steps": "Declare required behavioral fixtures. || Compare them with executed case IDs rather than counting test files.",
+    "expect": "['slow_consumer']",
+    "name": "websocket-checks",
+    "language": "python",
+    "filename": "websocket-checks.py",
+    "questions": [
+      440
+    ]
+  }
+]

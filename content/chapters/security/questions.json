@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "How are authentication, authorization, and retrieval filtering different?",
+    "A": "Authentication establishes who is calling. Authorization decides what that identity may access or do. Retrieval filtering constrains the records searched and returned. A tenant_id filter supplied by an untrusted caller is not authentication or authorization.",
+    "Why": "The tool bridge composes scope authorization with retrieval and source lookup. MCP identity can come from trusted transport context or a host callback rather than a model-supplied client identifier.",
+    "Risk": "Allowing a request to choose both its identity and scope creates an impersonation path. The host must establish trusted identity and map it to allowed collections before issuing constrained retrieval.",
+    "Trade": "Central authorization adds integration work but prevents duplicated, inconsistent policy across tools. Filters remain necessary for efficient authorized search even after permission is granted.",
+    "Try": "Draw an API request with identity, requested collection, and requested scope. Mark which values are trusted and where each becomes constrained."
+  },
+  {
+    "Q": "Are the remote transport defaults production-secure by themselves?",
+    "A": "Development defaults are not evidence of production security. A remotely reachable service needs verified authentication, resource authorization, explicit allowed origins, request limits, safe outbound access, and a reviewed secret policy.",
+    "Why": "Fail closed for protected capabilities when identity or policy configuration is absent. Loopback binding reduces development exposure; remote deployment introduces a different trust boundary.",
+    "Risk": "Deploying with permissive defaults can make private knowledge broadly accessible. CORS also does not authenticate non-browser callers; restricting it alone is insufficient.",
+    "Trade": "Permissive local defaults simplify experimentation. Explicit validators, deny-by-default scope mappings, bounded origins, TLS, and deployment policy require more setup and give a meaningful remote trust boundary.",
+    "Try": "Construct a configuration that rejects missing tokens and unknown clients. Test an authenticated user requesting another tenant's collection as well as an unauthenticated caller."
+  },
+  {
+    "Q": "What should the knowledge-service adapter centralize?",
+    "A": "It provides one framework-neutral boundary for search, bounded evidence, source lookup, collection selection, and health or management operations. Transport adapters should translate requests into that boundary rather than each rebuilding retrieval and permission logic.",
+    "Why": "Collection configuration supplies retriever and source-lookup configuration; a knowledge-service adapter composes authorizer, assembler, and health checker. This resembles a facade or application-service boundary over the lower-level components.",
+    "Risk": "A central facade is only protective if all exposed routes use it correctly. Direct backend endpoints or source lookup shortcuts can bypass the common policy.",
+    "Trade": "Centralization reduces duplicated integration logic but can become overly broad if every domain behavior is added to it. Keep application-specific decisions in the host.",
+    "Try": "Compare a chat endpoint and an agent tool endpoint. Identify which validation and authorization behavior should be shared through the bridge and which presentation behavior should differ."
+  },
+  {
+    "Q": "What is MCP, and what does a retrieval adapter expose?",
+    "A": "Model Context Protocol is a protocol for exposing tools and resources to model-enabled clients. the retrieval service's MCP adapter wraps the bridge with read tools such as search_knowledge, get_source, and knowledge_status. Management operations require explicit enabling conditions.",
+    "Why": "The adapter keeps protocol concerns outside retrieval logic and obtains identity through trusted integration hooks. It supports SDK variation through an adapter layer rather than making the core depend on MCP.",
+    "Risk": "A protocol does not make a tool inherently authorized or safe. A model can request an operation, but the server must enforce permissions, budgets, and management policy independently of the model's wording.",
+    "Trade": "Standardized tool access broadens integration while introducing another exposed surface and dependency. A simple host API may be sufficient for one application.",
+    "Try": "Inspect the registered tools and their input schemas. Explain why a tool description is useful for model behavior but cannot enforce a security rule."
+  },
+  {
+    "Q": "Why are read and management tools separate opt-ins?",
+    "A": "Searching knowledge and changing or revoking knowledge have different consequences. A client that may read a collection should not automatically be able to ingest arbitrary sources, trigger expensive sync, or remove access for other users.",
+    "Why": "The MCP server defaults to read tools, while management registration and the bridge's allow_management setting provide separate opt-in controls. Those controls complement, rather than replace, identity-based authorization.",
+    "Risk": "Enabling a management tool globally without per-caller policy can give an agent excessive authority. Source text must never grant that authority by instructing the model to call a privileged tool.",
+    "Trade": "Separate permissions and configuration increase setup but support least privilege. A single unrestricted tool surface is simpler and broadens both accidental and malicious impact.",
+    "Try": "Define reader, operator, and administrator roles. Map each to search, source lookup, sync, and revocation, then state where the host enforces each permission."
+  },
+  {
+    "Q": "Why is prompt injection an authorization problem as well as a prompting problem?",
+    "A": "Retrieved documents may contain instructions aimed at the model rather than information for the user. If the model can turn those instructions into privileged actions, untrusted content has crossed an authority boundary. Prompt wording alone should not determine which actions are permitted.",
+    "Why": "Evidence rendering escapes some markers, bridge operations apply authorization, and management tools are opt-in. These controls address different layers: presentation, data access, and action authority.",
+    "Risk": "Natural-language attacks can survive escaping, and a model can misinterpret legitimate text. Server-side tool validation and least privilege must remain effective even when the model requests the wrong action.",
+    "Trade": "Tighter permissions can limit autonomous workflows. Grant narrow capabilities for a task rather than broad access based on assumed model compliance.",
+    "Try": "Put a malicious instruction in a test document asking for another tenant's source. Verify the server refuses the operation even if a simulated model follows the instruction exactly."
+  },
+  {
+    "Q": "Why must source lookup enforce authorization separately from search?",
+    "A": "A citation reference can be copied, guessed, or reused after access changes. Possession of an identifier is not proof that the caller may read the referenced document. Historical snapshots can also retain text no longer visible in current search.",
+    "Why": "Revision-aware source lookup supports scoped access, revocation, bounded spans, and explicit revision availability. The bridge authorizes source retrieval rather than treating a citation label as an unrestricted download token.",
+    "Risk": "Protecting search while exposing an unguarded get_source endpoint leaks the same underlying corpus. Retention policy must distinguish audit storage from permission to disclose that storage.",
+    "Trade": "Rechecking permissions adds work to every citation open, but preserves access changes over time. Caching source responses also needs scope and revocation-aware keys.",
+    "Try": "Obtain a valid citation, revoke access, then try opening it again. Verify both search and retained-source lookup reject disclosure."
+  },
+  {
+    "Q": "What does the built-in rate limiter control, and what does it not control?",
+    "A": "It tracks request timestamps and active counts per client within one process, enforcing a sliding-window request ceiling and concurrency limit. It is not a shared quota service across many replicas and does not automatically price embedding or generation tokens.",
+    "Why": "RateLimiter uses in-memory dictionaries and an asyncio lock. Remote transport configuration can inject it as one guard around tool work, while embedding execution has a different semaphore for provider calls.",
+    "Risk": "Multiple replicas multiply an apparent per-client limit unless they coordinate. Failed release logic can also strand active slots, so acquire and release must be paired even on exceptions and cancellation.",
+    "Trade": "In-process limits are fast and simple. Fleet-wide limits need shared state or an API gateway and introduce another availability dependency.",
+    "Try": "Send requests for one identity through two limiter instances. Explain the combined effective quota and design a shared policy for a multi-replica deployment."
+  },
+  {
+    "Q": "How should telemetry avoid becoming a data leak?",
+    "A": "Prefer counts, durations, sanitized error categories, and controlled identifiers. Raw questions, passages, credentials, and user identifiers can expose private knowledge through logs, traces, and analytics systems even when retrieval itself is authorized.",
+    "Why": "A redaction policy defaults raw query, document text, user identifiers, and unmasked errors to disabled. Event construction sanitizes errors and supports host-controlled redaction. This does not imply that every ordinary logger in the reference design or host is automatically covered.",
+    "Risk": "Exception strings, URLs, and custom metadata can carry secrets. A redacted event sink cannot sanitize unrelated logs or a provider's own diagnostics.",
+    "Trade": "Less raw data makes debugging harder and reduces exposure. Use temporary, controlled debugging fixtures rather than permanently recording production passages.",
+    "Try": "Raise an error containing an API key, source URL, and query text. Inspect events and ordinary logs separately and document remaining exposure paths."
+  },
+  {
+    "Q": "What security acceptance tests matter most for this integration?",
+    "A": "Prioritize cross-tenant access, unsupported mandatory filters, source lookup after revocation, management permissions, malicious source instructions, SSRF redirects, and backend failures. These test authority boundaries rather than merely validating that a happy-path search returns text.",
+    "Why": "The reference design has focused tests around retrieval constraints, connectors, tool bridges, and sync. A host must extend those checks to its own identity provider, deployment routes, and durable adapters.",
+    "Risk": "A mock that always applies filters can conceal an actual backend mismatch. Include tests against the deployed adapter combination and inspect what leaves the process for reranking or telemetry.",
+    "Trade": "Boundary tests take setup but prevent high-impact failures. Duplicating every implementation branch with brittle tests is less valuable than exercising the invariants users depend on.",
+    "Try": "Write five adversarial scenarios with expected denial and one authorized control case for each. Specify whether denial must occur before any external provider receives document text."
+  }
+]
