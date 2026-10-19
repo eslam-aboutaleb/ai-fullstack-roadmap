@@ -1,21 +1,30 @@
 # AI Full-Stack Engineering Roadmap
 
-A general-purpose interactive learning website with **480 detailed questions across 48 chapters**, 48 practical labs, 48 original synthetic code examples, and four interactive diagram explainers.
+A course that progresses from intermediate foundations to advanced AI systems through seven dependency-aware stages. Every chapter introduces a concrete use case, defines necessary terms, provides its own interactive diagram, explains ideas through examples, walks through code, and finishes with a practical experiment.
 
-The journey covers RAG, databases, concurrency, authentication, agent frameworks, evaluation, observability, context engineering and optimization, prompt techniques, MCP server creation, agent skills, orchestration patterns, harnesses, backend integration, SSE, WebSockets, voice, OCR, and live agents.
+## Learning structure
 
-## Learning approach
+Start with the guided explanations, inspect the step-through flow, and change its failure condition. The RAG chapter also includes an evidence-policy playground. Use deeper interview questions after the lesson, not as a substitute for learning the topic. Topic coverage determines chapter depth; there is no fixed number of questions per chapter.
 
-Use the search, practice mode, bookmarks, notes, and progress tracking. Every answer explains mechanisms, risks, safeguards, trade-offs, and a practical exercise. Browser study data stays local and can be exported.
+The current content includes 223 guided explanations plus the earlier 480 interview questions. These are observed content counts, not authoring quotas. Existing study IDs, notes, and bookmarks remain compatible after chapter reordering. Notes and progress stay in browser storage and support export/import.
 
-The case is a fictional support platform. No private repository snapshots or project-specific source excerpts are published. Examples use synthetic data, and optional framework integrations state their execution limits.
+## Authoring
 
-## Rebuild and preview
+- `authoring/course.txt`: chapter goals, concrete cases, terminology, unique flow diagrams, and independently sized guided lessons.
+- `authoring/course_data.py`: ordered stages, prerequisites, and content loading.
+- `authoring/study_ids.json`: stable study identities; retain it when moving chapters or adding content.
+- `authoring/core.json`, `authoring/advanced.txt`: deeper interview material.
+- `authoring/code_notes.txt`, `authoring/examples.py`: code reading notes and original synthetic examples.
+- `authoring/build.py`: standard-library static generator.
+- `authoring/package.py`: packages public static files only.
+- `course.js`, `app.js`: teaching interactions and browser-local study features.
 
-Requires Python 3.10+ for authoring and stdlib examples. Rebuild with `python3 -B authoring/build.py`. Serve this directory with `python3 -m http.server 8765 --bind 127.0.0.1` and open `http://localhost:8765`. No backend or model provider is needed to read and use the website.
+Use Python 3.10+ for authoring checks and examples. Rebuild with `python3 -B authoring/build.py`, package with `python3 -B authoring/package.py`, and serve `_site` locally with `python3 -m http.server 8765 --bind 127.0.0.1 --directory _site`.
 
-`authoring/core.json` contains the first 300 generalized questions. `authoring/advanced.txt` contains 180 advanced questions. `authoring/examples.py` contains original teaching examples. `authoring/diagrams/` holds finalized diagram assets. `authoring/build.py` creates the static pages and search index; `authoring/package.py` packages only public files.
+`python3 -B authoring/check.py` verifies generated links, study-ID compatibility, nonuniform topic depth, privacy boundaries, and executable synthetic examples. It requires the public artifact to be packaged first.
 
-## Deployment
+## Scope and deployment
 
-The repository remains private; GitHub Pages is public. Pushes to `main` rebuild and deploy via `.github/workflows/pages.yml`. The published artifact contains HTML, CSS, JavaScript, examples, diagrams, and the manifest. Authoring files and Git history are excluded.
+This is fictional educational material. No private project source snapshots or live customer data are published. Interactive examples are deterministic simulations, not live model output. Optional framework sketches, SQL, and OCR examples state their limits. The synthetic backend lab illustrates HTTP tasks, SSE replay, cancellation, and WebSocket control using process-local state.
+
+The repository remains private while GitHub Pages is public. Pushes to `main` rebuild and publish only the static artifact. Print controls are omitted.

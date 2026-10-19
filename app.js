@@ -2,8 +2,8 @@
 (() => {
   'use strict';
   const KEY = 'ai-fullstack-roadmap-v1';
-  const QUESTION_COUNT = Number(document.body.dataset.questionCount) || 480;
-  let state = { learned: {}, bookmarks: {}, notes: {}, theme: 'dark' };
+  const QUESTION_COUNT = Number(document.body.dataset.questionCount) || 0;
+  let state = { learned: {}, bookmarks: {}, notes: {}, theme: 'light' };
   let storageOK = true;
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('ragnor-learning-v1') || 'null');
@@ -28,7 +28,7 @@
     const bar = document.querySelector('#progress');
     if (bar) bar.value = total;
     const label = document.querySelector('#progress-label');
-    if (label) label.textContent = `${total} / ${QUESTION_COUNT} questions learned`;
+    if (label) label.textContent = `${total} / ${QUESTION_COUNT} topics understood`;
     const storage = document.querySelector('#storage-status');
     if (storage && !storageOK) storage.textContent = 'Browser storage is unavailable. Changes last for this page session; export a backup.';
   }
@@ -84,7 +84,9 @@
   const chapter = document.querySelector('#chapter-filter');
   const status = document.querySelector('#status-filter');
   const results = document.querySelector('#results');
-  function search() {
+  let visibleResults = 20;
+  function search(reset = true) {
+    if (reset) visibleResults = 20;
     if (!results) return;
     const terms = query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
     const filtered = all.filter(q => {
@@ -98,16 +100,19 @@
     if (!filtered.length) {
       const message = document.createElement('p'); message.textContent = 'No questions match these filters. Try fewer words or another chapter.'; results.append(message);
     }
-    for (const q of filtered) {
+    for (const q of filtered.slice(0, visibleResults)) {
       const link = document.createElement('a'); link.className = 'result'; link.href = `${q.slug}.html#q${q.id}`;
-      const title = document.createElement('strong'); title.textContent = `${q.id}. ${q.title}`;
-      const meta = document.createElement('small'); meta.textContent = `${q.chapter}${state.learned[q.id] ? ' · learned' : ''}${state.bookmarks[q.id] ? ' · bookmarked' : ''}`;
+      const title = document.createElement('strong'); title.textContent = q.title;
+      const meta = document.createElement('small'); meta.textContent = `${q.type || "Topic"} · ${q.chapter}${state.learned[q.id] ? ' · learned' : ''}${state.bookmarks[q.id] ? ' · bookmarked' : ''}`;
       const excerpt = document.createElement('span'); excerpt.className = 'snippet';
       const pos = terms.length ? Math.max(0, q.text.toLocaleLowerCase().indexOf(terms[0]) - 65) : q.title.length + 1;
       excerpt.textContent = (pos ? '…' : '') + q.text.slice(pos, pos + 210) + '…';
       link.append(meta, title, excerpt); results.append(link);
     }
+    const more = document.querySelector("#more-results");
+    if (more) more.hidden = visibleResults >= filtered.length;
   }
+  document.querySelector('#more-results')?.addEventListener('click', () => { visibleResults += 20; search(false); });
   query?.addEventListener('input', search); chapter?.addEventListener('change', search); status?.addEventListener('change', search); search();
   document.querySelector('#random')?.addEventListener('click', () => {
     const pending = all.filter(q => !state.learned[q.id]);

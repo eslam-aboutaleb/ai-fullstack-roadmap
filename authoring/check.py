@@ -33,7 +33,12 @@ for path,page in pages.items():
         if parsed.fragment and target in pages:
             assert unquote(parsed.fragment) in pages[target].ids,('missing fragment',path.name,ref)
         links+=1
-assert sorted(question_ids)==list(range(1,481))
+manifest=json.loads((SITE/'manifest.json').read_text())
+assert len(question_ids)==manifest['questions']
+assert len(set(question_ids))==len(question_ids)
+assert set(range(1,481)).issubset(question_ids), 'Earlier progress identifiers must remain valid'
+assert len(set(manifest['chapter_topics'].values()))>1, 'Chapter depth must not be a uniform quota'
+assert sum(len(page.ids & {'walkthrough'}) for path,page in pages.items() if path.parent==SITE)==manifest['chapters']
 for path in SITE.rglob('*'):
     if not path.is_file():continue
     text=path.read_text()
