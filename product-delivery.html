@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Full-stack streaming and user workflows · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="product-delivery" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a aria-current=page href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 28 / 30 · QUESTIONS 271–280</p><h1>Full-stack streaming and user workflows</h1><p class="subtitle">Carry backend truth into browser state, confirmation, and feedback.</p><p class="chapter-note">Insurance extension · <a href="examples.html#product-delivery">Open the worked code example</a> · <a href="libraries.html">Check implementation status and library comparisons</a></p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-product-delivery">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the insurance-runtime diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/insurance-runtime.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/insurance-runtime.html" title="insurance-runtime diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q271" data-question="271">
+<div class="q-meta"><span>QUESTION 271</span><span>Insurance code & design analysis</span><a href="#q271" aria-label="Link to question 271">#</a></div>
+<details class="answer" open><summary><h2>271. What is the public SSE contract, and why should the browser not parse raw ADK internals?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The API maps runtime events into text_delta, tool_call, tool_result, tool_error, error, and response_complete messages. A stable application contract lets the UI evolve independently of ADK and supports a future orchestrator adapter.</p>
+<h3>Mechanism & reason</h3><p>chat_stream.py documents typed JSON frames and a terminal status. The route persists the turn before emitting message IDs in completion, linking the displayed answer to feedback authorization.</p><h3>Risk & safeguards</h3><p>Forwarding raw runtime objects can leak fields and break the UI after dependency changes. A stream ending at the network layer is not necessarily a successful response_complete event.</p>
+<h3>Choice & trade-offs</h3><p>An adapter adds code and preserves product stability. Direct runtime streaming is quicker for a demo and creates tighter coupling.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/chat_stream.py:123</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    raw = event_json.strip()
+    if raw.startswith(&quot;data: &quot;):
+        raw = raw[6:].strip()
+
+    try:
+        event = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        # Forwarding a payload we cannot parse would hand the client a parse
+        # error it cannot act on. Emitting a typed error frame instead keeps
+        # the failure visible while the stream still terminates normally.
+        return sse_frame(StreamError(message=&quot;Malformed event received&quot;, code=&quot;stream_failed&quot;))
+
+    if not isinstance(event, dict):
+        return sse_frame(StreamError(message=&quot;Malformed event received&quot;, code=&quot;stream_failed&quot;))
+
+    event_type = event.get(&quot;type&quot;, &quot;&quot;)
+
+    # ``is_final_response`` is a method on ADK&#x27;s Event, so it is not expected in
+    # the serialized payload ``run_agent_stream`` forwards -- but it is cheap to
+    # honour and the tests pin the behaviour, so a payload that does carry it
+    # still produces exactly one terminal frame here. Should ADK ever start
+    # serializing it, this and the ``finally`` block would both emit
+    # ``response_complete``; the guard against that belongs wherever the frames</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--chat_stream.py.html#L123">Read frozen source, lines 123–145</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Capture a synthetic successful and failed stream. Verify event discriminators, JSON validity, and exactly one meaningful terminal outcome for the actual route path.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="271"> I can explain this</label><button type="button" class="bookmark" data-bookmark="271" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-271">Explain this in your own words</label><textarea id="note-271" data-note="271" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q272" data-question="272">
+<div class="q-meta"><span>QUESTION 272</span><span>Insurance code & design analysis</span><a href="#q272" aria-label="Link to question 272">#</a></div>
+<details class="answer" open><summary><h2>272. How should a browser parse streaming chunks correctly?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Buffer bytes across network reads, decode incrementally, split complete SSE frames, parse their JSON, and retain any unfinished suffix. A network chunk may contain half a JSON object or several events; it is not an event boundary.</p>
+<h3>Mechanism & reason</h3><p>The backend emits data frames, but client transport segmentation is independent. The worked example supplies a framework-neutral frame buffer to teach this boundary without claiming to replace the project&#x27;s frontend implementation.</p><h3>Risk & safeguards</h3><p>Naive JSON.parse on each read loses events or fails on multibyte characters. Error recovery must also distinguish a malformed event from a clean terminal completion.</p>
+<h3>Choice & trade-offs</h3><p>A small parser handles a narrow contract; a mature SSE client can cover more protocol details. Test the actual API framing and reconnection requirements.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/chat_stream.py:123</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    raw = event_json.strip()
+    if raw.startswith(&quot;data: &quot;):
+        raw = raw[6:].strip()
+
+    try:
+        event = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        # Forwarding a payload we cannot parse would hand the client a parse
+        # error it cannot act on. Emitting a typed error frame instead keeps
+        # the failure visible while the stream still terminates normally.
+        return sse_frame(StreamError(message=&quot;Malformed event received&quot;, code=&quot;stream_failed&quot;))
+
+    if not isinstance(event, dict):
+        return sse_frame(StreamError(message=&quot;Malformed event received&quot;, code=&quot;stream_failed&quot;))
+
+    event_type = event.get(&quot;type&quot;, &quot;&quot;)
+
+    # ``is_final_response`` is a method on ADK&#x27;s Event, so it is not expected in
+    # the serialized payload ``run_agent_stream`` forwards -- but it is cheap to
+    # honour and the tests pin the behaviour, so a payload that does carry it
+    # still produces exactly one terminal frame here. Should ADK ever start
+    # serializing it, this and the ``finally`` block would both emit
+    # ``response_complete``; the guard against that belongs wherever the frames</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--chat_stream.py.html#L123">Read frozen source, lines 123–145</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Feed the same stream split at every possible byte boundary, including inside Unicode text. Verify identical parsed events.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="272"> I can explain this</label><button type="button" class="bookmark" data-bookmark="272" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-272">Explain this in your own words</label><textarea id="note-272" data-note="272" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q273" data-question="273">
+<div class="q-meta"><span>QUESTION 273</span><span>Insurance code & design analysis</span><a href="#q273" aria-label="Link to question 273">#</a></div>
+<details class="answer" open><summary><h2>273. Why do persisted message IDs matter for feedback?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Feedback should reference an actual assistant message owned by the user, not a temporary browser-generated ID. The backend can then authorize the record and connect a rating to its conversation, evidence, model configuration, and trace.</p>
+<h3>Mechanism & reason</h3><p>response_complete carries assistant and user message IDs after save_conversation_turn. Feedback routes validate relationships instead of trusting that an arbitrary UUID represents a visible answer.</p><h3>Risk & safeguards</h3><p>Rating an optimistic local ID can fail or attach feedback to the wrong turn. A persistence failure may leave partial text visible but no authoritative message to rate.</p>
+<h3>Choice & trade-offs</h3><p>Waiting for server identity adds a final synchronization step and preserves referential integrity. Client-only messages are easy to render and weak as durable references.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/feedback.py:346</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    message = (
+        await session.execute(
+            select(ConversationMessage)
+            .join(Conversation, Conversation.id == ConversationMessage.conversation_id)
+            .where(
+                ConversationMessage.id == message_id,
+                Conversation.user_id == user_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if message is None:
+        logger.warning(
+            &quot;Feedback requested for message &#x27;%s&#x27; by non-owner &#x27;%s&#x27;; reported as forbidden.&quot;,
+            message_id,
+            user_uuid,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=&quot;This message is not available to you.&quot;,
+        )
+
+    return message</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--feedback.py.html#L346">Read frozen source, lines 346–368</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Simulate a stream that generates text but fails persistence. Define whether feedback is disabled and how retry behaves without duplicating the displayed answer.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="273"> I can explain this</label><button type="button" class="bookmark" data-bookmark="273" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-273">Explain this in your own words</label><textarea id="note-273" data-note="273" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q274" data-question="274">
+<div class="q-meta"><span>QUESTION 274</span><span>Insurance code & design analysis</span><a href="#q274" aria-label="Link to question 274">#</a></div>
+<details class="answer" open><summary><h2>274. What should the UI state machine distinguish during a turn?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Distinguish draft, accepted, searching or tooling, generating, completed, failed, cancelled, and disconnected. Track evidence and persistence status separately where needed. A spinner stopping is not proof that the model completed successfully.</p>
+<h3>Mechanism & reason</h3><p>The backend&#x27;s error and terminal status fields provide signals for this state machine. The UI should retain partial output with an explicit incomplete marker when a stream fails.</p><h3>Risk & safeguards</h3><p>Treating every closed connection as completion can show truncated claims as final. Late responses from a prior conversation or signed-out user can also contaminate current state.</p>
+<h3>Choice & trade-offs</h3><p>Explicit states add frontend logic and improve recovery. A single loading boolean is compact and cannot represent the important distinctions.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/chat_stream.py:123</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    raw = event_json.strip()
+    if raw.startswith(&quot;data: &quot;):
+        raw = raw[6:].strip()
+
+    try:
+        event = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        # Forwarding a payload we cannot parse would hand the client a parse
+        # error it cannot act on. Emitting a typed error frame instead keeps
+        # the failure visible while the stream still terminates normally.
+        return sse_frame(StreamError(message=&quot;Malformed event received&quot;, code=&quot;stream_failed&quot;))
+
+    if not isinstance(event, dict):
+        return sse_frame(StreamError(message=&quot;Malformed event received&quot;, code=&quot;stream_failed&quot;))
+
+    event_type = event.get(&quot;type&quot;, &quot;&quot;)
+
+    # ``is_final_response`` is a method on ADK&#x27;s Event, so it is not expected in
+    # the serialized payload ``run_agent_stream`` forwards -- but it is cheap to
+    # honour and the tests pin the behaviour, so a payload that does carry it
+    # still produces exactly one terminal frame here. Should ADK ever start
+    # serializing it, this and the ``finally`` block would both emit
+    # ``response_complete``; the guard against that belongs wherever the frames</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--chat_stream.py.html#L123">Read frozen source, lines 123–145</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Create a reducer for stream events and test disconnect before completion, tool failure, persistence failure, cancellation, and a late event after tenant or conversation change.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="274"> I can explain this</label><button type="button" class="bookmark" data-bookmark="274" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-274">Explain this in your own words</label><textarea id="note-274" data-note="274" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q275" data-question="275">
+<div class="q-meta"><span>QUESTION 275</span><span>Insurance code & design analysis</span><a href="#q275" aria-label="Link to question 275">#</a></div>
+<details class="answer" open><summary><h2>275. How should claim confirmation be presented and protected in the UI?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Display the exact prepared fields, identify that no claim is yet submitted, and send the token through the authenticated confirmation route only after the user&#x27;s action. Disable duplicate controls for usability while retaining server-side race protection.</p>
+<h3>Mechanism & reason</h3><p>The backend binds tokens to user and pending state and locks confirmation. The UI should not infer completion from the agent saying prepared or from a locally generated confirmation animation.</p><h3>Risk & safeguards</h3><p>Corrections can leave old pending tokens valid unless the server supersedes them. The UI must not promise revocation that only exists in prompt text.</p>
+<h3>Choice & trade-offs</h3><p>A review screen adds friction and supports consent to material fields. The authoritative check must remain on the server because browsers can retry or be bypassed.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/claims.py:205</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        user_uuid = uuid.UUID(current_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=&quot;Invalid user&quot;,
+        ) from None
+
+    async with async_session_factory() as session:
+        submission = (
+            await session.execute(
+                select(ClaimSubmission)
+                .where(
+                    ClaimSubmission.confirmation_token == payload.confirmation_token,
+                    ClaimSubmission.user_id == user_uuid,
+                    ClaimSubmission.status == &quot;pending&quot;,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+
+        if submission is None:
+            logger.warning(</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--claims.py.html#L205">Read frozen source, lines 205–227</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Test double click, refresh, expired token, cancellation race, and correction after preparation. Compare displayed state with the actual submission record.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="275"> I can explain this</label><button type="button" class="bookmark" data-bookmark="275" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-275">Explain this in your own words</label><textarea id="note-275" data-note="275" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q276" data-question="276">
+<div class="q-meta"><span>QUESTION 276</span><span>Insurance code & design analysis</span><a href="#q276" aria-label="Link to question 276">#</a></div>
+<details class="answer" open><summary><h2>276. How should browser caching respond to sign-out, role changes, and archived conversations?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Partition cached results by trusted user and relevant resource identity, cancel or ignore obsolete in-flight responses, and clear private state at sign-out. Revalidate permissions for source opening and mutation even if a cached view once allowed access.</p>
+<h3>Mechanism & reason</h3><p>Conversation and feedback routes are owner-scoped, while browser state is a separate implementation layer. A secure backend does not prevent a frontend from accidentally displaying another session&#x27;s cached text.</p><h3>Risk & safeguards</h3><p>Reusing query keys across users can show private content without making a new unauthorized request. Hidden or archived messages can also remain in model context unless their lifecycle is mapped deliberately.</p>
+<h3>Choice & trade-offs</h3><p>Aggressive invalidation costs network requests and preserves clear session boundaries. Long-lived caches improve responsiveness and need stronger partitioning and freshness rules.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/conversation_store.py:84</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        async with async_session_factory() as db_session:
+            conv = (
+                await db_session.execute(
+                    select(Conversation).where(Conversation.session_id == session_id)
+                )
+            ).scalar_one_or_none()
+
+            if conv is None:
+                title = message[:_TITLE_MAX_LENGTH] or &quot;New conversation&quot;
+                conv = Conversation(
+                    user_id=uuid.UUID(user_id),
+                    session_id=session_id,
+                    title=title,
+                )
+                db_session.add(conv)
+                await db_session.flush()
+
+            user_message_id = uuid.uuid4()
+            assistant_message_id = uuid.uuid4()
+
+            user_message = ConversationMessage(
+                id=user_message_id,</code></pre>
+<p><a href="sources/insurance--backend--app--agent--conversation_store.py.html#L84">Read frozen source, lines 84–106</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Switch users during a slow stream and verify no old message, source, or confirmation token appears in the new user&#x27;s interface.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="276"> I can explain this</label><button type="button" class="bookmark" data-bookmark="276" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-276">Explain this in your own words</label><textarea id="note-276" data-note="276" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q277" data-question="277">
+<div class="q-meta"><span>QUESTION 277</span><span>Insurance code & design analysis</span><a href="#q277" aria-label="Link to question 277">#</a></div>
+<details class="answer" open><summary><h2>277. How should citations and tool activity be rendered accessibly and safely?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Render untrusted text safely, expose expandable source details by keyboard, use meaningful labels, and avoid announcing every token to assistive technology. Show user-relevant activity without exposing internal prompts, private tool arguments, or raw exception data.</p>
+<h3>Mechanism & reason</h3><p>The backend can emit tool activity and section citations. The browser decides what is visible, navigable, and announced; receiving a field over the network is already disclosure even if the UI later hides it.</p><h3>Risk & safeguards</h3><p>Raw HTML or unsafe URLs can create XSS, and a busy live region can make streaming unusable. A similarity distance should not be displayed as percent certainty.</p>
+<h3>Choice & trade-offs</h3><p>Progressive disclosure reduces overload but must keep verification discoverable. Detailed internal traces belong in authorized operator tools, not the policyholder screen.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/policies/tools.py:56</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    settings = get_settings()
+
+    results = await retrieve_hybrid(
+        query=query,
+        n_results=5,
+        distance_threshold=settings.rag_distance_threshold,
+    )
+
+    if not results:
+        return {
+            &quot;answer_context&quot;: (
+                &quot;No relevant policy information found for this query. &quot;
+                &quot;The user may be asking about something not covered in the policy documents, &quot;
+                &quot;or should contact OmniCare support directly.&quot;
+            ),
+            &quot;sources&quot;: [],
+            &quot;chunks_found&quot;: 0,
+        }
+
+    context_parts: list[str] = []
+    sources: list[dict[str, Any]] = []
+    seen_sections: set[str] = set()
+</code></pre>
+<p><a href="sources/insurance--backend--app--domain--policies--tools.py.html#L56">Read frozen source, lines 56–78</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Review a synthetic answer using only the keyboard and a screen reader. Include malicious markup and long source titles in the fixture.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="277"> I can explain this</label><button type="button" class="bookmark" data-bookmark="277" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-277">Explain this in your own words</label><textarea id="note-277" data-note="277" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q278" data-question="278">
+<div class="q-meta"><span>QUESTION 278</span><span>Insurance code & design analysis</span><a href="#q278" aria-label="Link to question 278">#</a></div>
+<details class="answer" open><summary><h2>278. How should client retries preserve operation identity?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Reuse one idempotency key for retries of the same logical request, but create a new operation for a genuinely changed request. Record whether the server accepted or completed it. Claim confirmation should rely on its own token and durable state, not a generic chat response cache.</p>
+<h3>Mechanism & reason</h3><p>core/idempotency.py scopes cached responses by user and verifies a body hash. Missing explicit keys can derive a deterministic key from user and message, affecting how repeated identical messages are interpreted.</p><h3>Risk & safeguards</h3><p>Reusing a key with a changed body should fail rather than replay another answer. Retrying a long-running request after a best-effort Redis wait can still duplicate model calls.</p>
+<h3>Choice & trade-offs</h3><p>Explicit operation identity requires lifecycle handling and supports predictable retries. Automatically retrying all failures is easy and can repeat expensive work.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/idempotency.py:183</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        try:
+            return await self._client.set(
+                self._claim_key(key), &quot;1&quot;, ttl=self._claim_ttl_seconds, nx=True
+            )
+        except RedisUnavailable:
+            # Behave as if the claim succeeded: computing the response locally
+            # is safer than refusing the request.
+            return True</code></pre>
+<p><a href="sources/insurance--backend--app--core--idempotency.py.html#L183">Read frozen source, lines 183–190</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Test same key/same body, same key/changed body, new key/same body, and an ambiguous timeout. Document behavior for chat versus confirmation.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="278"> I can explain this</label><button type="button" class="bookmark" data-bookmark="278" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-278">Explain this in your own words</label><textarea id="note-278" data-note="278" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q279" data-question="279">
+<div class="q-meta"><span>QUESTION 279</span><span>Insurance code & design analysis</span><a href="#q279" aria-label="Link to question 279">#</a></div>
+<details class="answer" open><summary><h2>279. How should frontend, API, and agent contracts be tested together?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Use a small set of full user journeys plus focused contract tests for events, ownership, persistence IDs, and confirmation effects. Fake providers make UI tests deterministic; separate live-provider tests assess actual model behavior.</p>
+<h3>Mechanism & reason</h3><p>The backend has stream-contract and feedback-ID tests. The broader project has frontend end-to-end tests, but this handbook&#x27;s conclusions about the backend do not certify all frontend behavior without executing those journeys.</p><h3>Risk & safeguards</h3><p>A mocked stream that always ends successfully cannot reveal cancellation or malformed-event behavior. Live model tests alone are too variable for every UI assertion.</p>
+<h3>Choice & trade-offs</h3><p>Layered tests provide fast diagnosis and credible integration coverage. Excessive end-to-end duplication raises cost without necessarily testing new behavior.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/tests/test_stream_contract_events.py:45</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    events: list[dict[str, Any]] = []
+    for raw_block in payload.split(&quot;\n\n&quot;):
+        block = raw_block.strip()
+        if not block:
+            continue
+        data = block.removeprefix(&quot;data:&quot;).strip()
+        events.append(json.loads(data))
+    return events</code></pre>
+<p><a href="sources/insurance--backend--tests--test_stream_contract_events.py.html#L45">Read frozen source, lines 45–52</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Define five journeys: cited answer, corrected preparation, denied foreign claim, failed stream, and post-restart history. State the provider and database realism each needs.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="279"> I can explain this</label><button type="button" class="bookmark" data-bookmark="279" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-279">Explain this in your own words</label><textarea id="note-279" data-note="279" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q280" data-question="280">
+<div class="q-meta"><span>QUESTION 280</span><span>Insurance code & design analysis</span><a href="#q280" aria-label="Link to question 280">#</a></div>
+<details class="answer" open><summary><h2>280. What should the completed portfolio demonstration show?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Show one coherent user journey across authentication, evidence retrieval, streaming, source verification, claim preparation, confirmation, background indexing, and feedback. Then demonstrate a denial and a recovery case with supporting traces and tests.</p>
+<h3>Mechanism & reason</h3><p>This connects frontend interaction with the concrete backend modules and the reusable Ragnor library. It demonstrates integration judgment rather than only the ability to call a model.</p><h3>Risk & safeguards</h3><p>A polished recording can hide unimplemented handoff, current-only policy scope, or in-memory deployment state. State those limitations and show the effective configuration.</p>
+<h3>Choice & trade-offs</h3><p>A narrow reliable application is more persuasive than many unverified agent features. Add remote agents or model adaptation only when the measured problem justifies them.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/agent.py:504</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    agent = LlmAgent(
+        name=&quot;omnicare_assistant&quot;,
+        model=LiteLlm(
+            model=agent_settings.llm_model,
+            api_key=agent_settings.openai_api_key,
+            api_base=agent_settings.openai_api_base,
+            **(
+                {&quot;temperature&quot;: agent_settings.llm_temperature}
+                if agent_settings.llm_temperature
+                else {}
+            ),
+            **(
+                {&quot;max_tokens&quot;: agent_settings.llm_max_tokens}
+                if agent_settings.llm_max_tokens
+                else {}
+            ),
+        ),
+        # The reviewed prompt lives in the prompts module; the setting overrides
+        # it for a deployment without a code change.
+        instruction=agent_settings.system_prompt or SYSTEM_INSTRUCTION,
+        tools=registry.build_tool_list(),
+        # [SUB-TASK] History rehydration from conversation_messages. Delete this
+        # argument and the marked section below to drop that sub-task; nothing</code></pre>
+<p><a href="sources/insurance--backend--app--agent--agent.py.html#L504">Read frozen source, lines 504–526</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Prepare a ten-minute demo with architecture, one successful task, one adversarial denial, one crash recovery, and a held-out quality/cost report.</p></div><p class="reference"><a href="examples.html#product-delivery">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="280"> I can explain this</label><button type="button" class="bookmark" data-bookmark="280" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-280">Explain this in your own words</label><textarea id="note-280" data-note="280" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="insurance-decisions.html">← Insurance evidence and decision boundaries</a><a href="deployment-reliability.html">Deployment, recovery, and production readiness →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

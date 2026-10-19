@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Evaluating agents and insurance outcomes · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="agent-evaluation" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a aria-current=page href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 24 / 30 · QUESTIONS 231–240</p><h1>Evaluating agents and insurance outcomes</h1><p class="subtitle">Measure the trajectory and durable effects, not just a fluent answer.</p><p class="chapter-note">Insurance extension · <a href="examples.html#agent-evaluation">Open the worked code example</a> · <a href="libraries.html">Check implementation status and library comparisons</a></p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-agent-evaluation">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the insurance-quality diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/insurance-quality.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/insurance-quality.html" title="insurance-quality diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q231" data-question="231">
+<div class="q-meta"><span>QUESTION 231</span><span>Insurance code & design analysis</span><a href="#q231" aria-label="Link to question 231">#</a></div>
+<details class="answer" open><summary><h2>231. Why is answer evaluation insufficient for an agent?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">An answer can sound correct after using the wrong tool, revealing unauthorized information, repeating an expensive action, or failing to commit the intended operation. Agent evaluation needs task success, tool choice and arguments, permissions, side effects, recovery, and final communication.</p>
+<h3>Mechanism & reason</h3><p>OmniCare&#x27;s tools include both read operations and preparation. A claim confirmation has database invariants that no similarity score over final prose can verify.</p><h3>Risk & safeguards</h3><p>A model judge can reward a statement that a claim was submitted even when no claim exists. Conversely, a safely rejected operation may sound less helpful while being the correct outcome.</p>
+<h3>Choice & trade-offs</h3><p>Multi-layer evaluation needs more fixtures and gives actionable diagnosis. One aggregate answer score is easier to display and weaker as a release gate.</p><p class="reference">Official reference: <a href="https://adk.dev/evaluate/">Why evaluate ADK agents</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/evaluation.py:741</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if injected is not None:
+        return injected, ANSWER_SOURCE_INJECTED
+    if _default_answer_fn is not None:
+        return _default_answer_fn, ANSWER_SOURCE_DEFAULT
+    if live_evaluation_enabled():
+        return agent_answer_fn, ANSWER_SOURCE_AGENT
+    return context_proxy_answer_fn, ANSWER_SOURCE_CONTEXT_PROXY</code></pre>
+<p><a href="sources/insurance--backend--app--domain--evaluation.py.html#L741">Read frozen source, lines 741–747</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Create three cases with identical final text but different underlying tool and database histories. Define which pass and why.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="231"> I can explain this</label><button type="button" class="bookmark" data-bookmark="231" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-231">Explain this in your own words</label><textarea id="note-231" data-note="231" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q232" data-question="232">
+<div class="q-meta"><span>QUESTION 232</span><span>Insurance code & design analysis</span><a href="#q232" aria-label="Link to question 232">#</a></div>
+<details class="answer" open><summary><h2>232. How do reference trajectories and invariant-based trajectories differ?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A reference trajectory compares observed calls with an expected sequence. An invariant checks necessary properties such as owner scoping, no duplicate confirmation, and policy retrieval before a coverage determination. Different valid tool sequences may satisfy the same task.</p>
+<h3>Mechanism & reason</h3><p>ADK provides trajectory-oriented evaluation, and OmniCare&#x27;s prompt has concrete tool-routing rules. Use exact paths for deterministic protocols and allowed partial orders for flexible multi-intent turns.</p><h3>Risk & safeguards</h3><p>Exact sequence tests can fail harmless reordering; very loose rubrics can miss a missing critical step. Tool names alone also ignore whether arguments or results were correct.</p>
+<h3>Choice & trade-offs</h3><p>Reference paths are easy to inspect and brittle under valid variation. Invariants need careful definition and better express safety and business requirements.</p><p class="reference">Official reference: <a href="https://github.com/google/adk-docs/blob/main/docs/evaluate/criteria.md">ADK evaluation criteria</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/registry.py:79</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name=&quot;query_policy&quot;,
+            description=(
+                &quot;Search OmniCare insurance policy documents to answer coverage questions.&quot;
+            ),
+            handler=query_policy,
+            metadata={&quot;requires_auth&quot;: True},
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name=&quot;get_claim_status&quot;,
+            description=(
+                &quot;Look up the status of an existing claim by its claim ID when the &quot;
+                &quot;user already knows it; a returned found=false means no such &quot;
+                &quot;claim exists and must not be treated as one.&quot;
+            ),
+            handler=get_claim_status,
+            metadata={&quot;requires_auth&quot;: True},
+        )
+    )</code></pre>
+<p><a href="sources/insurance--backend--app--agent--registry.py.html#L79">Read frozen source, lines 79–101</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Evaluate a mixed coverage/status request with two valid call orders, then reject both if the claim lookup lacks the correct owner context.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="232"> I can explain this</label><button type="button" class="bookmark" data-bookmark="232" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-232">Explain this in your own words</label><textarea id="note-232" data-note="232" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q233" data-question="233">
+<div class="q-meta"><span>QUESTION 233</span><span>Insurance code & design analysis</span><a href="#q233" aria-label="Link to question 233">#</a></div>
+<details class="answer" open><summary><h2>233. What does the host&#x27;s context evaluation mode actually measure?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Context mode evaluates retrieved material as the answer-like input to answer metrics. It can diagnose whether retrieval contains useful content, but it is not a measurement of a live agent&#x27;s generated response. High faithfulness here must not be presented as proof that the agent follows evidence.</p>
+<h3>Mechanism & reason</h3><p>domain/evaluation.py distinguishes retrieval-only, context, and end-to-end modes and records answer_source. It also labels an offline retrieved-context substitute used when a live generator is unavailable.</p><h3>Risk & safeguards</h3><p>Comparing proxy scores with live-agent scores without checking labels can create a false regression or improvement. Availability fallbacks should never silently change the meaning of the reported metric.</p>
+<h3>Choice & trade-offs</h3><p>Offline proxies are cheap and useful for early diagnosis. Actual agent evaluation costs provider calls and measures a different layer.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/evaluation.py:741</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if injected is not None:
+        return injected, ANSWER_SOURCE_INJECTED
+    if _default_answer_fn is not None:
+        return _default_answer_fn, ANSWER_SOURCE_DEFAULT
+    if live_evaluation_enabled():
+        return agent_answer_fn, ANSWER_SOURCE_AGENT
+    return context_proxy_answer_fn, ANSWER_SOURCE_CONTEXT_PROXY</code></pre>
+<p><a href="sources/insurance--backend--app--domain--evaluation.py.html#L741">Read frozen source, lines 741–747</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Run or inspect configurations for all modes and assert the reported answer_source. Separate proxy and live results in your report.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="233"> I can explain this</label><button type="button" class="bookmark" data-bookmark="233" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-233">Explain this in your own words</label><textarea id="note-233" data-note="233" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q234" data-question="234">
+<div class="q-meta"><span>QUESTION 234</span><span>Insurance code & design analysis</span><a href="#q234" aria-label="Link to question 234">#</a></div>
+<details class="answer" open><summary><h2>234. How should a multi-turn claim-preparation test be structured?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Model the user&#x27;s progressive facts, corrections, missing fields, preparation, and explicit confirmation boundary. Assert the prepared payload and server effects at each step, not only whether the assistant eventually produces a token.</p>
+<h3>Mechanism & reason</h3><p>The prompt instructs collection of policy number, claim type, amount, and description and special handling of corrections. The actual pending-token lifecycle must be checked against those promises.</p><h3>Risk & safeguards</h3><p>A user simulator may accidentally supply hints or accept a fabricated success. Test fixtures should inspect the database and use deterministic assertions for required fields and token state.</p>
+<h3>Choice & trade-offs</h3><p>Multi-turn tests take more execution and reveal memory and correction failures absent from isolated prompts. Keep a small high-value regression set alongside larger sampled evaluations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/tools/submit_claim.py:59</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        user_uuid = current_user_id.get()
+    except LookupError:
+        logger.error(&quot;current_user_id not found in context during claim preparation.&quot;)
+        return {&quot;success&quot;: False, &quot;error&quot;: &quot;Unauthorized submission.&quot;}
+
+    try:
+        validated = ClaimSubmission(
+            policy_number=policy_number,
+            claim_type=claim_type,
+            amount=amount,
+            description=description,
+        )
+    except ValidationError as exc:
+        errors = [
+            f&quot;{err[&#x27;loc&#x27;][-1] if err[&#x27;loc&#x27;] else &#x27;field&#x27;}: {err[&#x27;msg&#x27;]}&quot; for err in exc.errors()
+        ]
+        logger.warning(&quot;Claim preparation validation failed: %s&quot;, errors)
+        return {&quot;success&quot;: False, &quot;validation_errors&quot;: errors}
+
+    confirmation_token = str(uuid.uuid4())
+    expires_at = datetime.now(UTC) + timedelta(minutes=15)
+</code></pre>
+<p><a href="sources/insurance--backend--app--agent--tools--submit_claim.py.html#L59">Read frozen source, lines 59–81</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Create a scenario that changes the amount after preparation and attempts the old token. Report both current behavior and the desired contract.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="234"> I can explain this</label><button type="button" class="bookmark" data-bookmark="234" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-234">Explain this in your own words</label><textarea id="note-234" data-note="234" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q235" data-question="235">
+<div class="q-meta"><span>QUESTION 235</span><span>Insurance code & design analysis</span><a href="#q235" aria-label="Link to question 235">#</a></div>
+<details class="answer" open><summary><h2>235. How should refusal and clarification be evaluated separately?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Refusal is appropriate when the task is unsupported or evidence cannot justify an answer. Clarification is appropriate when obtaining missing facts could make the task answerable. Escalation is another outcome requiring truthful operational status.</p>
+<h3>Mechanism & reason</h3><p>The host dataset includes expected-behavior labels, and the prompt has an uncertainty ladder and domain restrictions. Extend labels beyond answer/refuse when product outcomes require more nuance.</p><h3>Risk & safeguards</h3><p>Rewarding all refusals as safe can produce an unusable assistant. Rewarding direct answers to ambiguous coverage questions can produce unsupported decisions.</p>
+<h3>Choice & trade-offs</h3><p>Rich outcome labels cost annotation effort and better match product expectations. A binary correct/incorrect label is simpler and loses diagnostic detail.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/evaluation.py:741</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if injected is not None:
+        return injected, ANSWER_SOURCE_INJECTED
+    if _default_answer_fn is not None:
+        return _default_answer_fn, ANSWER_SOURCE_DEFAULT
+    if live_evaluation_enabled():
+        return agent_answer_fn, ANSWER_SOURCE_AGENT
+    return context_proxy_answer_fn, ANSWER_SOURCE_CONTEXT_PROXY</code></pre>
+<p><a href="sources/insurance--backend--app--domain--evaluation.py.html#L741">Read frozen source, lines 741–747</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Label cases as answer, clarify, refuse, retry, or escalate. Require evidence for every final coverage claim and an actual handoff result before claiming transfer.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="235"> I can explain this</label><button type="button" class="bookmark" data-bookmark="235" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-235">Explain this in your own words</label><textarea id="note-235" data-note="235" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q236" data-question="236">
+<div class="q-meta"><span>QUESTION 236</span><span>Insurance code & design analysis</span><a href="#q236" aria-label="Link to question 236">#</a></div>
+<details class="answer" open><summary><h2>236. How can evaluation verify that writes happened exactly as intended?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Assert durable rows, ownership, consumed-token state, lifecycle events, and outbox records after the operation. Repeat and race requests to verify logical uniqueness. Evaluate external deliveries separately from database acceptance.</p>
+<h3>Mechanism & reason</h3><p>Confirmation combines several writes in one caller-owned transaction. Tests can inspect that one logical claim exists and that rollback removes related pending effects when a later write fails.</p><h3>Risk & safeguards</h3><p>A mocked submit function can return success without exercising SQL locks or commits. A judge of answer text cannot establish atomicity or idempotency.</p>
+<h3>Choice & trade-offs</h3><p>Real integration tests are slower and necessary for authoritative effects. Cheap fake-model tests remain useful for routing and error mapping around them.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/tests/contract/test_contract_claim_atomicity.py:36</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    def __init__(self) -&gt; None:
+        self.added: list[object] = []
+        self.commits = 0
+        self.flushes = 0
+
+    def add(self, obj) -&gt; None:
+        self.added.append(obj)
+
+    async def flush(self) -&gt; None:
+        self.flushes += 1
+
+    async def commit(self) -&gt; None:
+        self.commits += 1
+
+    async def rollback(self) -&gt; None:
+        return None</code></pre>
+<p><a href="sources/insurance--backend--tests--contract--test_contract_claim_atomicity.py.html#L36">Read frozen source, lines 36–51</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Build a failure-injection table for every write in confirmation. For each failure, assert the visible claim, submission, event, and job state.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="236"> I can explain this</label><button type="button" class="bookmark" data-bookmark="236" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-236">Explain this in your own words</label><textarea id="note-236" data-note="236" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q237" data-question="237">
+<div class="q-meta"><span>QUESTION 237</span><span>Insurance code & design analysis</span><a href="#q237" aria-label="Link to question 237">#</a></div>
+<details class="answer" open><summary><h2>237. How should a judge be calibrated and protected from the answer being judged?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Use a precise rubric, trusted references, known positive and negative cases, and human review to measure agreement. Treat candidate answer and retrieved text as untrusted data in the judge prompt. Record judge model, prompt, and sampling settings.</p>
+<h3>Mechanism & reason</h3><p>Ragnor&#x27;s answer evaluators provide useful score containers, while insurance-specific criteria must reflect unsupported limits, missing exclusions, authorization, and false submission claims.</p><h3>Risk & safeguards</h3><p>A candidate can contain instructions to the judge, and a judge can favor style over factual support. A second model is not independent truth when it shares the same missing evidence.</p>
+<h3>Choice & trade-offs</h3><p>Model judging scales nuanced review and costs money and uncertainty. Deterministic checks should handle exact citations, amounts, permissions, and state transitions where possible.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evaluation/answer.py:38</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    faithfulness: float = 0.0
+    relevance: float = 0.0
+    completeness: float = 0.0
+    conciseness: float = 0.0
+    overall: float = 0.0
+    reasoning: str = &quot;&quot;</code></pre>
+<p><a href="sources/src--ragnor--evaluation--answer.py.html#L38">Read frozen source, lines 38–43</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evaluation/answer.py#L38-L43">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Add a fluent unsupported answer and a judge-injection answer to a calibration set. Compare model verdicts with explicit human labels.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="237"> I can explain this</label><button type="button" class="bookmark" data-bookmark="237" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-237">Explain this in your own words</label><textarea id="note-237" data-note="237" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q238" data-question="238">
+<div class="q-meta"><span>QUESTION 238</span><span>Insurance code & design analysis</span><a href="#q238" aria-label="Link to question 238">#</a></div>
+<details class="answer" open><summary><h2>238. How do uncertainty intervals and category slices improve evaluation?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A score from a small sample is an estimate, not a universal property. Report sample counts, uncertainty, and important categories such as exclusions, limits, corrections, unanswerable questions, and authorization failures. Inspect severity as well as frequency.</p>
+<h3>Mechanism & reason</h3><p>The host defines categories and difficulty metadata that can support stratified reports. A high aggregate score can hide a small but serious failure class.</p><h3>Risk & safeguards</h3><p>Repeatedly tuning on the same visible cases overfits the benchmark. Averaging a cross-user disclosure with several harmless formatting errors gives a misleading quality summary.</p>
+<h3>Choice & trade-offs</h3><p>Category reporting creates more numbers and reveals actionable regressions. Small categories need cautious interpretation rather than overconfident ranking.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/evaluation.py:741</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if injected is not None:
+        return injected, ANSWER_SOURCE_INJECTED
+    if _default_answer_fn is not None:
+        return _default_answer_fn, ANSWER_SOURCE_DEFAULT
+    if live_evaluation_enabled():
+        return agent_answer_fn, ANSWER_SOURCE_AGENT
+    return context_proxy_answer_fn, ANSWER_SOURCE_CONTEXT_PROXY</code></pre>
+<p><a href="sources/insurance--backend--app--domain--evaluation.py.html#L741">Read frozen source, lines 741–747</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Split a benchmark by answerability and category, publish counts, and flag critical failures as release blockers instead of averaging them away.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="238"> I can explain this</label><button type="button" class="bookmark" data-bookmark="238" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-238">Explain this in your own words</label><textarea id="note-238" data-note="238" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q239" data-question="239">
+<div class="q-meta"><span>QUESTION 239</span><span>Insurance code & design analysis</span><a href="#q239" aria-label="Link to question 239">#</a></div>
+<details class="answer" open><summary><h2>239. How should evaluation control cost and side effects?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Separate deterministic unit tests, offline retrieval checks, fake-model trajectories, and opt-in live-agent runs. Use synthetic identities and a sandbox, forbid real irreversible actions, and bound tokens, calls, and total spend. Record which execution mode actually ran.</p>
+<h3>Mechanism & reason</h3><p>OmniCare uses an explicit live-evaluation environment opt-in and a synthetic evaluation user identity. That helps isolate data, but test tools and external integrations still need sandbox behavior.</p><h3>Risk & safeguards</h3><p>A live agent can prepare records or call real services if its test capabilities are not constrained. Test traces may also export fixtures containing private data.</p>
+<h3>Choice & trade-offs</h3><p>Offline checks are fast and less realistic; live runs expose provider behavior and require stronger controls. Use both without conflating their scores.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/evaluation.py:741</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if injected is not None:
+        return injected, ANSWER_SOURCE_INJECTED
+    if _default_answer_fn is not None:
+        return _default_answer_fn, ANSWER_SOURCE_DEFAULT
+    if live_evaluation_enabled():
+        return agent_answer_fn, ANSWER_SOURCE_AGENT
+    return context_proxy_answer_fn, ANSWER_SOURCE_CONTEXT_PROXY</code></pre>
+<p><a href="sources/insurance--backend--app--domain--evaluation.py.html#L741">Read frozen source, lines 741–747</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Define a CI budget and a nightly live-evaluation budget with safe tool replacements and explicit answer-source assertions.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="239"> I can explain this</label><button type="button" class="bookmark" data-bookmark="239" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-239">Explain this in your own words</label><textarea id="note-239" data-note="239" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q240" data-question="240">
+<div class="q-meta"><span>QUESTION 240</span><span>Insurance code & design analysis</span><a href="#q240" aria-label="Link to question 240">#</a></div>
+<details class="answer" open><summary><h2>240. What should an agent release gate require?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Require critical authorization and write invariants, non-regression on held-out task outcomes, acceptable latency and cost, and a rollback path. Keep quality thresholds distinct from informational efficiency metrics. A release gate should reflect product harm and operational capacity.</p>
+<h3>Mechanism & reason</h3><p>The backend has baseline and evaluation-gate tests. Extend their report with trajectory, correction, false-success, and privacy checks rather than only raising an answer-score average.</p><h3>Risk & safeguards</h3><p>A changing judge or proxy fallback can move metrics without a real behavior change. A passing average must never excuse a critical cross-user disclosure or duplicate write.</p>
+<h3>Choice & trade-offs</h3><p>Strict gates slow some releases and prevent expensive regressions. Narrow deterministic checks should fail quickly before costly live evaluation.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/tests/test_eval_gate.py:81</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    tokens = re.findall(r&quot;[a-z0-9]+&quot;, text.lower())
+    words: list[str] = []
+    for token in tokens:
+        words.append(token)
+        if len(token) &gt; 4 and token.endswith(&quot;s&quot;):
+            words.append(token[:-1])
+        if len(token) &gt; 5 and token.endswith(&quot;ing&quot;):
+            words.append(token[:-3])
+        if len(token) &gt; 4 and token.endswith(&quot;ed&quot;):
+            words.append(token[:-2])
+
+    joined = f&quot; {&#x27; &#x27;.join(tokens)} &quot;
+    features = words + re.findall(r&quot;[a-z]{3}&quot;, joined) + re.findall(r&quot;[a-z]{4}&quot;, joined)
+
+    vector = [0.0] * dim
+    for feature in features:
+        digest = hashlib.sha256(feature.encode(&quot;utf-8&quot;)).digest()
+        index = int.from_bytes(digest[:2], &quot;big&quot;) % dim
+        vector[index] += 1.0 if digest[2] % 2 == 0 else -1.0
+
+    norm = math.sqrt(sum(value * value for value in vector))
+    return [value / norm for value in vector] if norm &gt; 0.0 else vector</code></pre>
+<p><a href="sources/insurance--backend--tests--test_eval_gate.py.html#L81">Read frozen source, lines 81–102</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write a gate with hard denials, category quality thresholds, p95 latency, cost per successful task, and explicit metadata compatibility checks.</p></div><p class="reference"><a href="examples.html#agent-evaluation">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="240"> I can explain this</label><button type="button" class="bookmark" data-bookmark="240" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-240">Explain this in your own words</label><textarea id="note-240" data-note="240" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="a2a.html">← A2A and distributed agent collaboration</a><a href="evaluation-libraries.html">Agent and RAG evaluation libraries →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

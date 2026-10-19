@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Distributed sync, jobs, and recovery · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="coordination" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a aria-current=page href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 10 / 30 · QUESTIONS 91–100</p><h1>Distributed sync, jobs, and recovery</h1><p class="subtitle">Reason about stale workers and partial writes using explicit state.</p><p class="chapter-note">Original chapter reviewed against the insurance host. Each answer now links to its coverage-audit entry and practical extension.</p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-coordination">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the lifecycle diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/lifecycle.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/lifecycle.html" title="lifecycle diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q91" data-question="91">
+<div class="q-meta"><span>QUESTION 091</span><span>Code & engineering analysis</span><a href="#q91" aria-label="Link to question 91">#</a></div>
+<details class="answer" open><summary><h2>91. Why does sync need more than the basic ingestion pipeline?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Sync reconciles a changing collection over repeated scans and distributed workers. It must classify document changes, track active generations, prevent stale activation, manage removals, checkpoint progress, and clean abandoned writes. A one-shot replace operation does not cover all of those concerns.</p>
+<h3>Mechanism & reason</h3><p>DefaultSyncCoordinator composes source scans, manifests, fencing state, embeddings, vector storage, optional reconciliation jobs, and garbage collection. It prepares generations before committing visibility through manifests.</p><h3>Risk & safeguards</h3><p>The coordinator&#x27;s logic depends on durable adapters implementing atomic fencing and batch compare-and-swap. The provided in-memory implementations demonstrate semantics within a process, not a production multi-process coordination service.</p>
+<h3>Choice & trade-offs</h3><p>The richer protocol improves recoverability while adding state and adapter obligations. Small single-process applications may reasonably use the simpler pipeline.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/sync/coordinator.py:425</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async def run_sync(  # noqa: PLR0915
+        self,
+        scope: str,
+        source: Any,
+        is_authoritative: bool | None = None,
+        cursor: Any = None,
+        limit: int | None = None,
+    ) -&gt; SyncReport:
+        if not hasattr(self._state_store, &quot;fenced&quot;):
+            raise FencingError(&quot;SyncStateStore must implement a fenced commit context&quot;)
+        if not hasattr(self._manifest_store, &quot;compare_and_swap_many&quot;):
+            raise FencingError(&quot;ManifestStore must implement atomic batch commits&quot;)
+        token = await self._state_store.acquire_lease(
+            scope, self._worker_id, self._lease_ttl_seconds
+        )
+        if token is None:
+            raise LeaseAcquisitionError(f&quot;Could not acquire lease for scope {scope!r}&quot;)
+        heartbeat = asyncio.create_task(self._heartbeat(token))
+        report = SyncReport(scope=scope, success=False, fence_epoch=token.epoch)
+        uncommitted: set[str] = set()
+        retired: list[str] = []
+        self._emit(EventKind.SCAN_STARTED, scope, token)
+        try:</code></pre>
+<p><a href="sources/src--ragnor--sync--coordinator.py.html#L425">Read frozen source, lines 425–447</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/sync/coordinator.py#L425-L447">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Compare the state required to replace one file with the state required to sync a million-object collection across two workers and intermittent source failures.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q91">Question 91 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="91"> I can explain this</label><button type="button" class="bookmark" data-bookmark="91" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-91">Explain this in your own words</label><textarea id="note-91" data-note="91" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q92" data-question="92">
+<div class="q-meta"><span>QUESTION 092</span><span>Code & engineering analysis</span><a href="#q92" aria-label="Link to question 92">#</a></div>
+<details class="answer" open><summary><h2>92. What are leases and fencing tokens, and why are both needed?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A lease grants temporary ownership; a fencing token is a monotonically increasing epoch that lets authoritative storage reject obsolete owners. A worker can pause beyond its lease and later resume, so merely checking lease time before a write is insufficient.</p>
+<h3>Mechanism & reason</h3><p>SyncStateStore provides lease acquisition, renewal, token validation, and a fenced commit context. The coordinator validates tokens after preparation and performs activation inside the fenced context.</p><h3>Risk & safeguards</h3><p>A stale worker may already have written prepared vectors, but it must not activate them or overwrite checkpoints. Correctness depends on checking authority at the authoritative mutation boundary, not only in worker memory.</p>
+<h3>Choice & trade-offs</h3><p>Fencing requires shared durable state and atomic enforcement. A simple expiring lock is easier to implement but vulnerable to resumed zombie workers.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/sync/state.py:90</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        ...</code></pre>
+<p><a href="sources/src--ragnor--sync--state.py.html#L90">Read frozen source, lines 90–90</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/sync/state.py#L90-L90">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Pause worker A, expire its lease, let B acquire a newer epoch, then resume A. Identify every operation A may still perform and every authoritative write that must reject it.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q92">Question 92 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="92"> I can explain this</label><button type="button" class="bookmark" data-bookmark="92" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-92">Explain this in your own words</label><textarea id="note-92" data-note="92" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q93" data-question="93">
+<div class="q-meta"><span>QUESTION 093</span><span>Code & engineering analysis</span><a href="#q93" aria-label="Link to question 93">#</a></div>
+<details class="answer" open><summary><h2>93. Why does a separate token check followed by a write still race?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Another worker can take ownership after the check and before the write. This is a time-of-check to time-of-use race. The authority check and authoritative mutation need one protected context or equivalent atomic database condition.</p>
+<h3>Mechanism & reason</h3><p>The SyncStateStore protocol explicitly requires fenced() to exclude takeover while committing. A production adapter can use transactional row locking, advisory locking, or equivalent compare-and-swap semantics; a no-op context is not sufficient.</p><h3>Risk & safeguards</h3><p>Implementing validate_token correctly but fenced incorrectly creates false confidence. Unit tests that never interleave takeover with commit will miss the race.</p>
+<h3>Choice & trade-offs</h3><p>Holding a guard during activation can increase contention. Keep expensive embedding outside it and protect only the necessary visibility and checkpoint operations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/sync/state.py:90</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        ...</code></pre>
+<p><a href="sources/src--ragnor--sync--state.py.html#L90">Read frozen source, lines 90–90</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/sync/state.py#L90-L90">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write an interleaving with a successful token check, a takeover, and an obsolete write. Then show which atomic guard makes that history impossible.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q93">Question 93 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="93"> I can explain this</label><button type="button" class="bookmark" data-bookmark="93" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-93">Explain this in your own words</label><textarea id="note-93" data-note="93" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q94" data-question="94">
+<div class="q-meta"><span>QUESTION 094</span><span>Code & engineering analysis</span><a href="#q94" aria-label="Link to question 94">#</a></div>
+<details class="answer" open><summary><h2>94. What does compare-and-swap do for manifest activation?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Compare-and-swap updates state only if its current version matches the expected version. It detects that another operation changed the document while new content was being prepared. Batch compare-and-swap applies the intended set without a partially updated manifest snapshot.</p>
+<h3>Mechanism & reason</h3><p>The coordinator records expected fences, prepares vectors, and calls compare_and_swap_many during activation. Readers use a manifest snapshot to validate which generation and chunk IDs are visible.</p><h3>Risk & safeguards</h3><p>A loop of individually successful per-document swaps is not equivalent to an atomic batch when collection consistency is required. Adapter contracts must make the promised visibility semantics real.</p>
+<h3>Choice & trade-offs</h3><p>Batch atomicity simplifies reader consistency while placing stronger demands on durable storage. Per-document activation permits partial progress with weaker whole-collection simultaneity.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/sync/manifest.py:103</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        ...</code></pre>
+<p><a href="sources/src--ragnor--sync--manifest.py.html#L103">Read frozen source, lines 103–103</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/sync/manifest.py#L103-L103">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Simulate two prepared updates where one expected fence is stale. Verify that a batch failure does not leave only the other document activated.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q94">Question 94 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="94"> I can explain this</label><button type="button" class="bookmark" data-bookmark="94" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-94">Explain this in your own words</label><textarea id="note-94" data-note="94" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q95" data-question="95">
+<div class="q-meta"><span>QUESTION 095</span><span>Code & engineering analysis</span><a href="#q95" aria-label="Link to question 95">#</a></div>
+<details class="answer" open><summary><h2>95. How do document and collection activation modes differ?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Document mode can activate successful document updates even when another document fails preparation. Collection mode aims to avoid publishing a partially prepared collection and advances collection-generation state after activation. They express different consistency and availability choices.</p>
+<h3>Mechanism & reason</h3><p>The coordinator&#x27;s preparation loop records errors; collection mode raises on preparation failure, while document mode can continue. The activation path updates manifests and collection state under the supplied coordination contracts.</p><h3>Risk & safeguards</h3><p>Cross-store atomicity is not created automatically by selecting collection mode. Durable adapters must preserve the fenced and batch visibility obligations, including failure between manifest commit and generation advancement.</p>
+<h3>Choice & trade-offs</h3><p>Collection consistency can delay fresh data because one bad document blocks a run. Document mode improves partial availability while exposing mixed document update times.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/sync/coordinator.py:425</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async def run_sync(  # noqa: PLR0915
+        self,
+        scope: str,
+        source: Any,
+        is_authoritative: bool | None = None,
+        cursor: Any = None,
+        limit: int | None = None,
+    ) -&gt; SyncReport:
+        if not hasattr(self._state_store, &quot;fenced&quot;):
+            raise FencingError(&quot;SyncStateStore must implement a fenced commit context&quot;)
+        if not hasattr(self._manifest_store, &quot;compare_and_swap_many&quot;):
+            raise FencingError(&quot;ManifestStore must implement atomic batch commits&quot;)
+        token = await self._state_store.acquire_lease(
+            scope, self._worker_id, self._lease_ttl_seconds
+        )
+        if token is None:
+            raise LeaseAcquisitionError(f&quot;Could not acquire lease for scope {scope!r}&quot;)
+        heartbeat = asyncio.create_task(self._heartbeat(token))
+        report = SyncReport(scope=scope, success=False, fence_epoch=token.epoch)
+        uncommitted: set[str] = set()
+        retired: list[str] = []
+        self._emit(EventKind.SCAN_STARTED, scope, token)
+        try:</code></pre>
+<p><a href="sources/src--ragnor--sync--coordinator.py.html#L425">Read frozen source, lines 425–447</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/sync/coordinator.py#L425-L447">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Make one of three documents fail embedding. Compare reports and visible generations in both modes and state which behavior your product requires.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q95">Question 95 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="95"> I can explain this</label><button type="button" class="bookmark" data-bookmark="95" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-95">Explain this in your own words</label><textarea id="note-95" data-note="95" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q96" data-question="96">
+<div class="q-meta"><span>QUESTION 096</span><span>Code & engineering analysis</span><a href="#q96" aria-label="Link to question 96">#</a></div>
+<details class="answer" open><summary><h2>96. How do metadata-only changes avoid unnecessary re-embedding?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">If content and embedding-relevant processing remain unchanged, a metadata update can reuse stored vectors while writing records with new metadata. This saves provider work without pretending that all changes are harmless to vector identity.</p>
+<h3>Mechanism & reason</h3><p>Sync plans distinguish metadata_only updates. The coordinator fetches existing embeddings by active chunk IDs and passes them into preparation instead of calling the embedder again for that case.</p><h3>Risk & safeguards</h3><p>Misclassifying a semantic preprocessing change as metadata-only reuses invalid vectors. Missing stored vectors also need an explicit failure path rather than silently substituting arbitrary values.</p>
+<h3>Choice & trade-offs</h3><p>This optimization reduces cost but requires accurate fingerprints and a fetch-capable backend. Re-embedding everything is simpler and more expensive.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/sync/coordinator.py:425</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async def run_sync(  # noqa: PLR0915
+        self,
+        scope: str,
+        source: Any,
+        is_authoritative: bool | None = None,
+        cursor: Any = None,
+        limit: int | None = None,
+    ) -&gt; SyncReport:
+        if not hasattr(self._state_store, &quot;fenced&quot;):
+            raise FencingError(&quot;SyncStateStore must implement a fenced commit context&quot;)
+        if not hasattr(self._manifest_store, &quot;compare_and_swap_many&quot;):
+            raise FencingError(&quot;ManifestStore must implement atomic batch commits&quot;)
+        token = await self._state_store.acquire_lease(
+            scope, self._worker_id, self._lease_ttl_seconds
+        )
+        if token is None:
+            raise LeaseAcquisitionError(f&quot;Could not acquire lease for scope {scope!r}&quot;)
+        heartbeat = asyncio.create_task(self._heartbeat(token))
+        report = SyncReport(scope=scope, success=False, fence_epoch=token.epoch)
+        uncommitted: set[str] = set()
+        retired: list[str] = []
+        self._emit(EventKind.SCAN_STARTED, scope, token)
+        try:</code></pre>
+<p><a href="sources/src--ragnor--sync--coordinator.py.html#L425">Read frozen source, lines 425–447</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/sync/coordinator.py#L425-L447">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Change a display title, then change chunker configuration, then change an access field. Explain which changes can reuse vectors and which still require immediate authorization updates.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q96">Question 96 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="96"> I can explain this</label><button type="button" class="bookmark" data-bookmark="96" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-96">Explain this in your own words</label><textarea id="note-96" data-note="96" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q97" data-question="97">
+<div class="q-meta"><span>QUESTION 097</span><span>Code & engineering analysis</span><a href="#q97" aria-label="Link to question 97">#</a></div>
+<details class="answer" open><summary><h2>97. How does SyncRetriever protect against stale and tombstoned vectors?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">It asks the backend for scoped active candidates, oversamples, reads a manifest snapshot, and rejects results whose document is absent or non-active, whose generation differs, or whose chunk ID is not in the active manifest. Physical presence is not sufficient for visibility.</p>
+<h3>Mechanism & reason</h3><p>This read-time gate decouples authorization and active-state checks from eventual vector cleanup. It also checks returned metadata rather than trusting that every backend filter was honored perfectly.</p><h3>Risk & safeguards</h3><p>Its finite oversampling can still return fewer than the requested number of valid hits. Also, callers using the raw store bypass this protection, so integration must preserve the intended reader path.</p>
+<h3>Choice & trade-offs</h3><p>Additional manifest reads and filtering improve consistency while adding latency and possible underfilling. A stronger backend-native visibility index could reduce that overhead but needs equivalent guarantees.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/sync/retrieval.py:50</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        # Ensure mandatory metadata fields for generation and tombstone validation
+        system_fields = [&quot;doc_id&quot;, &quot;scope&quot;, &quot;generation&quot;, &quot;active&quot;, *filters]
+        if metadata_fields is None:
+            effective_fields = system_fields
+        else:
+            effective_fields = sorted(set(metadata_fields) | set(system_fields))
+
+        # Query underlying store filtering by scope and active=True
+        results = await self._vector_store.hybrid_search(
+            query=query,
+            embedding=embedding,
+            n_results=n_results * 2,  # Oversample to account for potential filtering
+            threshold=threshold,
+            text_field=text_field,
+            metadata_fields=effective_fields,
+            session=session,
+            strict=strict,
+            scope=scope,
+            active=True,
+            **filters,
+        )
+
+        # Read one manifest snapshot so a collection commit cannot be observed halfway.</code></pre>
+<p><a href="sources/src--ragnor--sync--retrieval.py.html#L50">Read frozen source, lines 50–72</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/sync/retrieval.py#L50-L72">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Insert old-generation, tombstoned, wrong-scope, and valid records. Verify which survive and show a case where oversampling still cannot fill final_k.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q97">Question 97 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="97"> I can explain this</label><button type="button" class="bookmark" data-bookmark="97" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-97">Explain this in your own words</label><textarea id="note-97" data-note="97" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q98" data-question="98">
+<div class="q-meta"><span>QUESTION 098</span><span>Code & engineering analysis</span><a href="#q98" aria-label="Link to question 98">#</a></div>
+<details class="answer" open><summary><h2>98. What is the transactional outbox pattern, and what must the host implement?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The outbox writes a job in the same transaction as the application change it represents. A separate worker later processes that job. This prevents a committed business change from losing its intended background work because a process crashed before sending an external message.</p>
+<h3>Mechanism & reason</h3><p>EmbeddingJobStore and JobProcessor are host-implemented contracts. enqueue behavior with a supplied session must join the caller&#x27;s transaction; protocol documentation describes safe claiming, including SKIP LOCKED semantics for a SQL implementation.</p><h3>Risk & safeguards</h3><p>A separate job insert after commit is not a transactional outbox. Likewise, the sync coordinator&#x27;s optional reconciliation enqueue should not automatically be described as atomic with every remote vector write.</p>
+<h3>Choice & trade-offs</h3><p>An outbox adds polling, retries, and retention but avoids fragile dual writes. It still requires idempotent processing because a crash can cause a job to run again.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/jobs/outbox.py:94</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        ...</code></pre>
+<p><a href="sources/src--ragnor--jobs--outbox.py.html#L94">Read frozen source, lines 94–94</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/jobs/outbox.py#L94-L94">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Draw crashes before business commit, after commit, and after processing but before completion marking. Explain how an outbox avoids lost work while permitting duplicate processing.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q98">Question 98 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="98"> I can explain this</label><button type="button" class="bookmark" data-bookmark="98" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-98">Explain this in your own words</label><textarea id="note-98" data-note="98" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q99" data-question="99">
+<div class="q-meta"><span>QUESTION 099</span><span>Code & engineering analysis</span><a href="#q99" aria-label="Link to question 99">#</a></div>
+<details class="answer" open><summary><h2>99. Does SKIP LOCKED provide exactly-once job execution?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">No. It helps concurrent SQL workers claim different available rows without waiting on already locked rows. A worker can still finish external work and crash before recording completion, causing a later retry to repeat that work.</p>
+<h3>Mechanism & reason</h3><p>The job system tracks status, attempts, lock ownership, and stale-job reclamation. These mechanisms support recovery, while the processor must ensure repeated execution has safe logical effects.</p><h3>Risk & safeguards</h3><p>Reclaiming too early can overlap a still-running worker; never reclaiming can strand jobs forever. Production adapters must enforce ownership on completion and failure transitions, not just during initial selection.</p>
+<h3>Choice & trade-offs</h3><p>At-least-once processing is practical with idempotent writes and fencing. Claiming exactly-once behavior across unrelated external services would require a much stronger design.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/jobs/outbox.py:94</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        ...</code></pre>
+<p><a href="sources/src--ragnor--jobs--outbox.py.html#L94">Read frozen source, lines 94–94</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/jobs/outbox.py#L94-L94">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Make the processor succeed, then simulate failure in completion marking. Run reclamation and show that the second execution does not duplicate the application&#x27;s intended effect.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q99">Question 99 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="99"> I can explain this</label><button type="button" class="bookmark" data-bookmark="99" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-99">Explain this in your own words</label><textarea id="note-99" data-note="99" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q100" data-question="100">
+<div class="q-meta"><span>QUESTION 100</span><span>Code & engineering analysis</span><a href="#q100" aria-label="Link to question 100">#</a></div>
+<details class="answer" open><summary><h2>100. How do shutdown, retries, checkpoints, and garbage collection work together?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The drainer checks for stale jobs, processes pending work, survives failed passes, and uses a stop event for shutdown. Sync cancels heartbeats, releases leases, and cleans retired or uncommitted vectors in a finally path. Checkpoints record committed progress under the current token.</p>
+<h3>Mechanism & reason</h3><p>These are recovery mechanisms for different lifetimes: process shutdown, task execution, authority ownership, and storage cleanup. A completion report alone cannot replace all of them.</p><h3>Risk & safeguards</h3><p>Cleanup can itself fail, and process termination may prevent finally blocks from running. Durable reconciliation must discover leftovers on a later run; a successful logical activation should not be undone by deleting committed IDs as abandoned work.</p>
+<h3>Choice & trade-offs</h3><p>Conservative cleanup leaves temporary storage overhead while protecting visible data. Aggressive deletion reduces space and can make recovery unsafe.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/jobs/drainer.py:58</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    stop = stop or asyncio.Event()
+
+    logger.info(
+        &quot;Job drainer started (interval=%ss, batch=%d, worker_id=%s).&quot;,
+        interval,
+        batch_size,
+        worker_id,
+    )
+
+    while not stop.is_set():
+        try:
+            reclaimed = await reclaim_stale_jobs(store)
+            if reclaimed:
+                logger.info(&quot;Reclaimed %d stale job(s).&quot;, reclaimed)
+            processed = await process_pending_jobs(
+                store,
+                processor,
+                limit=batch_size,
+                worker_id=worker_id,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:</code></pre>
+<p><a href="sources/src--ragnor--jobs--drainer.py.html#L58">Read frozen source, lines 58–80</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/jobs/drainer.py#L58-L80">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Build a crash matrix for preparation, vector write, manifest activation, checkpoint, and cleanup. For each point identify visible state and the next repair action.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The outbox selection session closes before mark_processing. Guarded UPDATE ownership matters; Redis claims can expire and are not exactly-once business control.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q100">Question 100 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="100"> I can explain this</label><button type="button" class="bookmark" data-bookmark="100" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-100">Explain this in your own words</label><textarea id="note-100" data-note="100" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="ingestion.html">← Ingestion and transaction ownership</a><a href="security.html">Security, tools, and trust boundaries →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

@@ -1,0 +1,97 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/alembic/versions/822df1979a12_add_conversation_messages_claim_.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/alembic/versions/822df1979a12_add_conversation_messages_claim_.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;add_conversation_messages_claim_submissions_embedding_jobs
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>Revision ID: 822df1979a12
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>Revises: a1b2c3d4e5f6
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>Create Date: 2026-09-27 15:19:06.005140
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>from collections.abc import Sequence
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>import sqlalchemy as sa
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>from alembic import op
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a># revision identifiers, used by Alembic.
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>revision: str = &quot;822df1979a12&quot;
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>down_revision: str | Sequence[str] | None = &quot;a1b2c3d4e5f6&quot;
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>branch_labels: str | Sequence[str] | None = None
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>depends_on: str | Sequence[str] | None = None
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>def upgrade() -&gt; None:
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>    &quot;&quot;&quot;Upgrade schema.&quot;&quot;&quot;
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>    op.create_table(
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>        &quot;conversation_messages&quot;,
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>        sa.Column(
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>            &quot;id&quot;, UUID(as_uuid=True), primary_key=True, server_default=sa.text(&quot;gen_random_uuid()&quot;)
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>        ),
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>        sa.Column(
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>            &quot;conversation_id&quot;,
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>            UUID(as_uuid=True),
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>            sa.ForeignKey(&quot;conversations.id&quot;, ondelete=&quot;CASCADE&quot;),
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>            nullable=False,
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>        ),
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>        sa.Column(&quot;role&quot;, sa.String(32), nullable=False),
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>        sa.Column(&quot;content&quot;, sa.Text, nullable=False),
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>        sa.Column(
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>            &quot;timestamp&quot;, TIMESTAMP(timezone=True), server_default=sa.text(&quot;now()&quot;), nullable=False
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>        ),
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>        sa.Column(&quot;metadata&quot;, JSONB, nullable=True),
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>        sa.Index(&quot;ix_conversation_messages_conversation_id&quot;, &quot;conversation_id&quot;),
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>    )
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>    op.create_table(
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>        &quot;claim_submissions&quot;,
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>        sa.Column(
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>            &quot;id&quot;, UUID(as_uuid=True), primary_key=True, server_default=sa.text(&quot;gen_random_uuid()&quot;)
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>        ),
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>        sa.Column(
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>            &quot;user_id&quot;,
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>            UUID(as_uuid=True),
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>            sa.ForeignKey(&quot;users.id&quot;, ondelete=&quot;CASCADE&quot;),
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>            nullable=False,
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>        ),
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>        sa.Column(&quot;confirmation_token&quot;, sa.String(64), unique=True, nullable=False),
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>        sa.Column(&quot;claim_data&quot;, JSONB, nullable=False),
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>        sa.Column(&quot;status&quot;, sa.String(32), nullable=False, server_default=&quot;pending&quot;),
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>        sa.Column(&quot;expires_at&quot;, TIMESTAMP(timezone=True), nullable=False),
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>        sa.Column(
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>            &quot;created_at&quot;, TIMESTAMP(timezone=True), server_default=sa.text(&quot;now()&quot;), nullable=False
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>        ),
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>        sa.Index(&quot;ix_claim_submissions_user_id&quot;, &quot;user_id&quot;),
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>        sa.Index(&quot;ix_claim_submissions_status&quot;, &quot;status&quot;),
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>    )
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>    op.create_table(
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>        &quot;embedding_jobs&quot;,
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>        sa.Column(
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>            &quot;id&quot;, UUID(as_uuid=True), primary_key=True, server_default=sa.text(&quot;gen_random_uuid()&quot;)
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>        ),
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>        sa.Column(&quot;claim_id&quot;, sa.String, nullable=False),
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>        sa.Column(
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>            &quot;owner_id&quot;,
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>            UUID(as_uuid=True),
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>            sa.ForeignKey(&quot;users.id&quot;, ondelete=&quot;CASCADE&quot;),
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>            nullable=False,
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>        ),
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>        sa.Column(&quot;claim_type&quot;, sa.String, nullable=False),
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>        sa.Column(&quot;description&quot;, sa.String, nullable=False),
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>        sa.Column(&quot;policy_number&quot;, sa.String, nullable=False),
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>        sa.Column(&quot;status&quot;, sa.String(32), nullable=False, server_default=&quot;pending&quot;),
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>        sa.Column(&quot;status_detail&quot;, sa.String, nullable=True),
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>        sa.Column(&quot;retry_count&quot;, sa.Integer, nullable=False, server_default=&quot;0&quot;),
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>        sa.Column(
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>            &quot;created_at&quot;, TIMESTAMP(timezone=True), server_default=sa.text(&quot;now()&quot;), nullable=False
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>        ),
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>        sa.Column(&quot;completed_at&quot;, TIMESTAMP(timezone=True), nullable=True),
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>        sa.Index(&quot;ix_embedding_jobs_owner_id&quot;, &quot;owner_id&quot;),
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>        sa.Index(&quot;ix_embedding_jobs_status&quot;, &quot;status&quot;),
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    )
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>def downgrade() -&gt; None:
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>    &quot;&quot;&quot;Downgrade schema.&quot;&quot;&quot;
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>    op.drop_table(&quot;embedding_jobs&quot;)
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>    op.drop_table(&quot;claim_submissions&quot;)
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>    op.drop_table(&quot;conversation_messages&quot;)
+</span></code></pre></main></body></html>

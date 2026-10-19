@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Securing database operations · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="database-security" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a aria-current=page href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 18 / 30 · QUESTIONS 171–180</p><h1>Securing database operations</h1><p class="subtitle">Constrain credentials, queries, disclosure, and recovery—not only SQL strings.</p><p class="chapter-note">Insurance extension · <a href="examples.html#database-security">Open the worked code example</a> · <a href="libraries.html">Check implementation status and library comparisons</a></p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-database-security">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the insurance-security diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/insurance-security.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/insurance-security.html" title="insurance-security diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q171" data-question="171">
+<div class="q-meta"><span>QUESTION 171</span><span>Insurance code & design analysis</span><a href="#q171" aria-label="Link to question 171">#</a></div>
+<details class="answer" open><summary><h2>171. What does least privilege mean for application, migration, and reporting database roles?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Use separate credentials for runtime queries, schema migration, and analysis. The application role should have only the tables and operations its workload needs; it should not need unrestricted DDL or superuser access. Read-only reporting still needs row and data-disclosure controls.</p>
+<h3>Mechanism & reason</h3><p>The backend centralizes the engine URL, making credential selection a deployment concern. The inspected code does not establish a complete least-privilege role provisioning policy, so this chapter treats role separation as hardening work.</p><h3>Risk & safeguards</h3><p>A single powerful credential turns a query injection, tool bug, or compromised worker into a broader database incident. A model must never receive that credential or arbitrary SQL authority.</p>
+<h3>Choice & trade-offs</h3><p>Separate roles require grants and migration coordination but reduce blast radius. One admin credential is convenient locally and inappropriate as evidence of production isolation.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/database.py:70</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async with async_session_factory() as session:
+        try:
+            yield session
+        finally:
+            await session.close()</code></pre>
+<p><a href="sources/insurance--backend--app--core--database.py.html#L70">Read frozen source, lines 70–74</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Design a grant matrix for API, embedding worker, notification worker, migrator, and analyst. Include which sensitive tables each must never read.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="171"> I can explain this</label><button type="button" class="bookmark" data-bookmark="171" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-171">Explain this in your own words</label><textarea id="note-171" data-note="171" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q172" data-question="172">
+<div class="q-meta"><span>QUESTION 172</span><span>Insurance code & design analysis</span><a href="#q172" aria-label="Link to question 172">#</a></div>
+<details class="answer" open><summary><h2>172. How could PostgreSQL Row-Level Security complement owner-scoped queries?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">RLS applies database policies to rows visible or writable through a role. It can add a second barrier if an application query forgets owner filtering. The inspected backend does not define RLS policies, so it is a proposed defense rather than an existing guarantee.</p>
+<h3>Mechanism & reason</h3><p>ClaimsRetriever always supplies owner_id, and API reads also scope ownership. A proposed RLS design must set trusted per-transaction identity and use a role subject to the policy, with correct USING and WITH CHECK rules.</p><h3>Risk & safeguards</h3><p>Table owners or privileged roles can bypass policies under documented conditions. Connection reuse can leak session-level identity if it is not reset; transaction-local settings and pool tests matter.</p>
+<h3>Choice & trade-offs</h3><p>Database enforcement strengthens defense in depth but complicates jobs, migrations, tests, and administrative workflows. It does not replace server authentication.</p><p class="reference">Official reference: <a href="https://www.postgresql.org/docs/current/ddl-rowsecurity.html">PostgreSQL row security</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/claims/retriever.py:97</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if distance_threshold is None:
+            distance_threshold = self._settings.rag_distance_threshold
+        results = await self._retriever.retrieve(
+            query,
+            n_results=n_results,
+            distance_threshold=distance_threshold,
+            owner_id=str(user_id),
+        )
+        return as_dicts(results)</code></pre>
+<p><a href="sources/insurance--backend--app--domain--claims--retriever.py.html#L97">Read frozen source, lines 97–105</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>In a disposable schema, create a transaction-local owner setting and policy. Test two users through reused pooled connections and verify writes as well as reads.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="172"> I can explain this</label><button type="button" class="bookmark" data-bookmark="172" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-172">Explain this in your own words</label><textarea id="note-172" data-note="172" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q173" data-question="173">
+<div class="q-meta"><span>QUESTION 173</span><span>Insurance code & design analysis</span><a href="#q173" aria-label="Link to question 173">#</a></div>
+<details class="answer" open><summary><h2>173. Why are parameterized values insufficient for arbitrary query generation?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Binding values prevents them from being interpreted as SQL syntax in the intended parameter position. It does not make arbitrary table names, operators, SQL fragments, or model-generated statements safe. Query structure needs a trusted construction path and an allowlisted operation surface.</p>
+<h3>Mechanism & reason</h3><p>Ragnor validates identifiers while the host uses SQLAlchemy expressions for business queries. The current tools expose domain operations rather than a free-form SQL executor, a useful authority boundary to preserve.</p><h3>Risk & safeguards</h3><p>An LLM-generated SELECT can still disclose unauthorized rows, invoke expensive functions, or exploit permissions even if it contains no classic string-concatenation injection.</p>
+<h3>Choice & trade-offs</h3><p>Narrow domain tools limit exploratory flexibility and support predictable authorization. A natural-language analytics feature needs an independently constrained read model and query policy.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/claims.py:478</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        owner_uuid = uuid.UUID(current_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=&quot;Invalid user&quot;,
+        ) from None
+
+    stmt = select(Claim).where(Claim.owner_id == owner_uuid)
+    if claim_status is not None:
+        stmt = stmt.where(Claim.status == claim_status)
+    if claim_type is not None:
+        stmt = stmt.where(Claim.claim_type == claim_type)
+    # claim_id breaks ties so a page ordered on a same-microsecond created_at is
+    # still deterministic across repeated requests.
+    stmt = stmt.order_by(desc(Claim.created_at), desc(Claim.claim_id))
+    stmt = stmt.limit(limit).offset(offset)
+
+    claims = (await session.execute(stmt)).scalars().all()
+
+    return ClaimListResponse(
+        claims=[ClaimSummary(**_claim_fields(claim)) for claim in claims],
+        count=len(claims),</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--claims.py.html#L478">Read frozen source, lines 478–500</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Design an exact aggregate tool for a user&#x27;s claims using typed inputs. Explain why it is safer than giving the model a raw database connection.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="173"> I can explain this</label><button type="button" class="bookmark" data-bookmark="173" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-173">Explain this in your own words</label><textarea id="note-173" data-note="173" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q174" data-question="174">
+<div class="q-meta"><span>QUESTION 174</span><span>Insurance code & design analysis</span><a href="#q174" aria-label="Link to question 174">#</a></div>
+<details class="answer" open><summary><h2>174. How do database credentials and TLS fit into the trust model?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Credentials authenticate a process to the database; TLS protects transport and can verify server identity. Neither automatically limits which rows the process may read. Rotate credentials, use appropriate secret storage, and validate certificate settings in the actual deployment.</p>
+<h3>Mechanism & reason</h3><p>database.py reads a configured URL and constructs the engine. That call site alone does not prove encrypted connections, certificate verification, rotation, or a private network boundary.</p><h3>Risk & safeguards</h3><p>Printing URLs or raw driver errors can expose passwords or infrastructure details. Copying secrets into model context, traces, sample files, or shell arguments creates additional disclosure paths.</p>
+<h3>Choice & trade-offs</h3><p>Managed identities or short-lived credentials reduce secret lifetime where supported, while adding integration requirements. Static credentials are simpler and need deliberate rotation and incident response.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/database.py:70</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async with async_session_factory() as session:
+        try:
+            yield session
+        finally:
+            await session.close()</code></pre>
+<p><a href="sources/insurance--backend--app--core--database.py.html#L70">Read frozen source, lines 70–74</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Create a secret-free deployment evidence record showing connection identity, TLS verification mode, role grants, and rotation ownership. Do not include the secret value.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="174"> I can explain this</label><button type="button" class="bookmark" data-bookmark="174" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-174">Explain this in your own words</label><textarea id="note-174" data-note="174" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q175" data-question="175">
+<div class="q-meta"><span>QUESTION 175</span><span>Insurance code & design analysis</span><a href="#q175" aria-label="Link to question 175">#</a></div>
+<details class="answer" open><summary><h2>175. Which timeouts protect database availability?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Bound pool checkout, connection establishment, statement execution, lock waits, and idle transactions according to the workload. These limits solve different problems. An HTTP timeout alone may leave server-side queries or open transactions consuming resources.</p>
+<h3>Mechanism & reason</h3><p>The current engine setup is minimal, and provider timeouts live elsewhere. Production hardening should validate driver, pool, database, and application deadline behavior together rather than assuming one setting covers the stack.</p><h3>Risk & safeguards</h3><p>An expensive permitted query can be a denial-of-service vector. Very short timeouts can also cause retry amplification or repeatedly abort useful work.</p>
+<h3>Choice & trade-offs</h3><p>Tighter limits improve isolation and can reduce completion rates. Use separate policies for interactive search, migrations, and backfills instead of one global number.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/database.py:70</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async with async_session_factory() as session:
+        try:
+            yield session
+        finally:
+            await session.close()</code></pre>
+<p><a href="sources/insurance--backend--app--core--database.py.html#L70">Read frozen source, lines 70–74</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Propose settings for pool wait, lock wait, and statement time with a measured request budget. Simulate a blocked transaction and observe rollback and connection reuse.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="175"> I can explain this</label><button type="button" class="bookmark" data-bookmark="175" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-175">Explain this in your own words</label><textarea id="note-175" data-note="175" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q176" data-question="176">
+<div class="q-meta"><span>QUESTION 176</span><span>Insurance code & design analysis</span><a href="#q176" aria-label="Link to question 176">#</a></div>
+<details class="answer" open><summary><h2>176. What is the difference between secure deletion, logical revocation, and retention?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Revocation stops authorized disclosure. Logical deletion changes application visibility. Physical deletion removes stored copies, subject to backups and retention. Insurance records, embeddings, pending payloads, conversations, traces, and notifications can each retain different copies of the same private facts.</p>
+<h3>Mechanism & reason</h3><p>The host has owner-scoped tables, audit records, derived embeddings, and observability exports. A cascade on Claim.owner_id is not a complete cross-system deletion policy.</p><h3>Risk & safeguards</h3><p>Deleting a relational row may leave vectors, trace payloads, exports, or historical messages accessible. Conversely, deleting everything indiscriminately can violate a required evidence-retention policy; the applicable policy must be established outside this engineering guide.</p>
+<h3>Choice & trade-offs</h3><p>Purpose-specific retention minimizes unnecessary copies while preserving required records. One indefinite retention setting is easy and accumulates disclosure risk.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/models/claims/claim.py:44</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    __tablename__ = &quot;claims&quot;
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    policy_number: Mapped[str] = mapped_column(String, index=True)
+    claim_type: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    description: Mapped[str] = mapped_column(String)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(&quot;users.id&quot;, ondelete=&quot;CASCADE&quot;), index=True
+    )
+    embedding: Mapped[str] = mapped_column(Vector(1536), nullable=False, server_default=&quot;[0]&quot;)
+    text: Mapped[str | None] = mapped_column(String, nullable=True)
+    incident_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),</code></pre>
+<p><a href="sources/insurance--backend--app--models--claims--claim.py.html#L44">Read frozen source, lines 44–65</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Draw a data inventory for a single claim description and specify revocation, retention, deletion, and verification owners for every copy.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="176"> I can explain this</label><button type="button" class="bookmark" data-bookmark="176" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-176">Explain this in your own words</label><textarea id="note-176" data-note="176" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q177" data-question="177">
+<div class="q-meta"><span>QUESTION 177</span><span>Insurance code & design analysis</span><a href="#q177" aria-label="Link to question 177">#</a></div>
+<details class="answer" open><summary><h2>177. Is an append-only audit table automatically tamper-proof and complete?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">No. Append-only is an application behavior unless database privileges and external retention enforce it. Completeness depends on what is recorded and what happens when recording fails. Trace data and business audit records also have different reliability requirements.</p>
+<h3>Mechanism & reason</h3><p>audit/service.py intentionally catches failures and allows business actions to continue, describing a best-effort trail. The code therefore does not justify a universal claim that every successful action has an audit row.</p><h3>Risk & safeguards</h3><p>A missing trail can matter during an investigation. Also, swallowing a failed SQL statement does not by itself restore a PostgreSQL transaction; savepoint and rollback behavior require testing.</p>
+<h3>Choice & trade-offs</h3><p>Best-effort audit favors availability. Mandatory audit or a transactional audit outbox provides stronger completeness at the cost of possible business-operation failure or more infrastructure.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/audit/service.py:166</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        values = _audit_values(
+            action,
+            entity_type,
+            entity_id,
+            before=before,
+            after=after,
+            actor_id=actor_id,
+            request=request,
+        )
+        async with session.begin_nested():
+            await session.execute(insert(AuditEvent).values(**values))
+    except Exception:
+        logger.warning(
+            &quot;Audit trail entry for &#x27;%s&#x27; on &#x27;%s&#x27; could not be written.&quot;,
+            action,
+            entity_type,
+            exc_info=True,
+        )</code></pre>
+<p><a href="sources/insurance--backend--app--audit--service.py.html#L166">Read frozen source, lines 166–184</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Inject an audit insertion failure and inspect the surrounding transaction. Define which actions must fail closed if audit cannot be guaranteed.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="177"> I can explain this</label><button type="button" class="bookmark" data-bookmark="177" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-177">Explain this in your own words</label><textarea id="note-177" data-note="177" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q178" data-question="178">
+<div class="q-meta"><span>QUESTION 178</span><span>Insurance code & design analysis</span><a href="#q178" aria-label="Link to question 178">#</a></div>
+<details class="answer" open><summary><h2>178. How should backup and point-in-time recovery be tested for an AI application?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Restore the relational database and verify business records, ownership, migrations, outbox state, and policy versions. Then decide whether vector projections should be restored or rebuilt. The recovery objective concerns a coherent application state, not only a successful backup command.</p>
+<h3>Mechanism & reason</h3><p>Claims have derived embeddings and jobs that may have completed after the restored database point. A restored snapshot can therefore need reconciliation before search and notifications agree with authoritative state.</p><h3>Risk & safeguards</h3><p>Replaying old notification or submission jobs can duplicate effects. A backup also contains private data and requires its own encryption, access, and retention policy.</p>
+<h3>Choice & trade-offs</h3><p>Rebuilding vectors reduces backup coupling and takes time and provider cost. Snapshotting every projection can accelerate recovery while making consistency coordination harder.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/claims/outbox.py:98</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        from sqlalchemy import select  # noqa: PLC0415
+
+        from app.models.claims.embedding_job import EmbeddingJob  # noqa: PLC0415
+
+        now = datetime.now(UTC)
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(EmbeddingJob)
+                .where(
+                    (EmbeddingJob.status == &quot;pending&quot;)
+                    | (
+                        (EmbeddingJob.status == &quot;failed&quot;)
+                        &amp; (EmbeddingJob.next_retry_at &lt;= now)
+                        &amp; (EmbeddingJob.retry_count &lt; EmbeddingJob.max_attempts)
+                    )
+                )
+                .order_by(EmbeddingJob.created_at)
+                .limit(limit)
+                .with_for_update(skip_locked=True)
+            )
+            rows = result.scalars().all()
+        return [_payload_from_row(row) for row in rows]</code></pre>
+<p><a href="sources/insurance--backend--app--domain--claims--outbox.py.html#L98">Read frozen source, lines 98–119</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write a restore drill with a known claim, pending job, policy revision, and revoked user. Verify exact reads, search visibility, and safe job resumption.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="178"> I can explain this</label><button type="button" class="bookmark" data-bookmark="178" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-178">Explain this in your own words</label><textarea id="note-178" data-note="178" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q179" data-question="179">
+<div class="q-meta"><span>QUESTION 179</span><span>Insurance code & design analysis</span><a href="#q179" aria-label="Link to question 179">#</a></div>
+<details class="answer" open><summary><h2>179. Why separate operational metrics from database content exports?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Counts, durations, and sanitized error categories support capacity and health without automatically exporting claim text, policyholder identifiers, or confirmation tokens. Content exports need an explicit purpose and access policy rather than being a side effect of debugging.</p>
+<h3>Mechanism & reason</h3><p>Ragnor has a redacted event abstraction, but host tools and LangSmith wrappers can capture arguments and results through different paths. Some preparation logs include confirmation tokens, so universal redaction cannot be inferred from the library.</p><h3>Risk & safeguards</h3><p>A credential-safe SQL logger can still expose PII through parameter values. Traces may be readable by a broader audience than the application database.</p>
+<h3>Choice & trade-offs</h3><p>Minimal telemetry reduces diagnosis detail; controlled replay fixtures and opt-in redacted samples can provide useful debugging with less disclosure.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/tracing.py:74</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        destination = langsmith.tracing_destination()
+        if not langsmith.configure_langsmith():
+            return False
+        langsmith.register_langsmith_callback()
+        langsmith.install_llm_trace_context()
+        logger.info(&quot;Tracing enabled (project &#x27;%s&#x27;).&quot;, destination[&quot;project&quot;])
+        return True
+    except Exception:
+        logger.warning(&quot;Tracing setup skipped&quot;, exc_info=True)
+        return False</code></pre>
+<p><a href="sources/insurance--backend--app--observability--tracing.py.html#L74">Read frozen source, lines 74–84</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Trace one claim description and token through logs, tool spans, model callbacks, and telemetry endpoints. Record exactly what leaves the process.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="179"> I can explain this</label><button type="button" class="bookmark" data-bookmark="179" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-179">Explain this in your own words</label><textarea id="note-179" data-note="179" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q180" data-question="180">
+<div class="q-meta"><span>QUESTION 180</span><span>Insurance code & design analysis</span><a href="#q180" aria-label="Link to question 180">#</a></div>
+<details class="answer" open><summary><h2>180. How should database security be verified before adding agent autonomy?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Prove owner filtering, least-privilege credentials, constrained tools, input validation, timeout behavior, audit policy, and recovery using the actual storage setup. A more autonomous planner increases the number and variety of operations, so it should inherit a secure capability surface rather than broadening it.</p>
+<h3>Mechanism & reason</h3><p>The existing backend already provides concrete domain tools and protected routes. LangChain, LangGraph, or A2A adoption should reuse those service boundaries instead of exposing unrestricted database operations.</p><h3>Risk & safeguards</h3><p>A framework demo may call internal functions directly and skip route dependencies. The same tool needs an identity context or service principal appropriate to its execution path.</p>
+<h3>Choice & trade-offs</h3><p>A capability-oriented service layer takes design work and supports safe reuse across orchestration frameworks. Direct ORM access inside every agent is fast to prototype and hard to govern.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/registry.py:79</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name=&quot;query_policy&quot;,
+            description=(
+                &quot;Search OmniCare insurance policy documents to answer coverage questions.&quot;
+            ),
+            handler=query_policy,
+            metadata={&quot;requires_auth&quot;: True},
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name=&quot;get_claim_status&quot;,
+            description=(
+                &quot;Look up the status of an existing claim by its claim ID when the &quot;
+                &quot;user already knows it; a returned found=false means no such &quot;
+                &quot;claim exists and must not be treated as one.&quot;
+            ),
+            handler=get_claim_status,
+            metadata={&quot;requires_auth&quot;: True},
+        )
+    )</code></pre>
+<p><a href="sources/insurance--backend--app--agent--registry.py.html#L79">Read frozen source, lines 79–101</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Build a deny-first test matrix for interactive users, background workers, and remote agents. Include actions each principal may read, prepare, confirm, or never perform.</p></div><p class="reference"><a href="examples.html#database-security">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="180"> I can explain this</label><button type="button" class="bookmark" data-bookmark="180" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-180">Explain this in your own words</label><textarea id="note-180" data-note="180" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="database-concurrency.html">← Transactions, locks, and concurrency</a><a href="api-security.html">API identity and application security →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

@@ -1,0 +1,638 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/app/domain/notifications/outbox.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/app/domain/notifications/outbox.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;Notification outbox over ragnor&#x27;s generic job store.
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>Claimant-facing notifications follow the same protocol as the claim embedding
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>jobs. :class:`NotificationJobStore` implements ragnor&#x27;s ``EmbeddingJobStore``
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>protocol against the ``notification_jobs`` table,
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>:func:`enqueue_notification_job` writes a pending row through
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>:func:`ragnor.jobs.enqueue_job` — in the caller&#x27;s transaction when a session is
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>supplied, so the claim change and the notification about it commit together —
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>:class:`NotificationJobProcessor` renders the message from a per-job-type template
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>and materialises it in the ``notifications`` feed, and
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>:func:`process_pending_notification_jobs` /
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>:func:`reclaim_stale_notification_jobs` wire the store and processor into ragnor&#x27;s
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>generic job functions.
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>Invariant for anything that writes a ``notification_jobs`` row
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>----------------------------------------------------------------
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>A notification job must be committed in the **same transaction** as the claim
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>change it describes, or written through this outbox by a caller that has already
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>committed that change.
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>The reason is delivery, not referential integrity: a job row that survives a
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>rolled-back status change notifies a policyholder about a transition that never
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>happened, and there is no way to take it back once it has been read. The claim
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>change is the fact; the notification is a promise about it, so the two land
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>together or neither lands.
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>Therefore:
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>- ``enqueue_notification_job(session=...)`` only flushes. Pass the caller&#x27;s session.
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>- ``enqueue_notification_job()`` with no session opens its own and commits. Use it
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>  only where the claim change is already durable.
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>Delivery is never inline
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>------------------------
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>No request thread calls a provider. The API writes the job row; the drain worker
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>in :mod:`app.workers.notification_drain` delivers it. That keeps a slow or failing
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>provider off the claim lifecycle endpoints and makes the notification retryable.
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>from __future__ import annotations
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>import logging
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>import uuid
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>from datetime import UTC, datetime, timedelta
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>from typing import Any
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>from sqlalchemy.dialects.postgresql import insert
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>from sqlalchemy.ext.asyncio import AsyncSession
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>from app.core.database import async_session_factory
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>from app.models.platform.notification_job import (
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>    CHANNEL_IN_APP,
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>    JOB_TYPE_CLAIM_STATUS_CHANGED,
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>    JOB_TYPE_CLAIM_SUBMITTED,
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>    JOB_TYPE_CLAIM_WITHDRAWN,
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>    MAX_ATTEMPTS,
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>    NOTIFICATION_JOB_TYPES,
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>    Notification,
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>    NotificationJob,
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>)
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>from ragnor.jobs import JobPayload, claim_jobs, enqueue_job
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>from ragnor.jobs import (
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>    process_pending_jobs as _ragnor_process_pending_jobs,
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>    reclaim_stale_jobs as _ragnor_reclaim_stale_jobs,
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>)
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>logger = logging.getLogger(__name__)
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>def _payload_from_row(row: NotificationJob) -&gt; JobPayload:
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>    &quot;&quot;&quot;Map a ``NotificationJob`` ORM row to a :class:`JobPayload`.&quot;&quot;&quot;
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>    return JobPayload(
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>        job_id=str(row.id),
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>        payload=dict(row.payload or {}),
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>        status=row.status,
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>        status_detail=row.status_detail,
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>        retry_count=row.retry_count,
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>        max_attempts=row.max_attempts,
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>        next_retry_at=row.next_retry_at,
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>        locked_at=row.locked_at,
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>        locked_by=row.locked_by,
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>        created_at=row.created_at,
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>        completed_at=row.completed_at,
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>    )
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>class NotificationJobStore:
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>    &quot;&quot;&quot;ragnor ``EmbeddingJobStore`` implemented against ``notification_jobs``.&quot;&quot;&quot;
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>    def __init__(self, session_factory: Any = None) -&gt; None:
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>        self._session_factory = session_factory or async_session_factory
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>    async def claim_pending(self, limit: int, _worker_id: str) -&gt; list[JobPayload]:
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>        &quot;&quot;&quot;Select claimable jobs with ``FOR UPDATE SKIP LOCKED``.
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>        ``worker_id`` is part of the ``EmbeddingJobStore`` protocol
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>        but is not needed here: the lock columns are stamped by
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>        :func:`claim_jobs` after selection.
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>        &quot;&quot;&quot;
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>        from sqlalchemy import select  # noqa: PLC0415
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>        now = datetime.now(UTC)
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>        async with self._session_factory() as session:
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>            result = await session.execute(
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>                select(NotificationJob)
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>                .where(
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>                    (NotificationJob.status == &quot;pending&quot;)
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>                    | (
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>                        (NotificationJob.status == &quot;failed&quot;)
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>                        &amp; (NotificationJob.next_retry_at &lt;= now)
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>                        &amp; (NotificationJob.retry_count &lt; NotificationJob.max_attempts)
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>                    )
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>                )
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>                .order_by(NotificationJob.created_at)
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>                .limit(limit)
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>                .with_for_update(skip_locked=True)
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>            )
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>            rows = result.scalars().all()
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>        return [_payload_from_row(row) for row in rows]
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>    async def mark_processing(self, jobs: list[JobPayload], worker_id: str) -&gt; list[JobPayload]:
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>        &quot;&quot;&quot;Transition jobs to ``processing`` and stamp the lock.
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>        The guarded update (``status IN (&#x27;pending&#x27;, &#x27;failed&#x27;)``) keeps
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>        two concurrent drainers from claiming the same row: only the
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>        worker whose update matches still owns the job.
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>        &quot;&quot;&quot;
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>        from sqlalchemy import update  # noqa: PLC0415
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>        if not jobs:
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>            return []
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>        now = datetime.now(UTC)
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>        claim_jobs(jobs, worker_id, now)
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>        claimed: list[JobPayload] = []
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>        async with self._session_factory() as session:
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>            for job in jobs:
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>                result = await session.execute(
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>                    update(NotificationJob)
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>                    .where(
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>                        NotificationJob.id == uuid.UUID(str(job.job_id)),
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>                        NotificationJob.status.in_([&quot;pending&quot;, &quot;failed&quot;]),
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>                    )
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>                    .values(
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>                        status=job.status,
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>                        status_detail=job.status_detail,
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>                        next_retry_at=job.next_retry_at,
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>                        locked_at=job.locked_at,
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>                        locked_by=job.locked_by,
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>                    )
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>                    .returning(NotificationJob.id)
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>                )
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>                if result.scalar() is not None:
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>                    claimed.append(job)
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>            await session.commit()
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>        return claimed
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>    async def mark_completed(self, job: JobPayload) -&gt; None:
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>        &quot;&quot;&quot;Persist a successfully processed job as ``completed``.&quot;&quot;&quot;
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>        from sqlalchemy import update  # noqa: PLC0415
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>        async with self._session_factory() as session:
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>            await session.execute(
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>                update(NotificationJob)
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>                .where(NotificationJob.id == uuid.UUID(str(job.job_id)))
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>                .values(status=job.status, completed_at=job.completed_at)
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>            )
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>            await session.commit()
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>    async def mark_failed(self, job: JobPayload, error: Exception) -&gt; None:
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>        &quot;&quot;&quot;Persist a failed job&#x27;s retry/dead-letter transition.&quot;&quot;&quot;
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>        from sqlalchemy import update  # noqa: PLC0415
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>        async with self._session_factory() as session:
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>            await session.execute(
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>                update(NotificationJob)
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>                .where(NotificationJob.id == uuid.UUID(str(job.job_id)))
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>                .values(
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>                    status=job.status,
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>                    status_detail=job.status_detail,
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>                    retry_count=job.retry_count,
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>                    next_retry_at=job.next_retry_at,
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>                    locked_at=job.locked_at,
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>                    locked_by=job.locked_by,
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>                )
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>            )
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>            await session.commit()
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>    async def reclaim_stale(self, stale_after_seconds: float | None = None) -&gt; int:
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>        &quot;&quot;&quot;Reset jobs abandoned in ``processing`` back to ``pending``.&quot;&quot;&quot;
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>        from sqlalchemy import select  # noqa: PLC0415
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>        if stale_after_seconds is None:
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>            from app.core.config import settings  # noqa: PLC0415
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>            stale_after_seconds = settings.job_stale_after_seconds
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>        cutoff = datetime.now(UTC) - timedelta(seconds=stale_after_seconds)
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>        reclaimed = 0
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>        async with self._session_factory() as session:
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>            result = await session.execute(
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>                select(NotificationJob)
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>                .where(
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>                    (NotificationJob.status == &quot;processing&quot;)
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>                    &amp; (NotificationJob.locked_at.is_(None) | (NotificationJob.locked_at &lt;= cutoff))
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>                )
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>                .with_for_update(skip_locked=True)
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>            )
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>            stale_jobs = result.scalars().all()
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>            for job in stale_jobs:
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>                job.status = &quot;pending&quot;
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>                job.status_detail = None
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>                job.locked_at = None
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>                job.locked_by = None
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>                reclaimed += 1
+</span><span class="source-line" id="L217"><a href="#L217" class="line-number" aria-label="Line 217">217</a>            if reclaimed:
+</span><span class="source-line" id="L218"><a href="#L218" class="line-number" aria-label="Line 218">218</a>                await session.commit()
+</span><span class="source-line" id="L219"><a href="#L219" class="line-number" aria-label="Line 219">219</a>
+</span><span class="source-line" id="L220"><a href="#L220" class="line-number" aria-label="Line 220">220</a>        if reclaimed:
+</span><span class="source-line" id="L221"><a href="#L221" class="line-number" aria-label="Line 221">221</a>            logger.info(&quot;Reclaimed %d stale notification job(s).&quot;, reclaimed)
+</span><span class="source-line" id="L222"><a href="#L222" class="line-number" aria-label="Line 222">222</a>        return reclaimed
+</span><span class="source-line" id="L223"><a href="#L223" class="line-number" aria-label="Line 223">223</a>
+</span><span class="source-line" id="L224"><a href="#L224" class="line-number" aria-label="Line 224">224</a>    async def enqueue(self, payload: dict[str, Any], session: Any = None) -&gt; None:
+</span><span class="source-line" id="L225"><a href="#L225" class="line-number" aria-label="Line 225">225</a>        &quot;&quot;&quot;Write a new pending ``notification_jobs`` row.
+</span><span class="source-line" id="L226"><a href="#L226" class="line-number" aria-label="Line 226">226</a>
+</span><span class="source-line" id="L227"><a href="#L227" class="line-number" aria-label="Line 227">227</a>        When ``session`` is supplied the row is only added and flushed;
+</span><span class="source-line" id="L228"><a href="#L228" class="line-number" aria-label="Line 228">228</a>        the caller owns the commit, so the job and the claim change it
+</span><span class="source-line" id="L229"><a href="#L229" class="line-number" aria-label="Line 229">229</a>        describes land in one transaction. Without a session this opens
+</span><span class="source-line" id="L230"><a href="#L230" class="line-number" aria-label="Line 230">230</a>        its own session and commits.
+</span><span class="source-line" id="L231"><a href="#L231" class="line-number" aria-label="Line 231">231</a>
+</span><span class="source-line" id="L232"><a href="#L232" class="line-number" aria-label="Line 232">232</a>        ``payload`` carries the addressing (``job_type``, ``user_id``,
+</span><span class="source-line" id="L233"><a href="#L233" class="line-number" aria-label="Line 233">233</a>        ``channel``, ``max_attempts``) alongside the job&#x27;s own ``data``,
+</span><span class="source-line" id="L234"><a href="#L234" class="line-number" aria-label="Line 234">234</a>        which is what the processor&#x27;s templates read back.
+</span><span class="source-line" id="L235"><a href="#L235" class="line-number" aria-label="Line 235">235</a>        &quot;&quot;&quot;
+</span><span class="source-line" id="L236"><a href="#L236" class="line-number" aria-label="Line 236">236</a>        job = NotificationJob(
+</span><span class="source-line" id="L237"><a href="#L237" class="line-number" aria-label="Line 237">237</a>            user_id=uuid.UUID(str(payload[&quot;user_id&quot;])),
+</span><span class="source-line" id="L238"><a href="#L238" class="line-number" aria-label="Line 238">238</a>            job_type=str(payload[&quot;job_type&quot;]),
+</span><span class="source-line" id="L239"><a href="#L239" class="line-number" aria-label="Line 239">239</a>            payload=dict(payload.get(&quot;data&quot;) or {}),
+</span><span class="source-line" id="L240"><a href="#L240" class="line-number" aria-label="Line 240">240</a>            channel=str(payload.get(&quot;channel&quot;) or CHANNEL_IN_APP),
+</span><span class="source-line" id="L241"><a href="#L241" class="line-number" aria-label="Line 241">241</a>            status=&quot;pending&quot;,
+</span><span class="source-line" id="L242"><a href="#L242" class="line-number" aria-label="Line 242">242</a>            status_detail=&quot;pending&quot;,
+</span><span class="source-line" id="L243"><a href="#L243" class="line-number" aria-label="Line 243">243</a>            max_attempts=int(payload.get(&quot;max_attempts&quot;) or MAX_ATTEMPTS),
+</span><span class="source-line" id="L244"><a href="#L244" class="line-number" aria-label="Line 244">244</a>        )
+</span><span class="source-line" id="L245"><a href="#L245" class="line-number" aria-label="Line 245">245</a>        if session is not None:
+</span><span class="source-line" id="L246"><a href="#L246" class="line-number" aria-label="Line 246">246</a>            session.add(job)
+</span><span class="source-line" id="L247"><a href="#L247" class="line-number" aria-label="Line 247">247</a>            await session.flush()
+</span><span class="source-line" id="L248"><a href="#L248" class="line-number" aria-label="Line 248">248</a>        else:
+</span><span class="source-line" id="L249"><a href="#L249" class="line-number" aria-label="Line 249">249</a>            async with self._session_factory() as owned_session:
+</span><span class="source-line" id="L250"><a href="#L250" class="line-number" aria-label="Line 250">250</a>                owned_session.add(job)
+</span><span class="source-line" id="L251"><a href="#L251" class="line-number" aria-label="Line 251">251</a>                await owned_session.commit()
+</span><span class="source-line" id="L252"><a href="#L252" class="line-number" aria-label="Line 252">252</a>
+</span><span class="source-line" id="L253"><a href="#L253" class="line-number" aria-label="Line 253">253</a>
+</span><span class="source-line" id="L254"><a href="#L254" class="line-number" aria-label="Line 254">254</a>class NotificationJobProcessor:
+</span><span class="source-line" id="L255"><a href="#L255" class="line-number" aria-label="Line 255">255</a>    &quot;&quot;&quot;ragnor ``JobProcessor`` that renders a notification and delivers it.&quot;&quot;&quot;
+</span><span class="source-line" id="L256"><a href="#L256" class="line-number" aria-label="Line 256">256</a>
+</span><span class="source-line" id="L257"><a href="#L257" class="line-number" aria-label="Line 257">257</a>    async def process(self, job: JobPayload) -&gt; None:
+</span><span class="source-line" id="L258"><a href="#L258" class="line-number" aria-label="Line 258">258</a>        &quot;&quot;&quot;Render and deliver one claimed notification job.
+</span><span class="source-line" id="L259"><a href="#L259" class="line-number" aria-label="Line 259">259</a>
+</span><span class="source-line" id="L260"><a href="#L260" class="line-number" aria-label="Line 260">260</a>        The row is re-read rather than trusting the payload alone, because
+</span><span class="source-line" id="L261"><a href="#L261" class="line-number" aria-label="Line 261">261</a>        ``job_type`` and ``channel`` are columns on the outbox and the payload is
+</span><span class="source-line" id="L262"><a href="#L262" class="line-number" aria-label="Line 262">262</a>        the business data the templates read. A row that has since been deleted
+</span><span class="source-line" id="L263"><a href="#L263" class="line-number" aria-label="Line 263">263</a>        fails the attempt instead of delivering a notification about nothing.
+</span><span class="source-line" id="L264"><a href="#L264" class="line-number" aria-label="Line 264">264</a>
+</span><span class="source-line" id="L265"><a href="#L265" class="line-number" aria-label="Line 265">265</a>        Args:
+</span><span class="source-line" id="L266"><a href="#L266" class="line-number" aria-label="Line 266">266</a>            job: The claimed job.
+</span><span class="source-line" id="L267"><a href="#L267" class="line-number" aria-label="Line 267">267</a>
+</span><span class="source-line" id="L268"><a href="#L268" class="line-number" aria-label="Line 268">268</a>        Raises:
+</span><span class="source-line" id="L269"><a href="#L269" class="line-number" aria-label="Line 269">269</a>            ValueError: The outbox row is gone, or its ``job_type`` is not one the
+</span><span class="source-line" id="L270"><a href="#L270" class="line-number" aria-label="Line 270">270</a>                templates can render.
+</span><span class="source-line" id="L271"><a href="#L271" class="line-number" aria-label="Line 271">271</a>        &quot;&quot;&quot;
+</span><span class="source-line" id="L272"><a href="#L272" class="line-number" aria-label="Line 272">272</a>        async with async_session_factory() as session:
+</span><span class="source-line" id="L273"><a href="#L273" class="line-number" aria-label="Line 273">273</a>            row = await session.get(NotificationJob, uuid.UUID(str(job.job_id)))
+</span><span class="source-line" id="L274"><a href="#L274" class="line-number" aria-label="Line 274">274</a>            if row is None:
+</span><span class="source-line" id="L275"><a href="#L275" class="line-number" aria-label="Line 275">275</a>                raise ValueError(f&quot;Notification job &#x27;{job.job_id}&#x27; no longer exists.&quot;)
+</span><span class="source-line" id="L276"><a href="#L276" class="line-number" aria-label="Line 276">276</a>            job_type = row.job_type
+</span><span class="source-line" id="L277"><a href="#L277" class="line-number" aria-label="Line 277">277</a>            channel = row.channel
+</span><span class="source-line" id="L278"><a href="#L278" class="line-number" aria-label="Line 278">278</a>            payload = dict(row.payload or {})
+</span><span class="source-line" id="L279"><a href="#L279" class="line-number" aria-label="Line 279">279</a>            user_id = row.user_id
+</span><span class="source-line" id="L280"><a href="#L280" class="line-number" aria-label="Line 280">280</a>
+</span><span class="source-line" id="L281"><a href="#L281" class="line-number" aria-label="Line 281">281</a>        if job_type not in NOTIFICATION_JOB_TYPES:
+</span><span class="source-line" id="L282"><a href="#L282" class="line-number" aria-label="Line 282">282</a>            raise ValueError(f&quot;Unknown notification job type &#x27;{job_type}&#x27;.&quot;)
+</span><span class="source-line" id="L283"><a href="#L283" class="line-number" aria-label="Line 283">283</a>
+</span><span class="source-line" id="L284"><a href="#L284" class="line-number" aria-label="Line 284">284</a>        title, body = render_notification(job_type, payload)
+</span><span class="source-line" id="L285"><a href="#L285" class="line-number" aria-label="Line 285">285</a>        await deliver_notification(
+</span><span class="source-line" id="L286"><a href="#L286" class="line-number" aria-label="Line 286">286</a>            job_id=uuid.UUID(str(job.job_id)),
+</span><span class="source-line" id="L287"><a href="#L287" class="line-number" aria-label="Line 287">287</a>            user_id=user_id,
+</span><span class="source-line" id="L288"><a href="#L288" class="line-number" aria-label="Line 288">288</a>            job_type=job_type,
+</span><span class="source-line" id="L289"><a href="#L289" class="line-number" aria-label="Line 289">289</a>            channel=channel,
+</span><span class="source-line" id="L290"><a href="#L290" class="line-number" aria-label="Line 290">290</a>            payload=payload,
+</span><span class="source-line" id="L291"><a href="#L291" class="line-number" aria-label="Line 291">291</a>            title=title,
+</span><span class="source-line" id="L292"><a href="#L292" class="line-number" aria-label="Line 292">292</a>            body=body,
+</span><span class="source-line" id="L293"><a href="#L293" class="line-number" aria-label="Line 293">293</a>        )
+</span><span class="source-line" id="L294"><a href="#L294" class="line-number" aria-label="Line 294">294</a>
+</span><span class="source-line" id="L295"><a href="#L295" class="line-number" aria-label="Line 295">295</a>
+</span><span class="source-line" id="L296"><a href="#L296" class="line-number" aria-label="Line 296">296</a>async def _deliver_in_app(  # noqa: PLR0913
+</span><span class="source-line" id="L297"><a href="#L297" class="line-number" aria-label="Line 297">297</a>    *,
+</span><span class="source-line" id="L298"><a href="#L298" class="line-number" aria-label="Line 298">298</a>    job_id: uuid.UUID,
+</span><span class="source-line" id="L299"><a href="#L299" class="line-number" aria-label="Line 299">299</a>    user_id: uuid.UUID,
+</span><span class="source-line" id="L300"><a href="#L300" class="line-number" aria-label="Line 300">300</a>    job_type: str,
+</span><span class="source-line" id="L301"><a href="#L301" class="line-number" aria-label="Line 301">301</a>    title: str,
+</span><span class="source-line" id="L302"><a href="#L302" class="line-number" aria-label="Line 302">302</a>    body: str,
+</span><span class="source-line" id="L303"><a href="#L303" class="line-number" aria-label="Line 303">303</a>    claim_id: str | None,
+</span><span class="source-line" id="L304"><a href="#L304" class="line-number" aria-label="Line 304">304</a>) -&gt; None:
+</span><span class="source-line" id="L305"><a href="#L305" class="line-number" aria-label="Line 305">305</a>    &quot;&quot;&quot;Materialise a delivered notification in the owner&#x27;s feed.
+</span><span class="source-line" id="L306"><a href="#L306" class="line-number" aria-label="Line 306">306</a>
+</span><span class="source-line" id="L307"><a href="#L307" class="line-number" aria-label="Line 307">307</a>    Written outside the claim transaction, which is the point: a claimant must not
+</span><span class="source-line" id="L308"><a href="#L308" class="line-number" aria-label="Line 308">308</a>    wait on a feed write to move a claim, and a feed write must not be able to
+</span><span class="source-line" id="L309"><a href="#L309" class="line-number" aria-label="Line 309">309</a>    roll back a status change. The unique key on ``job_id`` makes the write
+</span><span class="source-line" id="L310"><a href="#L310" class="line-number" aria-label="Line 310">310</a>    idempotent, so a redelivery after a reclaimed lock refreshes nothing instead
+</span><span class="source-line" id="L311"><a href="#L311" class="line-number" aria-label="Line 311">311</a>    of notifying twice.
+</span><span class="source-line" id="L312"><a href="#L312" class="line-number" aria-label="Line 312">312</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L313"><a href="#L313" class="line-number" aria-label="Line 313">313</a>    statement = (
+</span><span class="source-line" id="L314"><a href="#L314" class="line-number" aria-label="Line 314">314</a>        insert(Notification)
+</span><span class="source-line" id="L315"><a href="#L315" class="line-number" aria-label="Line 315">315</a>        .values(
+</span><span class="source-line" id="L316"><a href="#L316" class="line-number" aria-label="Line 316">316</a>            job_id=job_id,
+</span><span class="source-line" id="L317"><a href="#L317" class="line-number" aria-label="Line 317">317</a>            user_id=user_id,
+</span><span class="source-line" id="L318"><a href="#L318" class="line-number" aria-label="Line 318">318</a>            job_type=job_type,
+</span><span class="source-line" id="L319"><a href="#L319" class="line-number" aria-label="Line 319">319</a>            channel=CHANNEL_IN_APP,
+</span><span class="source-line" id="L320"><a href="#L320" class="line-number" aria-label="Line 320">320</a>            title=title,
+</span><span class="source-line" id="L321"><a href="#L321" class="line-number" aria-label="Line 321">321</a>            body=body,
+</span><span class="source-line" id="L322"><a href="#L322" class="line-number" aria-label="Line 322">322</a>            claim_id=claim_id,
+</span><span class="source-line" id="L323"><a href="#L323" class="line-number" aria-label="Line 323">323</a>        )
+</span><span class="source-line" id="L324"><a href="#L324" class="line-number" aria-label="Line 324">324</a>        .on_conflict_do_nothing(index_elements=[Notification.job_id])
+</span><span class="source-line" id="L325"><a href="#L325" class="line-number" aria-label="Line 325">325</a>    )
+</span><span class="source-line" id="L326"><a href="#L326" class="line-number" aria-label="Line 326">326</a>
+</span><span class="source-line" id="L327"><a href="#L327" class="line-number" aria-label="Line 327">327</a>    async with async_session_factory() as session:
+</span><span class="source-line" id="L328"><a href="#L328" class="line-number" aria-label="Line 328">328</a>        await session.execute(statement)
+</span><span class="source-line" id="L329"><a href="#L329" class="line-number" aria-label="Line 329">329</a>        await session.commit()
+</span><span class="source-line" id="L330"><a href="#L330" class="line-number" aria-label="Line 330">330</a>
+</span><span class="source-line" id="L331"><a href="#L331" class="line-number" aria-label="Line 331">331</a>
+</span><span class="source-line" id="L332"><a href="#L332" class="line-number" aria-label="Line 332">332</a>async def deliver_notification(  # noqa: PLR0913, PLR0917
+</span><span class="source-line" id="L333"><a href="#L333" class="line-number" aria-label="Line 333">333</a>    *,
+</span><span class="source-line" id="L334"><a href="#L334" class="line-number" aria-label="Line 334">334</a>    job_id: uuid.UUID,
+</span><span class="source-line" id="L335"><a href="#L335" class="line-number" aria-label="Line 335">335</a>    user_id: uuid.UUID,
+</span><span class="source-line" id="L336"><a href="#L336" class="line-number" aria-label="Line 336">336</a>    job_type: str,
+</span><span class="source-line" id="L337"><a href="#L337" class="line-number" aria-label="Line 337">337</a>    channel: str,
+</span><span class="source-line" id="L338"><a href="#L338" class="line-number" aria-label="Line 338">338</a>    payload: dict[str, Any],
+</span><span class="source-line" id="L339"><a href="#L339" class="line-number" aria-label="Line 339">339</a>    title: str,
+</span><span class="source-line" id="L340"><a href="#L340" class="line-number" aria-label="Line 340">340</a>    body: str,
+</span><span class="source-line" id="L341"><a href="#L341" class="line-number" aria-label="Line 341">341</a>) -&gt; None:
+</span><span class="source-line" id="L342"><a href="#L342" class="line-number" aria-label="Line 342">342</a>    &quot;&quot;&quot;Send one rendered notification through its channel&#x27;s provider.
+</span><span class="source-line" id="L343"><a href="#L343" class="line-number" aria-label="Line 343">343</a>
+</span><span class="source-line" id="L344"><a href="#L344" class="line-number" aria-label="Line 344">344</a>    This is the provider seam. ``in_app`` has a provider; ``email``, ``sms``, and
+</span><span class="source-line" id="L345"><a href="#L345" class="line-number" aria-label="Line 345">345</a>    ``webhook`` are reserved names that no provider is registered for, and they
+</span><span class="source-line" id="L346"><a href="#L346" class="line-number" aria-label="Line 346">346</a>    raise rather than succeeding. A silent success would mark the job completed and
+</span><span class="source-line" id="L347"><a href="#L347" class="line-number" aria-label="Line 347">347</a>    drop the notification on the floor, which is precisely the failure this outbox
+</span><span class="source-line" id="L348"><a href="#L348" class="line-number" aria-label="Line 348">348</a>    exists to prevent, so an unimplemented channel has to fail loudly, retry, and
+</span><span class="source-line" id="L349"><a href="#L349" class="line-number" aria-label="Line 349">349</a>    dead-letter where an operator can see it.
+</span><span class="source-line" id="L350"><a href="#L350" class="line-number" aria-label="Line 350">350</a>
+</span><span class="source-line" id="L351"><a href="#L351" class="line-number" aria-label="Line 351">351</a>    Args:
+</span><span class="source-line" id="L352"><a href="#L352" class="line-number" aria-label="Line 352">352</a>        job_id: The outbox row delivering this notification.
+</span><span class="source-line" id="L353"><a href="#L353" class="line-number" aria-label="Line 353">353</a>        user_id: The recipient&#x27;s UUID.
+</span><span class="source-line" id="L354"><a href="#L354" class="line-number" aria-label="Line 354">354</a>        job_type: Which delivery instruction produced this notification.
+</span><span class="source-line" id="L355"><a href="#L355" class="line-number" aria-label="Line 355">355</a>        channel: The delivery target named on the job.
+</span><span class="source-line" id="L356"><a href="#L356" class="line-number" aria-label="Line 356">356</a>        payload: The job&#x27;s business payload, for a provider that needs it.
+</span><span class="source-line" id="L357"><a href="#L357" class="line-number" aria-label="Line 357">357</a>        title: The rendered subject line.
+</span><span class="source-line" id="L358"><a href="#L358" class="line-number" aria-label="Line 358">358</a>        body: The rendered message text.
+</span><span class="source-line" id="L359"><a href="#L359" class="line-number" aria-label="Line 359">359</a>
+</span><span class="source-line" id="L360"><a href="#L360" class="line-number" aria-label="Line 360">360</a>    Raises:
+</span><span class="source-line" id="L361"><a href="#L361" class="line-number" aria-label="Line 361">361</a>        ValueError: No provider is registered for ``channel``.
+</span><span class="source-line" id="L362"><a href="#L362" class="line-number" aria-label="Line 362">362</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L363"><a href="#L363" class="line-number" aria-label="Line 363">363</a>    if channel != CHANNEL_IN_APP:
+</span><span class="source-line" id="L364"><a href="#L364" class="line-number" aria-label="Line 364">364</a>        raise ValueError(
+</span><span class="source-line" id="L365"><a href="#L365" class="line-number" aria-label="Line 365">365</a>            f&quot;No notification provider is registered for the &#x27;{channel}&#x27; channel. &quot;
+</span><span class="source-line" id="L366"><a href="#L366" class="line-number" aria-label="Line 366">366</a>            &quot;Register one in app.domain.notifications.outbox.deliver_notification; &quot;
+</span><span class="source-line" id="L367"><a href="#L367" class="line-number" aria-label="Line 367">367</a>            f&quot;&#x27;{channel}&#x27; is reserved.&quot;
+</span><span class="source-line" id="L368"><a href="#L368" class="line-number" aria-label="Line 368">368</a>        )
+</span><span class="source-line" id="L369"><a href="#L369" class="line-number" aria-label="Line 369">369</a>
+</span><span class="source-line" id="L370"><a href="#L370" class="line-number" aria-label="Line 370">370</a>    claim_id = payload.get(&quot;claim_id&quot;)
+</span><span class="source-line" id="L371"><a href="#L371" class="line-number" aria-label="Line 371">371</a>    await _deliver_in_app(
+</span><span class="source-line" id="L372"><a href="#L372" class="line-number" aria-label="Line 372">372</a>        job_id=job_id,
+</span><span class="source-line" id="L373"><a href="#L373" class="line-number" aria-label="Line 373">373</a>        user_id=user_id,
+</span><span class="source-line" id="L374"><a href="#L374" class="line-number" aria-label="Line 374">374</a>        job_type=job_type,
+</span><span class="source-line" id="L375"><a href="#L375" class="line-number" aria-label="Line 375">375</a>        title=title,
+</span><span class="source-line" id="L376"><a href="#L376" class="line-number" aria-label="Line 376">376</a>        body=body,
+</span><span class="source-line" id="L377"><a href="#L377" class="line-number" aria-label="Line 377">377</a>        claim_id=str(claim_id) if claim_id else None,
+</span><span class="source-line" id="L378"><a href="#L378" class="line-number" aria-label="Line 378">378</a>    )
+</span><span class="source-line" id="L379"><a href="#L379" class="line-number" aria-label="Line 379">379</a>
+</span><span class="source-line" id="L380"><a href="#L380" class="line-number" aria-label="Line 380">380</a>
+</span><span class="source-line" id="L381"><a href="#L381" class="line-number" aria-label="Line 381">381</a>def _render_claim_submitted(payload: dict[str, Any]) -&gt; tuple[str, str]:
+</span><span class="source-line" id="L382"><a href="#L382" class="line-number" aria-label="Line 382">382</a>    &quot;&quot;&quot;Render the notification for a claim that has just been filed.
+</span><span class="source-line" id="L383"><a href="#L383" class="line-number" aria-label="Line 383">383</a>
+</span><span class="source-line" id="L384"><a href="#L384" class="line-number" aria-label="Line 384">384</a>    Args:
+</span><span class="source-line" id="L385"><a href="#L385" class="line-number" aria-label="Line 385">385</a>        payload: The job payload, carrying ``claim_id`` and ``claim_type``.
+</span><span class="source-line" id="L386"><a href="#L386" class="line-number" aria-label="Line 386">386</a>
+</span><span class="source-line" id="L387"><a href="#L387" class="line-number" aria-label="Line 387">387</a>    Returns:
+</span><span class="source-line" id="L388"><a href="#L388" class="line-number" aria-label="Line 388">388</a>        tuple[str, str]: The notification&#x27;s title and body.
+</span><span class="source-line" id="L389"><a href="#L389" class="line-number" aria-label="Line 389">389</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L390"><a href="#L390" class="line-number" aria-label="Line 390">390</a>    claim_id = payload.get(&quot;claim_id&quot;, &quot;your claim&quot;)
+</span><span class="source-line" id="L391"><a href="#L391" class="line-number" aria-label="Line 391">391</a>    claim_type = str(payload.get(&quot;claim_type&quot;) or &quot;claim&quot;).lower()
+</span><span class="source-line" id="L392"><a href="#L392" class="line-number" aria-label="Line 392">392</a>    return (
+</span><span class="source-line" id="L393"><a href="#L393" class="line-number" aria-label="Line 393">393</a>        f&quot;Claim {claim_id} submitted&quot;,
+</span><span class="source-line" id="L394"><a href="#L394" class="line-number" aria-label="Line 394">394</a>        (
+</span><span class="source-line" id="L395"><a href="#L395" class="line-number" aria-label="Line 395">395</a>            f&quot;We have received your {claim_type} claim {claim_id}. &quot;
+</span><span class="source-line" id="L396"><a href="#L396" class="line-number" aria-label="Line 396">396</a>            &quot;It is now recorded and waiting to be reviewed.&quot;
+</span><span class="source-line" id="L397"><a href="#L397" class="line-number" aria-label="Line 397">397</a>        ),
+</span><span class="source-line" id="L398"><a href="#L398" class="line-number" aria-label="Line 398">398</a>    )
+</span><span class="source-line" id="L399"><a href="#L399" class="line-number" aria-label="Line 399">399</a>
+</span><span class="source-line" id="L400"><a href="#L400" class="line-number" aria-label="Line 400">400</a>
+</span><span class="source-line" id="L401"><a href="#L401" class="line-number" aria-label="Line 401">401</a>def _render_claim_status_changed(payload: dict[str, Any]) -&gt; tuple[str, str]:
+</span><span class="source-line" id="L402"><a href="#L402" class="line-number" aria-label="Line 402">402</a>    &quot;&quot;&quot;Render the notification for a claim that moved to a new status.
+</span><span class="source-line" id="L403"><a href="#L403" class="line-number" aria-label="Line 403">403</a>
+</span><span class="source-line" id="L404"><a href="#L404" class="line-number" aria-label="Line 404">404</a>    Args:
+</span><span class="source-line" id="L405"><a href="#L405" class="line-number" aria-label="Line 405">405</a>        payload: The job payload, carrying ``claim_id``, ``from_status``,
+</span><span class="source-line" id="L406"><a href="#L406" class="line-number" aria-label="Line 406">406</a>            ``to_status``, and any ``note`` the transition recorded.
+</span><span class="source-line" id="L407"><a href="#L407" class="line-number" aria-label="Line 407">407</a>
+</span><span class="source-line" id="L408"><a href="#L408" class="line-number" aria-label="Line 408">408</a>    Returns:
+</span><span class="source-line" id="L409"><a href="#L409" class="line-number" aria-label="Line 409">409</a>        tuple[str, str]: The notification&#x27;s title and body.
+</span><span class="source-line" id="L410"><a href="#L410" class="line-number" aria-label="Line 410">410</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L411"><a href="#L411" class="line-number" aria-label="Line 411">411</a>    claim_id = payload.get(&quot;claim_id&quot;, &quot;your claim&quot;)
+</span><span class="source-line" id="L412"><a href="#L412" class="line-number" aria-label="Line 412">412</a>    to_status = payload.get(&quot;to_status&quot;, &quot;a new status&quot;)
+</span><span class="source-line" id="L413"><a href="#L413" class="line-number" aria-label="Line 413">413</a>    body = f&quot;Claim {claim_id} is now {to_status}.&quot;
+</span><span class="source-line" id="L414"><a href="#L414" class="line-number" aria-label="Line 414">414</a>    from_status = payload.get(&quot;from_status&quot;)
+</span><span class="source-line" id="L415"><a href="#L415" class="line-number" aria-label="Line 415">415</a>    if from_status:
+</span><span class="source-line" id="L416"><a href="#L416" class="line-number" aria-label="Line 416">416</a>        body = f&quot;Claim {claim_id} moved from {from_status} to {to_status}.&quot;
+</span><span class="source-line" id="L417"><a href="#L417" class="line-number" aria-label="Line 417">417</a>    note = payload.get(&quot;note&quot;)
+</span><span class="source-line" id="L418"><a href="#L418" class="line-number" aria-label="Line 418">418</a>    if note:
+</span><span class="source-line" id="L419"><a href="#L419" class="line-number" aria-label="Line 419">419</a>        body = f&quot;{body} Note: {note}&quot;
+</span><span class="source-line" id="L420"><a href="#L420" class="line-number" aria-label="Line 420">420</a>    return f&quot;Claim {claim_id} is now {to_status}&quot;, body
+</span><span class="source-line" id="L421"><a href="#L421" class="line-number" aria-label="Line 421">421</a>
+</span><span class="source-line" id="L422"><a href="#L422" class="line-number" aria-label="Line 422">422</a>
+</span><span class="source-line" id="L423"><a href="#L423" class="line-number" aria-label="Line 423">423</a>def _render_claim_withdrawn(payload: dict[str, Any]) -&gt; tuple[str, str]:
+</span><span class="source-line" id="L424"><a href="#L424" class="line-number" aria-label="Line 424">424</a>    &quot;&quot;&quot;Render the notification for a claim the claimant withdrew.
+</span><span class="source-line" id="L425"><a href="#L425" class="line-number" aria-label="Line 425">425</a>
+</span><span class="source-line" id="L426"><a href="#L426" class="line-number" aria-label="Line 426">426</a>    Args:
+</span><span class="source-line" id="L427"><a href="#L427" class="line-number" aria-label="Line 427">427</a>        payload: The job payload, carrying ``claim_id`` and any ``note``.
+</span><span class="source-line" id="L428"><a href="#L428" class="line-number" aria-label="Line 428">428</a>
+</span><span class="source-line" id="L429"><a href="#L429" class="line-number" aria-label="Line 429">429</a>    Returns:
+</span><span class="source-line" id="L430"><a href="#L430" class="line-number" aria-label="Line 430">430</a>        tuple[str, str]: The notification&#x27;s title and body.
+</span><span class="source-line" id="L431"><a href="#L431" class="line-number" aria-label="Line 431">431</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L432"><a href="#L432" class="line-number" aria-label="Line 432">432</a>    claim_id = payload.get(&quot;claim_id&quot;, &quot;your claim&quot;)
+</span><span class="source-line" id="L433"><a href="#L433" class="line-number" aria-label="Line 433">433</a>    body = f&quot;You withdrew claim {claim_id}.&quot;
+</span><span class="source-line" id="L434"><a href="#L434" class="line-number" aria-label="Line 434">434</a>    note = payload.get(&quot;note&quot;)
+</span><span class="source-line" id="L435"><a href="#L435" class="line-number" aria-label="Line 435">435</a>    if note:
+</span><span class="source-line" id="L436"><a href="#L436" class="line-number" aria-label="Line 436">436</a>        body = f&quot;{body} Reason: {note}&quot;
+</span><span class="source-line" id="L437"><a href="#L437" class="line-number" aria-label="Line 437">437</a>    return f&quot;Claim {claim_id} withdrawn&quot;, body
+</span><span class="source-line" id="L438"><a href="#L438" class="line-number" aria-label="Line 438">438</a>
+</span><span class="source-line" id="L439"><a href="#L439" class="line-number" aria-label="Line 439">439</a>
+</span><span class="source-line" id="L440"><a href="#L440" class="line-number" aria-label="Line 440">440</a>_TEMPLATES: dict[str, Any] = {
+</span><span class="source-line" id="L441"><a href="#L441" class="line-number" aria-label="Line 441">441</a>    JOB_TYPE_CLAIM_SUBMITTED: _render_claim_submitted,
+</span><span class="source-line" id="L442"><a href="#L442" class="line-number" aria-label="Line 442">442</a>    JOB_TYPE_CLAIM_STATUS_CHANGED: _render_claim_status_changed,
+</span><span class="source-line" id="L443"><a href="#L443" class="line-number" aria-label="Line 443">443</a>    JOB_TYPE_CLAIM_WITHDRAWN: _render_claim_withdrawn,
+</span><span class="source-line" id="L444"><a href="#L444" class="line-number" aria-label="Line 444">444</a>}
+</span><span class="source-line" id="L445"><a href="#L445" class="line-number" aria-label="Line 445">445</a>
+</span><span class="source-line" id="L446"><a href="#L446" class="line-number" aria-label="Line 446">446</a>
+</span><span class="source-line" id="L447"><a href="#L447" class="line-number" aria-label="Line 447">447</a>def render_notification(job_type: str, payload: dict[str, Any]) -&gt; tuple[str, str]:
+</span><span class="source-line" id="L448"><a href="#L448" class="line-number" aria-label="Line 448">448</a>    &quot;&quot;&quot;Render a deterministic title and body for one notification job.
+</span><span class="source-line" id="L449"><a href="#L449" class="line-number" aria-label="Line 449">449</a>
+</span><span class="source-line" id="L450"><a href="#L450" class="line-number" aria-label="Line 450">450</a>    A template table rather than a model call: a notification is a fixed string
+</span><span class="source-line" id="L451"><a href="#L451" class="line-number" aria-label="Line 451">451</a>    about a stored fact, the worker must not cost a model invocation per delivery,
+</span><span class="source-line" id="L452"><a href="#L452" class="line-number" aria-label="Line 452">452</a>    and the text a claimant reads must not change between two workers running two
+</span><span class="source-line" id="L453"><a href="#L453" class="line-number" aria-label="Line 453">453</a>    prompt versions.
+</span><span class="source-line" id="L454"><a href="#L454" class="line-number" aria-label="Line 454">454</a>
+</span><span class="source-line" id="L455"><a href="#L455" class="line-number" aria-label="Line 455">455</a>    Args:
+</span><span class="source-line" id="L456"><a href="#L456" class="line-number" aria-label="Line 456">456</a>        job_type: The delivery instruction, one of ``NOTIFICATION_JOB_TYPES``.
+</span><span class="source-line" id="L457"><a href="#L457" class="line-number" aria-label="Line 457">457</a>        payload: The job&#x27;s business data.
+</span><span class="source-line" id="L458"><a href="#L458" class="line-number" aria-label="Line 458">458</a>
+</span><span class="source-line" id="L459"><a href="#L459" class="line-number" aria-label="Line 459">459</a>    Returns:
+</span><span class="source-line" id="L460"><a href="#L460" class="line-number" aria-label="Line 460">460</a>        tuple[str, str]: The rendered title and body.
+</span><span class="source-line" id="L461"><a href="#L461" class="line-number" aria-label="Line 461">461</a>
+</span><span class="source-line" id="L462"><a href="#L462" class="line-number" aria-label="Line 462">462</a>    Raises:
+</span><span class="source-line" id="L463"><a href="#L463" class="line-number" aria-label="Line 463">463</a>        ValueError: ``job_type`` has no template.
+</span><span class="source-line" id="L464"><a href="#L464" class="line-number" aria-label="Line 464">464</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L465"><a href="#L465" class="line-number" aria-label="Line 465">465</a>    template = _TEMPLATES.get(job_type)
+</span><span class="source-line" id="L466"><a href="#L466" class="line-number" aria-label="Line 466">466</a>    if template is None:
+</span><span class="source-line" id="L467"><a href="#L467" class="line-number" aria-label="Line 467">467</a>        raise ValueError(f&quot;No notification template is registered for &#x27;{job_type}&#x27;.&quot;)
+</span><span class="source-line" id="L468"><a href="#L468" class="line-number" aria-label="Line 468">468</a>    return template(payload)
+</span><span class="source-line" id="L469"><a href="#L469" class="line-number" aria-label="Line 469">469</a>
+</span><span class="source-line" id="L470"><a href="#L470" class="line-number" aria-label="Line 470">470</a>
+</span><span class="source-line" id="L471"><a href="#L471" class="line-number" aria-label="Line 471">471</a>def enqueue_notification_job_payload(
+</span><span class="source-line" id="L472"><a href="#L472" class="line-number" aria-label="Line 472">472</a>    *,
+</span><span class="source-line" id="L473"><a href="#L473" class="line-number" aria-label="Line 473">473</a>    job_type: str,
+</span><span class="source-line" id="L474"><a href="#L474" class="line-number" aria-label="Line 474">474</a>    user_id: uuid.UUID,
+</span><span class="source-line" id="L475"><a href="#L475" class="line-number" aria-label="Line 475">475</a>    payload: dict[str, Any],
+</span><span class="source-line" id="L476"><a href="#L476" class="line-number" aria-label="Line 476">476</a>    channel: str = CHANNEL_IN_APP,
+</span><span class="source-line" id="L477"><a href="#L477" class="line-number" aria-label="Line 477">477</a>    max_attempts: int = MAX_ATTEMPTS,
+</span><span class="source-line" id="L478"><a href="#L478" class="line-number" aria-label="Line 478">478</a>) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L479"><a href="#L479" class="line-number" aria-label="Line 479">479</a>    &quot;&quot;&quot;Build the addressing envelope the store writes around a job&#x27;s own payload.
+</span><span class="source-line" id="L480"><a href="#L480" class="line-number" aria-label="Line 480">480</a>
+</span><span class="source-line" id="L481"><a href="#L481" class="line-number" aria-label="Line 481">481</a>    Kept separate from ``:func:enqueue_notification_job`` so a caller that wants
+</span><span class="source-line" id="L482"><a href="#L482" class="line-number" aria-label="Line 482">482</a>    to stage a job row itself — the way the claim submission flow stages its
+</span><span class="source-line" id="L483"><a href="#L483" class="line-number" aria-label="Line 483">483</a>    embedding job — still goes through one definition of the envelope.
+</span><span class="source-line" id="L484"><a href="#L484" class="line-number" aria-label="Line 484">484</a>
+</span><span class="source-line" id="L485"><a href="#L485" class="line-number" aria-label="Line 485">485</a>    Args:
+</span><span class="source-line" id="L486"><a href="#L486" class="line-number" aria-label="Line 486">486</a>        job_type: The delivery instruction to enqueue.
+</span><span class="source-line" id="L487"><a href="#L487" class="line-number" aria-label="Line 487">487</a>        user_id: The recipient&#x27;s UUID.
+</span><span class="source-line" id="L488"><a href="#L488" class="line-number" aria-label="Line 488">488</a>        payload: The business data the template renders from.
+</span><span class="source-line" id="L489"><a href="#L489" class="line-number" aria-label="Line 489">489</a>        channel: The delivery target. Defaults to the in-app feed.
+</span><span class="source-line" id="L490"><a href="#L490" class="line-number" aria-label="Line 490">490</a>        max_attempts: Attempt ceiling before the job is dead-lettered.
+</span><span class="source-line" id="L491"><a href="#L491" class="line-number" aria-label="Line 491">491</a>
+</span><span class="source-line" id="L492"><a href="#L492" class="line-number" aria-label="Line 492">492</a>    Returns:
+</span><span class="source-line" id="L493"><a href="#L493" class="line-number" aria-label="Line 493">493</a>        dict[str, Any]: The store payload the outbox row is written from.
+</span><span class="source-line" id="L494"><a href="#L494" class="line-number" aria-label="Line 494">494</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L495"><a href="#L495" class="line-number" aria-label="Line 495">495</a>    return {
+</span><span class="source-line" id="L496"><a href="#L496" class="line-number" aria-label="Line 496">496</a>        &quot;job_type&quot;: job_type,
+</span><span class="source-line" id="L497"><a href="#L497" class="line-number" aria-label="Line 497">497</a>        &quot;user_id&quot;: str(user_id),
+</span><span class="source-line" id="L498"><a href="#L498" class="line-number" aria-label="Line 498">498</a>        &quot;channel&quot;: channel,
+</span><span class="source-line" id="L499"><a href="#L499" class="line-number" aria-label="Line 499">499</a>        &quot;max_attempts&quot;: max_attempts,
+</span><span class="source-line" id="L500"><a href="#L500" class="line-number" aria-label="Line 500">500</a>        &quot;data&quot;: dict(payload),
+</span><span class="source-line" id="L501"><a href="#L501" class="line-number" aria-label="Line 501">501</a>    }
+</span><span class="source-line" id="L502"><a href="#L502" class="line-number" aria-label="Line 502">502</a>
+</span><span class="source-line" id="L503"><a href="#L503" class="line-number" aria-label="Line 503">503</a>
+</span><span class="source-line" id="L504"><a href="#L504" class="line-number" aria-label="Line 504">504</a>async def enqueue_notification_job(  # noqa: PLR0913, PLR0917
+</span><span class="source-line" id="L505"><a href="#L505" class="line-number" aria-label="Line 505">505</a>    *,
+</span><span class="source-line" id="L506"><a href="#L506" class="line-number" aria-label="Line 506">506</a>    job_type: str,
+</span><span class="source-line" id="L507"><a href="#L507" class="line-number" aria-label="Line 507">507</a>    user_id: uuid.UUID,
+</span><span class="source-line" id="L508"><a href="#L508" class="line-number" aria-label="Line 508">508</a>    payload: dict[str, Any],
+</span><span class="source-line" id="L509"><a href="#L509" class="line-number" aria-label="Line 509">509</a>    channel: str = CHANNEL_IN_APP,
+</span><span class="source-line" id="L510"><a href="#L510" class="line-number" aria-label="Line 510">510</a>    max_attempts: int = MAX_ATTEMPTS,
+</span><span class="source-line" id="L511"><a href="#L511" class="line-number" aria-label="Line 511">511</a>    session: AsyncSession | None = None,
+</span><span class="source-line" id="L512"><a href="#L512" class="line-number" aria-label="Line 512">512</a>) -&gt; None:
+</span><span class="source-line" id="L513"><a href="#L513" class="line-number" aria-label="Line 513">513</a>    &quot;&quot;&quot;Queue a notification for asynchronous delivery.
+</span><span class="source-line" id="L514"><a href="#L514" class="line-number" aria-label="Line 514">514</a>
+</span><span class="source-line" id="L515"><a href="#L515" class="line-number" aria-label="Line 515">515</a>    Delegates to ragnor&#x27;s :func:`ragnor.jobs.enqueue_job`
+</span><span class="source-line" id="L516"><a href="#L516" class="line-number" aria-label="Line 516">516</a>    with the caller&#x27;s session: when ``session`` is supplied,
+</span><span class="source-line" id="L517"><a href="#L517" class="line-number" aria-label="Line 517">517</a>    the job row is only added and flushed, so the claim change and
+</span><span class="source-line" id="L518"><a href="#L518" class="line-number" aria-label="Line 518">518</a>    the notification about it are persisted atomically by the
+</span><span class="source-line" id="L519"><a href="#L519" class="line-number" aria-label="Line 519">519</a>    caller&#x27;s commit. When ``session`` is None, ragnor opens
+</span><span class="source-line" id="L520"><a href="#L520" class="line-number" aria-label="Line 520">520</a>    and commits its own transaction.
+</span><span class="source-line" id="L521"><a href="#L521" class="line-number" aria-label="Line 521">521</a>
+</span><span class="source-line" id="L522"><a href="#L522" class="line-number" aria-label="Line 522">522</a>    A failure to enqueue is logged and never raised when this function owns the
+</span><span class="source-line" id="L523"><a href="#L523" class="line-number" aria-label="Line 523">523</a>    transaction: the claim change it describes is already durable, and failing a
+</span><span class="source-line" id="L524"><a href="#L524" class="line-number" aria-label="Line 524">524</a>    committed fact to protect a notification would trade one for the other.
+</span><span class="source-line" id="L525"><a href="#L525" class="line-number" aria-label="Line 525">525</a>
+</span><span class="source-line" id="L526"><a href="#L526" class="line-number" aria-label="Line 526">526</a>    When ``session`` is supplied the situation is the opposite. The job row has
+</span><span class="source-line" id="L527"><a href="#L527" class="line-number" aria-label="Line 527">527</a>    only been *flushed*, not committed, so a flush failure has already poisoned
+</span><span class="source-line" id="L528"><a href="#L528" class="line-number" aria-label="Line 528">528</a>    the caller&#x27;s transaction: its next ``commit()`` raises
+</span><span class="source-line" id="L529"><a href="#L529" class="line-number" aria-label="Line 529">529</a>    ``PendingRollbackError`` with a traceback that says nothing about the real
+</span><span class="source-line" id="L530"><a href="#L530" class="line-number" aria-label="Line 530">530</a>    cause. Re-raising here is what lets the caller fail on the actual error
+</span><span class="source-line" id="L531"><a href="#L531" class="line-number" aria-label="Line 531">531</a>    instead of a misleading one several statements later.
+</span><span class="source-line" id="L532"><a href="#L532" class="line-number" aria-label="Line 532">532</a>
+</span><span class="source-line" id="L533"><a href="#L533" class="line-number" aria-label="Line 533">533</a>    Args:
+</span><span class="source-line" id="L534"><a href="#L534" class="line-number" aria-label="Line 534">534</a>        job_type: The delivery instruction, one of ``NOTIFICATION_JOB_TYPES``.
+</span><span class="source-line" id="L535"><a href="#L535" class="line-number" aria-label="Line 535">535</a>        user_id: The recipient&#x27;s UUID.
+</span><span class="source-line" id="L536"><a href="#L536" class="line-number" aria-label="Line 536">536</a>        payload: The business data the template renders from.
+</span><span class="source-line" id="L537"><a href="#L537" class="line-number" aria-label="Line 537">537</a>        channel: The delivery target. Defaults to the in-app feed.
+</span><span class="source-line" id="L538"><a href="#L538" class="line-number" aria-label="Line 538">538</a>        max_attempts: Attempt ceiling before the job is dead-lettered.
+</span><span class="source-line" id="L539"><a href="#L539" class="line-number" aria-label="Line 539">539</a>        session: Optional existing database session. When provided, the job row
+</span><span class="source-line" id="L540"><a href="#L540" class="line-number" aria-label="Line 540">540</a>            joins the caller&#x27;s transaction and the caller commits.
+</span><span class="source-line" id="L541"><a href="#L541" class="line-number" aria-label="Line 541">541</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L542"><a href="#L542" class="line-number" aria-label="Line 542">542</a>    store_payload = enqueue_notification_job_payload(
+</span><span class="source-line" id="L543"><a href="#L543" class="line-number" aria-label="Line 543">543</a>        job_type=job_type,
+</span><span class="source-line" id="L544"><a href="#L544" class="line-number" aria-label="Line 544">544</a>        user_id=user_id,
+</span><span class="source-line" id="L545"><a href="#L545" class="line-number" aria-label="Line 545">545</a>        payload=payload,
+</span><span class="source-line" id="L546"><a href="#L546" class="line-number" aria-label="Line 546">546</a>        channel=channel,
+</span><span class="source-line" id="L547"><a href="#L547" class="line-number" aria-label="Line 547">547</a>        max_attempts=max_attempts,
+</span><span class="source-line" id="L548"><a href="#L548" class="line-number" aria-label="Line 548">548</a>    )
+</span><span class="source-line" id="L549"><a href="#L549" class="line-number" aria-label="Line 549">549</a>    store = NotificationJobStore()
+</span><span class="source-line" id="L550"><a href="#L550" class="line-number" aria-label="Line 550">550</a>    try:
+</span><span class="source-line" id="L551"><a href="#L551" class="line-number" aria-label="Line 551">551</a>        await enqueue_job(store, store_payload, session=session)
+</span><span class="source-line" id="L552"><a href="#L552" class="line-number" aria-label="Line 552">552</a>        logger.info(&quot;Enqueued &#x27;%s&#x27; notification for user &#x27;%s&#x27;.&quot;, job_type, user_id)
+</span><span class="source-line" id="L553"><a href="#L553" class="line-number" aria-label="Line 553">553</a>    except Exception as exc:
+</span><span class="source-line" id="L554"><a href="#L554" class="line-number" aria-label="Line 554">554</a>        if session is not None:
+</span><span class="source-line" id="L555"><a href="#L555" class="line-number" aria-label="Line 555">555</a>            raise
+</span><span class="source-line" id="L556"><a href="#L556" class="line-number" aria-label="Line 556">556</a>        logger.exception(&quot;Failed to enqueue &#x27;%s&#x27; notification: %s&quot;, job_type, exc)
+</span><span class="source-line" id="L557"><a href="#L557" class="line-number" aria-label="Line 557">557</a>
+</span><span class="source-line" id="L558"><a href="#L558" class="line-number" aria-label="Line 558">558</a>
+</span><span class="source-line" id="L559"><a href="#L559" class="line-number" aria-label="Line 559">559</a>async def process_pending_notification_jobs(
+</span><span class="source-line" id="L560"><a href="#L560" class="line-number" aria-label="Line 560">560</a>    limit: int = 10,
+</span><span class="source-line" id="L561"><a href="#L561" class="line-number" aria-label="Line 561">561</a>    worker_id: str | None = None,
+</span><span class="source-line" id="L562"><a href="#L562" class="line-number" aria-label="Line 562">562</a>) -&gt; int:
+</span><span class="source-line" id="L563"><a href="#L563" class="line-number" aria-label="Line 563">563</a>    &quot;&quot;&quot;Deliver pending notification jobs.
+</span><span class="source-line" id="L564"><a href="#L564" class="line-number" aria-label="Line 564">564</a>
+</span><span class="source-line" id="L565"><a href="#L565" class="line-number" aria-label="Line 565">565</a>    Fetches up to ``limit`` pending jobs, renders and delivers each, and records
+</span><span class="source-line" id="L566"><a href="#L566" class="line-number" aria-label="Line 566">566</a>    the outcome. Failed deliveries are marked with an error detail and a retry
+</span><span class="source-line" id="L567"><a href="#L567" class="line-number" aria-label="Line 567">567</a>    timestamp; jobs that exhaust their attempts are dead-lettered.
+</span><span class="source-line" id="L568"><a href="#L568" class="line-number" aria-label="Line 568">568</a>
+</span><span class="source-line" id="L569"><a href="#L569" class="line-number" aria-label="Line 569">569</a>    Claimed jobs are stamped with ``locked_at``/``locked_by`` for the whole
+</span><span class="source-line" id="L570"><a href="#L570" class="line-number" aria-label="Line 570">570</a>    processing transaction. A worker that dies mid-pass therefore leaves a
+</span><span class="source-line" id="L571"><a href="#L571" class="line-number" aria-label="Line 571">571</a>    visible lock, which :func:`reclaim_stale_notification_jobs` later resets.
+</span><span class="source-line" id="L572"><a href="#L572" class="line-number" aria-label="Line 572">572</a>
+</span><span class="source-line" id="L573"><a href="#L573" class="line-number" aria-label="Line 573">573</a>    Args:
+</span><span class="source-line" id="L574"><a href="#L574" class="line-number" aria-label="Line 574">574</a>        limit: Maximum number of jobs to deliver in one batch.
+</span><span class="source-line" id="L575"><a href="#L575" class="line-number" aria-label="Line 575">575</a>        worker_id: Identity stamped into ``locked_by``. Defaults to
+</span><span class="source-line" id="L576"><a href="#L576" class="line-number" aria-label="Line 576">576</a>            ``settings.worker_id``.
+</span><span class="source-line" id="L577"><a href="#L577" class="line-number" aria-label="Line 577">577</a>
+</span><span class="source-line" id="L578"><a href="#L578" class="line-number" aria-label="Line 578">578</a>    Returns:
+</span><span class="source-line" id="L579"><a href="#L579" class="line-number" aria-label="Line 579">579</a>        int: Number of jobs successfully delivered.
+</span><span class="source-line" id="L580"><a href="#L580" class="line-number" aria-label="Line 580">580</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L581"><a href="#L581" class="line-number" aria-label="Line 581">581</a>    from app.core.config import settings  # noqa: PLC0415
+</span><span class="source-line" id="L582"><a href="#L582" class="line-number" aria-label="Line 582">582</a>
+</span><span class="source-line" id="L583"><a href="#L583" class="line-number" aria-label="Line 583">583</a>    if worker_id is None:
+</span><span class="source-line" id="L584"><a href="#L584" class="line-number" aria-label="Line 584">584</a>        worker_id = settings.worker_id
+</span><span class="source-line" id="L585"><a href="#L585" class="line-number" aria-label="Line 585">585</a>
+</span><span class="source-line" id="L586"><a href="#L586" class="line-number" aria-label="Line 586">586</a>    store = NotificationJobStore()
+</span><span class="source-line" id="L587"><a href="#L587" class="line-number" aria-label="Line 587">587</a>    processor = NotificationJobProcessor()
+</span><span class="source-line" id="L588"><a href="#L588" class="line-number" aria-label="Line 588">588</a>    return await _ragnor_process_pending_jobs(
+</span><span class="source-line" id="L589"><a href="#L589" class="line-number" aria-label="Line 589">589</a>        store,
+</span><span class="source-line" id="L590"><a href="#L590" class="line-number" aria-label="Line 590">590</a>        processor,
+</span><span class="source-line" id="L591"><a href="#L591" class="line-number" aria-label="Line 591">591</a>        limit=limit,
+</span><span class="source-line" id="L592"><a href="#L592" class="line-number" aria-label="Line 592">592</a>        worker_id=worker_id,
+</span><span class="source-line" id="L593"><a href="#L593" class="line-number" aria-label="Line 593">593</a>    )
+</span><span class="source-line" id="L594"><a href="#L594" class="line-number" aria-label="Line 594">594</a>
+</span><span class="source-line" id="L595"><a href="#L595" class="line-number" aria-label="Line 595">595</a>
+</span><span class="source-line" id="L596"><a href="#L596" class="line-number" aria-label="Line 596">596</a>async def reclaim_stale_notification_jobs(
+</span><span class="source-line" id="L597"><a href="#L597" class="line-number" aria-label="Line 597">597</a>    stale_after_seconds: float | None = None,
+</span><span class="source-line" id="L598"><a href="#L598" class="line-number" aria-label="Line 598">598</a>) -&gt; int:
+</span><span class="source-line" id="L599"><a href="#L599" class="line-number" aria-label="Line 599">599</a>    &quot;&quot;&quot;Reset notification jobs abandoned in ``processing`` back to ``pending``.
+</span><span class="source-line" id="L600"><a href="#L600" class="line-number" aria-label="Line 600">600</a>
+</span><span class="source-line" id="L601"><a href="#L601" class="line-number" aria-label="Line 601">601</a>    A drainer that dies mid-delivery leaves its rows locked in ``processing``
+</span><span class="source-line" id="L602"><a href="#L602" class="line-number" aria-label="Line 602">602</a>    forever: the claim query only selects ``pending`` or retry-due ``failed`` rows,
+</span><span class="source-line" id="L603"><a href="#L603" class="line-number" aria-label="Line 603">603</a>    so no live worker can pick them up again. This reclaims rows whose
+</span><span class="source-line" id="L604"><a href="#L604" class="line-number" aria-label="Line 604">604</a>    ``locked_at`` is older than ``stale_after_seconds`` — or whose lock timestamp
+</span><span class="source-line" id="L605"><a href="#L605" class="line-number" aria-label="Line 605">605</a>    is NULL — so a replacement worker can deliver them.
+</span><span class="source-line" id="L606"><a href="#L606" class="line-number" aria-label="Line 606">606</a>
+</span><span class="source-line" id="L607"><a href="#L607" class="line-number" aria-label="Line 607">607</a>    Args:
+</span><span class="source-line" id="L608"><a href="#L608" class="line-number" aria-label="Line 608">608</a>        stale_after_seconds: Lock age in seconds that counts as abandoned.
+</span><span class="source-line" id="L609"><a href="#L609" class="line-number" aria-label="Line 609">609</a>            Defaults to ``settings.job_stale_after_seconds``.
+</span><span class="source-line" id="L610"><a href="#L610" class="line-number" aria-label="Line 610">610</a>
+</span><span class="source-line" id="L611"><a href="#L611" class="line-number" aria-label="Line 611">611</a>    Returns:
+</span><span class="source-line" id="L612"><a href="#L612" class="line-number" aria-label="Line 612">612</a>        int: Number of jobs reclaimed.
+</span><span class="source-line" id="L613"><a href="#L613" class="line-number" aria-label="Line 613">613</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L614"><a href="#L614" class="line-number" aria-label="Line 614">614</a>    if stale_after_seconds is None:
+</span><span class="source-line" id="L615"><a href="#L615" class="line-number" aria-label="Line 615">615</a>        from app.core.config import settings  # noqa: PLC0415
+</span><span class="source-line" id="L616"><a href="#L616" class="line-number" aria-label="Line 616">616</a>
+</span><span class="source-line" id="L617"><a href="#L617" class="line-number" aria-label="Line 617">617</a>        stale_after_seconds = settings.job_stale_after_seconds
+</span><span class="source-line" id="L618"><a href="#L618" class="line-number" aria-label="Line 618">618</a>
+</span><span class="source-line" id="L619"><a href="#L619" class="line-number" aria-label="Line 619">619</a>    store = NotificationJobStore()
+</span><span class="source-line" id="L620"><a href="#L620" class="line-number" aria-label="Line 620">620</a>    return await _ragnor_reclaim_stale_jobs(
+</span><span class="source-line" id="L621"><a href="#L621" class="line-number" aria-label="Line 621">621</a>        store,
+</span><span class="source-line" id="L622"><a href="#L622" class="line-number" aria-label="Line 622">622</a>        stale_after_seconds=stale_after_seconds,
+</span><span class="source-line" id="L623"><a href="#L623" class="line-number" aria-label="Line 623">623</a>    )
+</span><span class="source-line" id="L624"><a href="#L624" class="line-number" aria-label="Line 624">624</a>
+</span><span class="source-line" id="L625"><a href="#L625" class="line-number" aria-label="Line 625">625</a>
+</span><span class="source-line" id="L626"><a href="#L626" class="line-number" aria-label="Line 626">626</a>__all__ = [
+</span><span class="source-line" id="L627"><a href="#L627" class="line-number" aria-label="Line 627">627</a>    &quot;MAX_ATTEMPTS&quot;,
+</span><span class="source-line" id="L628"><a href="#L628" class="line-number" aria-label="Line 628">628</a>    &quot;NOTIFICATION_JOB_TYPES&quot;,
+</span><span class="source-line" id="L629"><a href="#L629" class="line-number" aria-label="Line 629">629</a>    &quot;NotificationJobProcessor&quot;,
+</span><span class="source-line" id="L630"><a href="#L630" class="line-number" aria-label="Line 630">630</a>    &quot;NotificationJobStore&quot;,
+</span><span class="source-line" id="L631"><a href="#L631" class="line-number" aria-label="Line 631">631</a>    &quot;deliver_notification&quot;,
+</span><span class="source-line" id="L632"><a href="#L632" class="line-number" aria-label="Line 632">632</a>    &quot;enqueue_notification_job&quot;,
+</span><span class="source-line" id="L633"><a href="#L633" class="line-number" aria-label="Line 633">633</a>    &quot;enqueue_notification_job_payload&quot;,
+</span><span class="source-line" id="L634"><a href="#L634" class="line-number" aria-label="Line 634">634</a>    &quot;process_pending_notification_jobs&quot;,
+</span><span class="source-line" id="L635"><a href="#L635" class="line-number" aria-label="Line 635">635</a>    &quot;reclaim_stale_notification_jobs&quot;,
+</span><span class="source-line" id="L636"><a href="#L636" class="line-number" aria-label="Line 636">636</a>    &quot;render_notification&quot;,
+</span><span class="source-line" id="L637"><a href="#L637" class="line-number" aria-label="Line 637">637</a>]
+</span></code></pre></main></body></html>

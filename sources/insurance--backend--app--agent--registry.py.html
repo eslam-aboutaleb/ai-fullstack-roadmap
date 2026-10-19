@@ -1,0 +1,131 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/app/agent/registry.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/app/agent/registry.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;Tool registry for the OmniCare agent.
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>The registry is the single place the agent&#x27;s toolset is
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>declared: adding a tool is one ``register`` call, with no
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>``agent.py`` edit. The agent assembly
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>(:func:`app.agent.agent.create_agent`) consumes the registry
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>through :meth:`ToolRegistry.build_tool_list`.
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>``ToolSpec.description`` is documentation-only: it never
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>reaches the model, because :meth:`ToolRegistry.build_tool_list`
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>returns just the handlers and the model sees each function&#x27;s
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>own docstring instead. The model-facing contract therefore
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>lives in the tool docstrings and ``SYSTEM_INSTRUCTION``, not
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>here.
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>from __future__ import annotations
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>from collections.abc import Callable
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>from dataclasses import dataclass, field
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>from typing import Any
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>from app.agent.tools.claim_status import get_claim_status
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>from app.agent.tools.submit_claim import prepare_claim_submission
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>from app.domain.claims.tools import search_claims
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>from app.domain.policies.tools import query_policy
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>from app.domain.procedures.tools import get_procedure
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>@dataclass
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>class ToolSpec:
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>    &quot;&quot;&quot;A single agent tool declaration.
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>    Attributes:
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>        name: Tool name the model invokes.
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>        description: What the tool does (for registry
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>            consumers and documentation).
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>        handler: The async tool function.
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>        metadata: Optional annotations (e.g.
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>            ``requires_auth``, scopes).
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>    name: str
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>    description: str
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>    handler: Callable[..., Any]
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>    metadata: dict[str, Any] = field(default_factory=dict)
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>class ToolRegistry:
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>    &quot;&quot;&quot;Registry of the agent&#x27;s tools.&quot;&quot;&quot;
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>    def __init__(self) -&gt; None:
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>        self._tools: dict[str, ToolSpec] = {}
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>    def register(self, spec: ToolSpec) -&gt; None:
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>        &quot;&quot;&quot;Register a tool (the last registration wins per name).&quot;&quot;&quot;
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>        self._tools[spec.name] = spec
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>    def get(self, name: str) -&gt; ToolSpec:
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>        &quot;&quot;&quot;Return the tool registered under ``name``.&quot;&quot;&quot;
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>        try:
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>            return self._tools[name]
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>        except KeyError:
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>            raise KeyError(f&quot;Unknown tool: {name}&quot;) from None
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>    def build_tool_list(self) -&gt; list[Callable[..., Any]]:
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>        &quot;&quot;&quot;Return the registered handlers in registration order.&quot;&quot;&quot;
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>        return [spec.handler for spec in self._tools.values()]
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>def build_default_registry() -&gt; ToolRegistry:
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>    &quot;&quot;&quot;Register the five OmniCare tools.
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>    Returns:
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>        A registry with ``query_policy``, ``get_claim_status``,
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>        ``search_claims``, ``prepare_claim_submission``, and
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>        ``get_procedure``.
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>    registry = ToolRegistry()
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    registry.register(
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>        ToolSpec(
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>            name=&quot;query_policy&quot;,
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>            description=(
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>                &quot;Search OmniCare insurance policy documents to answer coverage questions.&quot;
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>            ),
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>            handler=query_policy,
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>            metadata={&quot;requires_auth&quot;: True},
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>        )
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    )
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>    registry.register(
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>        ToolSpec(
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>            name=&quot;get_claim_status&quot;,
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>            description=(
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>                &quot;Look up the status of an existing claim by its claim ID when the &quot;
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>                &quot;user already knows it; a returned found=false means no such &quot;
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>                &quot;claim exists and must not be treated as one.&quot;
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>            ),
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>            handler=get_claim_status,
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>            metadata={&quot;requires_auth&quot;: True},
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>        )
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>    )
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>    registry.register(
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>        ToolSpec(
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>            name=&quot;search_claims&quot;,
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>            description=(&quot;Search the authenticated user&#x27;s claims history using natural language.&quot;),
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>            handler=search_claims,
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>            metadata={&quot;requires_auth&quot;: True},
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>        )
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>    )
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>    registry.register(
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>        ToolSpec(
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>            name=&quot;prepare_claim_submission&quot;,
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>            description=&quot;Validate and prepare a claim submission for confirmation.&quot;,
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>            handler=prepare_claim_submission,
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>            metadata={&quot;requires_auth&quot;: True},
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>        )
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>    )
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>    registry.register(
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>        ToolSpec(
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>            name=&quot;get_procedure&quot;,
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>            description=(
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>                &quot;Load a domain procedure playbook (coverage-review or claim-triage) &quot;
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>                &quot;from the procedures index before making a coverage determination &quot;
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>                &quot;or routing an unclear request.&quot;
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>            ),
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>            handler=get_procedure,
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>            metadata={&quot;requires_auth&quot;: True},
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>        )
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>    )
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>    return registry
+</span></code></pre></main></body></html>

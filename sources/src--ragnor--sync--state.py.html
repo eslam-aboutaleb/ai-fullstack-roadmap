@@ -1,0 +1,214 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/ragnor/sync/state.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>src/ragnor/sync/state.py</h1><p>Frozen repository source at e57f6468d334190d519df375e5feeb6149031da2. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;Sync state store and fencing token protocols for distributed coordination.
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>Guarantees mutual exclusion and monotonic fencing epochs per scope, prevents
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>stale workers from activating obsolete revisions or writing checkpoints,
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>and tracks collection generations.
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>from __future__ import annotations
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>import asyncio
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>from collections.abc import AsyncIterator
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>from contextlib import asynccontextmanager, AbstractAsyncContextManager
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>from dataclasses import dataclass
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>import time
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>from typing import Any, Protocol, runtime_checkable
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>@dataclass
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>class FenceToken:
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>    &quot;&quot;&quot;Monotonic fencing token and lease proof for a specific sync scope.
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>    Attributes:
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>        scope: Scoped namespace, collection, or source identifier.
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>        owner: Unique worker or coordinator identifier.
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>        epoch: Monotonically increasing epoch number.
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>        lease_expires_at: Epoch timestamp (seconds) when lease expires.
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>    scope: str
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>    owner: str
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>    epoch: int
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>    lease_expires_at: float
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>    def is_valid(self, now: float | None = None) -&gt; bool:
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>        &quot;&quot;&quot;Check if lease has not yet expired.&quot;&quot;&quot;
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>        if now is None:
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>            now = time.time()
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>        return self.lease_expires_at &gt; now
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>@runtime_checkable
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>class SyncStateStore(Protocol):
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>    &quot;&quot;&quot;Storage seam for coordination leases, fencing tokens, and checkpoints.&quot;&quot;&quot;
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>    async def acquire_lease(
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>        self, scope: str, owner: str, ttl_seconds: float = 30.0
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>    ) -&gt; FenceToken | None:
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>        &quot;&quot;&quot;Acquire a scoped lease with an incremented epoch.
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>        Returns FenceToken if acquired, None if lease is currently held by an active worker.
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>        &quot;&quot;&quot;
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>        ...
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>    async def renew_lease(self, token: FenceToken, ttl_seconds: float = 30.0) -&gt; FenceToken | None:
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>        &quot;&quot;&quot;Renew lease expiry if the fencing token is still valid and active.&quot;&quot;&quot;
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>        ...
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>    async def release_lease(self, token: FenceToken) -&gt; bool:
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>        &quot;&quot;&quot;Release the lease if held by the given fencing token.&quot;&quot;&quot;
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>        ...
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>    async def validate_token(self, token: FenceToken) -&gt; bool:
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>        &quot;&quot;&quot;Verify that the token&#x27;s epoch and owner match the active valid lease.&quot;&quot;&quot;
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>        ...
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>    async def get_active_generation(self, scope: str) -&gt; int:
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>        &quot;&quot;&quot;Get the current collection-level active generation for the scope.&quot;&quot;&quot;
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>        ...
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>    async def advance_generation(self, scope: str, expected_generation: int) -&gt; int:
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>        &quot;&quot;&quot;Atomically advance the collection active generation if matching expected.&quot;&quot;&quot;
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>        ...
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>    async def get_checkpoint(self, scope: str) -&gt; dict[str, Any] | None:
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>        &quot;&quot;&quot;Retrieve the last committed sync checkpoint for the scope.&quot;&quot;&quot;
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>        ...
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>    async def save_checkpoint(
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>        self, scope: str, checkpoint: dict[str, Any], token: FenceToken
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    ) -&gt; bool:
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>        &quot;&quot;&quot;Persist a checkpoint guarded by the active fencing token.&quot;&quot;&quot;
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>        ...
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>    def fenced(self, token: FenceToken) -&gt; AbstractAsyncContextManager[None]:
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>        &quot;&quot;&quot;Exclude lease takeover while committing, and reject invalid tokens.
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>        Durable adapters must provide an equivalent transaction/advisory lock;
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>        a separate token check followed by an unguarded write is insufficient.
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>        &quot;&quot;&quot;
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>        ...
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>class InMemorySyncStateStore:
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>    &quot;&quot;&quot;Thread-safe and async-safe in-memory SyncStateStore.&quot;&quot;&quot;
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>    def __init__(self) -&gt; None:
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>        self._leases: dict[str, FenceToken] = {}
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>        self._epochs: dict[str, int] = {}
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>        self._generations: dict[str, int] = {}
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>        self._checkpoints: dict[str, dict[str, Any]] = {}
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>        self._lock = asyncio.Lock()
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>        self._scope_locks: dict[str, asyncio.Lock] = {}
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>        self._guarded: set[tuple[str, int]] = set()
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>    @asynccontextmanager
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>    async def fenced(self, token: FenceToken) -&gt; AsyncIterator[None]:
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>        async with self._scope_locks.setdefault(token.scope, asyncio.Lock()):
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>            if not await self.validate_token(token):
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>                raise ValueError(&quot;Expired or superseded fencing token&quot;)
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>            self._guarded.add((token.scope, token.epoch))
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>            try:
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>                yield
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>            finally:
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>                self._guarded.discard((token.scope, token.epoch))
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>    async def acquire_lease(
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>        self, scope: str, owner: str, ttl_seconds: float = 30.0
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>    ) -&gt; FenceToken | None:
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>        async with self._scope_locks.setdefault(scope, asyncio.Lock()), self._lock:
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>            now = time.time()
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>            current_lease = self._leases.get(scope)
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>            if current_lease is not None and current_lease.is_valid(now):
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>                return None
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>            epoch = self._epochs.get(scope, 0) + 1
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>            self._epochs[scope] = epoch
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>            token = FenceToken(
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>                scope=scope,
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>                owner=owner,
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>                epoch=epoch,
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>                lease_expires_at=now + ttl_seconds,
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>            )
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>            self._leases[scope] = token
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>            if scope not in self._generations:
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>                self._generations[scope] = 1
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>            return token
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>    async def renew_lease(self, token: FenceToken, ttl_seconds: float = 30.0) -&gt; FenceToken | None:
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>        async with self._lock:
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>            now = time.time()
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>            current = self._leases.get(token.scope)
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>            if (
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>                current is None
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>                or current.owner != token.owner
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>                or current.epoch != token.epoch
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>                or not current.is_valid(now)
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>            ):
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>                return None
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>            renewed = FenceToken(
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>                scope=token.scope,
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>                owner=token.owner,
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>                epoch=token.epoch,
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>                lease_expires_at=now + ttl_seconds,
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>            )
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>            self._leases[token.scope] = renewed
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>            return renewed
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>    async def release_lease(self, token: FenceToken) -&gt; bool:
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>        async with self._lock:
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>            current = self._leases.get(token.scope)
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>            if (
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>                current is not None
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>                and current.owner == token.owner
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>                and current.epoch == token.epoch
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>            ):
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>                del self._leases[token.scope]
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>                return True
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>            return False
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>    async def validate_token(self, token: FenceToken) -&gt; bool:
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>        async with self._lock:
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>            now = time.time()
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>            current = self._leases.get(token.scope)
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>            return (
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>                current is not None
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>                and current.owner == token.owner
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>                and current.epoch == token.epoch
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>                and current.is_valid(now)
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>            )
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>    async def get_active_generation(self, scope: str) -&gt; int:
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>        async with self._lock:
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>            return self._generations.get(scope, 1)
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>    async def advance_generation(self, scope: str, expected_generation: int) -&gt; int:
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>        async with self._lock:
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>            current = self._generations.get(scope, 1)
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>            if current != expected_generation:
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>                return -1
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>            self._generations[scope] = current + 1
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>            return self._generations[scope]
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>    async def get_checkpoint(self, scope: str) -&gt; dict[str, Any] | None:
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>        async with self._lock:
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>            cp = self._checkpoints.get(scope)
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>            return dict(cp) if cp is not None else None
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>    async def save_checkpoint(
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>        self, scope: str, checkpoint: dict[str, Any], token: FenceToken
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>    ) -&gt; bool:
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>        async with self._lock:
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>            now = time.time()
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>            current = self._leases.get(scope)
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>            if (
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>                current is None
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>                or current.owner != token.owner
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>                or current.epoch != token.epoch
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>                or (not current.is_valid(now) and (scope, token.epoch) not in self._guarded)
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>            ):
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>                return False
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>            self._checkpoints[scope] = dict(checkpoint)
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>            return True
+</span></code></pre></main></body></html>

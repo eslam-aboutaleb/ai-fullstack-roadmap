@@ -1,0 +1,217 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/ragnor/mcp/server.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>src/ragnor/mcp/server.py</h1><p>Frozen repository source at e57f6468d334190d519df375e5feeb6149031da2. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;MCP (Model Context Protocol) server adapter for ragnor.
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>Exposes KnowledgeBridge retrieval, source verification, and status tools
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>over MCP stdio or remote transports.
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>from __future__ import annotations
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>import logging
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>from collections.abc import Callable
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>from typing import Any
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>from ragnor.tools.bridge import KnowledgeBridge
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>logger = logging.getLogger(__name__)
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a># Detect available MCP SDK versions (mcp 2.x MCPServer vs mcp 1.x FastMCP)
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>_MCPServerClass: Any = None
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>try:
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>    from mcp.server.mcpserver import MCPServer
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>    _MCPServerClass = MCPServer
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>except (ImportError, ModuleNotFoundError):
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>    try:
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>        from mcp.server.fastmcp import FastMCP  # type: ignore[no-redef]
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>        _MCPServerClass = FastMCP
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>    except (ImportError, ModuleNotFoundError):
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>        _MCPServerClass = None
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>def create_mcp_server(  # noqa: PLR0913
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>    bridge: KnowledgeBridge,
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>    name: str = &quot;ragnor-knowledge&quot;,
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>    *,
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>    enable_management_tools: bool = False,
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>    server_class: Any | None = None,
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>    client_id: str | None = None,
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>    client_id_provider: Callable[[], str | None] | None = None,
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>) -&gt; Any:
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>    &quot;&quot;&quot;Create and configure an MCP server instance wrapping a KnowledgeBridge.
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>    By default, only read tools (search_knowledge, get_source, knowledge_status)
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>    are registered. Ingestion/sync and revocation are separate opt-in management
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>    tools enabled only when :paramref:`enable_management_tools` is True and the
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>    bridge&#x27;s allow_management flag is set.
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>    Args:
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>        bridge: The configured :class:`KnowledgeBridge`.
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>        name: MCP server name reported during initialization.
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>        enable_management_tools: If True, registers sync and deletion tools.
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>        server_class: Optional override class for MCPServer / FastMCP.
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>    Returns:
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>        Configured MCPServer or FastMCP instance.
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>    Raises:
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>        ImportError: If the official &#x27;mcp&#x27; SDK is not installed and no server_class is given.
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>    cls = server_class or _MCPServerClass
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>    if cls is None:
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>        raise ImportError(
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>            &quot;The MCP server adapter requires the &#x27;mcp&#x27; package. &quot;
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>            &quot;Install it with: pip install &#x27;ragnor[mcp]&#x27; or pip install &#x27;mcp&gt;=1.0.0&#x27;&quot;
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>        )
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>    server = cls(name)
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>    def identity() -&gt; str | None:
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>        # The provider is trusted host code, never a model-supplied tool argument.
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>        if client_id_provider is not None:
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>            return client_id_provider()
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>        try:
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>            from mcp.server.auth.middleware.auth_context import get_access_token  # noqa: PLC0415
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>        except ImportError:
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>            return client_id
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>        token = get_access_token()
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>        return token.client_id if token is not None else client_id
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    # search_knowledge tool
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>    @server.tool(
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>        name=&quot;search_knowledge&quot;,
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>        description=(
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>            &quot;Execute authorized hybrid search across indexed knowledge collections. &quot;
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>            &quot;Returns a structured EvidenceBundle containing deduplicated evidence items, &quot;
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>            &quot;stable source/revision citations, and token budget accounting.&quot;
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>        ),
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>    )
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    async def search_knowledge(  # noqa: PLR0913, PLR0917
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>        query: str,
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>        collection: str = bridge.default_collection,
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>        filters: dict[str, Any] | None = None,
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>        candidate_k: int = 20,
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>        final_k: int = 5,
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>        budget_limit: int | None = None,
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>        scope: str | None = None,
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>    ) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>        &quot;&quot;&quot;Search knowledge collection with budget limits and tenant isolation.&quot;&quot;&quot;
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>        bundle = await bridge.search_knowledge(
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>            client_id=identity(),
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>            query=query,
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>            collection=collection,
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>            filters=filters,
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>            candidate_k=candidate_k,
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>            final_k=final_k,
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>            budget_limit=budget_limit,
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>            scope=scope,
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>        )
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>        return bundle.to_dict()
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>    # get_source tool
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>    @server.tool(
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>        name=&quot;get_source&quot;,
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>        description=(
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>            &quot;Fetch an authorized, bounded text span and revision metadata from an immutable &quot;
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>            &quot;document snapshot. Prevents substituting newer content for old citations.&quot;
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>        ),
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>    )
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>    async def get_source(  # noqa: PLR0913, PLR0917
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>        source_ref: str,
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>        document_id: str | None = None,
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>        revision: str = &quot;v1&quot;,
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>        start_offset: int | None = None,
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>        end_offset: int | None = None,
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>        max_span_length: int | None = None,
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>        collection: str = bridge.default_collection,
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>        scope: str | None = None,
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>    ) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>        &quot;&quot;&quot;Fetch bounded source span for citation verification.&quot;&quot;&quot;
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>        span_result = await bridge.get_source(
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>            client_id=identity(),
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>            source_ref=source_ref,
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>            document_id=document_id,
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>            revision=revision,
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>            start_offset=start_offset,
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>            end_offset=end_offset,
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>            max_span_length=max_span_length,
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>            collection=collection,
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>            scope=scope,
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>        )
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>        return span_result.to_dict()
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>    # knowledge_status tool
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>    @server.tool(
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>        name=&quot;knowledge_status&quot;,
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>        description=(
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>            &quot;Inspect sanitized health, document count, and freshness summary for an &quot;
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>            &quot;authorized knowledge collection. Does not expose internal connection credentials.&quot;
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>        ),
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>    )
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>    async def knowledge_status(
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>        collection: str = bridge.default_collection,
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>        scope: str | None = None,
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>        include_expensive: bool = False,
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>    ) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>        &quot;&quot;&quot;Retrieve sanitized status summary for a collection.&quot;&quot;&quot;
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>        return await bridge.knowledge_status(
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>            client_id=identity(),
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>            collection=collection,
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>            scope=scope,
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>            include_expensive=include_expensive,
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>        )
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>    # Opt-in management tools
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>    if enable_management_tools:
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>        if not bridge.allow_management:
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>            logger.warning(
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>                &quot;enable_management_tools=True was requested on MCP server, but &quot;
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>                &quot;bridge.allow_management is False. Management calls will be rejected.&quot;
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>            )
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>        @server.tool(
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>            name=&quot;sync_collection&quot;,
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>            description=(
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>                &quot;Ingest and sync document batches into a knowledge collection. &quot;
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>                &quot;Guarded by host management permissions.&quot;
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>            ),
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>        )
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>        async def sync_collection(
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>            collection: str,
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>            source_id: str,
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>            documents: list[dict[str, Any]],
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>            scope: str | None = None,
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>        ) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>            &quot;&quot;&quot;Ingest document batches into collection.&quot;&quot;&quot;
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>            return await bridge.sync_collection(
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>                client_id=identity(),
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>                collection=collection,
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>                source_id=source_id,
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>                documents=documents,
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>                scope=scope,
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>            )
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>        @server.tool(
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>            name=&quot;revoke_document&quot;,
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>            description=(
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>                &quot;Authoritatively remove/revoke a document and its active chunks from search. &quot;
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>                &quot;Guarded by host management permissions.&quot;
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>            ),
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>        )
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>        async def revoke_document(
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>            collection: str,
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>            document_id: str,
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>            source_id: str = &quot;default_source&quot;,
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>            scope: str | None = None,
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>        ) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>            &quot;&quot;&quot;Revoke document from active search visibility.&quot;&quot;&quot;
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>            return await bridge.revoke_document(
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>                client_id=identity(),
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>                collection=collection,
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>                document_id=document_id,
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>                source_id=source_id,
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>                scope=scope,
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>            )
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>    return server
+</span></code></pre></main></body></html>

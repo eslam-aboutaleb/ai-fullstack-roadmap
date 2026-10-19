@@ -1,0 +1,661 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/ragnor/sync/coordinator.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>src/ragnor/sync/coordinator.py</h1><p>Frozen repository source at e57f6468d334190d519df375e5feeb6149031da2. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;Sync coordinator orchestrating 7-step manifest-driven sync algorithm.
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>Enforces:
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>1. Scoped leases and fencing tokens.
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>2. Bounded scan observation checkpoints.
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>3. Revision hint vs content hash planning.
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>4. Bounded batch embedding and chunk generation staging.
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>5. CAS/fencing activation at document or collection level.
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>6. Authoritative coverage tombstone enforcement.
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>7. Outbox deduplication, async GC, and lease release.
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>from __future__ import annotations
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>import asyncio
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>from dataclasses import dataclass, field, replace
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>from enum import StrEnum
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>import hashlib
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>import json
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>import inspect
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>import math
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>from contextlib import suppress
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>from types import SimpleNamespace
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>from uuid import uuid4
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>import logging
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>import time
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>from collections.abc import Sequence
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>from ragnor.chunking.base import Chunker
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>from ragnor.config import RagSettings
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>from ragnor.embeddings.base import EmbeddingFunction
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>from ragnor.embeddings.dimensions import get_embedding_dimension
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>from ragnor.ingestion.connector_core import LoadResult, collect_pages, _error_record
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>from ragnor.embeddings._safe_config import safe_config
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>from ragnor.ingestion.sources import RawDocument
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>from ragnor.stores.base import VectorStore
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>from ragnor.sync.manifest import ManifestRecord, ManifestStatus, ManifestStore
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>from ragnor.sync.state import SyncStateStore, FenceToken
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>from ragnor.telemetry.events import EventKind, EventSink, NullEventSink, TelemetryEvent
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>from ragnor.validation import validate_embedding
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>if TYPE_CHECKING:
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>    from ragnor.jobs.outbox import EmbeddingJobStore
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>logger = logging.getLogger(__name__)
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>class SyncError(Exception):
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>    &quot;&quot;&quot;Base error for sync operations.&quot;&quot;&quot;
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>class LeaseAcquisitionError(SyncError):
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>    &quot;&quot;&quot;Could not acquire lease for sync scope.&quot;&quot;&quot;
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>class StaleWorkerError(SyncError):
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>    &quot;&quot;&quot;Worker fencing token expired or superseded by another epoch.&quot;&quot;&quot;
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>class FencingError(SyncError):
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>    &quot;&quot;&quot;CAS update or fencing validation failed.&quot;&quot;&quot;
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>class ActivationMode(StrEnum):
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>    &quot;&quot;&quot;Activation granularity for staged documents.&quot;&quot;&quot;
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>    DOCUMENT = &quot;document&quot;
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>    COLLECTION = &quot;collection&quot;
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>@dataclass
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>class SyncPlanItem:
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>    &quot;&quot;&quot;An individual item in the sync plan.&quot;&quot;&quot;
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>    document_id: str
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>    action: str  # &quot;added&quot;, &quot;changed&quot;, &quot;unchanged&quot;, &quot;removed&quot;, &quot;metadata_only&quot;
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>    raw_document: RawDocument | None = None
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>    content_hash: str = &quot;&quot;
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    observed_revision: str | None = None
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>    artifacts: list[RawDocument] = field(default_factory=list)
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>    expected_fence: int = 0
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>@dataclass
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>class SyncPlan:
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>    &quot;&quot;&quot;Plan of document updates derived from scan comparison.&quot;&quot;&quot;
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    added: list[SyncPlanItem] = field(default_factory=list)
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>    changed: list[SyncPlanItem] = field(default_factory=list)
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>    unchanged: list[SyncPlanItem] = field(default_factory=list)
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>    removed: list[SyncPlanItem] = field(default_factory=list)
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>    metadata_only: list[SyncPlanItem] = field(default_factory=list)
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>    @property
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>    def total_mutations(self) -&gt; int:
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>        return len(self.added) + len(self.changed) + len(self.removed) + len(self.metadata_only)
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>@dataclass
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>class SyncReport:
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>    &quot;&quot;&quot;Summary report of a completed or failed sync execution.&quot;&quot;&quot;
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>    scope: str
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>    success: bool
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>    added_count: int = 0
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>    changed_count: int = 0
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>    unchanged_count: int = 0
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>    removed_count: int = 0
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>    metadata_only_count: int = 0
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>    embedded_count: int = 0
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>    chunk_count: int = 0
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>    active_generation: int = 1
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>    fence_epoch: int = 0
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>    authoritative: bool = True
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>    errors: list[dict[str, Any]] = field(default_factory=list)
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>@runtime_checkable
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>class SyncCoordinator(Protocol):
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>    &quot;&quot;&quot;Protocol for synchronizing documents within a scope.&quot;&quot;&quot;
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>    async def run_sync(
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>        self,
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>        scope: str,
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>        source: Any,
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>        is_authoritative: bool | None = None,
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>        cursor: Any = None,
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>        limit: int | None = None,
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>    ) -&gt; SyncReport:
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>        &quot;&quot;&quot;Execute a full sync for the given scope and source.&quot;&quot;&quot;
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>        ...
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>    async def plan(
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>        self,
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>        scope: str,
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>        documents: Sequence[RawDocument],
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>        is_authoritative: bool = True,
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>    ) -&gt; SyncPlan:
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>        &quot;&quot;&quot;Compute the sync plan for documents without applying mutations.&quot;&quot;&quot;
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>        ...
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>    async def revoke_access(self, scope: str, document_id: str) -&gt; bool:
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>        &quot;&quot;&quot;Immediately tombstone and hide a document for privacy/access revocation.&quot;&quot;&quot;
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>        ...
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>    async def garbage_collect(self, scope: str, retired_chunk_ids: list[str] | None = None) -&gt; int:
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>        &quot;&quot;&quot;Clean up retired chunk vectors from storage.&quot;&quot;&quot;
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>        ...
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>class DefaultSyncCoordinator:
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>    &quot;&quot;&quot;Prepare immutable vectors, then publish their manifest under a fenced commit.
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>    Active records are never overwritten by staging. Readers gate immutable chunk
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>    IDs through the manifest, so prepublished vectors remain invisible until CAS.
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>    Collection mode requires an atomic manifest batch commit.
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>    def __init__(  # noqa: PLR0913, PLR0917
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>        self,
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>        manifest_store: ManifestStore,
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>        state_store: SyncStateStore,
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>        vector_store: VectorStore,
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>        embedder: EmbeddingFunction,
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>        chunker: Chunker,
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>        settings: RagSettings,
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>        job_store: EmbeddingJobStore | None = None,
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>        worker_id: str = &quot;worker-1&quot;,
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>        batch_size: int = 32,
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>        lease_ttl_seconds: float = 30.0,
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>        activation_mode: ActivationMode = ActivationMode.DOCUMENT,
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>        event_sink: EventSink | None = None,
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>    ) -&gt; None:
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>        if not math.isfinite(lease_ttl_seconds) or lease_ttl_seconds &lt;= 0:
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>            raise ValueError(&quot;lease_ttl_seconds must be positive and finite&quot;)
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>        self._manifest_store = manifest_store
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>        self._state_store = state_store
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>        self._vector_store = vector_store
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>        self._embedder = embedder
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>        self._chunker = chunker
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>        self._settings = settings
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>        self._job_store = job_store
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>        self._worker_id = worker_id
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>        self._batch_size = max(1, batch_size)
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>        self._lease_ttl_seconds = lease_ttl_seconds
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>        self._activation_mode = ActivationMode(activation_mode)
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>        self._event_sink = event_sink or NullEventSink()
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>    @staticmethod
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>    def _fingerprint(value: Any) -&gt; str:
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>        canonical = json.dumps(safe_config(value), sort_keys=True, separators=(&quot;,&quot;, &quot;:&quot;))
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>        return hashlib.sha256(canonical.encode()).hexdigest()
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>    def _chunker_fingerprint(self) -&gt; str:
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>        config = getattr(self._chunker, &quot;config&quot;, None)
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>        if config is None:
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>            config = {key: getattr(self._chunker, key, None) for key in (&quot;chunk_size&quot;, &quot;overlap&quot;)}
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>        return self._fingerprint(
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>            {
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>                &quot;type&quot;: type(self._chunker).__qualname__,
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>                &quot;version&quot;: getattr(self._chunker, &quot;version&quot;, None),
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>                &quot;config&quot;: config,
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>            }
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>        )
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>    def _embedding_fingerprint(self) -&gt; str:
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>        profile = getattr(self._embedder, &quot;profile&quot;, None)
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>        if profile is not None:
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>            return profile.canonical_hash()
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>        model = self._settings.embedding_model
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>        return f&quot;{model}:{get_embedding_dimension(model)}&quot;
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>    def _extractor_fingerprint(self, doc: RawDocument) -&gt; str:
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>        return self._fingerprint([doc.extractor, doc.metadata.get(&quot;extraction&quot;)])
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>
+</span><span class="source-line" id="L217"><a href="#L217" class="line-number" aria-label="Line 217">217</a>    @staticmethod
+</span><span class="source-line" id="L218"><a href="#L218" class="line-number" aria-label="Line 218">218</a>    def _compute_hash(text: str) -&gt; str:
+</span><span class="source-line" id="L219"><a href="#L219" class="line-number" aria-label="Line 219">219</a>        return hashlib.sha256(text.encode()).hexdigest()
+</span><span class="source-line" id="L220"><a href="#L220" class="line-number" aria-label="Line 220">220</a>
+</span><span class="source-line" id="L221"><a href="#L221" class="line-number" aria-label="Line 221">221</a>    @staticmethod
+</span><span class="source-line" id="L222"><a href="#L222" class="line-number" aria-label="Line 222">222</a>    def _group_documents(
+</span><span class="source-line" id="L223"><a href="#L223" class="line-number" aria-label="Line 223">223</a>        documents: Sequence[RawDocument],
+</span><span class="source-line" id="L224"><a href="#L224" class="line-number" aria-label="Line 224">224</a>    ) -&gt; list[tuple[RawDocument, list[RawDocument]]]:
+</span><span class="source-line" id="L225"><a href="#L225" class="line-number" aria-label="Line 225">225</a>        groups: dict[str, list[RawDocument]] = {}
+</span><span class="source-line" id="L226"><a href="#L226" class="line-number" aria-label="Line 226">226</a>        for doc in documents:
+</span><span class="source-line" id="L227"><a href="#L227" class="line-number" aria-label="Line 227">227</a>            groups.setdefault(doc.external_id or doc.source_name, []).append(doc)
+</span><span class="source-line" id="L228"><a href="#L228" class="line-number" aria-label="Line 228">228</a>        grouped = []
+</span><span class="source-line" id="L229"><a href="#L229" class="line-number" aria-label="Line 229">229</a>        for artifacts in groups.values():
+</span><span class="source-line" id="L230"><a href="#L230" class="line-number" aria-label="Line 230">230</a>            if len(artifacts) == 1:
+</span><span class="source-line" id="L231"><a href="#L231" class="line-number" aria-label="Line 231">231</a>                grouped.append((artifacts[0], artifacts))
+</span><span class="source-line" id="L232"><a href="#L232" class="line-number" aria-label="Line 232">232</a>                continue
+</span><span class="source-line" id="L233"><a href="#L233" class="line-number" aria-label="Line 233">233</a>            locations = [json.dumps(safe_config(doc.location), sort_keys=True) for doc in artifacts]
+</span><span class="source-line" id="L234"><a href="#L234" class="line-number" aria-label="Line 234">234</a>            if any(doc.location is None for doc in artifacts) or len(set(locations)) != len(
+</span><span class="source-line" id="L235"><a href="#L235" class="line-number" aria-label="Line 235">235</a>                locations
+</span><span class="source-line" id="L236"><a href="#L236" class="line-number" aria-label="Line 236">236</a>            ):
+</span><span class="source-line" id="L237"><a href="#L237" class="line-number" aria-label="Line 237">237</a>                raise ValueError(&quot;Duplicate document artifacts require distinct locations&quot;)
+</span><span class="source-line" id="L238"><a href="#L238" class="line-number" aria-label="Line 238">238</a>            ordered_artifacts = sorted(
+</span><span class="source-line" id="L239"><a href="#L239" class="line-number" aria-label="Line 239">239</a>                artifacts,
+</span><span class="source-line" id="L240"><a href="#L240" class="line-number" aria-label="Line 240">240</a>                key=lambda doc: (
+</span><span class="source-line" id="L241"><a href="#L241" class="line-number" aria-label="Line 241">241</a>                    (0, doc.location[&quot;page&quot;])
+</span><span class="source-line" id="L242"><a href="#L242" class="line-number" aria-label="Line 242">242</a>                    if isinstance(doc.location, dict) and isinstance(doc.location.get(&quot;page&quot;), int)
+</span><span class="source-line" id="L243"><a href="#L243" class="line-number" aria-label="Line 243">243</a>                    else (1, json.dumps(safe_config(doc.location), sort_keys=True))
+</span><span class="source-line" id="L244"><a href="#L244" class="line-number" aria-label="Line 244">244</a>                ),
+</span><span class="source-line" id="L245"><a href="#L245" class="line-number" aria-label="Line 245">245</a>            )
+</span><span class="source-line" id="L246"><a href="#L246" class="line-number" aria-label="Line 246">246</a>            grouped.append(
+</span><span class="source-line" id="L247"><a href="#L247" class="line-number" aria-label="Line 247">247</a>                (
+</span><span class="source-line" id="L248"><a href="#L248" class="line-number" aria-label="Line 248">248</a>                    replace(
+</span><span class="source-line" id="L249"><a href="#L249" class="line-number" aria-label="Line 249">249</a>                        ordered_artifacts[0],
+</span><span class="source-line" id="L250"><a href="#L250" class="line-number" aria-label="Line 250">250</a>                        content=&quot;\n\n&quot;.join(doc.content for doc in ordered_artifacts),
+</span><span class="source-line" id="L251"><a href="#L251" class="line-number" aria-label="Line 251">251</a>                    ),
+</span><span class="source-line" id="L252"><a href="#L252" class="line-number" aria-label="Line 252">252</a>                    ordered_artifacts,
+</span><span class="source-line" id="L253"><a href="#L253" class="line-number" aria-label="Line 253">253</a>                )
+</span><span class="source-line" id="L254"><a href="#L254" class="line-number" aria-label="Line 254">254</a>            )
+</span><span class="source-line" id="L255"><a href="#L255" class="line-number" aria-label="Line 255">255</a>        return grouped
+</span><span class="source-line" id="L256"><a href="#L256" class="line-number" aria-label="Line 256">256</a>
+</span><span class="source-line" id="L257"><a href="#L257" class="line-number" aria-label="Line 257">257</a>    async def plan(
+</span><span class="source-line" id="L258"><a href="#L258" class="line-number" aria-label="Line 258">258</a>        self, scope: str, documents: Sequence[RawDocument], is_authoritative: bool = True
+</span><span class="source-line" id="L259"><a href="#L259" class="line-number" aria-label="Line 259">259</a>    ) -&gt; SyncPlan:
+</span><span class="source-line" id="L260"><a href="#L260" class="line-number" aria-label="Line 260">260</a>        plan = SyncPlan()
+</span><span class="source-line" id="L261"><a href="#L261" class="line-number" aria-label="Line 261">261</a>        seen_ids: set[str] = set()
+</span><span class="source-line" id="L262"><a href="#L262" class="line-number" aria-label="Line 262">262</a>        for doc, artifacts in self._group_documents(documents):
+</span><span class="source-line" id="L263"><a href="#L263" class="line-number" aria-label="Line 263">263</a>            doc_id = doc.external_id or doc.source_name
+</span><span class="source-line" id="L264"><a href="#L264" class="line-number" aria-label="Line 264">264</a>            seen_ids.add(doc_id)
+</span><span class="source-line" id="L265"><a href="#L265" class="line-number" aria-label="Line 265">265</a>            chash = (
+</span><span class="source-line" id="L266"><a href="#L266" class="line-number" aria-label="Line 266">266</a>                self._compute_hash(doc.content)
+</span><span class="source-line" id="L267"><a href="#L267" class="line-number" aria-label="Line 267">267</a>                if len(artifacts) == 1
+</span><span class="source-line" id="L268"><a href="#L268" class="line-number" aria-label="Line 268">268</a>                else self._fingerprint(
+</span><span class="source-line" id="L269"><a href="#L269" class="line-number" aria-label="Line 269">269</a>                    [[artifact.location, artifact.content] for artifact in artifacts]
+</span><span class="source-line" id="L270"><a href="#L270" class="line-number" aria-label="Line 270">270</a>                )
+</span><span class="source-line" id="L271"><a href="#L271" class="line-number" aria-label="Line 271">271</a>            )
+</span><span class="source-line" id="L272"><a href="#L272" class="line-number" aria-label="Line 272">272</a>            rev = (
+</span><span class="source-line" id="L273"><a href="#L273" class="line-number" aria-label="Line 273">273</a>                doc.metadata.get(&quot;revision&quot;)
+</span><span class="source-line" id="L274"><a href="#L274" class="line-number" aria-label="Line 274">274</a>                or doc.metadata.get(&quot;etag&quot;)
+</span><span class="source-line" id="L275"><a href="#L275" class="line-number" aria-label="Line 275">275</a>                or doc.metadata.get(&quot;version&quot;)
+</span><span class="source-line" id="L276"><a href="#L276" class="line-number" aria-label="Line 276">276</a>            )
+</span><span class="source-line" id="L277"><a href="#L277" class="line-number" aria-label="Line 277">277</a>            existing = await self._manifest_store.get(scope, doc_id)
+</span><span class="source-line" id="L278"><a href="#L278" class="line-number" aria-label="Line 278">278</a>            if existing is None or existing.status == ManifestStatus.TOMBSTONED:
+</span><span class="source-line" id="L279"><a href="#L279" class="line-number" aria-label="Line 279">279</a>                action = &quot;added&quot;
+</span><span class="source-line" id="L280"><a href="#L280" class="line-number" aria-label="Line 280">280</a>            elif (
+</span><span class="source-line" id="L281"><a href="#L281" class="line-number" aria-label="Line 281">281</a>                existing.status != ManifestStatus.ACTIVE
+</span><span class="source-line" id="L282"><a href="#L282" class="line-number" aria-label="Line 282">282</a>                or existing.chunker_fingerprint != self._chunker_fingerprint()
+</span><span class="source-line" id="L283"><a href="#L283" class="line-number" aria-label="Line 283">283</a>                or existing.embedding_fingerprint != self._embedding_fingerprint()
+</span><span class="source-line" id="L284"><a href="#L284" class="line-number" aria-label="Line 284">284</a>                or existing.extractor_fingerprint != self._extractor_fingerprint(doc)
+</span><span class="source-line" id="L285"><a href="#L285" class="line-number" aria-label="Line 285">285</a>                or existing.content_hash != chash
+</span><span class="source-line" id="L286"><a href="#L286" class="line-number" aria-label="Line 286">286</a>            ):
+</span><span class="source-line" id="L287"><a href="#L287" class="line-number" aria-label="Line 287">287</a>                action = &quot;changed&quot;
+</span><span class="source-line" id="L288"><a href="#L288" class="line-number" aria-label="Line 288">288</a>            elif existing.metadata != doc.metadata or existing.provenance != doc.provenance:
+</span><span class="source-line" id="L289"><a href="#L289" class="line-number" aria-label="Line 289">289</a>                action = &quot;metadata_only&quot;
+</span><span class="source-line" id="L290"><a href="#L290" class="line-number" aria-label="Line 290">290</a>            else:
+</span><span class="source-line" id="L291"><a href="#L291" class="line-number" aria-label="Line 291">291</a>                action = &quot;unchanged&quot;
+</span><span class="source-line" id="L292"><a href="#L292" class="line-number" aria-label="Line 292">292</a>            item = SyncPlanItem(
+</span><span class="source-line" id="L293"><a href="#L293" class="line-number" aria-label="Line 293">293</a>                doc_id, action, doc, chash, rev, artifacts, existing.fence_token if existing else 0
+</span><span class="source-line" id="L294"><a href="#L294" class="line-number" aria-label="Line 294">294</a>            )
+</span><span class="source-line" id="L295"><a href="#L295" class="line-number" aria-label="Line 295">295</a>            getattr(plan, action).append(item)
+</span><span class="source-line" id="L296"><a href="#L296" class="line-number" aria-label="Line 296">296</a>        if is_authoritative:
+</span><span class="source-line" id="L297"><a href="#L297" class="line-number" aria-label="Line 297">297</a>            for rec in await self._manifest_store.list(scope):
+</span><span class="source-line" id="L298"><a href="#L298" class="line-number" aria-label="Line 298">298</a>                if rec.status != ManifestStatus.TOMBSTONED and rec.document_id not in seen_ids:
+</span><span class="source-line" id="L299"><a href="#L299" class="line-number" aria-label="Line 299">299</a>                    plan.removed.append(
+</span><span class="source-line" id="L300"><a href="#L300" class="line-number" aria-label="Line 300">300</a>                        SyncPlanItem(rec.document_id, &quot;removed&quot;, expected_fence=rec.fence_token)
+</span><span class="source-line" id="L301"><a href="#L301" class="line-number" aria-label="Line 301">301</a>                    )
+</span><span class="source-line" id="L302"><a href="#L302" class="line-number" aria-label="Line 302">302</a>        return plan
+</span><span class="source-line" id="L303"><a href="#L303" class="line-number" aria-label="Line 303">303</a>
+</span><span class="source-line" id="L304"><a href="#L304" class="line-number" aria-label="Line 304">304</a>    def _emit(self, kind: EventKind, scope: str, token: FenceToken, **kwargs: Any) -&gt; None:
+</span><span class="source-line" id="L305"><a href="#L305" class="line-number" aria-label="Line 305">305</a>        # An exporter outage must not abandon a lease or invalidate committed data.
+</span><span class="source-line" id="L306"><a href="#L306" class="line-number" aria-label="Line 306">306</a>        try:
+</span><span class="source-line" id="L307"><a href="#L307" class="line-number" aria-label="Line 307">307</a>            self._event_sink.emit(
+</span><span class="source-line" id="L308"><a href="#L308" class="line-number" aria-label="Line 308">308</a>                TelemetryEvent(
+</span><span class="source-line" id="L309"><a href="#L309" class="line-number" aria-label="Line 309">309</a>                    event_kind=kind,
+</span><span class="source-line" id="L310"><a href="#L310" class="line-number" aria-label="Line 310">310</a>                    stage=&quot;sync&quot;,
+</span><span class="source-line" id="L311"><a href="#L311" class="line-number" aria-label="Line 311">311</a>                    source_id=scope,
+</span><span class="source-line" id="L312"><a href="#L312" class="line-number" aria-label="Line 312">312</a>                    run_id=f&quot;sync-{token.epoch}&quot;,
+</span><span class="source-line" id="L313"><a href="#L313" class="line-number" aria-label="Line 313">313</a>                    **kwargs,
+</span><span class="source-line" id="L314"><a href="#L314" class="line-number" aria-label="Line 314">314</a>                )
+</span><span class="source-line" id="L315"><a href="#L315" class="line-number" aria-label="Line 315">315</a>            )
+</span><span class="source-line" id="L316"><a href="#L316" class="line-number" aria-label="Line 316">316</a>        except Exception:
+</span><span class="source-line" id="L317"><a href="#L317" class="line-number" aria-label="Line 317">317</a>            logger.warning(&quot;Sync telemetry sink failed&quot;, exc_info=False)
+</span><span class="source-line" id="L318"><a href="#L318" class="line-number" aria-label="Line 318">318</a>
+</span><span class="source-line" id="L319"><a href="#L319" class="line-number" aria-label="Line 319">319</a>    async def _heartbeat(self, token: FenceToken) -&gt; None:
+</span><span class="source-line" id="L320"><a href="#L320" class="line-number" aria-label="Line 320">320</a>        while True:
+</span><span class="source-line" id="L321"><a href="#L321" class="line-number" aria-label="Line 321">321</a>            await asyncio.sleep(self._lease_ttl_seconds / 3)
+</span><span class="source-line" id="L322"><a href="#L322" class="line-number" aria-label="Line 322">322</a>            try:
+</span><span class="source-line" id="L323"><a href="#L323" class="line-number" aria-label="Line 323">323</a>                renewed = await self._state_store.renew_lease(token, self._lease_ttl_seconds)
+</span><span class="source-line" id="L324"><a href="#L324" class="line-number" aria-label="Line 324">324</a>            except Exception:
+</span><span class="source-line" id="L325"><a href="#L325" class="line-number" aria-label="Line 325">325</a>                logger.warning(&quot;Lease renewal failed; activation still requires a valid fence&quot;)
+</span><span class="source-line" id="L326"><a href="#L326" class="line-number" aria-label="Line 326">326</a>                return
+</span><span class="source-line" id="L327"><a href="#L327" class="line-number" aria-label="Line 327">327</a>            if renewed is None:
+</span><span class="source-line" id="L328"><a href="#L328" class="line-number" aria-label="Line 328">328</a>                return
+</span><span class="source-line" id="L329"><a href="#L329" class="line-number" aria-label="Line 329">329</a>
+</span><span class="source-line" id="L330"><a href="#L330" class="line-number" aria-label="Line 330">330</a>    async def _prepare_item(
+</span><span class="source-line" id="L331"><a href="#L331" class="line-number" aria-label="Line 331">331</a>        self,
+</span><span class="source-line" id="L332"><a href="#L332" class="line-number" aria-label="Line 332">332</a>        scope: str,
+</span><span class="source-line" id="L333"><a href="#L333" class="line-number" aria-label="Line 333">333</a>        item: SyncPlanItem,
+</span><span class="source-line" id="L334"><a href="#L334" class="line-number" aria-label="Line 334">334</a>        generation: int,
+</span><span class="source-line" id="L335"><a href="#L335" class="line-number" aria-label="Line 335">335</a>        token: FenceToken,
+</span><span class="source-line" id="L336"><a href="#L336" class="line-number" aria-label="Line 336">336</a>        existing_vectors: list[list[float]] | None = None,
+</span><span class="source-line" id="L337"><a href="#L337" class="line-number" aria-label="Line 337">337</a>    ) -&gt; tuple[ManifestRecord, list[dict[str, Any]]]:
+</span><span class="source-line" id="L338"><a href="#L338" class="line-number" aria-label="Line 338">338</a>        doc = item.raw_document
+</span><span class="source-line" id="L339"><a href="#L339" class="line-number" aria-label="Line 339">339</a>        assert doc is not None
+</span><span class="source-line" id="L340"><a href="#L340" class="line-number" aria-label="Line 340">340</a>        chunks = []
+</span><span class="source-line" id="L341"><a href="#L341" class="line-number" aria-label="Line 341">341</a>        for artifact in item.artifacts or [doc]:
+</span><span class="source-line" id="L342"><a href="#L342" class="line-number" aria-label="Line 342">342</a>            for chunk in self._chunker.chunk(artifact.content):
+</span><span class="source-line" id="L343"><a href="#L343" class="line-number" aria-label="Line 343">343</a>                metadata = {
+</span><span class="source-line" id="L344"><a href="#L344" class="line-number" aria-label="Line 344">344</a>                    **artifact.metadata,
+</span><span class="source-line" id="L345"><a href="#L345" class="line-number" aria-label="Line 345">345</a>                    **chunk.metadata,
+</span><span class="source-line" id="L346"><a href="#L346" class="line-number" aria-label="Line 346">346</a>                }
+</span><span class="source-line" id="L347"><a href="#L347" class="line-number" aria-label="Line 347">347</a>                if artifact.provenance:
+</span><span class="source-line" id="L348"><a href="#L348" class="line-number" aria-label="Line 348">348</a>                    metadata[&quot;provenance&quot;] = dict(artifact.provenance)
+</span><span class="source-line" id="L349"><a href="#L349" class="line-number" aria-label="Line 349">349</a>                if artifact.location is not None:
+</span><span class="source-line" id="L350"><a href="#L350" class="line-number" aria-label="Line 350">350</a>                    metadata[&quot;location&quot;] = artifact.location
+</span><span class="source-line" id="L351"><a href="#L351" class="line-number" aria-label="Line 351">351</a>                    if isinstance(artifact.location, dict):
+</span><span class="source-line" id="L352"><a href="#L352" class="line-number" aria-label="Line 352">352</a>                        metadata.update(artifact.location)
+</span><span class="source-line" id="L353"><a href="#L353" class="line-number" aria-label="Line 353">353</a>                # Location and source metadata cannot replace coordinator-owned fields.
+</span><span class="source-line" id="L354"><a href="#L354" class="line-number" aria-label="Line 354">354</a>                metadata.update(
+</span><span class="source-line" id="L355"><a href="#L355" class="line-number" aria-label="Line 355">355</a>                    scope=scope,
+</span><span class="source-line" id="L356"><a href="#L356" class="line-number" aria-label="Line 356">356</a>                    doc_id=item.document_id,
+</span><span class="source-line" id="L357"><a href="#L357" class="line-number" aria-label="Line 357">357</a>                    generation=generation,
+</span><span class="source-line" id="L358"><a href="#L358" class="line-number" aria-label="Line 358">358</a>                    active=False,
+</span><span class="source-line" id="L359"><a href="#L359" class="line-number" aria-label="Line 359">359</a>                    source=artifact.source_name,
+</span><span class="source-line" id="L360"><a href="#L360" class="line-number" aria-label="Line 360">360</a>                )
+</span><span class="source-line" id="L361"><a href="#L361" class="line-number" aria-label="Line 361">361</a>                if artifact.external_id is not None:
+</span><span class="source-line" id="L362"><a href="#L362" class="line-number" aria-label="Line 362">362</a>                    metadata[&quot;external_id&quot;] = artifact.external_id
+</span><span class="source-line" id="L363"><a href="#L363" class="line-number" aria-label="Line 363">363</a>                chunks.append({&quot;text&quot;: chunk.text, &quot;metadata&quot;: metadata})
+</span><span class="source-line" id="L364"><a href="#L364" class="line-number" aria-label="Line 364">364</a>        if not chunks:
+</span><span class="source-line" id="L365"><a href="#L365" class="line-number" aria-label="Line 365">365</a>            raise SyncError(&quot;Document produced no chunks; retaining the previous active version&quot;)
+</span><span class="source-line" id="L366"><a href="#L366" class="line-number" aria-label="Line 366">366</a>        profile = getattr(self._embedder, &quot;profile&quot;, None)
+</span><span class="source-line" id="L367"><a href="#L367" class="line-number" aria-label="Line 367">367</a>        dim = (
+</span><span class="source-line" id="L368"><a href="#L368" class="line-number" aria-label="Line 368">368</a>            profile.dimension
+</span><span class="source-line" id="L369"><a href="#L369" class="line-number" aria-label="Line 369">369</a>            if profile is not None
+</span><span class="source-line" id="L370"><a href="#L370" class="line-number" aria-label="Line 370">370</a>            else get_embedding_dimension(self._settings.embedding_model)
+</span><span class="source-line" id="L371"><a href="#L371" class="line-number" aria-label="Line 371">371</a>        )
+</span><span class="source-line" id="L372"><a href="#L372" class="line-number" aria-label="Line 372">372</a>        embeddings = list(existing_vectors or [])
+</span><span class="source-line" id="L373"><a href="#L373" class="line-number" aria-label="Line 373">373</a>        if existing_vectors is None:
+</span><span class="source-line" id="L374"><a href="#L374" class="line-number" aria-label="Line 374">374</a>            fn = self._embedder
+</span><span class="source-line" id="L375"><a href="#L375" class="line-number" aria-label="Line 375">375</a>            for offset in range(0, len(chunks), self._batch_size):
+</span><span class="source-line" id="L376"><a href="#L376" class="line-number" aria-label="Line 376">376</a>                batch = chunks[offset : offset + self._batch_size]
+</span><span class="source-line" id="L377"><a href="#L377" class="line-number" aria-label="Line 377">377</a>                vectors = await fn([chunk[&quot;text&quot;] for chunk in batch])
+</span><span class="source-line" id="L378"><a href="#L378" class="line-number" aria-label="Line 378">378</a>                if len(vectors) != len(batch):
+</span><span class="source-line" id="L379"><a href="#L379" class="line-number" aria-label="Line 379">379</a>                    raise ValueError(&quot;Embedding response count does not match chunk count&quot;)
+</span><span class="source-line" id="L380"><a href="#L380" class="line-number" aria-label="Line 380">380</a>                embeddings.extend(vectors)
+</span><span class="source-line" id="L381"><a href="#L381" class="line-number" aria-label="Line 381">381</a>        if len(embeddings) != len(chunks):
+</span><span class="source-line" id="L382"><a href="#L382" class="line-number" aria-label="Line 382">382</a>            raise ValueError(&quot;Stored embedding count does not match unchanged document chunks&quot;)
+</span><span class="source-line" id="L383"><a href="#L383" class="line-number" aria-label="Line 383">383</a>        nonce = uuid4().hex
+</span><span class="source-line" id="L384"><a href="#L384" class="line-number" aria-label="Line 384">384</a>        for index, (chunk, vector) in enumerate(zip(chunks, embeddings, strict=True)):
+</span><span class="source-line" id="L385"><a href="#L385" class="line-number" aria-label="Line 385">385</a>            validate_embedding(vector, expected_dim=dim)
+</span><span class="source-line" id="L386"><a href="#L386" class="line-number" aria-label="Line 386">386</a>            chunk.update(
+</span><span class="source-line" id="L387"><a href="#L387" class="line-number" aria-label="Line 387">387</a>                id=f&quot;{scope}:{item.document_id}:g{generation}:e{token.epoch}:{nonce}:{index}&quot;,
+</span><span class="source-line" id="L388"><a href="#L388" class="line-number" aria-label="Line 388">388</a>                embedding=vector,
+</span><span class="source-line" id="L389"><a href="#L389" class="line-number" aria-label="Line 389">389</a>            )
+</span><span class="source-line" id="L390"><a href="#L390" class="line-number" aria-label="Line 390">390</a>        record = ManifestRecord(
+</span><span class="source-line" id="L391"><a href="#L391" class="line-number" aria-label="Line 391">391</a>            scope=scope,
+</span><span class="source-line" id="L392"><a href="#L392" class="line-number" aria-label="Line 392">392</a>            document_id=item.document_id,
+</span><span class="source-line" id="L393"><a href="#L393" class="line-number" aria-label="Line 393">393</a>            observed_revision=item.observed_revision,
+</span><span class="source-line" id="L394"><a href="#L394" class="line-number" aria-label="Line 394">394</a>            content_hash=item.content_hash,
+</span><span class="source-line" id="L395"><a href="#L395" class="line-number" aria-label="Line 395">395</a>            extractor_fingerprint=self._extractor_fingerprint(doc),
+</span><span class="source-line" id="L396"><a href="#L396" class="line-number" aria-label="Line 396">396</a>            chunker_fingerprint=self._chunker_fingerprint(),
+</span><span class="source-line" id="L397"><a href="#L397" class="line-number" aria-label="Line 397">397</a>            embedding_fingerprint=self._embedding_fingerprint(),
+</span><span class="source-line" id="L398"><a href="#L398" class="line-number" aria-label="Line 398">398</a>            active_generation=generation,
+</span><span class="source-line" id="L399"><a href="#L399" class="line-number" aria-label="Line 399">399</a>            status=ManifestStatus.ACTIVE,
+</span><span class="source-line" id="L400"><a href="#L400" class="line-number" aria-label="Line 400">400</a>            chunk_ids=[chunk[&quot;id&quot;] for chunk in chunks],
+</span><span class="source-line" id="L401"><a href="#L401" class="line-number" aria-label="Line 401">401</a>            metadata=dict(doc.metadata),
+</span><span class="source-line" id="L402"><a href="#L402" class="line-number" aria-label="Line 402">402</a>            provenance=dict(doc.provenance),
+</span><span class="source-line" id="L403"><a href="#L403" class="line-number" aria-label="Line 403">403</a>            last_successful_observation=time.time(),
+</span><span class="source-line" id="L404"><a href="#L404" class="line-number" aria-label="Line 404">404</a>            fence_token=item.expected_fence,
+</span><span class="source-line" id="L405"><a href="#L405" class="line-number" aria-label="Line 405">405</a>        )
+</span><span class="source-line" id="L406"><a href="#L406" class="line-number" aria-label="Line 406">406</a>        return record, chunks
+</span><span class="source-line" id="L407"><a href="#L407" class="line-number" aria-label="Line 407">407</a>
+</span><span class="source-line" id="L408"><a href="#L408" class="line-number" aria-label="Line 408">408</a>    async def _checkpoint(self, report: SyncReport, token: FenceToken) -&gt; None:
+</span><span class="source-line" id="L409"><a href="#L409" class="line-number" aria-label="Line 409">409</a>        checkpoint = {
+</span><span class="source-line" id="L410"><a href="#L410" class="line-number" aria-label="Line 410">410</a>            &quot;phase&quot;: &quot;completed&quot; if report.success else &quot;incomplete&quot;,
+</span><span class="source-line" id="L411"><a href="#L411" class="line-number" aria-label="Line 411">411</a>            &quot;authoritative&quot;: report.authoritative,
+</span><span class="source-line" id="L412"><a href="#L412" class="line-number" aria-label="Line 412">412</a>            &quot;last_error&quot;: &quot;sync_incomplete&quot; if not report.success else None,
+</span><span class="source-line" id="L413"><a href="#L413" class="line-number" aria-label="Line 413">413</a>            &quot;added&quot;: report.added_count,
+</span><span class="source-line" id="L414"><a href="#L414" class="line-number" aria-label="Line 414">414</a>            &quot;changed&quot;: report.changed_count,
+</span><span class="source-line" id="L415"><a href="#L415" class="line-number" aria-label="Line 415">415</a>            &quot;removed&quot;: report.removed_count,
+</span><span class="source-line" id="L416"><a href="#L416" class="line-number" aria-label="Line 416">416</a>            &quot;observed_at&quot;: time.time(),
+</span><span class="source-line" id="L417"><a href="#L417" class="line-number" aria-label="Line 417">417</a>        }
+</span><span class="source-line" id="L418"><a href="#L418" class="line-number" aria-label="Line 418">418</a>        previous = await self._state_store.get_checkpoint(report.scope) or {}
+</span><span class="source-line" id="L419"><a href="#L419" class="line-number" aria-label="Line 419">419</a>        checkpoint[&quot;last_successful_sync&quot;] = (
+</span><span class="source-line" id="L420"><a href="#L420" class="line-number" aria-label="Line 420">420</a>            time.time() if report.success else previous.get(&quot;last_successful_sync&quot;)
+</span><span class="source-line" id="L421"><a href="#L421" class="line-number" aria-label="Line 421">421</a>        )
+</span><span class="source-line" id="L422"><a href="#L422" class="line-number" aria-label="Line 422">422</a>        if not await self._state_store.save_checkpoint(report.scope, checkpoint, token):
+</span><span class="source-line" id="L423"><a href="#L423" class="line-number" aria-label="Line 423">423</a>            raise StaleWorkerError(&quot;Cannot persist checkpoint after lease takeover&quot;)
+</span><span class="source-line" id="L424"><a href="#L424" class="line-number" aria-label="Line 424">424</a>
+</span><span class="source-line" id="L425"><a href="#L425" class="line-number" aria-label="Line 425">425</a>    async def run_sync(  # noqa: PLR0915
+</span><span class="source-line" id="L426"><a href="#L426" class="line-number" aria-label="Line 426">426</a>        self,
+</span><span class="source-line" id="L427"><a href="#L427" class="line-number" aria-label="Line 427">427</a>        scope: str,
+</span><span class="source-line" id="L428"><a href="#L428" class="line-number" aria-label="Line 428">428</a>        source: Any,
+</span><span class="source-line" id="L429"><a href="#L429" class="line-number" aria-label="Line 429">429</a>        is_authoritative: bool | None = None,
+</span><span class="source-line" id="L430"><a href="#L430" class="line-number" aria-label="Line 430">430</a>        cursor: Any = None,
+</span><span class="source-line" id="L431"><a href="#L431" class="line-number" aria-label="Line 431">431</a>        limit: int | None = None,
+</span><span class="source-line" id="L432"><a href="#L432" class="line-number" aria-label="Line 432">432</a>    ) -&gt; SyncReport:
+</span><span class="source-line" id="L433"><a href="#L433" class="line-number" aria-label="Line 433">433</a>        if not hasattr(self._state_store, &quot;fenced&quot;):
+</span><span class="source-line" id="L434"><a href="#L434" class="line-number" aria-label="Line 434">434</a>            raise FencingError(&quot;SyncStateStore must implement a fenced commit context&quot;)
+</span><span class="source-line" id="L435"><a href="#L435" class="line-number" aria-label="Line 435">435</a>        if not hasattr(self._manifest_store, &quot;compare_and_swap_many&quot;):
+</span><span class="source-line" id="L436"><a href="#L436" class="line-number" aria-label="Line 436">436</a>            raise FencingError(&quot;ManifestStore must implement atomic batch commits&quot;)
+</span><span class="source-line" id="L437"><a href="#L437" class="line-number" aria-label="Line 437">437</a>        token = await self._state_store.acquire_lease(
+</span><span class="source-line" id="L438"><a href="#L438" class="line-number" aria-label="Line 438">438</a>            scope, self._worker_id, self._lease_ttl_seconds
+</span><span class="source-line" id="L439"><a href="#L439" class="line-number" aria-label="Line 439">439</a>        )
+</span><span class="source-line" id="L440"><a href="#L440" class="line-number" aria-label="Line 440">440</a>        if token is None:
+</span><span class="source-line" id="L441"><a href="#L441" class="line-number" aria-label="Line 441">441</a>            raise LeaseAcquisitionError(f&quot;Could not acquire lease for scope {scope!r}&quot;)
+</span><span class="source-line" id="L442"><a href="#L442" class="line-number" aria-label="Line 442">442</a>        heartbeat = asyncio.create_task(self._heartbeat(token))
+</span><span class="source-line" id="L443"><a href="#L443" class="line-number" aria-label="Line 443">443</a>        report = SyncReport(scope=scope, success=False, fence_epoch=token.epoch)
+</span><span class="source-line" id="L444"><a href="#L444" class="line-number" aria-label="Line 444">444</a>        uncommitted: set[str] = set()
+</span><span class="source-line" id="L445"><a href="#L445" class="line-number" aria-label="Line 445">445</a>        retired: list[str] = []
+</span><span class="source-line" id="L446"><a href="#L446" class="line-number" aria-label="Line 446">446</a>        self._emit(EventKind.SCAN_STARTED, scope, token)
+</span><span class="source-line" id="L447"><a href="#L447" class="line-number" aria-label="Line 447">447</a>        try:
+</span><span class="source-line" id="L448"><a href="#L448" class="line-number" aria-label="Line 448">448</a>            result = await self._scan_source(source, cursor, limit)
+</span><span class="source-line" id="L449"><a href="#L449" class="line-number" aria-label="Line 449">449</a>            report.authoritative = result.authoritative and is_authoritative is not False
+</span><span class="source-line" id="L450"><a href="#L450" class="line-number" aria-label="Line 450">450</a>            report.errors.extend(_error_record(error) for error in result.errors)
+</span><span class="source-line" id="L451"><a href="#L451" class="line-number" aria-label="Line 451">451</a>            plan = await self.plan(scope, result, report.authoritative)
+</span><span class="source-line" id="L452"><a href="#L452" class="line-number" aria-label="Line 452">452</a>            for action in (&quot;added&quot;, &quot;changed&quot;, &quot;removed&quot;, &quot;metadata_only&quot;, &quot;unchanged&quot;):
+</span><span class="source-line" id="L453"><a href="#L453" class="line-number" aria-label="Line 453">453</a>                setattr(report, f&quot;{action}_count&quot;, len(getattr(plan, action)))
+</span><span class="source-line" id="L454"><a href="#L454" class="line-number" aria-label="Line 454">454</a>            for doc in result:
+</span><span class="source-line" id="L455"><a href="#L455" class="line-number" aria-label="Line 455">455</a>                self._emit(
+</span><span class="source-line" id="L456"><a href="#L456" class="line-number" aria-label="Line 456">456</a>                    EventKind.DOCUMENT_LOADED,
+</span><span class="source-line" id="L457"><a href="#L457" class="line-number" aria-label="Line 457">457</a>                    scope,
+</span><span class="source-line" id="L458"><a href="#L458" class="line-number" aria-label="Line 458">458</a>                    token,
+</span><span class="source-line" id="L459"><a href="#L459" class="line-number" aria-label="Line 459">459</a>                    document_id=doc.external_id or doc.source_name,
+</span><span class="source-line" id="L460"><a href="#L460" class="line-number" aria-label="Line 460">460</a>                )
+</span><span class="source-line" id="L461"><a href="#L461" class="line-number" aria-label="Line 461">461</a>            for item in plan.unchanged:
+</span><span class="source-line" id="L462"><a href="#L462" class="line-number" aria-label="Line 462">462</a>                self._emit(EventKind.DOCUMENT_SKIPPED, scope, token, document_id=item.document_id)
+</span><span class="source-line" id="L463"><a href="#L463" class="line-number" aria-label="Line 463">463</a>            active_gen = await self._state_store.get_active_generation(scope)
+</span><span class="source-line" id="L464"><a href="#L464" class="line-number" aria-label="Line 464">464</a>            prepared: list[tuple[SyncPlanItem, ManifestRecord, list[dict[str, Any]]]] = []
+</span><span class="source-line" id="L465"><a href="#L465" class="line-number" aria-label="Line 465">465</a>            for item in plan.added + plan.changed + plan.metadata_only:
+</span><span class="source-line" id="L466"><a href="#L466" class="line-number" aria-label="Line 466">466</a>                try:
+</span><span class="source-line" id="L467"><a href="#L467" class="line-number" aria-label="Line 467">467</a>                    existing = await self._manifest_store.get(scope, item.document_id)
+</span><span class="source-line" id="L468"><a href="#L468" class="line-number" aria-label="Line 468">468</a>                    generation = (
+</span><span class="source-line" id="L469"><a href="#L469" class="line-number" aria-label="Line 469">469</a>                        active_gen + 1
+</span><span class="source-line" id="L470"><a href="#L470" class="line-number" aria-label="Line 470">470</a>                        if self._activation_mode == ActivationMode.COLLECTION
+</span><span class="source-line" id="L471"><a href="#L471" class="line-number" aria-label="Line 471">471</a>                        else ((existing.active_generation if existing else 0) + 1)
+</span><span class="source-line" id="L472"><a href="#L472" class="line-number" aria-label="Line 472">472</a>                    )
+</span><span class="source-line" id="L473"><a href="#L473" class="line-number" aria-label="Line 473">473</a>                    existing_vectors = None
+</span><span class="source-line" id="L474"><a href="#L474" class="line-number" aria-label="Line 474">474</a>                    if item.action == &quot;metadata_only&quot;:
+</span><span class="source-line" id="L475"><a href="#L475" class="line-number" aria-label="Line 475">475</a>                        assert existing is not None
+</span><span class="source-line" id="L476"><a href="#L476" class="line-number" aria-label="Line 476">476</a>                        by_id = await self._vector_store.get_embeddings(existing.chunk_ids)
+</span><span class="source-line" id="L477"><a href="#L477" class="line-number" aria-label="Line 477">477</a>                        existing_vectors = [by_id[chunk_id] for chunk_id in existing.chunk_ids]
+</span><span class="source-line" id="L478"><a href="#L478" class="line-number" aria-label="Line 478">478</a>                    record, chunks = await self._prepare_item(
+</span><span class="source-line" id="L479"><a href="#L479" class="line-number" aria-label="Line 479">479</a>                        scope, item, generation, token, existing_vectors
+</span><span class="source-line" id="L480"><a href="#L480" class="line-number" aria-label="Line 480">480</a>                    )
+</span><span class="source-line" id="L481"><a href="#L481" class="line-number" aria-label="Line 481">481</a>                    if not await self._state_store.validate_token(token):
+</span><span class="source-line" id="L482"><a href="#L482" class="line-number" aria-label="Line 482">482</a>                        raise StaleWorkerError(&quot;Lease lost during embedding&quot;)
+</span><span class="source-line" id="L483"><a href="#L483" class="line-number" aria-label="Line 483">483</a>                    uncommitted.update(record.chunk_ids)
+</span><span class="source-line" id="L484"><a href="#L484" class="line-number" aria-label="Line 484">484</a>                    await self._vector_store.upsert(chunks)
+</span><span class="source-line" id="L485"><a href="#L485" class="line-number" aria-label="Line 485">485</a>                    if existing_vectors is None:
+</span><span class="source-line" id="L486"><a href="#L486" class="line-number" aria-label="Line 486">486</a>                        report.embedded_count += len(chunks)
+</span><span class="source-line" id="L487"><a href="#L487" class="line-number" aria-label="Line 487">487</a>                    if self._job_store is not None:
+</span><span class="source-line" id="L488"><a href="#L488" class="line-number" aria-label="Line 488">488</a>                        await self._job_store.enqueue(
+</span><span class="source-line" id="L489"><a href="#L489" class="line-number" aria-label="Line 489">489</a>                            {
+</span><span class="source-line" id="L490"><a href="#L490" class="line-number" aria-label="Line 490">490</a>                                &quot;idempotency_key&quot;: (
+</span><span class="source-line" id="L491"><a href="#L491" class="line-number" aria-label="Line 491">491</a>                                    f&quot;{scope}:{item.document_id}:{generation}:e{token.epoch}:activate&quot;
+</span><span class="source-line" id="L492"><a href="#L492" class="line-number" aria-label="Line 492">492</a>                                ),
+</span><span class="source-line" id="L493"><a href="#L493" class="line-number" aria-label="Line 493">493</a>                                &quot;scope&quot;: scope,
+</span><span class="source-line" id="L494"><a href="#L494" class="line-number" aria-label="Line 494">494</a>                                &quot;document_id&quot;: item.document_id,
+</span><span class="source-line" id="L495"><a href="#L495" class="line-number" aria-label="Line 495">495</a>                                &quot;generation&quot;: generation,
+</span><span class="source-line" id="L496"><a href="#L496" class="line-number" aria-label="Line 496">496</a>                                &quot;epoch&quot;: token.epoch,
+</span><span class="source-line" id="L497"><a href="#L497" class="line-number" aria-label="Line 497">497</a>                                &quot;status&quot;: &quot;pending&quot;,
+</span><span class="source-line" id="L498"><a href="#L498" class="line-number" aria-label="Line 498">498</a>                                &quot;operation&quot;: &quot;reconcile_generation&quot;,
+</span><span class="source-line" id="L499"><a href="#L499" class="line-number" aria-label="Line 499">499</a>                                &quot;chunk_ids&quot;: record.chunk_ids,
+</span><span class="source-line" id="L500"><a href="#L500" class="line-number" aria-label="Line 500">500</a>                            }
+</span><span class="source-line" id="L501"><a href="#L501" class="line-number" aria-label="Line 501">501</a>                        )
+</span><span class="source-line" id="L502"><a href="#L502" class="line-number" aria-label="Line 502">502</a>                    prepared.append((item, record, chunks))
+</span><span class="source-line" id="L503"><a href="#L503" class="line-number" aria-label="Line 503">503</a>                except StaleWorkerError:
+</span><span class="source-line" id="L504"><a href="#L504" class="line-number" aria-label="Line 504">504</a>                    raise
+</span><span class="source-line" id="L505"><a href="#L505" class="line-number" aria-label="Line 505">505</a>                except Exception as exc:
+</span><span class="source-line" id="L506"><a href="#L506" class="line-number" aria-label="Line 506">506</a>                    report.errors.append({&quot;doc_id&quot;: item.document_id, **_error_record(exc)})
+</span><span class="source-line" id="L507"><a href="#L507" class="line-number" aria-label="Line 507">507</a>                    if self._activation_mode == ActivationMode.COLLECTION:
+</span><span class="source-line" id="L508"><a href="#L508" class="line-number" aria-label="Line 508">508</a>                        raise
+</span><span class="source-line" id="L509"><a href="#L509" class="line-number" aria-label="Line 509">509</a>            if not await self._state_store.validate_token(token):
+</span><span class="source-line" id="L510"><a href="#L510" class="line-number" aria-label="Line 510">510</a>                raise StaleWorkerError(&quot;Lease expired before activation&quot;)
+</span><span class="source-line" id="L511"><a href="#L511" class="line-number" aria-label="Line 511">511</a>            try:
+</span><span class="source-line" id="L512"><a href="#L512" class="line-number" aria-label="Line 512">512</a>                async with self._state_store.fenced(token):
+</span><span class="source-line" id="L513"><a href="#L513" class="line-number" aria-label="Line 513">513</a>                    await self._activate(scope, plan, prepared, token, report, retired, uncommitted)
+</span><span class="source-line" id="L514"><a href="#L514" class="line-number" aria-label="Line 514">514</a>                    report.success = (
+</span><span class="source-line" id="L515"><a href="#L515" class="line-number" aria-label="Line 515">515</a>                        not report.errors
+</span><span class="source-line" id="L516"><a href="#L516" class="line-number" aria-label="Line 516">516</a>                        and result.complete
+</span><span class="source-line" id="L517"><a href="#L517" class="line-number" aria-label="Line 517">517</a>                        and result.status
+</span><span class="source-line" id="L518"><a href="#L518" class="line-number" aria-label="Line 518">518</a>                        in {
+</span><span class="source-line" id="L519"><a href="#L519" class="line-number" aria-label="Line 519">519</a>                            &quot;ok&quot;,
+</span><span class="source-line" id="L520"><a href="#L520" class="line-number" aria-label="Line 520">520</a>                            &quot;empty&quot;,
+</span><span class="source-line" id="L521"><a href="#L521" class="line-number" aria-label="Line 521">521</a>                            &quot;success&quot;,
+</span><span class="source-line" id="L522"><a href="#L522" class="line-number" aria-label="Line 522">522</a>                            &quot;empty_success&quot;,
+</span><span class="source-line" id="L523"><a href="#L523" class="line-number" aria-label="Line 523">523</a>                        }
+</span><span class="source-line" id="L524"><a href="#L524" class="line-number" aria-label="Line 524">524</a>                    )
+</span><span class="source-line" id="L525"><a href="#L525" class="line-number" aria-label="Line 525">525</a>                    await self._checkpoint(report, token)
+</span><span class="source-line" id="L526"><a href="#L526" class="line-number" aria-label="Line 526">526</a>            except ValueError as exc:
+</span><span class="source-line" id="L527"><a href="#L527" class="line-number" aria-label="Line 527">527</a>                if not await self._state_store.validate_token(token):
+</span><span class="source-line" id="L528"><a href="#L528" class="line-number" aria-label="Line 528">528</a>                    raise StaleWorkerError(&quot;Lease lost before fenced commit&quot;) from exc
+</span><span class="source-line" id="L529"><a href="#L529" class="line-number" aria-label="Line 529">529</a>                raise
+</span><span class="source-line" id="L530"><a href="#L530" class="line-number" aria-label="Line 530">530</a>            return report
+</span><span class="source-line" id="L531"><a href="#L531" class="line-number" aria-label="Line 531">531</a>        except Exception as exc:
+</span><span class="source-line" id="L532"><a href="#L532" class="line-number" aria-label="Line 532">532</a>            self._emit(EventKind.SYNC_FAILED, scope, token, error=exc)
+</span><span class="source-line" id="L533"><a href="#L533" class="line-number" aria-label="Line 533">533</a>            if await self._state_store.validate_token(token):
+</span><span class="source-line" id="L534"><a href="#L534" class="line-number" aria-label="Line 534">534</a>                await self._checkpoint(report, token)
+</span><span class="source-line" id="L535"><a href="#L535" class="line-number" aria-label="Line 535">535</a>            raise
+</span><span class="source-line" id="L536"><a href="#L536" class="line-number" aria-label="Line 536">536</a>        finally:
+</span><span class="source-line" id="L537"><a href="#L537" class="line-number" aria-label="Line 537">537</a>            heartbeat.cancel()
+</span><span class="source-line" id="L538"><a href="#L538" class="line-number" aria-label="Line 538">538</a>            with suppress(asyncio.CancelledError):
+</span><span class="source-line" id="L539"><a href="#L539" class="line-number" aria-label="Line 539">539</a>                await heartbeat
+</span><span class="source-line" id="L540"><a href="#L540" class="line-number" aria-label="Line 540">540</a>            await self._state_store.release_lease(token)
+</span><span class="source-line" id="L541"><a href="#L541" class="line-number" aria-label="Line 541">541</a>            await self.garbage_collect(scope, [*retired, *uncommitted])
+</span><span class="source-line" id="L542"><a href="#L542" class="line-number" aria-label="Line 542">542</a>
+</span><span class="source-line" id="L543"><a href="#L543" class="line-number" aria-label="Line 543">543</a>    async def _activate(  # noqa: PLR0913, PLR0917
+</span><span class="source-line" id="L544"><a href="#L544" class="line-number" aria-label="Line 544">544</a>        self,
+</span><span class="source-line" id="L545"><a href="#L545" class="line-number" aria-label="Line 545">545</a>        scope: str,
+</span><span class="source-line" id="L546"><a href="#L546" class="line-number" aria-label="Line 546">546</a>        plan: SyncPlan,
+</span><span class="source-line" id="L547"><a href="#L547" class="line-number" aria-label="Line 547">547</a>        prepared: list[tuple[SyncPlanItem, ManifestRecord, list[dict[str, Any]]]],
+</span><span class="source-line" id="L548"><a href="#L548" class="line-number" aria-label="Line 548">548</a>        token: FenceToken,
+</span><span class="source-line" id="L549"><a href="#L549" class="line-number" aria-label="Line 549">549</a>        report: SyncReport,
+</span><span class="source-line" id="L550"><a href="#L550" class="line-number" aria-label="Line 550">550</a>        retired: list[str],
+</span><span class="source-line" id="L551"><a href="#L551" class="line-number" aria-label="Line 551">551</a>        uncommitted: set[str],
+</span><span class="source-line" id="L552"><a href="#L552" class="line-number" aria-label="Line 552">552</a>    ) -&gt; None:
+</span><span class="source-line" id="L553"><a href="#L553" class="line-number" aria-label="Line 553">553</a>        updates: list[tuple[ManifestRecord, int]] = []
+</span><span class="source-line" id="L554"><a href="#L554" class="line-number" aria-label="Line 554">554</a>        old_ids: list[str] = []
+</span><span class="source-line" id="L555"><a href="#L555" class="line-number" aria-label="Line 555">555</a>        for item, record, chunks in prepared:
+</span><span class="source-line" id="L556"><a href="#L556" class="line-number" aria-label="Line 556">556</a>            current = await self._manifest_store.get(scope, item.document_id)
+</span><span class="source-line" id="L557"><a href="#L557" class="line-number" aria-label="Line 557">557</a>            if (current.fence_token if current else 0) != item.expected_fence:
+</span><span class="source-line" id="L558"><a href="#L558" class="line-number" aria-label="Line 558">558</a>                raise FencingError(&quot;Document changed while preparing its generation&quot;)
+</span><span class="source-line" id="L559"><a href="#L559" class="line-number" aria-label="Line 559">559</a>            if current:
+</span><span class="source-line" id="L560"><a href="#L560" class="line-number" aria-label="Line 560">560</a>                old_ids.extend(current.chunk_ids)
+</span><span class="source-line" id="L561"><a href="#L561" class="line-number" aria-label="Line 561">561</a>            # Publish vectors before changing visibility. The manifest still hides their IDs.
+</span><span class="source-line" id="L562"><a href="#L562" class="line-number" aria-label="Line 562">562</a>            await self._vector_store.upsert(
+</span><span class="source-line" id="L563"><a href="#L563" class="line-number" aria-label="Line 563">563</a>                [{**chunk, &quot;metadata&quot;: {**chunk[&quot;metadata&quot;], &quot;active&quot;: True}} for chunk in chunks]
+</span><span class="source-line" id="L564"><a href="#L564" class="line-number" aria-label="Line 564">564</a>            )
+</span><span class="source-line" id="L565"><a href="#L565" class="line-number" aria-label="Line 565">565</a>            updates.append((record, item.expected_fence))
+</span><span class="source-line" id="L566"><a href="#L566" class="line-number" aria-label="Line 566">566</a>        for item in plan.removed:
+</span><span class="source-line" id="L567"><a href="#L567" class="line-number" aria-label="Line 567">567</a>            record = await self._manifest_store.get(scope, item.document_id)
+</span><span class="source-line" id="L568"><a href="#L568" class="line-number" aria-label="Line 568">568</a>            if record is None or record.fence_token != item.expected_fence:
+</span><span class="source-line" id="L569"><a href="#L569" class="line-number" aria-label="Line 569">569</a>                raise FencingError(&quot;Document changed before tombstoning&quot;)
+</span><span class="source-line" id="L570"><a href="#L570" class="line-number" aria-label="Line 570">570</a>            old_ids.extend(record.chunk_ids)
+</span><span class="source-line" id="L571"><a href="#L571" class="line-number" aria-label="Line 571">571</a>            updates.append(
+</span><span class="source-line" id="L572"><a href="#L572" class="line-number" aria-label="Line 572">572</a>                (
+</span><span class="source-line" id="L573"><a href="#L573" class="line-number" aria-label="Line 573">573</a>                    replace(
+</span><span class="source-line" id="L574"><a href="#L574" class="line-number" aria-label="Line 574">574</a>                        record, status=ManifestStatus.TOMBSTONED, active_generation=0, chunk_ids=[]
+</span><span class="source-line" id="L575"><a href="#L575" class="line-number" aria-label="Line 575">575</a>                    ),
+</span><span class="source-line" id="L576"><a href="#L576" class="line-number" aria-label="Line 576">576</a>                    item.expected_fence,
+</span><span class="source-line" id="L577"><a href="#L577" class="line-number" aria-label="Line 577">577</a>                )
+</span><span class="source-line" id="L578"><a href="#L578" class="line-number" aria-label="Line 578">578</a>            )
+</span><span class="source-line" id="L579"><a href="#L579" class="line-number" aria-label="Line 579">579</a>        if updates:
+</span><span class="source-line" id="L580"><a href="#L580" class="line-number" aria-label="Line 580">580</a>            if not await self._manifest_store.compare_and_swap_many(updates):
+</span><span class="source-line" id="L581"><a href="#L581" class="line-number" aria-label="Line 581">581</a>                raise FencingError(&quot;Manifest commit compare-and-swap failed&quot;)
+</span><span class="source-line" id="L582"><a href="#L582" class="line-number" aria-label="Line 582">582</a>            # From here these IDs are committed and must never be garbage-collected on failure.
+</span><span class="source-line" id="L583"><a href="#L583" class="line-number" aria-label="Line 583">583</a>            for _, record, chunks in prepared:
+</span><span class="source-line" id="L584"><a href="#L584" class="line-number" aria-label="Line 584">584</a>                uncommitted.difference_update(record.chunk_ids)
+</span><span class="source-line" id="L585"><a href="#L585" class="line-number" aria-label="Line 585">585</a>                report.chunk_count += len(chunks)
+</span><span class="source-line" id="L586"><a href="#L586" class="line-number" aria-label="Line 586">586</a>                self._emit(
+</span><span class="source-line" id="L587"><a href="#L587" class="line-number" aria-label="Line 587">587</a>                    EventKind.GENERATION_ACTIVATED,
+</span><span class="source-line" id="L588"><a href="#L588" class="line-number" aria-label="Line 588">588</a>                    scope,
+</span><span class="source-line" id="L589"><a href="#L589" class="line-number" aria-label="Line 589">589</a>                    token,
+</span><span class="source-line" id="L590"><a href="#L590" class="line-number" aria-label="Line 590">590</a>                    document_id=record.document_id,
+</span><span class="source-line" id="L591"><a href="#L591" class="line-number" aria-label="Line 591">591</a>                    generation=record.active_generation,
+</span><span class="source-line" id="L592"><a href="#L592" class="line-number" aria-label="Line 592">592</a>                    counts={&quot;chunks&quot;: len(chunks)},
+</span><span class="source-line" id="L593"><a href="#L593" class="line-number" aria-label="Line 593">593</a>                )
+</span><span class="source-line" id="L594"><a href="#L594" class="line-number" aria-label="Line 594">594</a>            retired.extend(old_ids)
+</span><span class="source-line" id="L595"><a href="#L595" class="line-number" aria-label="Line 595">595</a>            if self._activation_mode == ActivationMode.COLLECTION:
+</span><span class="source-line" id="L596"><a href="#L596" class="line-number" aria-label="Line 596">596</a>                generation = await self._state_store.advance_generation(
+</span><span class="source-line" id="L597"><a href="#L597" class="line-number" aria-label="Line 597">597</a>                    scope, await self._state_store.get_active_generation(scope)
+</span><span class="source-line" id="L598"><a href="#L598" class="line-number" aria-label="Line 598">598</a>                )
+</span><span class="source-line" id="L599"><a href="#L599" class="line-number" aria-label="Line 599">599</a>                if generation &lt; 0:
+</span><span class="source-line" id="L600"><a href="#L600" class="line-number" aria-label="Line 600">600</a>                    raise FencingError(&quot;Collection generation compare-and-swap failed&quot;)
+</span><span class="source-line" id="L601"><a href="#L601" class="line-number" aria-label="Line 601">601</a>                report.active_generation = generation
+</span><span class="source-line" id="L602"><a href="#L602" class="line-number" aria-label="Line 602">602</a>        if self._activation_mode == ActivationMode.DOCUMENT:
+</span><span class="source-line" id="L603"><a href="#L603" class="line-number" aria-label="Line 603">603</a>            report.active_generation = await self._state_store.get_active_generation(scope)
+</span><span class="source-line" id="L604"><a href="#L604" class="line-number" aria-label="Line 604">604</a>
+</span><span class="source-line" id="L605"><a href="#L605" class="line-number" aria-label="Line 605">605</a>    async def _scan_source(
+</span><span class="source-line" id="L606"><a href="#L606" class="line-number" aria-label="Line 606">606</a>        self, source: Any, cursor: Any = None, limit: int | None = None
+</span><span class="source-line" id="L607"><a href="#L607" class="line-number" aria-label="Line 607">607</a>    ) -&gt; LoadResult:
+</span><span class="source-line" id="L608"><a href="#L608" class="line-number" aria-label="Line 608">608</a>        if isinstance(source, LoadResult):
+</span><span class="source-line" id="L609"><a href="#L609" class="line-number" aria-label="Line 609">609</a>            return source
+</span><span class="source-line" id="L610"><a href="#L610" class="line-number" aria-label="Line 610">610</a>        if hasattr(source, &quot;load_page&quot;):
+</span><span class="source-line" id="L611"><a href="#L611" class="line-number" aria-label="Line 611">611</a>            first = True
+</span><span class="source-line" id="L612"><a href="#L612" class="line-number" aria-label="Line 612">612</a>
+</span><span class="source-line" id="L613"><a href="#L613" class="line-number" aria-label="Line 613">613</a>            async def page(*, cursor=None, limit=None):
+</span><span class="source-line" id="L614"><a href="#L614" class="line-number" aria-label="Line 614">614</a>                nonlocal first
+</span><span class="source-line" id="L615"><a href="#L615" class="line-number" aria-label="Line 615">615</a>                actual_cursor = start_cursor if first else cursor
+</span><span class="source-line" id="L616"><a href="#L616" class="line-number" aria-label="Line 616">616</a>                first = False
+</span><span class="source-line" id="L617"><a href="#L617" class="line-number" aria-label="Line 617">617</a>                return await source.load_page(cursor=actual_cursor, limit=limit)
+</span><span class="source-line" id="L618"><a href="#L618" class="line-number" aria-label="Line 618">618</a>
+</span><span class="source-line" id="L619"><a href="#L619" class="line-number" aria-label="Line 619">619</a>            start_cursor = cursor
+</span><span class="source-line" id="L620"><a href="#L620" class="line-number" aria-label="Line 620">620</a>            result = await collect_pages(
+</span><span class="source-line" id="L621"><a href="#L621" class="line-number" aria-label="Line 621">621</a>                SimpleNamespace(load_page=page),
+</span><span class="source-line" id="L622"><a href="#L622" class="line-number" aria-label="Line 622">622</a>                max_pages=getattr(source, &quot;max_pages&quot;, None) or 10000,
+</span><span class="source-line" id="L623"><a href="#L623" class="line-number" aria-label="Line 623">623</a>                page_size=limit,
+</span><span class="source-line" id="L624"><a href="#L624" class="line-number" aria-label="Line 624">624</a>            )
+</span><span class="source-line" id="L625"><a href="#L625" class="line-number" aria-label="Line 625">625</a>            if start_cursor is not None:
+</span><span class="source-line" id="L626"><a href="#L626" class="line-number" aria-label="Line 626">626</a>                result.complete = False
+</span><span class="source-line" id="L627"><a href="#L627" class="line-number" aria-label="Line 627">627</a>            return result
+</span><span class="source-line" id="L628"><a href="#L628" class="line-number" aria-label="Line 628">628</a>        if hasattr(source, &quot;load&quot;):
+</span><span class="source-line" id="L629"><a href="#L629" class="line-number" aria-label="Line 629">629</a>            parameters = inspect.signature(source.load).parameters
+</span><span class="source-line" id="L630"><a href="#L630" class="line-number" aria-label="Line 630">630</a>            options = {
+</span><span class="source-line" id="L631"><a href="#L631" class="line-number" aria-label="Line 631">631</a>                key: value
+</span><span class="source-line" id="L632"><a href="#L632" class="line-number" aria-label="Line 632">632</a>                for key, value in {&quot;cursor&quot;: cursor, &quot;limit&quot;: limit}.items()
+</span><span class="source-line" id="L633"><a href="#L633" class="line-number" aria-label="Line 633">633</a>                if key in parameters
+</span><span class="source-line" id="L634"><a href="#L634" class="line-number" aria-label="Line 634">634</a>            }
+</span><span class="source-line" id="L635"><a href="#L635" class="line-number" aria-label="Line 635">635</a>            result = await source.load(**options)
+</span><span class="source-line" id="L636"><a href="#L636" class="line-number" aria-label="Line 636">636</a>            if isinstance(result, LoadResult):
+</span><span class="source-line" id="L637"><a href="#L637" class="line-number" aria-label="Line 637">637</a>                return result
+</span><span class="source-line" id="L638"><a href="#L638" class="line-number" aria-label="Line 638">638</a>            return LoadResult(list(result), complete=cursor is None)
+</span><span class="source-line" id="L639"><a href="#L639" class="line-number" aria-label="Line 639">639</a>        return LoadResult(list(source), complete=cursor is None)
+</span><span class="source-line" id="L640"><a href="#L640" class="line-number" aria-label="Line 640">640</a>
+</span><span class="source-line" id="L641"><a href="#L641" class="line-number" aria-label="Line 641">641</a>    async def revoke_access(self, scope: str, document_id: str) -&gt; bool:
+</span><span class="source-line" id="L642"><a href="#L642" class="line-number" aria-label="Line 642">642</a>        while True:
+</span><span class="source-line" id="L643"><a href="#L643" class="line-number" aria-label="Line 643">643</a>            record = await self._manifest_store.get(scope, document_id)
+</span><span class="source-line" id="L644"><a href="#L644" class="line-number" aria-label="Line 644">644</a>            if record is None:
+</span><span class="source-line" id="L645"><a href="#L645" class="line-number" aria-label="Line 645">645</a>                return False
+</span><span class="source-line" id="L646"><a href="#L646" class="line-number" aria-label="Line 646">646</a>            tombstone = replace(
+</span><span class="source-line" id="L647"><a href="#L647" class="line-number" aria-label="Line 647">647</a>                record, status=ManifestStatus.TOMBSTONED, active_generation=0, chunk_ids=[]
+</span><span class="source-line" id="L648"><a href="#L648" class="line-number" aria-label="Line 648">648</a>            )
+</span><span class="source-line" id="L649"><a href="#L649" class="line-number" aria-label="Line 649">649</a>            if await self._manifest_store.compare_and_swap(tombstone, record.fence_token):
+</span><span class="source-line" id="L650"><a href="#L650" class="line-number" aria-label="Line 650">650</a>                await self.garbage_collect(scope, record.chunk_ids)
+</span><span class="source-line" id="L651"><a href="#L651" class="line-number" aria-label="Line 651">651</a>                return True
+</span><span class="source-line" id="L652"><a href="#L652" class="line-number" aria-label="Line 652">652</a>
+</span><span class="source-line" id="L653"><a href="#L653" class="line-number" aria-label="Line 653">653</a>    async def garbage_collect(self, scope: str, retired_chunk_ids: list[str] | None = None) -&gt; int:
+</span><span class="source-line" id="L654"><a href="#L654" class="line-number" aria-label="Line 654">654</a>        if not retired_chunk_ids:
+</span><span class="source-line" id="L655"><a href="#L655" class="line-number" aria-label="Line 655">655</a>            return 0
+</span><span class="source-line" id="L656"><a href="#L656" class="line-number" aria-label="Line 656">656</a>        try:
+</span><span class="source-line" id="L657"><a href="#L657" class="line-number" aria-label="Line 657">657</a>            return await self._vector_store.delete(ids=retired_chunk_ids)
+</span><span class="source-line" id="L658"><a href="#L658" class="line-number" aria-label="Line 658">658</a>        except Exception:
+</span><span class="source-line" id="L659"><a href="#L659" class="line-number" aria-label="Line 659">659</a>            logger.warning(&quot;Physical cleanup deferred for scope %s&quot;, scope)
+</span><span class="source-line" id="L660"><a href="#L660" class="line-number" aria-label="Line 660">660</a>            return 0
+</span></code></pre></main></body></html>

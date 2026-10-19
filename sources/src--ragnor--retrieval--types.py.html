@@ -1,0 +1,276 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>src/ragnor/retrieval/types.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>src/ragnor/retrieval/types.py</h1><p>Frozen repository source at e57f6468d334190d519df375e5feeb6149031da2. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;Typed request and result wrappers for retrieval operations.
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>Provides typed objects (:class:`RetrievalRequest`,
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>:class:`RetrievedDocument`, :class:`RetrievalResponse`) that bridge
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>cleanly to and from the historical ``dict[str, Any]`` shape returned
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>by the storage backends.
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>Score semantics are preserved explicitly via :class:`~ragnor.retrieval.scores.RawScore`
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>and :class:`~ragnor.retrieval.scores.ScoreKind`: distance, similarity, RRF,
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>and reranker scores are kept distinct and never conflated as probabilities.
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>from __future__ import annotations
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>from collections.abc import Iterator, Mapping, Sequence
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>from dataclasses import dataclass, field
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>from typing import Any
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>from ragnor.retrieval.scores import RawScore, ScoreKind
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>from ragnor.types import RetrievalError, SearchResult
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>class ScopeViolationError(RetrievalError):
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>    &quot;&quot;&quot;Raised when a retrieved document fails isolation scope validation.
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>    Defense-in-depth: if a storage backend returns a document belonging
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>    to a different tenant, partition, or collection than requested,
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>    retrieval fails closed (or drops the item) to prevent cross-tenant
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>    evidence leakage.
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>@dataclass
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>class RetrievalRequest:
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>    &quot;&quot;&quot;A typed request for document retrieval.
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>    Attributes:
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>        query: Natural language query string.
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>        final_k: Final number of top results to return to caller.
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>        candidate_k: Number of candidates to retrieve in initial dense
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>            and lexical stages. When ``None``, defaults to ``final_k``.
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>            Exposing ``candidate_k`` separately ensures an optional
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>            reranker stage has enough candidate documents to re-score.
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>        threshold: Distance cutoff for vector search.
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>        filters: Key-value equality or operator filters to push down.
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>        mandatory_capabilities: Capability or operator names that the
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>            storage backend MUST support; fails closed if unsupported.
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>        isolation_scope: Tenant, namespace, or collection identifier.
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>            Pushed to backend filter stage and re-validated on results.
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>        scope_field: Metadata key used for isolation scope (defaults
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>            to ``&quot;tenant_id&quot;``).
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>        expected_generation: Target generation integer for active index
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>            generation scoping.
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>        text_field: Column / field name for the document text.
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>        metadata_fields: Additional metadata column names to surface.
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>        session: Optional external transaction/session handle.
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>        strict: When ``True``, storage failures raise :class:`RetrievalError`.
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>    query: str
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>    final_k: int = 5
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>    candidate_k: int | None = None
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>    threshold: float | None = None
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>    filters: dict[str, Any] = field(default_factory=dict)
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>    mandatory_capabilities: set[str] = field(default_factory=set)
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>    isolation_scope: str | None = None
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>    scope_field: str = &quot;tenant_id&quot;
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>    expected_generation: int | None = None
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>    text_field: str = &quot;text&quot;
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>    metadata_fields: list[str] = field(default_factory=list)
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>    session: Any = None
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>    strict: bool = False
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>    def get_candidate_k(self) -&gt; int:
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>        &quot;&quot;&quot;Return the effective candidate count for initial retrieval stages.&quot;&quot;&quot;
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>        if self.candidate_k is not None and self.candidate_k &gt; 0:
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>            return max(self.candidate_k, self.final_k)
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>        return self.final_k
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    def effective_filters(self) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>        &quot;&quot;&quot;Return merged filters including isolation scope and generation.&quot;&quot;&quot;
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>        merged = dict(self.filters)
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>        if self.isolation_scope is not None:
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>            merged[self.scope_field] = self.isolation_scope
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>        if self.expected_generation is not None:
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>            merged[&quot;generation&quot;] = self.expected_generation
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>        return merged
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    @classmethod
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>    def from_query(  # noqa: PLR0913
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>        cls,
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>        query: str,
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>        n_results: int = 5,
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>        *,
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>        candidate_k: int | None = None,
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>        threshold: float | None = None,
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>        strict: bool = False,
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>        isolation_scope: str | None = None,
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>        scope_field: str = &quot;tenant_id&quot;,
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>        mandatory_capabilities: set[str] | None = None,
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>        text_field: str = &quot;text&quot;,
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>        metadata_fields: list[str] | None = None,
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>        session: Any = None,
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>        **filters: Any,
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>    ) -&gt; RetrievalRequest:
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>        &quot;&quot;&quot;Create a request from query string and keyword arguments.&quot;&quot;&quot;
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>        return cls(
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>            query=query,
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>            final_k=n_results,
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>            candidate_k=candidate_k,
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>            threshold=threshold,
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>            filters=filters,
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>            mandatory_capabilities=mandatory_capabilities or set(),
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>            isolation_scope=isolation_scope,
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>            scope_field=scope_field,
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>            text_field=text_field,
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>            metadata_fields=metadata_fields or [],
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>            session=session,
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>            strict=strict,
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>        )
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>    def to_dict(self) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>        &quot;&quot;&quot;Convert request to legacy kwargs dictionary.&quot;&quot;&quot;
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>        d: dict[str, Any] = {
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>            &quot;query&quot;: self.query,
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>            &quot;n_results&quot;: self.final_k,
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>            &quot;final_k&quot;: self.final_k,
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>            &quot;candidate_k&quot;: self.candidate_k,
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>            &quot;threshold&quot;: self.threshold,
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>            &quot;text_field&quot;: self.text_field,
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>            &quot;metadata_fields&quot;: self.metadata_fields,
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>            &quot;strict&quot;: self.strict,
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>            &quot;isolation_scope&quot;: self.isolation_scope,
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>            &quot;scope_field&quot;: self.scope_field,
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>            &quot;session&quot;: self.session,
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>            **self.filters,
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>        }
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>        return d
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>@dataclass
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>class RetrievedDocument:
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>    &quot;&quot;&quot;A typed retrieval result with explicit score tracking.
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>    Attributes:
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>        id: Unique identifier of the document (or ``None``).
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>        document: The text content of the retrieved document/chunk.
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>        metadata: Associated metadata dictionary.
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>        scores: Explicit dictionary of scores keyed by :class:`ScoreKind`.
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>        distance: Metric distance from vector search (lower is better).
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>        keyword_score: Score from keyword/lexical search (higher is better).
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>        rrf_score: Reciprocal Rank Fusion score (higher is better).
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>        reranker_score: Score from the reranker stage (higher is better).
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>    id: str | None
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>    document: str
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>    metadata: dict[str, Any] = field(default_factory=dict)
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>    scores: dict[ScoreKind, RawScore] = field(default_factory=dict)
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>    distance: float | None = None
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>    keyword_score: float | None = None
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>    rrf_score: float = 0.0
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>    reranker_score: float | None = None
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>    def __post_init__(self) -&gt; None:
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>        &quot;&quot;&quot;Populate scores dictionary from scalar fields if empty.&quot;&quot;&quot;
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>        if self.distance is not None and ScoreKind.DISTANCE not in self.scores:
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>            self.scores[ScoreKind.DISTANCE] = RawScore.distance(self.distance)
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>        if self.keyword_score is not None and ScoreKind.LEXICAL not in self.scores:
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>            self.scores[ScoreKind.LEXICAL] = RawScore.lexical(self.keyword_score)
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>        if self.rrf_score &gt; 0.0 and ScoreKind.RRF not in self.scores:
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>            self.scores[ScoreKind.RRF] = RawScore.rrf(self.rrf_score)
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>        if self.reranker_score is not None and ScoreKind.RERANKER not in self.scores:
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>            self.scores[ScoreKind.RERANKER] = RawScore.reranker(self.reranker_score)
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>    def to_dict(self) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>        &quot;&quot;&quot;Convert to legacy store result dictionary format.&quot;&quot;&quot;
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>        d: dict[str, Any] = {
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>            &quot;id&quot;: self.id,
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>            &quot;document&quot;: self.document,
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>            &quot;metadata&quot;: self.metadata,
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>            &quot;distance&quot;: self.distance,
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>            &quot;keyword_score&quot;: self.keyword_score,
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>            &quot;_rrf_score&quot;: self.rrf_score,
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>        }
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>        if self.reranker_score is not None:
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>            d[&quot;_reranker_score&quot;] = self.reranker_score
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>        return d
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>    @classmethod
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>    def from_dict(cls, row: Mapping[str, Any]) -&gt; RetrievedDocument:
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>        &quot;&quot;&quot;Construct from a legacy store result dictionary.&quot;&quot;&quot;
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>        distance = row.get(&quot;distance&quot;)
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>        keyword_score = row.get(&quot;keyword_score&quot;)
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>        rrf_score = row.get(&quot;_rrf_score&quot;, 0.0)
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>        reranker_score = row.get(&quot;_reranker_score&quot;)
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>        scores: dict[ScoreKind, RawScore] = {}
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>        if distance is not None:
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>            scores[ScoreKind.DISTANCE] = RawScore.distance(float(distance))
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>        if keyword_score is not None:
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>            scores[ScoreKind.LEXICAL] = RawScore.lexical(float(keyword_score))
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>        if rrf_score &gt; 0.0:
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>            scores[ScoreKind.RRF] = RawScore.rrf(float(rrf_score))
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>        if reranker_score is not None:
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>            scores[ScoreKind.RERANKER] = RawScore.reranker(float(reranker_score))
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>        return cls(
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>            id=str(row[&quot;id&quot;]) if row.get(&quot;id&quot;) is not None else None,
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>            document=str(row.get(&quot;document&quot;, &quot;&quot;)),
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>            metadata=dict(row.get(&quot;metadata&quot;) or {}),
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>            scores=scores,
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>            distance=float(distance) if distance is not None else None,
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>            keyword_score=float(keyword_score) if keyword_score is not None else None,
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>            rrf_score=float(rrf_score),
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>            reranker_score=float(reranker_score) if reranker_score is not None else None,
+</span><span class="source-line" id="L217"><a href="#L217" class="line-number" aria-label="Line 217">217</a>        )
+</span><span class="source-line" id="L218"><a href="#L218" class="line-number" aria-label="Line 218">218</a>
+</span><span class="source-line" id="L219"><a href="#L219" class="line-number" aria-label="Line 219">219</a>    def to_search_result(self) -&gt; SearchResult:
+</span><span class="source-line" id="L220"><a href="#L220" class="line-number" aria-label="Line 220">220</a>        &quot;&quot;&quot;Convert to legacy SearchResult dataclass.&quot;&quot;&quot;
+</span><span class="source-line" id="L221"><a href="#L221" class="line-number" aria-label="Line 221">221</a>        return SearchResult(
+</span><span class="source-line" id="L222"><a href="#L222" class="line-number" aria-label="Line 222">222</a>            id=self.id,
+</span><span class="source-line" id="L223"><a href="#L223" class="line-number" aria-label="Line 223">223</a>            document=self.document,
+</span><span class="source-line" id="L224"><a href="#L224" class="line-number" aria-label="Line 224">224</a>            metadata=self.metadata,
+</span><span class="source-line" id="L225"><a href="#L225" class="line-number" aria-label="Line 225">225</a>            distance=self.distance,
+</span><span class="source-line" id="L226"><a href="#L226" class="line-number" aria-label="Line 226">226</a>            keyword_score=self.keyword_score,
+</span><span class="source-line" id="L227"><a href="#L227" class="line-number" aria-label="Line 227">227</a>            rrf_score=self.rrf_score,
+</span><span class="source-line" id="L228"><a href="#L228" class="line-number" aria-label="Line 228">228</a>        )
+</span><span class="source-line" id="L229"><a href="#L229" class="line-number" aria-label="Line 229">229</a>
+</span><span class="source-line" id="L230"><a href="#L230" class="line-number" aria-label="Line 230">230</a>
+</span><span class="source-line" id="L231"><a href="#L231" class="line-number" aria-label="Line 231">231</a>@dataclass
+</span><span class="source-line" id="L232"><a href="#L232" class="line-number" aria-label="Line 232">232</a>class RetrievalResponse:
+</span><span class="source-line" id="L233"><a href="#L233" class="line-number" aria-label="Line 233">233</a>    &quot;&quot;&quot;A typed container of retrieved documents with metadata.
+</span><span class="source-line" id="L234"><a href="#L234" class="line-number" aria-label="Line 234">234</a>
+</span><span class="source-line" id="L235"><a href="#L235" class="line-number" aria-label="Line 235">235</a>    Attributes:
+</span><span class="source-line" id="L236"><a href="#L236" class="line-number" aria-label="Line 236">236</a>        items: List of retrieved documents ordered best-first.
+</span><span class="source-line" id="L237"><a href="#L237" class="line-number" aria-label="Line 237">237</a>        query: Query string that produced these results.
+</span><span class="source-line" id="L238"><a href="#L238" class="line-number" aria-label="Line 238">238</a>        candidate_k: Number of candidate documents fetched initially.
+</span><span class="source-line" id="L239"><a href="#L239" class="line-number" aria-label="Line 239">239</a>        final_k: Number of final results requested.
+</span><span class="source-line" id="L240"><a href="#L240" class="line-number" aria-label="Line 240">240</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L241"><a href="#L241" class="line-number" aria-label="Line 241">241</a>
+</span><span class="source-line" id="L242"><a href="#L242" class="line-number" aria-label="Line 242">242</a>    items: list[RetrievedDocument]
+</span><span class="source-line" id="L243"><a href="#L243" class="line-number" aria-label="Line 243">243</a>    query: str
+</span><span class="source-line" id="L244"><a href="#L244" class="line-number" aria-label="Line 244">244</a>    candidate_k: int = 5
+</span><span class="source-line" id="L245"><a href="#L245" class="line-number" aria-label="Line 245">245</a>    final_k: int = 5
+</span><span class="source-line" id="L246"><a href="#L246" class="line-number" aria-label="Line 246">246</a>
+</span><span class="source-line" id="L247"><a href="#L247" class="line-number" aria-label="Line 247">247</a>    def to_dicts(self) -&gt; list[dict[str, Any]]:
+</span><span class="source-line" id="L248"><a href="#L248" class="line-number" aria-label="Line 248">248</a>        &quot;&quot;&quot;Convert all items to legacy result dictionaries.&quot;&quot;&quot;
+</span><span class="source-line" id="L249"><a href="#L249" class="line-number" aria-label="Line 249">249</a>        return [item.to_dict() for item in self.items]
+</span><span class="source-line" id="L250"><a href="#L250" class="line-number" aria-label="Line 250">250</a>
+</span><span class="source-line" id="L251"><a href="#L251" class="line-number" aria-label="Line 251">251</a>    @classmethod
+</span><span class="source-line" id="L252"><a href="#L252" class="line-number" aria-label="Line 252">252</a>    def from_dicts(
+</span><span class="source-line" id="L253"><a href="#L253" class="line-number" aria-label="Line 253">253</a>        cls,
+</span><span class="source-line" id="L254"><a href="#L254" class="line-number" aria-label="Line 254">254</a>        rows: Sequence[Mapping[str, Any]],
+</span><span class="source-line" id="L255"><a href="#L255" class="line-number" aria-label="Line 255">255</a>        query: str,
+</span><span class="source-line" id="L256"><a href="#L256" class="line-number" aria-label="Line 256">256</a>        *,
+</span><span class="source-line" id="L257"><a href="#L257" class="line-number" aria-label="Line 257">257</a>        candidate_k: int = 5,
+</span><span class="source-line" id="L258"><a href="#L258" class="line-number" aria-label="Line 258">258</a>        final_k: int = 5,
+</span><span class="source-line" id="L259"><a href="#L259" class="line-number" aria-label="Line 259">259</a>    ) -&gt; RetrievalResponse:
+</span><span class="source-line" id="L260"><a href="#L260" class="line-number" aria-label="Line 260">260</a>        &quot;&quot;&quot;Construct from a sequence of legacy result dicts.&quot;&quot;&quot;
+</span><span class="source-line" id="L261"><a href="#L261" class="line-number" aria-label="Line 261">261</a>        return cls(
+</span><span class="source-line" id="L262"><a href="#L262" class="line-number" aria-label="Line 262">262</a>            items=[RetrievedDocument.from_dict(row) for row in rows],
+</span><span class="source-line" id="L263"><a href="#L263" class="line-number" aria-label="Line 263">263</a>            query=query,
+</span><span class="source-line" id="L264"><a href="#L264" class="line-number" aria-label="Line 264">264</a>            candidate_k=candidate_k,
+</span><span class="source-line" id="L265"><a href="#L265" class="line-number" aria-label="Line 265">265</a>            final_k=final_k,
+</span><span class="source-line" id="L266"><a href="#L266" class="line-number" aria-label="Line 266">266</a>        )
+</span><span class="source-line" id="L267"><a href="#L267" class="line-number" aria-label="Line 267">267</a>
+</span><span class="source-line" id="L268"><a href="#L268" class="line-number" aria-label="Line 268">268</a>    def __iter__(self) -&gt; Iterator[RetrievedDocument]:
+</span><span class="source-line" id="L269"><a href="#L269" class="line-number" aria-label="Line 269">269</a>        return iter(self.items)
+</span><span class="source-line" id="L270"><a href="#L270" class="line-number" aria-label="Line 270">270</a>
+</span><span class="source-line" id="L271"><a href="#L271" class="line-number" aria-label="Line 271">271</a>    def __len__(self) -&gt; int:
+</span><span class="source-line" id="L272"><a href="#L272" class="line-number" aria-label="Line 272">272</a>        return len(self.items)
+</span><span class="source-line" id="L273"><a href="#L273" class="line-number" aria-label="Line 273">273</a>
+</span><span class="source-line" id="L274"><a href="#L274" class="line-number" aria-label="Line 274">274</a>    def __getitem__(self, index: int) -&gt; RetrievedDocument:
+</span><span class="source-line" id="L275"><a href="#L275" class="line-number" aria-label="Line 275">275</a>        return self.items[index]
+</span></code></pre></main></body></html>

@@ -1,0 +1,232 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/app/domain/procedures/tools.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/app/domain/procedures/tools.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>Procedure playbook tool for the OmniCare AI agent.
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>This tool loads a domain procedure playbook — the coverage determination
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>checklist or the intake triage procedure — out of the procedures index, so the
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>agent gets the procedure as grounded text with provenance instead of the whole
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>playbook living in the system prompt.
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>The tool is a plain async function the agent registry can call directly. It uses
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>the domain adapter ``app.domain.procedures.retrieval`` for retrieval, which is
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>scoped to a single playbook file so a coverage question can never come back
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>with triage text attached to it.
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>from __future__ import annotations
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>import logging
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>import re
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>from collections.abc import Iterable
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>from dataclasses import dataclass
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>from typing import Any
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>from app.domain.procedures.retrieval import retrieve_procedures
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>from app.domain.procedures.store import get_active_version_record
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>logger = logging.getLogger(__name__)
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>_PROCEDURE_CHUNK_LIMIT = 16
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>&quot;&quot;&quot;Chunks pulled per playbook.
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>Must exceed the chunk count of the largest playbook, or the tool would
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>silently return a truncated procedure. A playbook that reaches the limit is
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>logged so the corpus split can be revisited.
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>_MAX_NAME_ECHO = 64
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>&quot;&quot;&quot;Bound on the requested name echoed back in an error.
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>The name arrives from the model, so it is untrusted text: the echo keeps the
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>envelope readable and stops a long name from flooding the response.
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>@dataclass(frozen=True)
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>class _ProcedureSpec:
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>    &quot;&quot;&quot;One retrievable procedure playbook.
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>    Attributes:
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>        name: Canonical procedure name the model invokes.
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>        source_file: Playbook file in the procedures index.
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>        topic: Retrieval seed naming the playbook&#x27;s subject matter.
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>    name: str
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>    source_file: str
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>    topic: str
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>_PROCEDURES: tuple[_ProcedureSpec, ...] = (
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>    _ProcedureSpec(
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>        name=&quot;coverage-review&quot;,
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>        source_file=&quot;coverage-review.md&quot;,
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>        topic=(
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>            &quot;coverage determination procedure incident facts covered peril &quot;
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>            &quot;appraisal threshold coverage cap decision&quot;
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>        ),
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>    ),
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>    _ProcedureSpec(
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>        name=&quot;claim-triage&quot;,
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>        source_file=&quot;claim-triage.md&quot;,
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>        topic=(
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>            &quot;intake triage procedure classify request missing required fields &quot;
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>            &quot;escalation triggers routing&quot;
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>        ),
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>    ),
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>)
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a># Normalised spellings the model is likely to produce. The canonical names are
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a># always accepted; these cover the phrasings that mean the same playbook.
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>_ALIASES: dict[str, str] = {
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>    &quot;coverage&quot;: &quot;coverage-review&quot;,
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>    &quot;coverage-determination&quot;: &quot;coverage-review&quot;,
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>    &quot;coverage-review-procedure&quot;: &quot;coverage-review&quot;,
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>    &quot;coveragequestion&quot;: &quot;coverage-review&quot;,
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>    &quot;triage&quot;: &quot;claim-triage&quot;,
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>    &quot;intake&quot;: &quot;claim-triage&quot;,
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>    &quot;claim-intake&quot;: &quot;claim-triage&quot;,
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>    &quot;intake-triage&quot;: &quot;claim-triage&quot;,
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    &quot;claim-triage-procedure&quot;: &quot;claim-triage&quot;,
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>}
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>_BY_NAME: dict[str, _ProcedureSpec] = {spec.name: spec for spec in _PROCEDURES}
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>def _normalise(value: str) -&gt; str:
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>    &quot;&quot;&quot;Fold a requested procedure name into its lookup key.&quot;&quot;&quot;
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>    return re.sub(r&quot;[^a-z0-9]+&quot;, &quot;-&quot;, value.strip().lower()).strip(&quot;-&quot;)
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>def _resolve(name: str) -&gt; _ProcedureSpec | None:
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>    &quot;&quot;&quot;Resolve a requested name to a playbook, or ``None`` when unknown.&quot;&quot;&quot;
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>    key = _normalise(name)
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>    canonical = _ALIASES.get(key, key)
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>    return _BY_NAME.get(canonical)
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>def _sort_key(result: dict[str, Any]) -&gt; tuple[int, int]:
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>    &quot;&quot;&quot;Return the document-order sort key for one chunk.
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>    Hybrid retrieval ranks by relevance, which would hand the model the
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>    playbook&#x27;s steps out of order. The chunk indexes restore the order the
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>    playbook was written in.
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>    metadata = result.get(&quot;metadata&quot;) or {}
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>    chunk_index = metadata.get(&quot;chunk_index&quot;)
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>    sub_chunk_index = metadata.get(&quot;sub_chunk_index&quot;)
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>    return (
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>        chunk_index if isinstance(chunk_index, int) else 1 &lt;&lt; 30,
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>        sub_chunk_index if isinstance(sub_chunk_index, int) else 1 &lt;&lt; 30,
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>    )
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>def _dedupe_sources(results: Iterable[dict[str, Any]]) -&gt; list[dict[str, Any]]:
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>    &quot;&quot;&quot;Build one citation per section, in the order the sections appear.&quot;&quot;&quot;
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>    sources: list[dict[str, Any]] = []
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>    seen_sections: set[str] = set()
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>    for result in results:
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>        metadata = result.get(&quot;metadata&quot;) or {}
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>        section = metadata.get(&quot;section&quot;) or &quot;Procedure&quot;
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>        if section in seen_sections:
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>            continue
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>        seen_sections.add(section)
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>        distance = result.get(&quot;distance&quot;)
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>        sources.append(
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>            {
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>                &quot;section&quot;: section,
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>                &quot;source&quot;: metadata.get(&quot;source&quot;) or &quot;procedure playbook&quot;,
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>                &quot;relevance_score&quot;: round(distance, 4) if distance is not None else None,
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>            }
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>        )
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>    return sources
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>def _error_envelope(name: str, message: str) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>    &quot;&quot;&quot;Build a structured error envelope that leaks nothing internal.&quot;&quot;&quot;
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>    logger.warning(&quot;get_procedure rejected request for %r: %s&quot;, name[:_MAX_NAME_ECHO], message)
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>    return {
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>        &quot;procedure&quot;: None,
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>        &quot;version&quot;: None,
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>        &quot;chunk_count&quot;: 0,
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>        &quot;sources&quot;: [],
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>        &quot;name&quot;: name[:_MAX_NAME_ECHO],
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>        &quot;error&quot;: message,
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>    }
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>async def get_procedure(name: str) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>    &quot;&quot;&quot;Load a domain procedure playbook from the procedures index.
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>    Use this tool when a decision needs a procedure rather than a policy fact:
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>    call it before deciding whether a described incident is covered, and before
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>    routing a message whose intent is unclear. Then follow the returned
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>    ``procedure`` text step by step, and take every policy number, limit, and
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>    exclusion from ``query_policy`` rather than from the procedure itself.
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>    Args:
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>        name: Procedure to load. One of ``coverage-review`` or
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>            ``claim-triage``.
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>    Returns:
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>        dict: On success, ``procedure`` (the playbook text in section order),
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>        ``version`` (the active ingestion version it was served from),
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>        ``chunk_count``, ``sources`` (one citation per section), and ``name``.
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>        On failure, ``procedure`` is ``None`` and ``error`` explains why.
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>    requested = (name or &quot;&quot;).strip()
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>    if not requested:
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>        return _error_envelope(
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>            name or &quot;&quot;,
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>            &quot;A procedure name is required. Available procedures: &quot;
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>            f&quot;{&#x27;, &#x27;.join(sorted(_BY_NAME))}.&quot;,
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>        )
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>    spec = _resolve(requested)
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>    if spec is None:
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>        return _error_envelope(
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>            name,
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>            f&quot;Unknown procedure &#x27;{requested[:_MAX_NAME_ECHO]}&#x27;. Available &quot;
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>            f&quot;procedures: {&#x27;, &#x27;.join(sorted(_BY_NAME))}.&quot;,
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>        )
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>    record = await get_active_version_record(spec.source_file)
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>    if record is None:
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>        return _error_envelope(
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>            name,
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>            f&quot;The &#x27;{spec.name}&#x27; procedure is not in the index yet. Answer from &quot;
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>            &quot;the policy documents directly and say the procedure is unavailable.&quot;,
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>        )
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>    results = await retrieve_procedures(
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>        spec.topic,
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>        n_results=_PROCEDURE_CHUNK_LIMIT,
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>        source_file=spec.source_file,
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>    )
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>    if not results:
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>        return _error_envelope(
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>            name,
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>            f&quot;The &#x27;{spec.name}&#x27; procedure could not be read from the index. &quot;
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>            &quot;Answer from the policy documents directly and say the procedure &quot;
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>            &quot;is unavailable.&quot;,
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>        )
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>    results.sort(key=_sort_key)
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>    if len(results) &gt;= _PROCEDURE_CHUNK_LIMIT:
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>        # The playbook may have grown past the retrieval window, which would
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>        # silently truncate the procedure the model is about to follow.
+</span><span class="source-line" id="L217"><a href="#L217" class="line-number" aria-label="Line 217">217</a>        logger.warning(
+</span><span class="source-line" id="L218"><a href="#L218" class="line-number" aria-label="Line 218">218</a>            &quot;Procedure &#x27;%s&#x27; returned %d chunks, the retrieval limit; &quot;
+</span><span class="source-line" id="L219"><a href="#L219" class="line-number" aria-label="Line 219">219</a>            &quot;the playbook may be truncated.&quot;,
+</span><span class="source-line" id="L220"><a href="#L220" class="line-number" aria-label="Line 220">220</a>            spec.name,
+</span><span class="source-line" id="L221"><a href="#L221" class="line-number" aria-label="Line 221">221</a>            len(results),
+</span><span class="source-line" id="L222"><a href="#L222" class="line-number" aria-label="Line 222">222</a>        )
+</span><span class="source-line" id="L223"><a href="#L223" class="line-number" aria-label="Line 223">223</a>
+</span><span class="source-line" id="L224"><a href="#L224" class="line-number" aria-label="Line 224">224</a>    return {
+</span><span class="source-line" id="L225"><a href="#L225" class="line-number" aria-label="Line 225">225</a>        &quot;procedure&quot;: &quot;\n\n&quot;.join(result.get(&quot;document&quot;, &quot;&quot;) for result in results),
+</span><span class="source-line" id="L226"><a href="#L226" class="line-number" aria-label="Line 226">226</a>        &quot;version&quot;: record[&quot;version&quot;],
+</span><span class="source-line" id="L227"><a href="#L227" class="line-number" aria-label="Line 227">227</a>        &quot;chunk_count&quot;: len(results),
+</span><span class="source-line" id="L228"><a href="#L228" class="line-number" aria-label="Line 228">228</a>        &quot;sources&quot;: _dedupe_sources(results),
+</span><span class="source-line" id="L229"><a href="#L229" class="line-number" aria-label="Line 229">229</a>        &quot;name&quot;: spec.name,
+</span><span class="source-line" id="L230"><a href="#L230" class="line-number" aria-label="Line 230">230</a>        &quot;error&quot;: None,
+</span><span class="source-line" id="L231"><a href="#L231" class="line-number" aria-label="Line 231">231</a>    }
+</span></code></pre></main></body></html>

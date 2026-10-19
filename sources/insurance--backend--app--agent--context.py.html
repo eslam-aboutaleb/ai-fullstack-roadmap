@@ -1,0 +1,30 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/app/agent/context.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/app/agent/context.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>Context variables for propagating request-scoped state through the OmniCare
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>backend without explicit parameter threading.
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>This module defines ``current_user_id``, a ``ContextVar`` that holds the UUID
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>of the authenticated user for the duration of an async request.
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>Why ContextVars instead of global state?
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>  - FastAPI runs many requests concurrently on a single event loop. A global
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>    variable would be shared across requests, causing data races where one
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>    user&#x27;s ID leaks into another user&#x27;s agent tool execution.
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>  - ``ContextVar`` is designed for exactly this problem: it provides
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>    request-local storage that flows through ``async/await`` boundaries and
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>    is isolated per concurrent task.
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>Usage pattern:
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>  - ``get_current_user`` (in ``app/security/auth.py``) sets ``current_user_id``
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>    after successful JWT validation.
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>  - Agent tools and other downstream code read ``current_user_id.get()`` to
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>    scope database queries and audit log entries to the correct user.
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>import contextvars
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>import uuid
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a># Context variable holding the authenticated user&#x27;s UUID for the current
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a># async request context. This is set by ``get_current_user`` and read by
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a># agent tools and business logic to enforce user-scoped access control.
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>current_user_id: contextvars.ContextVar[uuid.UUID] = contextvars.ContextVar(&quot;current_user_id&quot;)
+</span></code></pre></main></body></html>

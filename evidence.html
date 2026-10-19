@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Evidence, context, and citations · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="evidence" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a aria-current=page href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 08 / 30 · QUESTIONS 71–80</p><h1>Evidence, context, and citations</h1><p class="subtitle">Turn ranked hits into bounded material a person can verify.</p><p class="chapter-note">Original chapter reviewed against the insurance host. Each answer now links to its coverage-audit entry and practical extension.</p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-evidence">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the dataflow diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/dataflow.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/dataflow.html" title="dataflow diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q71" data-question="71">
+<div class="q-meta"><span>QUESTION 071</span><span>Code & engineering analysis</span><a href="#q71" aria-label="Link to question 71">#</a></div>
+<details class="answer" open><summary><h2>71. Why does evidence assembly deserve a separate module?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Search ranking and prompt construction optimize different things. Ranking selects likely relevant hits; assembly must remove redundancy, preserve source identity, fit a budget, and communicate whether usable evidence exists. A list of raw top-k records does not meet all those needs.</p>
+<h3>Mechanism & reason</h3><p>EvidenceAssembler coerces supported hit shapes, deduplicates, merges eligible spans, balances source diversity, selects items, and renders stable citation labels. This deterministic layer can be tested independently of an unpredictable generator.</p><h3>Risk & safeguards</h3><p>Assuming all retrieved text is safe prompt instruction invites source-driven manipulation. The bundle treats text as evidence and escapes selected delimiters, while host prompt policy and tool permissions remain necessary.</p>
+<h3>Choice & trade-offs</h3><p>An extra layer adds types and decisions but centralizes budgeting and attribution. Ad hoc prompt concatenation is shorter and easier to get subtly wrong.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/assembler.py:275</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        # Check backend failure
+        if backend_failure or backend_status in (
+            &quot;failure&quot;,
+            &quot;error&quot;,
+            EvidenceStatus.BACKEND_FAILURE,
+        ):
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.BACKEND_FAILURE,
+                total_tokens=0,
+                budget=budget,
+                status_detail=(
+                    &quot;Backend retrieval failed; abstaining from ungrounded evidence assembly.&quot;
+                ),
+            )
+
+        # Check stale index
+        if is_stale_index or backend_status == EvidenceStatus.STALE_INDEX:
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.STALE_INDEX,
+                total_tokens=0,
+                budget=budget,</code></pre>
+<p><a href="sources/src--ragnor--evidence--assembler.py.html#L275">Read frozen source, lines 275–297</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/assembler.py#L275-L297">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Feed duplicate and overlapping hits from two sources into the assembler. Inspect both selected text and the counters explaining what was removed or merged.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q71">Question 71 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="71"> I can explain this</label><button type="button" class="bookmark" data-bookmark="71" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-71">Explain this in your own words</label><textarea id="note-71" data-note="71" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q72" data-question="72">
+<div class="q-meta"><span>QUESTION 072</span><span>Code & engineering analysis</span><a href="#q72" aria-label="Link to question 72">#</a></div>
+<details class="answer" open><summary><h2>72. How is the context budget calculated?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Available evidence capacity equals total budget minus reserved instructions, user input, and answer tokens, floored at zero. The assembler must account for rendered framing and citation text, not only passage body tokens. A positive capacity does not imply that even one candidate will fit.</p>
+<h3>Mechanism & reason</h3><p>ContextBudget exposes reserved_total, available_evidence_tokens, and is_valid. Assembly checks the rendered form as items are added and returns insufficient_budget when no candidate fits.</p><h3>Risk & safeguards</h3><p>Reserving too little for generation can cause provider truncation; counting with an approximate tokenizer cannot guarantee an actual model limit. The host must include its complete message framing and any tool schema costs.</p>
+<h3>Choice & trade-offs</h3><p>Larger answer reservations reduce evidence capacity. Larger evidence budgets increase cost and can include irrelevant or distracting material.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/types.py:104</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    total_budget: int
+    reserved_instructions: int = 0
+    reserved_user_input: int = 0
+    reserved_answer: int = 0
+    max_evidence_items: int | None = None
+
+    def __post_init__(self) -&gt; None:
+        if self.total_budget &lt;= 0:
+            raise ValueError(f&quot;total_budget must be positive; got {self.total_budget}&quot;)
+        if self.reserved_instructions &lt; 0:
+            raise ValueError(&quot;reserved_instructions must be non-negative&quot;)
+        if self.reserved_user_input &lt; 0:
+            raise ValueError(&quot;reserved_user_input must be non-negative&quot;)
+        if self.reserved_answer &lt; 0:
+            raise ValueError(&quot;reserved_answer must be non-negative&quot;)
+
+    @property
+    def reserved_total(self) -&gt; int:
+        &quot;&quot;&quot;Total tokens reserved for instructions, user input, and answer.&quot;&quot;&quot;
+        return self.reserved_instructions + self.reserved_user_input + self.reserved_answer
+
+    @property</code></pre>
+<p><a href="sources/src--ragnor--evidence--types.py.html#L104">Read frozen source, lines 104–125</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/types.py#L104-L125">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>For a 16,000-token window, reserve 2,000 instructions, 1,000 user input, and 3,000 answer tokens. Compute evidence room, then explain what additional host framing must be counted.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q72">Question 72 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="72"> I can explain this</label><button type="button" class="bookmark" data-bookmark="72" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-72">Explain this in your own words</label><textarea id="note-72" data-note="72" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q73" data-question="73">
+<div class="q-meta"><span>QUESTION 073</span><span>Code & engineering analysis</span><a href="#q73" aria-label="Link to question 73">#</a></div>
+<details class="answer" open><summary><h2>73. Why is ApproximateTokenizer not a strict context guarantee?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">It estimates from characters and whitespace-separated words. Actual model tokenization depends on its vocabulary and encoding, so a heuristic can undercount some inputs even when intended to be conservative. The class explicitly marks is_exact as false.</p>
+<h3>Mechanism & reason</h3><p>Ragnor offers ExactTokenizerAdapter for a model-specific counter. That adapter is only as exact as the supplied counting function and the host&#x27;s representation of the final serialized request.</p><h3>Risk & safeguards</h3><p>A function labeled exact but counting the wrong model or omitting message wrappers still gives unsafe limits. Multilingual text, code, and unusual characters deserve explicit verification.</p>
+<h3>Choice & trade-offs</h3><p>Approximation keeps core dependency-free and supports offline use. Exact counting adds a tokenizer dependency or integration step and stronger budget fidelity.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/tokenizer.py:61</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if not text:
+            return 0
+        char_est = math.ceil(len(text) / 3.3)
+        words = text.split()
+        word_est = math.ceil(len(words) * 1.35) if words else 0
+        return max(char_est, word_est, 1)</code></pre>
+<p><a href="sources/src--ragnor--evidence--tokenizer.py.html#L61">Read frozen source, lines 61–66</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/tokenizer.py#L61-L66">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Compare heuristic and actual counts for prose, code, Arabic, and long identifiers. Explain why agreement on one example does not establish a global upper bound.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q73">Question 73 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="73"> I can explain this</label><button type="button" class="bookmark" data-bookmark="73" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-73">Explain this in your own words</label><textarea id="note-73" data-note="73" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q74" data-question="74">
+<div class="q-meta"><span>QUESTION 074</span><span>Code & engineering analysis</span><a href="#q74" aria-label="Link to question 74">#</a></div>
+<details class="answer" open><summary><h2>74. How do deduplication and span merging differ?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Deduplication removes repeated hits representing the same chunk. Span merging combines compatible overlapping or contiguous material from the same source context, preserving a larger coherent excerpt. They solve redundancy at different identity and text-boundary levels.</p>
+<h3>Mechanism & reason</h3><p>EvidenceAssembler has separate _deduplicate and _merge_spans stages and records counts. Proper merging depends on source and revision information plus usable offsets; arbitrary neighboring ranked hits are not automatically one passage.</p><h3>Risk & safeguards</h3><p>Merging across revisions or unrelated documents can fabricate a source excerpt that never existed. Missing or inconsistent offsets should not be guessed into a false provenance claim.</p>
+<h3>Choice & trade-offs</h3><p>Merging can restore context and save repeated framing, but may create a large item that fails the budget. Keeping chunks separate provides finer selection at the cost of repetition.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/assembler.py:275</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        # Check backend failure
+        if backend_failure or backend_status in (
+            &quot;failure&quot;,
+            &quot;error&quot;,
+            EvidenceStatus.BACKEND_FAILURE,
+        ):
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.BACKEND_FAILURE,
+                total_tokens=0,
+                budget=budget,
+                status_detail=(
+                    &quot;Backend retrieval failed; abstaining from ungrounded evidence assembly.&quot;
+                ),
+            )
+
+        # Check stale index
+        if is_stale_index or backend_status == EvidenceStatus.STALE_INDEX:
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.STALE_INDEX,
+                total_tokens=0,
+                budget=budget,</code></pre>
+<p><a href="sources/src--ragnor--evidence--assembler.py.html#L275">Read frozen source, lines 275–297</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/assembler.py#L275-L297">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Construct overlapping spans from the same document revision and one from a different revision. Predict which may merge and verify the emitted provenance.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q74">Question 74 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="74"> I can explain this</label><button type="button" class="bookmark" data-bookmark="74" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-74">Explain this in your own words</label><textarea id="note-74" data-note="74" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q75" data-question="75">
+<div class="q-meta"><span>QUESTION 075</span><span>Code & engineering analysis</span><a href="#q75" aria-label="Link to question 75">#</a></div>
+<details class="answer" open><summary><h2>75. Why balance evidence across sources?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A single document can occupy the candidate pool with many similar chunks. Source diversity can expose corroborating or contrasting material and reduce redundant context. It is a selection heuristic, not a guarantee that independent sources agree or are trustworthy.</p>
+<h3>Mechanism & reason</h3><p>The assembler ranks within sources and interleaves them before budget selection. This can preserve diversity even when a long source produces many high-scoring chunks.</p><h3>Risk & safeguards</h3><p>Diversity may demote the only authoritative source in favor of weaker material. Source quality and authority are product policies that may need explicit weighting or filtering outside the default heuristic.</p>
+<h3>Choice & trade-offs</h3><p>Pure relevance order maximizes one ranking signal; diversity spreads context coverage. Evaluate questions requiring one detailed source separately from questions requiring synthesis across sources.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/assembler.py:275</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        # Check backend failure
+        if backend_failure or backend_status in (
+            &quot;failure&quot;,
+            &quot;error&quot;,
+            EvidenceStatus.BACKEND_FAILURE,
+        ):
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.BACKEND_FAILURE,
+                total_tokens=0,
+                budget=budget,
+                status_detail=(
+                    &quot;Backend retrieval failed; abstaining from ungrounded evidence assembly.&quot;
+                ),
+            )
+
+        # Check stale index
+        if is_stale_index or backend_status == EvidenceStatus.STALE_INDEX:
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.STALE_INDEX,
+                total_tokens=0,
+                budget=budget,</code></pre>
+<p><a href="sources/src--ragnor--evidence--assembler.py.html#L275">Read frozen source, lines 275–297</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/assembler.py#L275-L297">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Give one source eight high-ranked chunks and another one relevant chunk. Compare evidence selection with the product&#x27;s expected authority policy.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q75">Question 75 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="75"> I can explain this</label><button type="button" class="bookmark" data-bookmark="75" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-75">Explain this in your own words</label><textarea id="note-75" data-note="75" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q76" data-question="76">
+<div class="q-meta"><span>QUESTION 076</span><span>Code & engineering analysis</span><a href="#q76" aria-label="Link to question 76">#</a></div>
+<details class="answer" open><summary><h2>76. What failure states should an evidence consumer handle?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">EvidenceStatus includes success, empty_search, backend_failure, insufficient_budget, stale_index, and revision_unavailable. These represent different next actions: answer, clarify, retry, change capacity, refresh indexing, or explain that a historical source cannot be retrieved.</p>
+<h3>Mechanism & reason</h3><p>The assembler explicitly returns backend and stale-index states rather than assembling ungrounded material. Revision-aware lookup raises a distinct error instead of silently substituting the current document.</p><h3>Risk & safeguards</h3><p>Flattening every state into no answer hides outages and can trigger unsafe generation fallbacks. Success also means usable selected evidence, not proof of a correct final answer.</p>
+<h3>Choice & trade-offs</h3><p>Rich states require more UI and API branches but let users respond appropriately. A single boolean is simpler and loses important operational meaning.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/types.py:104</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    total_budget: int
+    reserved_instructions: int = 0
+    reserved_user_input: int = 0
+    reserved_answer: int = 0
+    max_evidence_items: int | None = None
+
+    def __post_init__(self) -&gt; None:
+        if self.total_budget &lt;= 0:
+            raise ValueError(f&quot;total_budget must be positive; got {self.total_budget}&quot;)
+        if self.reserved_instructions &lt; 0:
+            raise ValueError(&quot;reserved_instructions must be non-negative&quot;)
+        if self.reserved_user_input &lt; 0:
+            raise ValueError(&quot;reserved_user_input must be non-negative&quot;)
+        if self.reserved_answer &lt; 0:
+            raise ValueError(&quot;reserved_answer must be non-negative&quot;)
+
+    @property
+    def reserved_total(self) -&gt; int:
+        &quot;&quot;&quot;Total tokens reserved for instructions, user input, and answer.&quot;&quot;&quot;
+        return self.reserved_instructions + self.reserved_user_input + self.reserved_answer
+
+    @property</code></pre>
+<p><a href="sources/src--ragnor--evidence--types.py.html#L104">Read frozen source, lines 104–125</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/types.py#L104-L125">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write user-facing messages for each status and specify which states may be retried automatically without changing the user&#x27;s question.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q76">Question 76 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="76"> I can explain this</label><button type="button" class="bookmark" data-bookmark="76" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-76">Explain this in your own words</label><textarea id="note-76" data-note="76" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q77" data-question="77">
+<div class="q-meta"><span>QUESTION 077</span><span>Code & engineering analysis</span><a href="#q77" aria-label="Link to question 77">#</a></div>
+<details class="answer" open><summary><h2>77. What makes a citation reproducible?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A reproducible citation identifies a stable source, document, revision, and bounded location or span. A URL pointing only to the latest page may no longer support an old answer after an update. Display labels such as [1] are local presentation, not durable source identities.</p>
+<h3>Mechanism & reason</h3><p>SourceLookup retrieves retained snapshots and rejects unavailable revisions. Evidence items carry revision and span fields, while source-reference helpers encode identifiers for later verification.</p><h3>Risk & safeguards</h3><p>Historical snapshots can contain sensitive material even after current content changes. Retention and revocation policies must apply to lookup as well as search, and a host must provide durable snapshot storage when needed.</p>
+<h3>Choice & trade-offs</h3><p>Retention improves auditability and costs storage and policy management. Current-only lookup is lighter but must admit when a historical claim cannot be verified.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/source_lookup.py:230</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        span_limit = self.default_max_span_length if max_span_length is None else max_span_length
+        self._validate_span_limit(span_limit)
+        span_limit = min(span_limit, self.default_max_span_length)
+        try:
+            if hasattr(self._store, &quot;is_revoked&quot;) and self._store.is_revoked(
+                source_id, document_id, authorization_scope
+            ):
+                raise ScopeAuthorizationError(&quot;Document access has been revoked&quot;)
+            if hasattr(self._store, &quot;get_scoped&quot;):
+                snapshot = self._store.get_scoped(
+                    source_id, document_id, revision, authorization_scope
+                )
+                if snapshot is None and self._store.has_revision(source_id, document_id, revision):
+                    raise ScopeAuthorizationError(&quot;Document revision belongs to a different scope&quot;)
+            else:
+                snapshot = self._store.get(source_id, document_id, revision)
+        except ScopeAuthorizationError:
+            if strict:
+                raise
+            return BoundedSpanResult(
+                source_id,
+                document_id,
+                revision,</code></pre>
+<p><a href="sources/src--ragnor--evidence--source_lookup.py.html#L230">Read frozen source, lines 230–252</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/source_lookup.py#L230-L252">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Cite revision A, update the source to B, and attempt lookup. Verify that A is returned if retained and that missing A never silently becomes B.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q77">Question 77 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="77"> I can explain this</label><button type="button" class="bookmark" data-bookmark="77" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-77">Explain this in your own words</label><textarea id="note-77" data-note="77" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q78" data-question="78">
+<div class="q-meta"><span>QUESTION 078</span><span>Code & engineering analysis</span><a href="#q78" aria-label="Link to question 78">#</a></div>
+<details class="answer" open><summary><h2>78. What does delimiter escaping mitigate, and what does it leave open?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Escaping selected instruction-like tags and code fences reduces the chance that source text visually or syntactically breaks out of an evidence wrapper. It does not recognize every malicious natural-language instruction or make a model incapable of following one.</p>
+<h3>Mechanism & reason</h3><p>escape_untrusted_delimiters replaces known markers in evidence rendering, and URI sanitization removes embedded credentials or disallowed active schemes. These are narrow input-handling mechanisms within a larger trust model.</p><h3>Risk & safeguards</h3><p>A passage can say ignore previous instructions without using any special delimiter. Host instructions must classify evidence as untrusted data, and tool permissions must prevent source text from gaining authority.</p>
+<h3>Choice & trade-offs</h3><p>Escaping preserves useful text with modest complexity but can alter literal code examples. More aggressive sanitization may damage legitimate content and still cannot solve all prompt injection.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/types.py:77</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if not text:
+        return &quot;&quot;
+    escaped = text
+    for tag in (&quot;evidence&quot;, &quot;context&quot;, &quot;instruction&quot;, &quot;system&quot;, &quot;prompt&quot;, &quot;user&quot;, &quot;assistant&quot;):
+        escaped = escaped.replace(f&quot;&lt;{tag}&gt;&quot;, f&quot;&amp;lt;{tag}&amp;gt;&quot;)
+        escaped = escaped.replace(f&quot;&lt;/{tag}&gt;&quot;, f&quot;&amp;lt;/{tag}&amp;gt;&quot;)
+        escaped = escaped.replace(f&quot;&lt;{tag} &quot;, f&quot;&amp;lt;{tag} &quot;)
+        escaped = escaped.replace(f&quot;[{tag.upper()}]&quot;, f&quot;[{tag.upper()}_ESCAPED]&quot;)
+        escaped = escaped.replace(f&quot;[/{tag.upper()}]&quot;, f&quot;[/{tag.upper()}_ESCAPED]&quot;)
+    escaped = escaped.replace(&quot;```&quot;, &quot;&#x27;&#x27;&#x27;&quot;)
+    escaped = escaped.replace(&quot;### System:&quot;, &quot;### [Evidence Text] System:&quot;)
+    escaped = escaped.replace(&quot;### Instruction:&quot;, &quot;### [Evidence Text] Instruction:&quot;)
+    return escaped</code></pre>
+<p><a href="sources/src--ragnor--evidence--types.py.html#L77">Read frozen source, lines 77–89</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/types.py#L77-L89">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Compare a tag-based injection and a plain-language injection. Explain why both should remain untrusted even if only one changes during escaping.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q78">Question 78 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="78"> I can explain this</label><button type="button" class="bookmark" data-bookmark="78" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-78">Explain this in your own words</label><textarea id="note-78" data-note="78" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q79" data-question="79">
+<div class="q-meta"><span>QUESTION 079</span><span>Code & engineering analysis</span><a href="#q79" aria-label="Link to question 79">#</a></div>
+<details class="answer" open><summary><h2>79. How can evidence compression preserve usefulness without fabricating support?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Compression shortens selected material to fit a budget. Extractive compression selects original spans; abstractive compression generates a shorter restatement. The latter can change meaning or omit conditions, so provenance and faithfulness require explicit checks.</p>
+<h3>Mechanism & reason</h3><p>EvidenceAssembler accepts an optional compressor, passes a copy of the item, checks selected provenance fields, recounts the rendered result, and falls back when compression fails. No universal learned compressor is installed by default.</p><h3>Risk & safeguards</h3><p>Preserving source ID and revision does not prove the compressed words accurately represent the source. The host must evaluate the compressor and decide whether the compressed text is quoteable or should be labeled as a summary.</p>
+<h3>Choice & trade-offs</h3><p>Compression increases context coverage but adds cost and potential distortion. Dropping a low-value item is often safer than aggressively rewriting essential evidence.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/assembler.py:275</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        # Check backend failure
+        if backend_failure or backend_status in (
+            &quot;failure&quot;,
+            &quot;error&quot;,
+            EvidenceStatus.BACKEND_FAILURE,
+        ):
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.BACKEND_FAILURE,
+                total_tokens=0,
+                budget=budget,
+                status_detail=(
+                    &quot;Backend retrieval failed; abstaining from ungrounded evidence assembly.&quot;
+                ),
+            )
+
+        # Check stale index
+        if is_stale_index or backend_status == EvidenceStatus.STALE_INDEX:
+            return EvidenceBundle(
+                items=[],
+                status=EvidenceStatus.STALE_INDEX,
+                total_tokens=0,
+                budget=budget,</code></pre>
+<p><a href="sources/src--ragnor--evidence--assembler.py.html#L275">Read frozen source, lines 275–297</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/assembler.py#L275-L297">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Compress a rule containing an exception. Verify both metadata invariance and semantic preservation; show a failure that passes metadata checks but changes the rule.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q79">Question 79 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="79"> I can explain this</label><button type="button" class="bookmark" data-bookmark="79" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-79">Explain this in your own words</label><textarea id="note-79" data-note="79" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q80" data-question="80">
+<div class="q-meta"><span>QUESTION 080</span><span>Code & engineering analysis</span><a href="#q80" aria-label="Link to question 80">#</a></div>
+<details class="answer" open><summary><h2>80. How should the host turn evidence into a safe answer policy?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The host should specify when to answer, how to cite, when to ask for clarification, and when to abstain. It should pass authorized evidence as data, preserve status signals, and check that important claims are supported. This policy is part of the application, not an automatic property of Ragnor.</p>
+<h3>Mechanism & reason</h3><p>The bridge returns a structured EvidenceBundle that a generator or source-viewing UI can consume. Its explicit status and attribution fields make a disciplined policy feasible without binding the subsystem to one chat model.</p><h3>Risk & safeguards</h3><p>A host that discards bundle status, regenerates citation identifiers, or allows source text to choose tools can undermine the safeguards upstream. Streaming claims before evidence selection is settled creates another verification gap.</p>
+<h3>Choice & trade-offs</h3><p>Strict evidence-only answering improves traceability but can feel less helpful for general questions. Clearly separated modes can preserve user expectations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/tools/bridge.py:75</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    def __init__(  # noqa: PLR0913
+        self,
+        retriever: Any | None = None,
+        *,
+        collections: Mapping[str, CollectionConfig | Any] | None = None,
+        assembler: EvidenceAssembler | None = None,
+        source_lookup: SourceLookup | None = None,
+        health_checker: HealthChecker | None = None,
+        authorizer: ScopeAuthorizer | None = None,
+        allow_management: bool = False,
+        default_collection: str = &quot;default&quot;,
+        default_budget_tokens: int = 4000,
+    ) -&gt; None:
+        &quot;&quot;&quot;Initialize KnowledgeBridge.
+
+        Args:
+            retriever: Default retriever for single-collection setups.
+            collections: Optional mapping of collection names to retrievers or configs.
+            assembler: Injected EvidenceAssembler (defaults to ApproximateTokenizer).
+            source_lookup: Injected SourceLookup (defaults to MemorySnapshotStore).
+            health_checker: Injected HealthChecker for status probes.
+            authorizer: Injected ScopeAuthorizer for tenant validation.</code></pre>
+<p><a href="sources/src--ragnor--tools--bridge.py.html#L75">Read frozen source, lines 75–96</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/tools/bridge.py#L75-L96">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Draft a generation policy for answerable, ambiguous, empty, stale, and failed retrieval cases. Create one acceptance example for each branch.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>query_policy concatenates context; importing Ragnor does not automatically integrate EvidenceAssembler, exact budgeting, or historical source lookup.</p><a href="insurance-decisions.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q80">Question 80 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="80"> I can explain this</label><button type="button" class="bookmark" data-bookmark="80" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-80">Explain this in your own words</label><textarea id="note-80" data-note="80" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="retrieval.html">← Retrieval, fusion, and reranking</a><a href="ingestion.html">Ingestion and transaction ownership →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

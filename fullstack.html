@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>From subsystem to AI full-stack product · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="fullstack" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a aria-current=page href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 14 / 30 · QUESTIONS 131–140</p><h1>From subsystem to AI full-stack product</h1><p class="subtitle">Build the application around the evidence contract and demonstrate engineering judgment.</p><p class="chapter-note">Original chapter reviewed against the insurance host. Each answer now links to its coverage-audit entry and practical extension.</p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-fullstack">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the tree diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/tree.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/tree.html" title="tree diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q131" data-question="131">
+<div class="q-meta"><span>QUESTION 131</span><span>Theory & host extension</span><a href="#q131" aria-label="Link to question 131">#</a></div>
+<details class="answer" open><summary><h2>131. What application components are still needed around Ragnor?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A complete product needs identity, authorized API routes, a document-management workflow, durable adapters, background workers, generation policy, a user interface, monitoring, deployment, and evaluation. The repository supplies important subsystem pieces and examples, not all of these production services.</p>
+<h3>Mechanism & reason</h3><p>Build around the evidence contract: the API obtains authorized evidence, then a host generator produces an answer, while the UI can open source spans and show status. This keeps source verification useful even without generation.</p><h3>Risk & safeguards</h3><p>Assuming the library owns users or migrations can leave critical responsibilities unimplemented. A polished chat screen does not compensate for missing tenant isolation or recovery behavior.</p>
+<h3>Choice & trade-offs</h3><p>Explicit host ownership requires more work but fits an existing backend. A monolithic demo can be quicker and should be labeled according to its actual guarantees.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/tools/bridge.py:75</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    def __init__(  # noqa: PLR0913
+        self,
+        retriever: Any | None = None,
+        *,
+        collections: Mapping[str, CollectionConfig | Any] | None = None,
+        assembler: EvidenceAssembler | None = None,
+        source_lookup: SourceLookup | None = None,
+        health_checker: HealthChecker | None = None,
+        authorizer: ScopeAuthorizer | None = None,
+        allow_management: bool = False,
+        default_collection: str = &quot;default&quot;,
+        default_budget_tokens: int = 4000,
+    ) -&gt; None:
+        &quot;&quot;&quot;Initialize KnowledgeBridge.
+
+        Args:
+            retriever: Default retriever for single-collection setups.
+            collections: Optional mapping of collection names to retrievers or configs.
+            assembler: Injected EvidenceAssembler (defaults to ApproximateTokenizer).
+            source_lookup: Injected SourceLookup (defaults to MemorySnapshotStore).
+            health_checker: Injected HealthChecker for status probes.
+            authorizer: Injected ScopeAuthorizer for tenant validation.</code></pre>
+<p><a href="sources/src--ragnor--tools--bridge.py.html#L75">Read frozen source, lines 75–96</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/tools/bridge.py#L75-L96">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Draw your target application with browser, API, workers, identity provider, source system, vector store, snapshot store, and model provider. Mark every trust boundary.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q131">Question 131 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="131"> I can explain this</label><button type="button" class="bookmark" data-bookmark="131" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-131">Explain this in your own words</label><textarea id="note-131" data-note="131" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q132" data-question="132">
+<div class="q-meta"><span>QUESTION 132</span><span>Theory & host extension</span><a href="#q132" aria-label="Link to question 132">#</a></div>
+<details class="answer" open><summary><h2>132. How would you design the search and chat API contracts?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Expose structured request and response objects with query, permitted collection choice, bounded retrieval options, operation identity, status, evidence, and citations. Resolve user identity and allowed scope on the server. Keep internal database names and arbitrary backend filters out of the public API unless deliberately supported.</p>
+<h3>Mechanism & reason</h3><p>RetrievalRequest and EvidenceBundle provide useful internal shapes, but the host should create a stable transport contract rather than expose all library internals. Errors should distinguish validation, denied access, backend outage, and successful empty search.</p><h3>Risk & safeguards</h3><p>Letting a browser select raw table names or trusted client IDs bypasses the composition boundary. Returning provider exceptions directly may leak secrets or infrastructure details.</p>
+<h3>Choice & trade-offs</h3><p>A narrow API is safer and easier to evolve; an expert administration API may expose more controls under stronger permissions.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/retrieval/types.py:60</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    query: str
+    final_k: int = 5
+    candidate_k: int | None = None
+    threshold: float | None = None
+    filters: dict[str, Any] = field(default_factory=dict)
+    mandatory_capabilities: set[str] = field(default_factory=set)
+    isolation_scope: str | None = None
+    scope_field: str = &quot;tenant_id&quot;
+    expected_generation: int | None = None
+    text_field: str = &quot;text&quot;
+    metadata_fields: list[str] = field(default_factory=list)
+    session: Any = None
+    strict: bool = False
+
+    def get_candidate_k(self) -&gt; int:
+        &quot;&quot;&quot;Return the effective candidate count for initial retrieval stages.&quot;&quot;&quot;
+        if self.candidate_k is not None and self.candidate_k &gt; 0:
+            return max(self.candidate_k, self.final_k)
+        return self.final_k
+
+    def effective_filters(self) -&gt; dict[str, Any]:
+        &quot;&quot;&quot;Return merged filters including isolation scope and generation.&quot;&quot;&quot;</code></pre>
+<p><a href="sources/src--ragnor--retrieval--types.py.html#L60">Read frozen source, lines 60–81</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/retrieval/types.py#L60-L81">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write example request and response JSON for success, denied scope, and backend failure. Explain which fields the server derives instead of trusting the client.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q132">Question 132 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="132"> I can explain this</label><button type="button" class="bookmark" data-bookmark="132" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-132">Explain this in your own words</label><textarea id="note-132" data-note="132" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q133" data-question="133">
+<div class="q-meta"><span>QUESTION 133</span><span>Theory & host extension</span><a href="#q133" aria-label="Link to question 133">#</a></div>
+<details class="answer" open><summary><h2>133. How should streaming work without misleading the user?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Complete authorization and evidence selection before presenting factual generated claims as supported. Stream generation events with an operation ID and explicit stages, then preserve a final status and citation mapping. The exact HTTP transport is a host design choice, not a provided chat server feature.</p>
+<h3>Mechanism & reason</h3><p>Evidence assembly produces a stable bundle before a generator consumes it. The UI can show searching, assembling, generating, complete, cancelled, or failed states without pretending that partial text is a verified final answer.</p><h3>Risk & safeguards</h3><p>A network disconnect can leave server work running, and partial output may contain incomplete citation syntax. Propagate cancellation where possible and never silently mark a truncated stream complete.</p>
+<h3>Choice & trade-offs</h3><p>Early streaming improves perceived responsiveness while complicating error recovery and state handling. A non-streaming first version is easier to validate.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/types.py:104</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    total_budget: int
+    reserved_instructions: int = 0
+    reserved_user_input: int = 0
+    reserved_answer: int = 0
+    max_evidence_items: int | None = None
+
+    def __post_init__(self) -&gt; None:
+        if self.total_budget &lt;= 0:
+            raise ValueError(f&quot;total_budget must be positive; got {self.total_budget}&quot;)
+        if self.reserved_instructions &lt; 0:
+            raise ValueError(&quot;reserved_instructions must be non-negative&quot;)
+        if self.reserved_user_input &lt; 0:
+            raise ValueError(&quot;reserved_user_input must be non-negative&quot;)
+        if self.reserved_answer &lt; 0:
+            raise ValueError(&quot;reserved_answer must be non-negative&quot;)
+
+    @property
+    def reserved_total(self) -&gt; int:
+        &quot;&quot;&quot;Total tokens reserved for instructions, user input, and answer.&quot;&quot;&quot;
+        return self.reserved_instructions + self.reserved_user_input + self.reserved_answer
+
+    @property</code></pre>
+<p><a href="sources/src--ragnor--evidence--types.py.html#L104">Read frozen source, lines 104–125</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/types.py#L104-L125">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Design events for evidence_ready, answer_delta, complete, and failure. Simulate a disconnect after two deltas and specify what remains visible and retryable.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q133">Question 133 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="133"> I can explain this</label><button type="button" class="bookmark" data-bookmark="133" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-133">Explain this in your own words</label><textarea id="note-133" data-note="133" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q134" data-question="134">
+<div class="q-meta"><span>QUESTION 134</span><span>Theory & host extension</span><a href="#q134" aria-label="Link to question 134">#</a></div>
+<details class="answer" open><summary><h2>134. What should a useful RAG interface show besides the answer text?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Show source titles and bounded excerpts, revision or freshness when relevant, citation navigation, loading and failure states, and a clear way to refine an ambiguous question. Make evidence accessible by keyboard and avoid presenting similarity as factual confidence.</p>
+<h3>Mechanism & reason</h3><p>The bundle already contains attribution and status data that a frontend can render. SourceLookup provides a verification path when the user opens a citation; that path must retain the same identity and scope policy.</p><h3>Risk & safeguards</h3><p>Rendering document text as raw HTML can create cross-site scripting. Use safe text rendering or a deliberately sanitized markup pipeline, and treat citation URLs as untrusted input.</p>
+<h3>Choice & trade-offs</h3><p>More evidence improves transparency but can overwhelm users. Start with concise source summaries and progressive disclosure of full spans.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/source_lookup.py:230</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        span_limit = self.default_max_span_length if max_span_length is None else max_span_length
+        self._validate_span_limit(span_limit)
+        span_limit = min(span_limit, self.default_max_span_length)
+        try:
+            if hasattr(self._store, &quot;is_revoked&quot;) and self._store.is_revoked(
+                source_id, document_id, authorization_scope
+            ):
+                raise ScopeAuthorizationError(&quot;Document access has been revoked&quot;)
+            if hasattr(self._store, &quot;get_scoped&quot;):
+                snapshot = self._store.get_scoped(
+                    source_id, document_id, revision, authorization_scope
+                )
+                if snapshot is None and self._store.has_revision(source_id, document_id, revision):
+                    raise ScopeAuthorizationError(&quot;Document revision belongs to a different scope&quot;)
+            else:
+                snapshot = self._store.get(source_id, document_id, revision)
+        except ScopeAuthorizationError:
+            if strict:
+                raise
+            return BoundedSpanResult(
+                source_id,
+                document_id,
+                revision,</code></pre>
+<p><a href="sources/src--ragnor--evidence--source_lookup.py.html#L230">Read frozen source, lines 230–252</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/source_lookup.py#L230-L252">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Build a search-only UI before chat. Include empty, stale, failed, and insufficient-budget examples, then test it entirely with keyboard navigation.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q134">Question 134 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="134"> I can explain this</label><button type="button" class="bookmark" data-bookmark="134" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-134">Explain this in your own words</label><textarea id="note-134" data-note="134" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q135" data-question="135">
+<div class="q-meta"><span>QUESTION 135</span><span>Theory & host extension</span><a href="#q135" aria-label="Link to question 135">#</a></div>
+<details class="answer" open><summary><h2>135. How should frontend state be separated from backend truth?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Keep local interaction state such as expanded sources or draft input separate from server state such as operation status, evidence, and active document versions. Key cached results by the relevant identity, scope, query, and configuration or revision where necessary.</p>
+<h3>Mechanism & reason</h3><p>Ragnor returns structured results, leaving the browser framework and caching library to the host. A frontend must preserve status distinctions and invalidate data when permissions or active generations change.</p><h3>Risk & safeguards</h3><p>Reusing a browser cache across sign-out or tenant switching can expose another user&#x27;s evidence. Optimistically marking ingestion complete before activation can also misrepresent searchability.</p>
+<h3>Choice & trade-offs</h3><p>Explicit invalidation and cache partitioning add complexity but preserve correct user expectations. A simple no-cache first implementation can be preferable to unsafe reuse.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/retrieval/types.py:60</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    query: str
+    final_k: int = 5
+    candidate_k: int | None = None
+    threshold: float | None = None
+    filters: dict[str, Any] = field(default_factory=dict)
+    mandatory_capabilities: set[str] = field(default_factory=set)
+    isolation_scope: str | None = None
+    scope_field: str = &quot;tenant_id&quot;
+    expected_generation: int | None = None
+    text_field: str = &quot;text&quot;
+    metadata_fields: list[str] = field(default_factory=list)
+    session: Any = None
+    strict: bool = False
+
+    def get_candidate_k(self) -&gt; int:
+        &quot;&quot;&quot;Return the effective candidate count for initial retrieval stages.&quot;&quot;&quot;
+        if self.candidate_k is not None and self.candidate_k &gt; 0:
+            return max(self.candidate_k, self.final_k)
+        return self.final_k
+
+    def effective_filters(self) -&gt; dict[str, Any]:
+        &quot;&quot;&quot;Return merged filters including isolation scope and generation.&quot;&quot;&quot;</code></pre>
+<p><a href="sources/src--ragnor--retrieval--types.py.html#L60">Read frozen source, lines 60–81</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/retrieval/types.py#L60-L81">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Switch tenants while a request is in flight. Ensure its late response cannot populate the new tenant&#x27;s visible state or source drawer.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q135">Question 135 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="135"> I can explain this</label><button type="button" class="bookmark" data-bookmark="135" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-135">Explain this in your own words</label><textarea id="note-135" data-note="135" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q136" data-question="136">
+<div class="q-meta"><span>QUESTION 136</span><span>Theory & host extension</span><a href="#q136" aria-label="Link to question 136">#</a></div>
+<details class="answer" open><summary><h2>136. How should document upload and indexing progress be designed?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Treat upload acceptance, source storage, extraction, embedding, activation, and searchability as distinct states. Persist the accepted source and enqueue background work according to the host&#x27;s transaction policy. Return an operation identifier rather than blocking the request until every provider call completes.</p>
+<h3>Mechanism & reason</h3><p>Outbox and drainer interfaces decouple request latency from processing. Sync reports and events provide lifecycle information that a host can translate into progress, while active visibility determines when content can actually be searched.</p><h3>Risk & safeguards</h3><p>A successful upload can later fail extraction or embedding. The UI must not claim indexed status solely because bytes were received, and retry actions must avoid duplicate logical documents.</p>
+<h3>Choice & trade-offs</h3><p>Background workflows need polling or event delivery and durable state. Synchronous ingestion is simpler for small local experiments but less resilient under provider latency.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/jobs/outbox.py:94</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        ...</code></pre>
+<p><a href="sources/src--ragnor--jobs--outbox.py.html#L94">Read frozen source, lines 94–94</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/jobs/outbox.py#L94-L94">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Define a document state machine from uploaded to searchable, with retry and failed states. Associate each transition with the component that can authoritatively report it.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q136">Question 136 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="136"> I can explain this</label><button type="button" class="bookmark" data-bookmark="136" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-136">Explain this in your own words</label><textarea id="note-136" data-note="136" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q137" data-question="137">
+<div class="q-meta"><span>QUESTION 137</span><span>Theory & host extension</span><a href="#q137" aria-label="Link to question 137">#</a></div>
+<details class="answer" open><summary><h2>137. What does production deployment require beyond installing optional extras?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Provision durable stores and schemas, configure credentials and network access, run workers, set identity and permissions, select compatible profiles, validate startup, and establish backups, monitoring, and rollback. An optional dependency installs client code; it does not provision or secure its service.</p>
+<h3>Mechanism & reason</h3><p>pyproject.toml separates backend extras from dependency-free core, while health checks and integration examples help validate wiring. Actual database indexes and extension configuration remain deployment responsibilities.</p><h3>Risk & safeguards</h3><p>Multiple replicas using in-memory manifests or rate limits do not share authoritative state. Secrets in configuration fingerprints or public diagnostics can also create exposure.</p>
+<h3>Choice & trade-offs</h3><p>Managed services reduce some operations work and add cost or provider dependence. Self-hosting gives control and requires deeper operational expertise.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/telemetry/health.py:717</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        target_scope = scope or self.scope
+        eval_res = last_evaluation_results or last_eval_results
+
+        tasks = [
+            self.check_backend_connectivity(),
+            self.check_counts(scope=target_scope),
+            self.check_sync_status(scope=target_scope),
+            self.check_jobs(scope=target_scope),
+        ]
+        if include_expensive:
+            tasks.append(
+                self.check_expensive_consistency(scope=target_scope, limit=expensive_limit)
+            )
+
+        components_list = [self.check_configuration()]
+        async_results = await asyncio.gather(*tasks)
+        components_list.extend(async_results)
+
+        if eval_res is not None:
+            components_list.append(self.check_evaluations(eval_res, eval_thresholds))
+
+        return HealthReport(components=components_list)</code></pre>
+<p><a href="sources/src--ragnor--telemetry--health.py.html#L717">Read frozen source, lines 717–738</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/telemetry/health.py#L717-L738">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Produce a deployment inventory with ownership, persistence, backup, restart behavior, and secret source for every component. Include what happens when one replica restarts.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q137">Question 137 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="137"> I can explain this</label><button type="button" class="bookmark" data-bookmark="137" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-137">Explain this in your own words</label><textarea id="note-137" data-note="137" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q138" data-question="138">
+<div class="q-meta"><span>QUESTION 138</span><span>Theory & host extension</span><a href="#q138" aria-label="Link to question 138">#</a></div>
+<details class="answer" open><summary><h2>138. How would you plan capacity and handle overload?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Model request arrival, per-stage service time, concurrency, queue capacity, database pools, and provider quotas. Apply admission control before expensive work, bound jobs, and shed optional processing when appropriate. Interactive search and batch ingestion should not starve each other accidentally.</p>
+<h3>Mechanism & reason</h3><p>The executor semaphore, transport limiter, job store, and health signals are local building blocks. The host must coordinate quotas across replicas and enforce end-to-end budgets.</p><h3>Risk & safeguards</h3><p>Increasing worker count can increase throttling rather than throughput. An unbounded backlog hides overload until memory, storage, or freshness collapses.</p>
+<h3>Choice & trade-offs</h3><p>Separate worker pools and queues improve isolation but add infrastructure. A shared small deployment is economical until contention becomes measurable.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/embeddings/executor.py:151</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if len(vectors) != len(texts):
+        raise EmbeddingResponseError(
+            f&quot;Provider returned {len(vectors)} vectors for {len(texts)} inputs; &quot;
+            &quot;cannot safely align chunks to vectors.&quot;
+        )
+    for i, vec in enumerate(vectors):
+        if len(vec) != profile.dimension:
+            raise EmbeddingResponseError(
+                f&quot;Vector {i} has dimension {len(vec)}; profile expects {profile.dimension}.&quot;
+            )
+        for j, val in enumerate(vec):
+            if not math.isfinite(val):
+                raise EmbeddingResponseError(
+                    f&quot;Vector {i}[{j}] is not finite ({val!r}); &quot;
+                    &quot;refusing to write non-finite embeddings.&quot;
+                )</code></pre>
+<p><a href="sources/src--ragnor--embeddings--executor.py.html#L151">Read frozen source, lines 151–166</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/embeddings/executor.py#L151-L166">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Estimate sustainable throughput from provider concurrency and observed call duration, then load-test around that estimate. Report queue age as well as requests per second.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q138">Question 138 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="138"> I can explain this</label><button type="button" class="bookmark" data-bookmark="138" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-138">Explain this in your own words</label><textarea id="note-138" data-note="138" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q139" data-question="139">
+<div class="q-meta"><span>QUESTION 139</span><span>Theory & host extension</span><a href="#q139" aria-label="Link to question 139">#</a></div>
+<details class="answer" open><summary><h2>139. What portfolio project would demonstrate AI full-stack competence?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Build a multi-tenant knowledge assistant with a search-first interface, revision-aware citations, background ingestion, a grounded answer policy, and a reproducible evaluation report. Show a failure and its diagnosis, not only a polished happy-path recording.</p>
+<h3>Mechanism & reason</h3><p>This combines frontend state, API design, identity, async jobs, data modeling, retrieval, generation, evaluation, and operations. Ragnor provides the subsystem foundation while your work proves the application integration.</p><h3>Risk & safeguards</h3><p>A public demo can accidentally expose private sample documents or provider credentials. Use a reviewed fixture corpus and document implemented guarantees rather than aspirational architecture.</p>
+<h3>Choice & trade-offs</h3><p>A narrow reliable project is more convincing than many unfinished advanced features. Add reranking or multi-query only when your benchmark shows why they help.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · examples/local_quickstart.py:54</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        vector = [0.0] * self._dim
+        for token in re.findall(r&quot;[a-z0-9]+&quot;, text.lower()):
+            digest = hashlib.sha256(token.encode(&quot;utf-8&quot;)).digest()
+            index = int.from_bytes(digest[:2], &quot;big&quot;) % self._dim
+            vector[index] += 1.0
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm &gt; 0.0:
+            vector = [value / norm for value in vector]
+        return vector</code></pre>
+<p><a href="sources/examples--local_quickstart.py.html#L54">Read frozen source, lines 54–62</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/examples/local_quickstart.py#L54-L62">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Deliver a README with architecture, a threat-boundary map, benchmark results, three recovery demonstrations, and a five-minute walkthrough that opens a cited source revision.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q139">Question 139 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="139"> I can explain this</label><button type="button" class="bookmark" data-bookmark="139" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-139">Explain this in your own words</label><textarea id="note-139" data-note="139" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q140" data-question="140">
+<div class="q-meta"><span>QUESTION 140</span><span>Theory & host extension</span><a href="#q140" aria-label="Link to question 140">#</a></div>
+<details class="answer" open><summary><h2>140. How should I answer a senior system-design interview using this project?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Start with requirements and constraints, then describe the offline and online flows, data identities, permission boundary, consistency model, failure recovery, quality evaluation, and capacity plan. Defend choices with source-backed mechanisms and acknowledge which guarantees depend on host adapters.</p>
+<h3>Mechanism & reason</h3><p>The project&#x27;s strongest lessons are explicit boundaries: prepare versus commit, candidates versus final evidence, logical visibility versus physical cleanup, and retrieval quality versus answer faithfulness. These distinctions scale beyond one library.</p><h3>Risk & safeguards</h3><p>Memorized pattern names and invented timing claims collapse under follow-up questions. Be ready to explain a crash interleaving, an authorization failure, and a measured quality trade-off in concrete terms.</p>
+<h3>Choice & trade-offs</h3><p>A good design is conditional on requirements. State when a keyword-only system, one transactional database, or a simpler synchronous workflow would be the better choice.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:194</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if hasattr(source, &quot;load&quot;):
+            loaded = await source.load()
+        else:
+            loaded = source
+        if isinstance(loaded, LoadResult):
+            documents = list(loaded)
+            self._last_load_result = loaded
+            if not loaded.authoritative:
+                logger.warning(
+                    &quot;Non-authoritative source scan; skipping ingestion without mutation.&quot;
+                )
+                return 0
+        else:
+            documents = list(loaded) if not isinstance(loaded, list) else loaded
+            self._last_load_result = None
+
+        sql_factory = None
+        if lock_key is not None:
+            # Imported lazily so importing the pipeline does
+            # not require a database driver; the default is
+            # the SQLAlchemy factory.
+            from ragnor.db.sql_factory import SQLAlchemyFactory  # noqa: PLC0415
+</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L194">Read frozen source, lines 194–216</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L194-L216">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Give a 45-minute mock interview: five minutes requirements, ten architecture, ten consistency and security, ten evaluation and scale, and ten trade-offs and alternatives.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>The concrete SSE contract includes persisted message IDs and terminal status. Add browser cancellation, cache isolation, deployment, and recovery evidence.</p><a href="product-delivery.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q140">Question 140 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="140"> I can explain this</label><button type="button" class="bookmark" data-bookmark="140" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-140">Explain this in your own words</label><textarea id="note-140" data-note="140" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="models.html">← Deep learning and generative AI</a><a href="insurance-system.html">The insurance application end to end →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

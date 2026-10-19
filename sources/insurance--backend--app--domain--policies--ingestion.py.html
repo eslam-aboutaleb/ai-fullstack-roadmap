@@ -1,0 +1,294 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/app/domain/policies/ingestion.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/app/domain/policies/ingestion.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;Policy ingestion adapter over ragnor.
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>The OmniCare policy version tables (``policies``,
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>``policy_versions``, ``policy_ingestion_meta``) are
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>application-side storage: ragnor&#x27;s
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>:class:`ragnor.ingestion.IngestionPipeline` orchestrates
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>load/hash/compare/retire/chunk/embed/upsert and talks to a
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>:class:`ragnor.ingestion.VersionStore` protocol, which
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>:class:`PolicyVersionStore` implements here against the
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>OmniCare tables. This module is the permanent home for the binding.
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>The stored snapshot carries ``chunker_version=&quot;v1&quot;`` — the
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>historical value — even though the chunker itself reports
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>``section-aware-v1``. The wrapper below pins the snapshot
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>version so stored snapshots keep comparing equal; a mismatch
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>would re-ingest every policy on the next run.
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>from __future__ import annotations
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>import asyncio
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>import logging
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>from datetime import UTC, datetime
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>from typing import Any
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>from sqlalchemy import select, text as sa_text
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>from app.core.config import get_settings
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>from app.core.database import async_session_factory
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>from app.domain.policies.retriever import POLICY_RETRIEVER_SPEC
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>from app.models.policies.policy import Policy
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>from app.models.policies.policy_version import PolicyVersion
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>from ragnor.chunking import (
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>    MarkdownSectionChunker,
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>    SlidingWindowChunker,
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>    sliding_window_chunk,
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>)
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>from ragnor.chunking.base import Chunker
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>from ragnor.ingestion import (
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>    FileDocumentSource,
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>    IngestionPipeline,
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>    IngestionSnapshot,
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>    VersionRecord,
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>)
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>from ragnor.types import Chunk
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>logger = logging.getLogger(__name__)
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>__all__ = [
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>    &quot;POLICY_CHUNKER_SNAPSHOT_VERSION&quot;,
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>    &quot;PolicyVersionStore&quot;,
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>    &quot;chunk_policy_document&quot;,
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>    &quot;ingest_policy&quot;,
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>    &quot;sliding_window_chunk&quot;,
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>]
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>POLICY_CHUNKER_SNAPSHOT_VERSION = &quot;v1&quot;
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>&quot;&quot;&quot;Chunker version recorded in ingestion snapshots.
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>The :class:`MarkdownSectionChunker` reports
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>``&quot;section-aware-v1&quot;``, but the snapshots stored by
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>existing deployments carry ``chunker_version=&quot;v1&quot;``.
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>The adapter wraps the chunker so the snapshot
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>comparison stays stable and existing policies are not
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>spuriously re-ingested. This is the ``chunker_version``
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>trap flagged across ingestion and chunking; this module
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>is the permanent home for the mapping.
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>class _HistoricalSnapshotChunker:
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>    &quot;&quot;&quot;Chunker adapter that reports the historical snapshot version.
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>    Delegates chunking to the wrapped chunker but reports
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>    the snapshot version the version table already stores,
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>    so ``build_snapshot`` produces a snapshot that compares
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>    equal to the stored one.
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    def __init__(self, chunker: Chunker, snapshot_version: str) -&gt; None:
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>        self._chunker = chunker
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>        self._snapshot_version = snapshot_version
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>    def chunk(self, text: str) -&gt; list[Chunk]:
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>        return self._chunker.chunk(text)
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>    @property
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>    def version(self) -&gt; str:
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>        return self._snapshot_version
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>    @property
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>    def config(self) -&gt; dict[str, Any]:
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>        return self._chunker.config
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>class PolicyVersionStore:
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>    &quot;&quot;&quot;``VersionStore`` implementation against the Policy/PolicyVersion models.
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>    Every method joins the pipeline&#x27;s transaction: the
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>    session is the pipeline&#x27;s, so version retirement,
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>    chunk deletion, and version insertion commit together
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>    with the chunk upsert.
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>    _PRODUCT = &quot;omnicare_base&quot;
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>    _JURISDICTION = &quot;US&quot;
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>    async def _find_or_create_policy(self, session: Any) -&gt; Policy:
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>        policy = (
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>            await session.execute(
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>                select(Policy).where(
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>                    Policy.product == self._PRODUCT,
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>                    Policy.jurisdiction == self._JURISDICTION,
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>                )
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>            )
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>        ).scalar_one_or_none()
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>        if policy is None:
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>            policy = Policy(product=self._PRODUCT, jurisdiction=self._JURISDICTION)
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>            session.add(policy)
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>            await session.flush()
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>        return policy
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>    async def _find_active_version(self, session: Any, policy: Policy) -&gt; PolicyVersion | None:
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>        return (
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>            await session.execute(
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>                select(PolicyVersion)
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>                .where(
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>                    PolicyVersion.policy_id == policy.policy_id,
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>                    PolicyVersion.effective_to.is_(None),
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>                )
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>                .order_by(PolicyVersion.effective_from.desc())
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>                .limit(1)
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>            )
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>        ).scalar_one_or_none()
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>    async def find_active(self, session: Any) -&gt; VersionRecord | None:
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>        policy = await self._find_or_create_policy(session)
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>        active_version = await self._find_active_version(session, policy)
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>        if active_version is None:
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>            return None
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>        return VersionRecord(
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>            version_id=str(active_version.version_id),
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>            source_id=str(policy.policy_id),
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>            snapshot=IngestionSnapshot(
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>                source_hash=active_version.source_hash,
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>                embedding_model=active_version.embedding_model or &quot;&quot;,
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>                embedding_dim=active_version.embedding_dim or 0,
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>                chunker_version=active_version.chunker_version or &quot;&quot;,
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>                chunk_size=active_version.chunk_size or 0,
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>                overlap=active_version.overlap or 0,
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>                retrieval_schema_version=(active_version.retrieval_schema_version or &quot;&quot;),
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>            ),
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>        )
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>    async def close_active(self, session: Any) -&gt; None:
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>        policy = await self._find_or_create_policy(session)
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>        active_version = await self._find_active_version(session, policy)
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>        if active_version is not None:
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>            active_version.effective_to = datetime.now(UTC)
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>            await session.flush()
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>    async def create_version(self, session: Any, snapshot: IngestionSnapshot) -&gt; VersionRecord:
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>        policy = await self._find_or_create_policy(session)
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>        version = PolicyVersion(
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>            policy_id=policy.policy_id,
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>            version=&quot;current&quot;,
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>            effective_from=datetime.now(UTC),
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>            source_hash=snapshot.source_hash,
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>            embedding_model=snapshot.embedding_model,
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>            embedding_dim=snapshot.embedding_dim,
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>            chunker_version=snapshot.chunker_version,
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>            chunk_size=snapshot.chunk_size,
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>            overlap=snapshot.overlap,
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>            retrieval_schema_version=snapshot.retrieval_schema_version,
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>        )
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>        session.add(version)
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>        await session.flush()
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>        return VersionRecord(
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>            version_id=str(version.version_id),
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>            source_id=str(policy.policy_id),
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>            snapshot=snapshot,
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>        )
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>    async def delete_chunks(self, session: Any, version_id: str) -&gt; None:
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>        await session.execute(
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>            sa_text(&quot;DELETE FROM policy_chunks WHERE policy_version_id = :vid&quot;),
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>            {&quot;vid&quot;: version_id},
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>        )
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>def chunk_policy_document(filepath: str) -&gt; list[dict[str, Any]]:
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>    &quot;&quot;&quot;Parse a Markdown policy file into structured, overlapping chunks.
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>    .. deprecated::
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>        Use the ragnor ingestion pipeline with a
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>        :class:`ragnor.chunking.MarkdownSectionChunker`
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>        instead. The pipeline owns ingestion now; this thin
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>        wrapper exists only for callers that want the chunk
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>        dicts from a file path on disk -- the unit tests that
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>        pin the chunker&#x27;s section boundaries, mainly. Nothing
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>        in the application&#x27;s ingestion path calls it, so it
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>        carries no snapshot or version state and cannot be
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>        relied on to stay in step with what
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>        :func:`ingest_policy` writes to the database.
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>    Args:
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>        filepath: Path to the Markdown policy file.
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>    Returns:
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>        List of chunk dicts with keys: id, text, metadata.
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>        Metadata includes: chunk_id, section, source,
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>        chunk_index, sub_chunk_index.
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>    try:
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>        with open(filepath, encoding=&quot;utf-8&quot;) as f:
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>            content = f.read()
+</span><span class="source-line" id="L217"><a href="#L217" class="line-number" aria-label="Line 217">217</a>    except FileNotFoundError:
+</span><span class="source-line" id="L218"><a href="#L218" class="line-number" aria-label="Line 218">218</a>        logger.error(&quot;Policy document not found at: %s&quot;, filepath)
+</span><span class="source-line" id="L219"><a href="#L219" class="line-number" aria-label="Line 219">219</a>        return []
+</span><span class="source-line" id="L220"><a href="#L220" class="line-number" aria-label="Line 220">220</a>
+</span><span class="source-line" id="L221"><a href="#L221" class="line-number" aria-label="Line 221">221</a>    source_filename = filepath.rsplit(&quot;/&quot;, maxsplit=1)[-1]
+</span><span class="source-line" id="L222"><a href="#L222" class="line-number" aria-label="Line 222">222</a>    chunker = MarkdownSectionChunker(
+</span><span class="source-line" id="L223"><a href="#L223" class="line-number" aria-label="Line 223">223</a>        SlidingWindowChunker(),
+</span><span class="source-line" id="L224"><a href="#L224" class="line-number" aria-label="Line 224">224</a>        source_name=source_filename,
+</span><span class="source-line" id="L225"><a href="#L225" class="line-number" aria-label="Line 225">225</a>    )
+</span><span class="source-line" id="L226"><a href="#L226" class="line-number" aria-label="Line 226">226</a>    return [
+</span><span class="source-line" id="L227"><a href="#L227" class="line-number" aria-label="Line 227">227</a>        {
+</span><span class="source-line" id="L228"><a href="#L228" class="line-number" aria-label="Line 228">228</a>            &quot;id&quot;: chunk.id,
+</span><span class="source-line" id="L229"><a href="#L229" class="line-number" aria-label="Line 229">229</a>            &quot;text&quot;: chunk.text,
+</span><span class="source-line" id="L230"><a href="#L230" class="line-number" aria-label="Line 230">230</a>            &quot;metadata&quot;: chunk.metadata,
+</span><span class="source-line" id="L231"><a href="#L231" class="line-number" aria-label="Line 231">231</a>        }
+</span><span class="source-line" id="L232"><a href="#L232" class="line-number" aria-label="Line 232">232</a>        for chunk in chunker.chunk(content)
+</span><span class="source-line" id="L233"><a href="#L233" class="line-number" aria-label="Line 233">233</a>    ]
+</span><span class="source-line" id="L234"><a href="#L234" class="line-number" aria-label="Line 234">234</a>
+</span><span class="source-line" id="L235"><a href="#L235" class="line-number" aria-label="Line 235">235</a>
+</span><span class="source-line" id="L236"><a href="#L236" class="line-number" aria-label="Line 236">236</a>async def ingest_policy(policy_path: str | None = None) -&gt; int:
+</span><span class="source-line" id="L237"><a href="#L237" class="line-number" aria-label="Line 237">237</a>    &quot;&quot;&quot;Ingest the policy document into the vector store.
+</span><span class="source-line" id="L238"><a href="#L238" class="line-number" aria-label="Line 238">238</a>
+</span><span class="source-line" id="L239"><a href="#L239" class="line-number" aria-label="Line 239">239</a>    Delegates to the ragnor :class:`IngestionPipeline`:
+</span><span class="source-line" id="L240"><a href="#L240" class="line-number" aria-label="Line 240">240</a>    loads the policy file, hashes its content, compares
+</span><span class="source-line" id="L241"><a href="#L241" class="line-number" aria-label="Line 241">241</a>    the ingestion snapshot against the active version,
+</span><span class="source-line" id="L242"><a href="#L242" class="line-number" aria-label="Line 242">242</a>    and -- when the source changed -- retires the old
+</span><span class="source-line" id="L243"><a href="#L243" class="line-number" aria-label="Line 243">243</a>    version, deletes its chunks, chunks and embeds the
+</span><span class="source-line" id="L244"><a href="#L244" class="line-number" aria-label="Line 244">244</a>    new content, validates every embedding, and upserts
+</span><span class="source-line" id="L245"><a href="#L245" class="line-number" aria-label="Line 245">245</a>    the chunks with their policy and version ownership,
+</span><span class="source-line" id="L246"><a href="#L246" class="line-number" aria-label="Line 246">246</a>    all in one transaction serialized by a PostgreSQL
+</span><span class="source-line" id="L247"><a href="#L247" class="line-number" aria-label="Line 247">247</a>    advisory lock keyed by the source path.
+</span><span class="source-line" id="L248"><a href="#L248" class="line-number" aria-label="Line 248">248</a>
+</span><span class="source-line" id="L249"><a href="#L249" class="line-number" aria-label="Line 249">249</a>    The chunk metadata carries ``policy_id`` and
+</span><span class="source-line" id="L250"><a href="#L250" class="line-number" aria-label="Line 250">250</a>    ``policy_version_id`` — the upsert column derivation
+</span><span class="source-line" id="L251"><a href="#L251" class="line-number" aria-label="Line 251">251</a>    reads metadata keys only, so the ownership columns are
+</span><span class="source-line" id="L252"><a href="#L252" class="line-number" aria-label="Line 252">252</a>    stamped inside the metadata dict by the pipeline.
+</span><span class="source-line" id="L253"><a href="#L253" class="line-number" aria-label="Line 253">253</a>
+</span><span class="source-line" id="L254"><a href="#L254" class="line-number" aria-label="Line 254">254</a>    Args:
+</span><span class="source-line" id="L255"><a href="#L255" class="line-number" aria-label="Line 255">255</a>        policy_path: Path to the policy document. If None,
+</span><span class="source-line" id="L256"><a href="#L256" class="line-number" aria-label="Line 256">256</a>            uses ``settings.policy_file_path``.
+</span><span class="source-line" id="L257"><a href="#L257" class="line-number" aria-label="Line 257">257</a>
+</span><span class="source-line" id="L258"><a href="#L258" class="line-number" aria-label="Line 258">258</a>    Returns:
+</span><span class="source-line" id="L259"><a href="#L259" class="line-number" aria-label="Line 259">259</a>        The number of chunks ingested, or the stored chunk
+</span><span class="source-line" id="L260"><a href="#L260" class="line-number" aria-label="Line 260">260</a>        count when the source was unchanged.
+</span><span class="source-line" id="L261"><a href="#L261" class="line-number" aria-label="Line 261">261</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L262"><a href="#L262" class="line-number" aria-label="Line 262">262</a>    settings = get_settings()
+</span><span class="source-line" id="L263"><a href="#L263" class="line-number" aria-label="Line 263">263</a>    policy_path = policy_path or settings.policy_file_path
+</span><span class="source-line" id="L264"><a href="#L264" class="line-number" aria-label="Line 264">264</a>
+</span><span class="source-line" id="L265"><a href="#L265" class="line-number" aria-label="Line 265">265</a>    if not policy_path:
+</span><span class="source-line" id="L266"><a href="#L266" class="line-number" aria-label="Line 266">266</a>        logger.warning(&quot;No policy_path configured; skipping ingestion.&quot;)
+</span><span class="source-line" id="L267"><a href="#L267" class="line-number" aria-label="Line 267">267</a>        return 0
+</span><span class="source-line" id="L268"><a href="#L268" class="line-number" aria-label="Line 268">268</a>
+</span><span class="source-line" id="L269"><a href="#L269" class="line-number" aria-label="Line 269">269</a>    from app.domain.embeddings import EmbeddingFactory, get_vector_store  # noqa: PLC0415
+</span><span class="source-line" id="L270"><a href="#L270" class="line-number" aria-label="Line 270">270</a>
+</span><span class="source-line" id="L271"><a href="#L271" class="line-number" aria-label="Line 271">271</a>    source = FileDocumentSource(policy_path)
+</span><span class="source-line" id="L272"><a href="#L272" class="line-number" aria-label="Line 272">272</a>    source_name = policy_path.rsplit(&quot;/&quot;, maxsplit=1)[-1]
+</span><span class="source-line" id="L273"><a href="#L273" class="line-number" aria-label="Line 273">273</a>    chunker = _HistoricalSnapshotChunker(
+</span><span class="source-line" id="L274"><a href="#L274" class="line-number" aria-label="Line 274">274</a>        MarkdownSectionChunker(SlidingWindowChunker(), source_name=source_name),
+</span><span class="source-line" id="L275"><a href="#L275" class="line-number" aria-label="Line 275">275</a>        snapshot_version=POLICY_CHUNKER_SNAPSHOT_VERSION,
+</span><span class="source-line" id="L276"><a href="#L276" class="line-number" aria-label="Line 276">276</a>    )
+</span><span class="source-line" id="L277"><a href="#L277" class="line-number" aria-label="Line 277">277</a>    pipeline = IngestionPipeline(
+</span><span class="source-line" id="L278"><a href="#L278" class="line-number" aria-label="Line 278">278</a>        store=get_vector_store(
+</span><span class="source-line" id="L279"><a href="#L279" class="line-number" aria-label="Line 279">279</a>            table_name=POLICY_RETRIEVER_SPEC.table_name,
+</span><span class="source-line" id="L280"><a href="#L280" class="line-number" aria-label="Line 280">280</a>            id_field=POLICY_RETRIEVER_SPEC.id_field,
+</span><span class="source-line" id="L281"><a href="#L281" class="line-number" aria-label="Line 281">281</a>        ),
+</span><span class="source-line" id="L282"><a href="#L282" class="line-number" aria-label="Line 282">282</a>        embedder=EmbeddingFactory.get_embedding_function(),
+</span><span class="source-line" id="L283"><a href="#L283" class="line-number" aria-label="Line 283">283</a>        chunker=chunker,
+</span><span class="source-line" id="L284"><a href="#L284" class="line-number" aria-label="Line 284">284</a>        session_factory=async_session_factory,
+</span><span class="source-line" id="L285"><a href="#L285" class="line-number" aria-label="Line 285">285</a>        settings=settings,
+</span><span class="source-line" id="L286"><a href="#L286" class="line-number" aria-label="Line 286">286</a>        version_id_key=&quot;policy_version_id&quot;,
+</span><span class="source-line" id="L287"><a href="#L287" class="line-number" aria-label="Line 287">287</a>        source_id_key=&quot;policy_id&quot;,
+</span><span class="source-line" id="L288"><a href="#L288" class="line-number" aria-label="Line 288">288</a>    )
+</span><span class="source-line" id="L289"><a href="#L289" class="line-number" aria-label="Line 289">289</a>    return await pipeline.run(source, PolicyVersionStore(), lock_key=policy_path)
+</span><span class="source-line" id="L290"><a href="#L290" class="line-number" aria-label="Line 290">290</a>
+</span><span class="source-line" id="L291"><a href="#L291" class="line-number" aria-label="Line 291">291</a>
+</span><span class="source-line" id="L292"><a href="#L292" class="line-number" aria-label="Line 292">292</a>if __name__ == &quot;__main__&quot;:
+</span><span class="source-line" id="L293"><a href="#L293" class="line-number" aria-label="Line 293">293</a>    asyncio.run(ingest_policy())
+</span></code></pre></main></body></html>

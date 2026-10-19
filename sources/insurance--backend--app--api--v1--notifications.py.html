@@ -1,0 +1,288 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/app/api/v1/notifications.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/app/api/v1/notifications.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>In-app notification feed endpoints for the OmniCare backend.
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>``GET /notifications`` returns the caller&#x27;s delivered notifications, newest first,
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>and ``POST /notifications/{id}/read`` marks one of them read. Both are scoped to the
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>caller&#x27;s own id, so another user&#x27;s notification is answered as not found rather than
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>forbidden — the response must not confirm that the id exists.
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>The feed is a read model, not the queue: ``notification_jobs`` holds what is waiting
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>to be delivered, and the drain worker writes a row into ``notifications`` when it
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>delivers. Nothing here can enqueue, retry, or reorder a delivery, and no endpoint on
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>the request path performs one, because a claimant waiting on a status change must
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>not also wait on a delivery.
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>The request and response models live here rather than in ``app.schemas.models``
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>because they belong to these two tables and nothing else: the shared module is the
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>frozen contract surface for chat, claims, and auth.
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>from __future__ import annotations
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>import logging
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>import uuid
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>from datetime import UTC, datetime
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>from fastapi import APIRouter, Depends, HTTPException, Query, status
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>from pydantic import BaseModel, Field
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>from sqlalchemy import desc, select
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>from sqlalchemy.ext.asyncio import AsyncSession
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>from app.security.auth import get_current_user
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>from app.core.database import get_db
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>from app.models.platform.notification_job import Notification
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>from app.schemas.models import ErrorResponse
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>logger = logging.getLogger(__name__)
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>router = APIRouter()
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>class NotificationItem(BaseModel):
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>    &quot;&quot;&quot;One delivered notification, as the recipient&#x27;s feed shows it.
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>    Attributes:
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>        id: Primary key of the delivered notification.
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>        job_type: Which claim event produced it, so a client can key an icon or a
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>            grouping on it without parsing the text.
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>        channel: Which provider delivered it. Only ``in_app`` today.
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>        title: Rendered subject line.
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>        body: Rendered message text.
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>        claim_id: The claim this is about, when the notification has one. Present so
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>            a &quot;view claim&quot; action can deep link without a second request.
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>        read_at: When the caller acknowledged it, or NULL while it is still unread.
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>        created_at: When it was delivered.
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>    id: uuid.UUID = Field(..., description=&quot;Primary key of the delivered notification&quot;)
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>    job_type: str = Field(..., description=&quot;Claim event that produced the notification&quot;)
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>    channel: str = Field(..., description=&quot;Delivery channel that produced the row&quot;)
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>    title: str = Field(..., description=&quot;Rendered subject line&quot;)
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>    body: str = Field(..., description=&quot;Rendered message text&quot;)
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>    claim_id: str | None = Field(default=None, description=&quot;Claim the notification is about&quot;)
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>    read_at: datetime | None = Field(default=None, description=&quot;When it was read, if it was&quot;)
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>    created_at: datetime = Field(..., description=&quot;When it was delivered&quot;)
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>class NotificationListResponse(BaseModel):
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>    &quot;&quot;&quot;One page of the caller&#x27;s notifications plus the values that produced it.
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>    Attributes:
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>        notifications: The page of delivered notifications, newest first.
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>        count: Number of notifications in this page.
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>        limit: Page size that was applied.
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>        offset: Number of newer notifications that were skipped.
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>    notifications: list[NotificationItem] = Field(
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>        default_factory=list, description=&quot;The page of notifications, newest first&quot;
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>    )
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    count: int = Field(..., description=&quot;Number of notifications in this page&quot;)
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>    limit: int = Field(..., description=&quot;Page size that was applied&quot;)
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>    offset: int = Field(..., description=&quot;Number of newer notifications that were skipped&quot;)
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>@router.get(
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>    &quot;&quot;,
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>    response_model=NotificationListResponse,
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>    summary=&quot;List Notifications&quot;,
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    description=(
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>        &quot;Returns the authenticated user&#x27;s delivered notifications, newest first. &quot;
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>        &quot;Every row is filtered on the caller&#x27;s user id, so another user&#x27;s &quot;
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>        &quot;notification can never appear in the response. Pass unread_only=1 to &quot;
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>        &quot;receive only the ones still unacknowledged.&quot;
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>    ),
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>    responses={
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>        status.HTTP_200_OK: {
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>            &quot;description&quot;: &quot;A page of the caller&#x27;s notifications.&quot;,
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>            &quot;model&quot;: NotificationListResponse,
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>        },
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>        status.HTTP_401_UNAUTHORIZED: {
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>            &quot;description&quot;: &quot;Not authenticated.&quot;,
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>            &quot;model&quot;: ErrorResponse,
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>        },
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>    },
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>)
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>async def list_notifications(  # noqa: PLR0913
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>    unread_only: bool = Query(
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>        default=False,
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>        description=&quot;Return only notifications the caller has not acknowledged yet.&quot;,
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>    ),
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>    limit: int = Query(
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>        default=20,
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>        ge=1,
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>        le=50,
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>        description=&quot;Maximum number of notifications to return.&quot;,
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>    ),
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>    offset: int = Query(
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>        default=0,
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>        ge=0,
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>        description=&quot;Number of newer notifications to skip.&quot;,
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>    ),
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>    current_user_id: str = Depends(get_current_user),
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>    session: AsyncSession = Depends(get_db),
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>) -&gt; NotificationListResponse:
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>    &quot;&quot;&quot;List the authenticated user&#x27;s delivered notifications, newest first.
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>    The owner predicate is the first thing in the WHERE clause, before the unread
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>    filter and before the pagination window, so a caller can never trim somebody
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>    else&#x27;s feed into their own response by choosing a limit.
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>    Args:
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>        unread_only: Whether to return only unacknowledged notifications.
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>        limit: Page size, defaulting to 20 and capped at 50.
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>        offset: Number of newest notifications to skip.
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>        current_user_id: The authenticated user&#x27;s UUID, injected by
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>            ``get_current_user``.
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>        session: Async database session.
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>    Returns:
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>        NotificationListResponse: One page of the caller&#x27;s notifications plus the
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>        pagination values that produced it.
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>    Raises:
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>        HTTPException: 401 if the authenticated user id is not a valid UUID.
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>    try:
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>        user_uuid = uuid.UUID(current_user_id)
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>    except ValueError:
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>        raise HTTPException(
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>            status_code=status.HTTP_401_UNAUTHORIZED,
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>            detail=&quot;Invalid user&quot;,
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>        ) from None
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>    stmt = select(Notification).where(Notification.user_id == user_uuid)
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>    if unread_only:
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>        stmt = stmt.where(Notification.read_at.is_(None))
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>    # id breaks ties so a page ordered on a same-microsecond delivery is still
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>    # deterministic across repeated requests.
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>    stmt = stmt.order_by(desc(Notification.created_at), desc(Notification.id))
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>    stmt = stmt.limit(limit).offset(offset)
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>    notifications = (await session.execute(stmt)).scalars().all()
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>    return NotificationListResponse(
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>        notifications=[_notification_item(row) for row in notifications],
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>        count=len(notifications),
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>        limit=limit,
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>        offset=offset,
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>    )
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>@router.post(
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>    &quot;/{notification_id}/read&quot;,
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>    response_model=NotificationItem,
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>    summary=&quot;Mark Notification Read&quot;,
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>    description=(
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>        &quot;Acknowledges one of the caller&#x27;s delivered notifications. The update is &quot;
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>        &quot;scoped to the caller&#x27;s user id, so another user&#x27;s notification id is &quot;
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>        &quot;reported as not found rather than forbidden. Re-reading one that is &quot;
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>        &quot;already acknowledged succeeds without changing it.&quot;
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>    ),
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>    responses={
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>        status.HTTP_200_OK: {
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>            &quot;description&quot;: &quot;The notification as it stands now.&quot;,
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>            &quot;model&quot;: NotificationItem,
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>        },
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>        status.HTTP_401_UNAUTHORIZED: {
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>            &quot;description&quot;: &quot;Not authenticated.&quot;,
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>            &quot;model&quot;: ErrorResponse,
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>        },
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>        status.HTTP_404_NOT_FOUND: {
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>            &quot;description&quot;: &quot;No notification with that id belongs to the caller.&quot;,
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>            &quot;model&quot;: ErrorResponse,
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>        },
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>            &quot;description&quot;: &quot;The notification id is not a valid UUID.&quot;,
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>            &quot;model&quot;: ErrorResponse,
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>        },
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>    },
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>)
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>async def mark_notification_read(
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>    notification_id: uuid.UUID,
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>    current_user_id: str = Depends(get_current_user),
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>    session: AsyncSession = Depends(get_db),
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>) -&gt; NotificationItem:
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>    &quot;&quot;&quot;Mark one of the caller&#x27;s notifications as read.
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>    Args:
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>        notification_id: The delivered notification to acknowledge.
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>        current_user_id: The authenticated user&#x27;s UUID, injected by
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>            ``get_current_user``.
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>        session: Async database session.
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>    Returns:
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>        NotificationItem: The notification with its new ``read_at``.
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>
+</span><span class="source-line" id="L217"><a href="#L217" class="line-number" aria-label="Line 217">217</a>    Raises:
+</span><span class="source-line" id="L218"><a href="#L218" class="line-number" aria-label="Line 218">218</a>        HTTPException: 401 if the authenticated user id is not a valid UUID, 404 if
+</span><span class="source-line" id="L219"><a href="#L219" class="line-number" aria-label="Line 219">219</a>            the notification does not exist or belongs to another user.
+</span><span class="source-line" id="L220"><a href="#L220" class="line-number" aria-label="Line 220">220</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L221"><a href="#L221" class="line-number" aria-label="Line 221">221</a>    try:
+</span><span class="source-line" id="L222"><a href="#L222" class="line-number" aria-label="Line 222">222</a>        user_uuid = uuid.UUID(current_user_id)
+</span><span class="source-line" id="L223"><a href="#L223" class="line-number" aria-label="Line 223">223</a>    except ValueError:
+</span><span class="source-line" id="L224"><a href="#L224" class="line-number" aria-label="Line 224">224</a>        raise HTTPException(
+</span><span class="source-line" id="L225"><a href="#L225" class="line-number" aria-label="Line 225">225</a>            status_code=status.HTTP_401_UNAUTHORIZED,
+</span><span class="source-line" id="L226"><a href="#L226" class="line-number" aria-label="Line 226">226</a>            detail=&quot;Invalid user&quot;,
+</span><span class="source-line" id="L227"><a href="#L227" class="line-number" aria-label="Line 227">227</a>        ) from None
+</span><span class="source-line" id="L228"><a href="#L228" class="line-number" aria-label="Line 228">228</a>
+</span><span class="source-line" id="L229"><a href="#L229" class="line-number" aria-label="Line 229">229</a>    # SECURITY: Both predicates live in the WHERE clause so a notification id
+</span><span class="source-line" id="L230"><a href="#L230" class="line-number" aria-label="Line 230">230</a>    # belonging to another user is indistinguishable from one that was never issued.
+</span><span class="source-line" id="L231"><a href="#L231" class="line-number" aria-label="Line 231">231</a>    notification = (
+</span><span class="source-line" id="L232"><a href="#L232" class="line-number" aria-label="Line 232">232</a>        await session.execute(
+</span><span class="source-line" id="L233"><a href="#L233" class="line-number" aria-label="Line 233">233</a>            select(Notification).where(
+</span><span class="source-line" id="L234"><a href="#L234" class="line-number" aria-label="Line 234">234</a>                Notification.id == notification_id,
+</span><span class="source-line" id="L235"><a href="#L235" class="line-number" aria-label="Line 235">235</a>                Notification.user_id == user_uuid,
+</span><span class="source-line" id="L236"><a href="#L236" class="line-number" aria-label="Line 236">236</a>            )
+</span><span class="source-line" id="L237"><a href="#L237" class="line-number" aria-label="Line 237">237</a>        )
+</span><span class="source-line" id="L238"><a href="#L238" class="line-number" aria-label="Line 238">238</a>    ).scalar_one_or_none()
+</span><span class="source-line" id="L239"><a href="#L239" class="line-number" aria-label="Line 239">239</a>
+</span><span class="source-line" id="L240"><a href="#L240" class="line-number" aria-label="Line 240">240</a>    if notification is None:
+</span><span class="source-line" id="L241"><a href="#L241" class="line-number" aria-label="Line 241">241</a>        logger.warning(
+</span><span class="source-line" id="L242"><a href="#L242" class="line-number" aria-label="Line 242">242</a>            &quot;Notification &#x27;%s&#x27; read requested by non-owner &#x27;%s&#x27;; reported as not found.&quot;,
+</span><span class="source-line" id="L243"><a href="#L243" class="line-number" aria-label="Line 243">243</a>            notification_id,
+</span><span class="source-line" id="L244"><a href="#L244" class="line-number" aria-label="Line 244">244</a>            current_user_id,
+</span><span class="source-line" id="L245"><a href="#L245" class="line-number" aria-label="Line 245">245</a>        )
+</span><span class="source-line" id="L246"><a href="#L246" class="line-number" aria-label="Line 246">246</a>        raise HTTPException(
+</span><span class="source-line" id="L247"><a href="#L247" class="line-number" aria-label="Line 247">247</a>            status_code=status.HTTP_404_NOT_FOUND,
+</span><span class="source-line" id="L248"><a href="#L248" class="line-number" aria-label="Line 248">248</a>            detail=&quot;Notification not found&quot;,
+</span><span class="source-line" id="L249"><a href="#L249" class="line-number" aria-label="Line 249">249</a>        )
+</span><span class="source-line" id="L250"><a href="#L250" class="line-number" aria-label="Line 250">250</a>
+</span><span class="source-line" id="L251"><a href="#L251" class="line-number" aria-label="Line 251">251</a>    # First acknowledgement wins, so a double tap cannot push the timestamp forward
+</span><span class="source-line" id="L252"><a href="#L252" class="line-number" aria-label="Line 252">252</a>    # and make an older notification look newer than one that arrived after it.
+</span><span class="source-line" id="L253"><a href="#L253" class="line-number" aria-label="Line 253">253</a>    if notification.read_at is None:
+</span><span class="source-line" id="L254"><a href="#L254" class="line-number" aria-label="Line 254">254</a>        notification.read_at = datetime.now(UTC)
+</span><span class="source-line" id="L255"><a href="#L255" class="line-number" aria-label="Line 255">255</a>        await session.commit()
+</span><span class="source-line" id="L256"><a href="#L256" class="line-number" aria-label="Line 256">256</a>
+</span><span class="source-line" id="L257"><a href="#L257" class="line-number" aria-label="Line 257">257</a>    return _notification_item(notification)
+</span><span class="source-line" id="L258"><a href="#L258" class="line-number" aria-label="Line 258">258</a>
+</span><span class="source-line" id="L259"><a href="#L259" class="line-number" aria-label="Line 259">259</a>
+</span><span class="source-line" id="L260"><a href="#L260" class="line-number" aria-label="Line 260">260</a>def _notification_item(row: Notification) -&gt; NotificationItem:
+</span><span class="source-line" id="L261"><a href="#L261" class="line-number" aria-label="Line 261">261</a>    &quot;&quot;&quot;Project a delivered notification onto the API&#x27;s response model.
+</span><span class="source-line" id="L262"><a href="#L262" class="line-number" aria-label="Line 262">262</a>
+</span><span class="source-line" id="L263"><a href="#L263" class="line-number" aria-label="Line 263">263</a>    Args:
+</span><span class="source-line" id="L264"><a href="#L264" class="line-number" aria-label="Line 264">264</a>        row: The delivered notification to project.
+</span><span class="source-line" id="L265"><a href="#L265" class="line-number" aria-label="Line 265">265</a>
+</span><span class="source-line" id="L266"><a href="#L266" class="line-number" aria-label="Line 266">266</a>    Returns:
+</span><span class="source-line" id="L267"><a href="#L267" class="line-number" aria-label="Line 267">267</a>        NotificationItem: The notification as the feed shows it.
+</span><span class="source-line" id="L268"><a href="#L268" class="line-number" aria-label="Line 268">268</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L269"><a href="#L269" class="line-number" aria-label="Line 269">269</a>    return NotificationItem(
+</span><span class="source-line" id="L270"><a href="#L270" class="line-number" aria-label="Line 270">270</a>        id=row.id,
+</span><span class="source-line" id="L271"><a href="#L271" class="line-number" aria-label="Line 271">271</a>        job_type=row.job_type,
+</span><span class="source-line" id="L272"><a href="#L272" class="line-number" aria-label="Line 272">272</a>        channel=row.channel,
+</span><span class="source-line" id="L273"><a href="#L273" class="line-number" aria-label="Line 273">273</a>        title=row.title,
+</span><span class="source-line" id="L274"><a href="#L274" class="line-number" aria-label="Line 274">274</a>        body=row.body,
+</span><span class="source-line" id="L275"><a href="#L275" class="line-number" aria-label="Line 275">275</a>        claim_id=row.claim_id,
+</span><span class="source-line" id="L276"><a href="#L276" class="line-number" aria-label="Line 276">276</a>        read_at=row.read_at,
+</span><span class="source-line" id="L277"><a href="#L277" class="line-number" aria-label="Line 277">277</a>        created_at=row.created_at,
+</span><span class="source-line" id="L278"><a href="#L278" class="line-number" aria-label="Line 278">278</a>    )
+</span><span class="source-line" id="L279"><a href="#L279" class="line-number" aria-label="Line 279">279</a>
+</span><span class="source-line" id="L280"><a href="#L280" class="line-number" aria-label="Line 280">280</a>
+</span><span class="source-line" id="L281"><a href="#L281" class="line-number" aria-label="Line 281">281</a>__all__ = [
+</span><span class="source-line" id="L282"><a href="#L282" class="line-number" aria-label="Line 282">282</a>    &quot;NotificationItem&quot;,
+</span><span class="source-line" id="L283"><a href="#L283" class="line-number" aria-label="Line 283">283</a>    &quot;NotificationListResponse&quot;,
+</span><span class="source-line" id="L284"><a href="#L284" class="line-number" aria-label="Line 284">284</a>    &quot;list_notifications&quot;,
+</span><span class="source-line" id="L285"><a href="#L285" class="line-number" aria-label="Line 285">285</a>    &quot;mark_notification_read&quot;,
+</span><span class="source-line" id="L286"><a href="#L286" class="line-number" aria-label="Line 286">286</a>    &quot;router&quot;,
+</span><span class="source-line" id="L287"><a href="#L287" class="line-number" aria-label="Line 287">287</a>]
+</span></code></pre></main></body></html>

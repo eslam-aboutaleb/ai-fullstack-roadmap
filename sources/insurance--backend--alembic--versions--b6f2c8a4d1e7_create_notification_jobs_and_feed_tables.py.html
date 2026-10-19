@@ -1,0 +1,196 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/alembic/versions/b6f2c8a4d1e7_create_notification_jobs_and_feed_tables.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/alembic/versions/b6f2c8a4d1e7_create_notification_jobs_and_feed_tables.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;create_notification_jobs_and_feed_tables
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>Revision ID: b6f2c8a4d1e7
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>Revises: b8c3d9e4f1a6
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>Create Date: 2026-10-11 08:40:00.000000
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>from collections.abc import Sequence
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>import sqlalchemy as sa
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>from sqlalchemy.dialects import postgresql
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>from alembic import op
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a># revision identifiers, used by Alembic.
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>revision: str = &quot;b6f2c8a4d1e7&quot;
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>down_revision: str | Sequence[str] | None = &quot;b8c3d9e4f1a6&quot;
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>branch_labels: str | Sequence[str] | None = None
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>depends_on: str | Sequence[str] | None = None
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>_NOTIFICATION_JOBS_INDEXES = (
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>    # The claim query filters on status and orders by created_at, so both columns
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>    # belong in one index rather than one each.
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>    (&quot;ix_notification_jobs_status_created_at&quot;, [&quot;status&quot;, &quot;created_at&quot;]),
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>)
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a># Declared separately from the composite indexes above because these two answer
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a># &quot;which jobs are waiting for this user&quot; and &quot;what job types are pending&quot;.
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>_NOTIFICATION_JOBS_EXTRA_INDEXES = (
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>    (&quot;ix_notification_jobs_user_id&quot;, [&quot;user_id&quot;]),
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>    (&quot;ix_notification_jobs_job_type&quot;, [&quot;job_type&quot;]),
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>)
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>_NOTIFICATIONS_INDEXES = (
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>    # The feed read is &quot;this user&#x27;s notifications, newest first&quot;, so the owner and
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>    # the ordering columns share one index.
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>    (&quot;ix_notifications_user_id_created_at&quot;, [&quot;user_id&quot;, &quot;created_at&quot;]),
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>)
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>_NOTIFICATIONS_EXTRA_INDEXES = ((&quot;ix_notifications_claim_id&quot;, [&quot;claim_id&quot;]),)
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>def _create_indexes_if_missing(
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>    table_name: str,
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>    indexes: tuple[tuple[str, list[str]], ...],
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a>) -&gt; None:
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>    &quot;&quot;&quot;Create each index unless the database already has it.
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a>    Args:
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a>        table_name: Table the indexes belong to.
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>        indexes: ``(index name, columns)`` pairs to ensure.
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>    existing = {index[&quot;name&quot;] for index in sa.inspect(op.get_bind()).get_indexes(table_name)}
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>    for name, columns in indexes:
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>        if name not in existing:
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>            op.create_index(name, table_name, columns, unique=False)
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>def _drop_indexes_if_present(
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>    table_name: str,
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>    indexes: tuple[tuple[str, list[str]], ...],
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>) -&gt; None:
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>    &quot;&quot;&quot;Drop each index unless the database has already dropped it.
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>    Args:
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>        table_name: Table the indexes belong to.
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>        indexes: ``(index name, columns)`` pairs to remove.
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>    existing = {index[&quot;name&quot;] for index in sa.inspect(op.get_bind()).get_indexes(table_name)}
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>    for name, _ in indexes:
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>        if name in existing:
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>            op.drop_index(name, table_name=table_name)
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>def upgrade() -&gt; None:
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>    &quot;&quot;&quot;Upgrade schema.&quot;&quot;&quot;
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>    connection = op.get_bind()
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    # Both references are enforced, not merely indexed: a queued notification that
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>    # outlived its recipient would deliver into a feed nobody owns, and one that
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>    # outlived its job would sit in the feed with no record of what delivered it.
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>    if not sa.inspect(connection).has_table(&quot;notification_jobs&quot;):
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>        op.create_table(
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>            &quot;notification_jobs&quot;,
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>            sa.Column(&quot;id&quot;, postgresql.UUID(as_uuid=True), nullable=False),
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>            sa.Column(&quot;user_id&quot;, postgresql.UUID(as_uuid=True), nullable=False),
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>            # Text rather than an enum: a new delivery kind must not require a
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>            # schema change, and the worker&#x27;s template table is the authority on
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>            # which values it can render.
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>            sa.Column(&quot;job_type&quot;, sa.String(length=64), nullable=False),
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>            # JSONB rather than a column per job type, for the same reason: the
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>            # payload is whatever the template for the job type reads.
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>            sa.Column(&quot;payload&quot;, postgresql.JSONB(), nullable=False),
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>            sa.Column(
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>                &quot;channel&quot;,
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>                sa.String(length=32),
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>                nullable=False,
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>                server_default=&quot;in_app&quot;,
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>            ),
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>            sa.Column(
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>                &quot;status&quot;,
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>                sa.String(length=32),
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>                nullable=False,
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>                server_default=&quot;pending&quot;,
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>            ),
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>            sa.Column(&quot;status_detail&quot;, sa.String(), nullable=True),
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>            sa.Column(&quot;retry_count&quot;, sa.Integer(), nullable=False, server_default=&quot;0&quot;),
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>            sa.Column(&quot;next_retry_at&quot;, sa.DateTime(timezone=True), nullable=True),
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>            sa.Column(&quot;max_attempts&quot;, sa.Integer(), nullable=False, server_default=&quot;4&quot;),
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>            sa.Column(&quot;locked_at&quot;, sa.DateTime(timezone=True), nullable=True),
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>            sa.Column(&quot;locked_by&quot;, sa.String(), nullable=True),
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>            sa.Column(&quot;created_at&quot;, sa.DateTime(timezone=True), nullable=False),
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>            sa.Column(&quot;completed_at&quot;, sa.DateTime(timezone=True), nullable=True),
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>            sa.ForeignKeyConstraint(
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>                [&quot;user_id&quot;],
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>                [&quot;users.id&quot;],
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>                name=&quot;notification_jobs_user_id_fkey&quot;,
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>                ondelete=&quot;CASCADE&quot;,
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>            ),
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>            sa.PrimaryKeyConstraint(&quot;id&quot;, name=&quot;notification_jobs_pkey&quot;),
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>        )
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>    # Indexes are created outside the table guards and are individually
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>    # idempotent, so a table the application module already created at runtime
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>    # still gets its indexes. Guarding the indexes with the tables would leave
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>    # that path with a complete schema and no indexes at all.
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>    _create_indexes_if_missing(&quot;notification_jobs&quot;, _NOTIFICATION_JOBS_INDEXES)
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>    _create_indexes_if_missing(&quot;notification_jobs&quot;, _NOTIFICATION_JOBS_EXTRA_INDEXES)
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>    if not sa.inspect(connection).has_table(&quot;notifications&quot;):
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>        op.create_table(
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>            &quot;notifications&quot;,
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>            sa.Column(&quot;id&quot;, postgresql.UUID(as_uuid=True), nullable=False),
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>            sa.Column(&quot;user_id&quot;, postgresql.UUID(as_uuid=True), nullable=False),
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>            sa.Column(&quot;job_id&quot;, postgresql.UUID(as_uuid=True), nullable=False),
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>            sa.Column(&quot;job_type&quot;, sa.String(length=64), nullable=False),
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>            sa.Column(
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>                &quot;channel&quot;,
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>                sa.String(length=32),
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>                nullable=False,
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>                server_default=&quot;in_app&quot;,
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>            ),
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>            sa.Column(&quot;title&quot;, sa.String(length=255), nullable=False),
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>            sa.Column(&quot;body&quot;, sa.String(), nullable=False),
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>            # Plain text rather than a reference: the feed must stay readable for a
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>            # claim that has since been deleted, and the notification&#x27;s own text is
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>            # already a snapshot.
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>            sa.Column(&quot;claim_id&quot;, sa.String(), nullable=True),
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>            sa.Column(&quot;read_at&quot;, sa.DateTime(timezone=True), nullable=True),
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>            sa.Column(
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>                &quot;created_at&quot;,
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>                sa.DateTime(timezone=True),
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>                server_default=sa.text(&quot;now()&quot;),
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>                nullable=False,
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>            ),
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>            # One delivered row per outbox job. A worker that loses its lock
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>            # mid-pass retries the job, and without this the retry would notify the
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>            # same claimant a second time.
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>            sa.UniqueConstraint(&quot;job_id&quot;, name=&quot;uq_notifications_job_id&quot;),
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>            sa.ForeignKeyConstraint(
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>                [&quot;user_id&quot;],
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>                [&quot;users.id&quot;],
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>                name=&quot;notifications_user_id_fkey&quot;,
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>                ondelete=&quot;CASCADE&quot;,
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>            ),
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>            sa.ForeignKeyConstraint(
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>                [&quot;job_id&quot;],
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>                [&quot;notification_jobs.id&quot;],
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>                name=&quot;notifications_job_id_fkey&quot;,
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>                ondelete=&quot;CASCADE&quot;,
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>            ),
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>            sa.PrimaryKeyConstraint(&quot;id&quot;, name=&quot;notifications_pkey&quot;),
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>        )
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>    _create_indexes_if_missing(&quot;notifications&quot;, _NOTIFICATIONS_INDEXES)
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>    _create_indexes_if_missing(&quot;notifications&quot;, _NOTIFICATIONS_EXTRA_INDEXES)
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>def downgrade() -&gt; None:
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>    &quot;&quot;&quot;Downgrade schema.&quot;&quot;&quot;
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>    connection = op.get_bind()
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>    # The feed table is the child (it points at notification_jobs), so it is
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>    # dropped first. Each table is guarded independently: an early return when
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>    # one is absent would orphan the other and leave the downgrade half-applied.
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>    if sa.inspect(connection).has_table(&quot;notifications&quot;):
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>        _drop_indexes_if_present(&quot;notifications&quot;, _NOTIFICATIONS_INDEXES)
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>        _drop_indexes_if_present(&quot;notifications&quot;, _NOTIFICATIONS_EXTRA_INDEXES)
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>        op.drop_table(&quot;notifications&quot;)
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>    if sa.inspect(connection).has_table(&quot;notification_jobs&quot;):
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>        _drop_indexes_if_present(&quot;notification_jobs&quot;, _NOTIFICATION_JOBS_INDEXES)
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>        _drop_indexes_if_present(&quot;notification_jobs&quot;, _NOTIFICATION_JOBS_EXTRA_INDEXES)
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>        op.drop_table(&quot;notification_jobs&quot;)
+</span></code></pre></main></body></html>

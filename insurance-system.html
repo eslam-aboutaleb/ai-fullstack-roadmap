@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>The insurance application end to end · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="insurance-system" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a aria-current=page href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 15 / 30 · QUESTIONS 141–150</p><h1>The insurance application end to end</h1><p class="subtitle">Connect the reusable RAG library to the concrete OmniCare backend.</p><p class="chapter-note">Insurance extension · <a href="examples.html#insurance-system">Open the worked code example</a> · <a href="libraries.html">Check implementation status and library comparisons</a></p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-insurance-system">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the insurance-runtime diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/insurance-runtime.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/insurance-runtime.html" title="insurance-runtime diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q141" data-question="141">
+<div class="q-meta"><span>QUESTION 141</span><span>Insurance code & design analysis</span><a href="#q141" aria-label="Link to question 141">#</a></div>
+<details class="answer" open><summary><h2>141. What does the insurance backend add beyond the Ragnor subsystem?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">OmniCare supplies FastAPI routes, authenticated users, claims and policies, an ADK agent, confirmation workflows, persistent conversation history, background jobs, evaluation bindings, and observability. Ragnor remains a dependency providing retrieval infrastructure. A library capability and an application using that capability are separate implementation claims.</p>
+<h3>Mechanism & reason</h3><p>pyproject.toml declares ragnor[pgvector], google-adk, LiteLLM, LangSmith, SQLAlchemy, and FastAPI. Agent construction uses LlmAgent and a tool registry; domain adapters bind generic retrieval to concrete tables. This is the real host that the first fourteen chapters discussed abstractly.</p><h3>Risk & safeguards</h3><p>Do not infer that every newer Ragnor feature is integrated. The policy tool concatenates retrieved context directly; it does not automatically use the library&#x27;s full EvidenceAssembler and revision-lookup contract.</p>
+<h3>Choice & trade-offs</h3><p>A narrow host binding is easier to ship, while richer evidence contracts add explicit statuses and provenance. Adoption requires wiring and migration rather than only upgrading a dependency.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/agent.py:504</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    agent = LlmAgent(
+        name=&quot;omnicare_assistant&quot;,
+        model=LiteLlm(
+            model=agent_settings.llm_model,
+            api_key=agent_settings.openai_api_key,
+            api_base=agent_settings.openai_api_base,
+            **(
+                {&quot;temperature&quot;: agent_settings.llm_temperature}
+                if agent_settings.llm_temperature
+                else {}
+            ),
+            **(
+                {&quot;max_tokens&quot;: agent_settings.llm_max_tokens}
+                if agent_settings.llm_max_tokens
+                else {}
+            ),
+        ),
+        # The reviewed prompt lives in the prompts module; the setting overrides
+        # it for a deployment without a code change.
+        instruction=agent_settings.system_prompt or SYSTEM_INSTRUCTION,
+        tools=registry.build_tool_list(),
+        # [SUB-TASK] History rehydration from conversation_messages. Delete this
+        # argument and the marked section below to drop that sub-task; nothing</code></pre>
+<p><a href="sources/insurance--backend--app--agent--agent.py.html#L504">Read frozen source, lines 504–526</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Trace a coverage question from the chat route through ADK, query_policy, the domain retriever, and PostgreSQL. Mark each conversion in result shape.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="141"> I can explain this</label><button type="button" class="bookmark" data-bookmark="141" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-141">Explain this in your own words</label><textarea id="note-141" data-note="141" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q142" data-question="142">
+<div class="q-meta"><span>QUESTION 142</span><span>Insurance code & design analysis</span><a href="#q142" aria-label="Link to question 142">#</a></div>
+<details class="answer" open><summary><h2>142. Which framework actually controls the agent loop?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Google ADK controls the current agent loop through LlmAgent and Runner. LiteLLM adapts model access. Ragnor retrieves evidence. LangSmith observes execution. These packages occupy different layers; LangSmith&#x27;s presence does not mean LangChain controls orchestration.</p>
+<h3>Mechanism & reason</h3><p>create_agent passes a LiteLlm model, reviewed instructions, registered handlers, and a before-model history callback to LlmAgent. No LangGraph graph or A2A server is constructed by this path.</p><h3>Risk & safeguards</h3><p>Framework confusion leads to examples that cannot run against the project&#x27;s dependencies. The later LangChain, LangGraph, and A2A chapters explicitly describe alternatives or additions rather than pretending those frameworks are already installed.</p>
+<h3>Choice & trade-offs</h3><p>Staying with one orchestrator reduces state-model overlap. Adding another can solve a measured workflow need but introduces serialization, tracing, error, and deployment boundaries.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/agent.py:504</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    agent = LlmAgent(
+        name=&quot;omnicare_assistant&quot;,
+        model=LiteLlm(
+            model=agent_settings.llm_model,
+            api_key=agent_settings.openai_api_key,
+            api_base=agent_settings.openai_api_base,
+            **(
+                {&quot;temperature&quot;: agent_settings.llm_temperature}
+                if agent_settings.llm_temperature
+                else {}
+            ),
+            **(
+                {&quot;max_tokens&quot;: agent_settings.llm_max_tokens}
+                if agent_settings.llm_max_tokens
+                else {}
+            ),
+        ),
+        # The reviewed prompt lives in the prompts module; the setting overrides
+        # it for a deployment without a code change.
+        instruction=agent_settings.system_prompt or SYSTEM_INSTRUCTION,
+        tools=registry.build_tool_list(),
+        # [SUB-TASK] History rehydration from conversation_messages. Delete this
+        # argument and the marked section below to drop that sub-task; nothing</code></pre>
+<p><a href="sources/insurance--backend--app--agent--agent.py.html#L504">Read frozen source, lines 504–526</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Make a dependency-layer table with web framework, agent runtime, model adapter, retrieval library, persistence layer, and tracing service. Name their concrete constructors.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="142"> I can explain this</label><button type="button" class="bookmark" data-bookmark="142" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-142">Explain this in your own words</label><textarea id="note-142" data-note="142" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q143" data-question="143">
+<div class="q-meta"><span>QUESTION 143</span><span>Insurance code & design analysis</span><a href="#q143" aria-label="Link to question 143">#</a></div>
+<details class="answer" open><summary><h2>143. How does a coverage question differ from a claim-status question?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Coverage requires retrieving policy language and applying a reviewed procedure to the user&#x27;s facts. Claim status is a lookup of structured application state under the authenticated owner&#x27;s scope. An answer about a policy is evidence-based interpretation; an answer about an existing claim must reflect the actual recorded claim.</p>
+<h3>Mechanism & reason</h3><p>The registry exposes query_policy, get_procedure, get_claim_status, and search_claims as distinct tools. Known claim IDs route to exact lookup; vague references route to owner-scoped semantic search.</p><h3>Risk & safeguards</h3><p>Semantic similarity cannot establish that an arbitrary claim ID belongs to the user or that a policy provision applies to their contract. Tool-side identity checks remain necessary even when prompting selects the right tool.</p>
+<h3>Choice & trade-offs</h3><p>Separate tools make intent and authority clearer but require route-selection evaluation. One universal search tool is simpler and can blur exact facts with approximate matches.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/registry.py:79</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name=&quot;query_policy&quot;,
+            description=(
+                &quot;Search OmniCare insurance policy documents to answer coverage questions.&quot;
+            ),
+            handler=query_policy,
+            metadata={&quot;requires_auth&quot;: True},
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name=&quot;get_claim_status&quot;,
+            description=(
+                &quot;Look up the status of an existing claim by its claim ID when the &quot;
+                &quot;user already knows it; a returned found=false means no such &quot;
+                &quot;claim exists and must not be treated as one.&quot;
+            ),
+            handler=get_claim_status,
+            metadata={&quot;requires_auth&quot;: True},
+        )
+    )</code></pre>
+<p><a href="sources/insurance--backend--app--agent--registry.py.html#L79">Read frozen source, lines 79–101</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write expected tool sequences for an exact claim ID, a remembered incident without an ID, and a coverage question with missing facts.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="143"> I can explain this</label><button type="button" class="bookmark" data-bookmark="143" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-143">Explain this in your own words</label><textarea id="note-143" data-note="143" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q144" data-question="144">
+<div class="q-meta"><span>QUESTION 144</span><span>Insurance code & design analysis</span><a href="#q144" aria-label="Link to question 144">#</a></div>
+<details class="answer" open><summary><h2>144. What is the difference between an agent session and a conversation record?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Agent sessions hold runtime state and events used by ADK. Conversation records hold application-visible messages, ownership, archival state, and IDs used by feedback and history APIs. They overlap in content but serve different contracts and lifecycle requirements.</p>
+<h3>Mechanism & reason</h3><p>agent.py defines session storage and replay, while conversation_store.py persists chat turns. The before-model callback can rehydrate recent history from conversation messages. Persistent chat history therefore does not by itself prove persistent runtime state.</p><h3>Risk & safeguards</h3><p>Divergence can replay a turn twice, omit tool results, or show UI messages that the agent cannot recall. Switching storage modes also needs a deliberate migration and restart story.</p>
+<h3>Choice & trade-offs</h3><p>Separate stores decouple product history from runtime implementation but require clear reconciliation and retention ownership. A single store reduces duplication and can bind the product tightly to one framework.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/conversation_store.py:84</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        async with async_session_factory() as db_session:
+            conv = (
+                await db_session.execute(
+                    select(Conversation).where(Conversation.session_id == session_id)
+                )
+            ).scalar_one_or_none()
+
+            if conv is None:
+                title = message[:_TITLE_MAX_LENGTH] or &quot;New conversation&quot;
+                conv = Conversation(
+                    user_id=uuid.UUID(user_id),
+                    session_id=session_id,
+                    title=title,
+                )
+                db_session.add(conv)
+                await db_session.flush()
+
+            user_message_id = uuid.uuid4()
+            assistant_message_id = uuid.uuid4()
+
+            user_message = ConversationMessage(
+                id=user_message_id,</code></pre>
+<p><a href="sources/insurance--backend--app--agent--conversation_store.py.html#L84">Read frozen source, lines 84–106</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Trace which IDs identify the user, conversation, ADK session, invocation, user message, and assistant message. Explain which remain stable after a restart.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="144"> I can explain this</label><button type="button" class="bookmark" data-bookmark="144" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-144">Explain this in your own words</label><textarea id="note-144" data-note="144" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q145" data-question="145">
+<div class="q-meta"><span>QUESTION 145</span><span>Insurance code & design analysis</span><a href="#q145" aria-label="Link to question 145">#</a></div>
+<details class="answer" open><summary><h2>145. What is the real prepare-and-confirm boundary for claim creation?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Preparation validates fields and stores a pending submission with a confirmation token and expiry. Confirmation is an authenticated API operation that locks the pending submission, creates the claim and associated records, marks completion, and commits. Agent prose does not itself complete the financial workflow.</p>
+<h3>Mechanism & reason</h3><p>The model-facing registry includes prepare_claim_submission, while submit_claim_internal is reached through the confirmation route. This preserves a server-side boundary between collecting intent and applying an authoritative write.</p><h3>Risk & safeguards</h3><p>The prompt&#x27;s phrase that a tool call is the confirmation action can be misunderstood. The actual database submission still requires the separate route. A textual yes from the model is not proof that the API operation succeeded.</p>
+<h3>Choice & trade-offs</h3><p>Two steps add user interaction and pending-state management while reducing accidental writes. A one-step workflow is faster but gives less opportunity to review material fields.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/claims.py:205</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        user_uuid = uuid.UUID(current_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=&quot;Invalid user&quot;,
+        ) from None
+
+    async with async_session_factory() as session:
+        submission = (
+            await session.execute(
+                select(ClaimSubmission)
+                .where(
+                    ClaimSubmission.confirmation_token == payload.confirmation_token,
+                    ClaimSubmission.user_id == user_uuid,
+                    ClaimSubmission.status == &quot;pending&quot;,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+
+        if submission is None:
+            logger.warning(</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--claims.py.html#L205">Read frozen source, lines 205–227</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Follow one token from preparation to a locked confirmation transaction. Identify which operation first makes the claim durable.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="145"> I can explain this</label><button type="button" class="bookmark" data-bookmark="145" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-145">Explain this in your own words</label><textarea id="note-145" data-note="145" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q146" data-question="146">
+<div class="q-meta"><span>QUESTION 146</span><span>Insurance code & design analysis</span><a href="#q146" aria-label="Link to question 146">#</a></div>
+<details class="answer" open><summary><h2>146. Why separate policy procedures from policy facts?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A procedure describes how to investigate a question or route an unclear request. A policy source supplies actual limits, deductibles, exclusions, and conditions. The procedure should not become an alternative authority for contractual facts merely because it is easier to retrieve.</p>
+<h3>Mechanism & reason</h3><p>The prompt asks for coverage-review before a determination and query_policy for the underlying facts. Procedure ingestion and retrieval have their own domain modules and version records.</p><h3>Risk & safeguards</h3><p>A stale procedure can direct an incomplete investigation, while a current procedure can still be combined with the wrong policy revision. Both source identities need to be visible in evaluation and operational diagnosis.</p>
+<h3>Choice & trade-offs</h3><p>Separating reasoning guidance from factual material supports independent review but adds retrieval calls and version combinations. Hardcoding all instructions in one prompt is easier to start and harder to govern.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/procedures/tools.py:176</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    requested = (name or &quot;&quot;).strip()
+    if not requested:
+        return _error_envelope(
+            name or &quot;&quot;,
+            &quot;A procedure name is required. Available procedures: &quot;
+            f&quot;{&#x27;, &#x27;.join(sorted(_BY_NAME))}.&quot;,
+        )
+
+    spec = _resolve(requested)
+    if spec is None:
+        return _error_envelope(
+            name,
+            f&quot;Unknown procedure &#x27;{requested[:_MAX_NAME_ECHO]}&#x27;. Available &quot;
+            f&quot;procedures: {&#x27;, &#x27;.join(sorted(_BY_NAME))}.&quot;,
+        )
+
+    record = await get_active_version_record(spec.source_file)
+    if record is None:
+        return _error_envelope(
+            name,
+            f&quot;The &#x27;{spec.name}&#x27; procedure is not in the index yet. Answer from &quot;
+            &quot;the policy documents directly and say the procedure is unavailable.&quot;,
+        )</code></pre>
+<p><a href="sources/insurance--backend--app--domain--procedures--tools.py.html#L176">Read frozen source, lines 176–198</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Label every sentence in the coverage-review playbook as a workflow rule or factual claim. Move any unsupported numeric policy claim back to the authoritative source layer.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="146"> I can explain this</label><button type="button" class="bookmark" data-bookmark="146" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-146">Explain this in your own words</label><textarea id="note-146" data-note="146" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q147" data-question="147">
+<div class="q-meta"><span>QUESTION 147</span><span>Insurance code & design analysis</span><a href="#q147" aria-label="Link to question 147">#</a></div>
+<details class="answer" open><summary><h2>147. Where does eventual consistency appear to a policyholder?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A claim can be durably submitted before its embedding job completes, so exact structured lookup and semantic search may temporarily disagree. Notification delivery can also lag the claim transaction. These are different read and delivery projections of one business operation.</p>
+<h3>Mechanism & reason</h3><p>Submission creates a claim plus pending embedding work in one transaction. Workers later process indexing and notification tasks. The UI should distinguish accepted, searchable, and notified rather than treating one successful HTTP response as completion of every downstream effect.</p><h3>Risk & safeguards</h3><p>A search miss immediately after filing must not be reported as proof that no claim exists. An authoritative exact lookup can confirm persistence while the index catches up.</p>
+<h3>Choice & trade-offs</h3><p>Asynchronous processing keeps submission independent of provider latency but introduces lag and recovery work. Synchronous indexing is simpler conceptually and couples business availability to model services.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/tools/submit_claim.py:159</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        validated = ClaimSubmission(
+            policy_number=policy_number,
+            claim_type=claim_type,
+            amount=amount,
+            description=description,
+        )
+    except ValidationError as exc:
+        errors = [
+            f&quot;{err[&#x27;loc&#x27;][-1] if err[&#x27;loc&#x27;] else &#x27;field&#x27;}: {err[&#x27;msg&#x27;]}&quot; for err in exc.errors()
+        ]
+        logger.warning(&quot;Claim submission validation failed: %s&quot;, errors)
+        return {&quot;success&quot;: False, &quot;validation_errors&quot;: errors}
+
+    confirmation_id = f&quot;CLM-{uuid.uuid4().hex[:8].upper()}&quot;
+
+    async def _submit(session: AsyncSession) -&gt; dict[str, Any]:
+        new_claim = Claim(
+            claim_id=confirmation_id,
+            policy_number=validated.policy_number,
+            claim_type=validated.claim_type,
+            status=ClaimStatus.SUBMITTED.value,
+            amount=validated.amount,</code></pre>
+<p><a href="sources/insurance--backend--app--agent--tools--submit_claim.py.html#L159">Read frozen source, lines 159–181</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Pause the embedding worker, file a claim, and compare exact lookup with semantic search. Define the appropriate user-visible status for each result.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="147"> I can explain this</label><button type="button" class="bookmark" data-bookmark="147" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-147">Explain this in your own words</label><textarea id="note-147" data-note="147" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q148" data-question="148">
+<div class="q-meta"><span>QUESTION 148</span><span>Insurance code & design analysis</span><a href="#q148" aria-label="Link to question 148">#</a></div>
+<details class="answer" open><summary><h2>148. What are the main trust boundaries in this application?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Boundaries include browser-to-API identity, model-to-tool authority, source-to-prompt content, application-to-database privileges, application-to-model disclosure, and application-to-observability export. Each boundary has a different actor and failure mode.</p>
+<h3>Mechanism & reason</h3><p>JWT validation establishes a user, ContextVar carries that identity to tools, domain queries constrain records, and tracing can export execution data. Authorization must remain effective even when the model selects the wrong action.</p><h3>Risk & safeguards</h3><p>A protected chat endpoint is insufficient if a tool trusts model-supplied owner IDs or a trace exports private claim text. Read and write paths require separate evidence of enforcement.</p>
+<h3>Choice & trade-offs</h3><p>Explicit boundaries add policy and testing effort but make failures diagnosable. Combining all access behind a powerful agent credential simplifies integration and magnifies mistakes.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/security/auth.py:249</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    token = _resolve_token(request, credentials)
+    if token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=&quot;Sign in to continue&quot;)
+    try:
+        user_uuid = _decode_token(token)
+    except _InvalidTokenError:
+        clear_session_cookie(response)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=&quot;Invalid or expired token&quot;,
+        ) from None
+
+    user = (await session.execute(select(User).where(User.id == user_uuid))).scalar_one_or_none()
+    if user is None:
+        clear_session_cookie(response)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=&quot;Account not found&quot;)
+
+    current_user_id.set(user.id)
+    return str(user.id)</code></pre>
+<p><a href="sources/insurance--backend--app--security--auth.py.html#L249">Read frozen source, lines 249–267</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Draw the insurance runtime diagram and annotate every edge with identity, permitted data, and whether the receiver can initiate authoritative writes.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="148"> I can explain this</label><button type="button" class="bookmark" data-bookmark="148" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-148">Explain this in your own words</label><textarea id="note-148" data-note="148" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q149" data-question="149">
+<div class="q-meta"><span>QUESTION 149</span><span>Insurance code & design analysis</span><a href="#q149" aria-label="Link to question 149">#</a></div>
+<details class="answer" open><summary><h2>149. Which application guarantees are implemented, and which remain conditional?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Implemented mechanisms include owner-scoped claims retrieval, a locked confirmation row, caller-owned submission transactions, typed streaming events, optional shared idempotency, and trace instrumentation. Their deployment guarantees depend on real database behavior, chosen storage settings, provider configuration, and complete use of the intended paths.</p>
+<h3>Mechanism & reason</h3><p>Configuration defaults session_storage to memory; a database-backed service exists but is not automatically selected in every deployment. Administrative claim transitions also use a currently empty allowlist despite the broader role-support code.</p><h3>Risk & safeguards</h3><p>Reading a comment about deployment defaults or a role model as proof of configured behavior creates false confidence. Follow defaults and call sites rather than naming available classes.</p>
+<h3>Choice & trade-offs</h3><p>Conservative defaults support local development but may require production gates. Rejecting startup on missing critical state is stricter than silently falling back to local state.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/config.py:24</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    # Application Metadata
+    app_name: str = Field(
+        default=&quot;OmniCare Financial API&quot;,
+        description=&quot;Public API application title&quot;,
+    )
+    app_version: str = Field(
+        default=&quot;1.0.0&quot;,
+        description=&quot;Semantic application release version&quot;,
+    )
+    environment: Literal[&quot;development&quot;, &quot;staging&quot;, &quot;production&quot;, &quot;test&quot;] = Field(
+        default=&quot;development&quot;,
+        description=&quot;Runtime environment tier&quot;,
+    )
+
+    # Logging Configuration
+    log_level: str = Field(
+        default=&quot;INFO&quot;,
+        description=&quot;Standard logging verbosity level&quot;,
+    )
+
+    # LLM &amp; Agent Configuration
+    openai_api_key: str = Field(</code></pre>
+<p><a href="sources/insurance--backend--app--core--config.py.html#L24">Read frozen source, lines 24–45</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Create a deployment evidence checklist showing the selected session, idempotency, rate-limit, and tracing backends without printing secrets.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="149"> I can explain this</label><button type="button" class="bookmark" data-bookmark="149" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-149">Explain this in your own words</label><textarea id="note-149" data-note="149" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q150" data-question="150">
+<div class="q-meta"><span>QUESTION 150</span><span>Insurance code & design analysis</span><a href="#q150" aria-label="Link to question 150">#</a></div>
+<details class="answer" open><summary><h2>150. How should the first fourteen chapters be reinterpreted against this host?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Their library concepts remain useful, but each host guarantee needs its own wiring proof. Generic strict retrieval does not mean this host preserves errors, a revision-aware evidence type does not mean policy citations include revisions, and a generic outbox protocol does not prove the concrete adapter&#x27;s claim semantics.</p>
+<h3>Mechanism & reason</h3><p>The coverage audit maps every original question to an insurance extension while preserving Q1–140 and saved progress. The new source atlas pins both repositories so readers can compare capabilities with their actual integration.</p><h3>Risk & safeguards</h3><p>Architectural diagrams can accidentally describe an ideal composition rather than the running path. The new diagrams label proposed integrations and the handbook records observed gaps beside the relevant mechanism.</p>
+<h3>Choice & trade-offs</h3><p>Cross-project tracing takes more effort than a single overview but teaches integration judgment, the central skill in full-stack AI engineering.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/policies/tools.py:56</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    settings = get_settings()
+
+    results = await retrieve_hybrid(
+        query=query,
+        n_results=5,
+        distance_threshold=settings.rag_distance_threshold,
+    )
+
+    if not results:
+        return {
+            &quot;answer_context&quot;: (
+                &quot;No relevant policy information found for this query. &quot;
+                &quot;The user may be asking about something not covered in the policy documents, &quot;
+                &quot;or should contact OmniCare support directly.&quot;
+            ),
+            &quot;sources&quot;: [],
+            &quot;chunks_found&quot;: 0,
+        }
+
+    context_parts: list[str] = []
+    sources: list[dict[str, Any]] = []
+    seen_sections: set[str] = set()
+</code></pre>
+<p><a href="sources/insurance--backend--app--domain--policies--tools.py.html#L56">Read frozen source, lines 56–78</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Pick three earlier answers and find the corresponding host call site. Write one sentence of confirmed behavior and one remaining integration condition for each.</p></div><p class="reference"><a href="examples.html#insurance-system">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="150"> I can explain this</label><button type="button" class="bookmark" data-bookmark="150" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-150">Explain this in your own words</label><textarea id="note-150" data-note="150" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="fullstack.html">← From subsystem to AI full-stack product</a><a href="database-modeling.html">Relational data modeling and migrations →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

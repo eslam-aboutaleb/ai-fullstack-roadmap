@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Ingestion and transaction ownership · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="ingestion" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a aria-current=page href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 09 / 30 · QUESTIONS 81–90</p><h1>Ingestion and transaction ownership</h1><p class="subtitle">Keep expensive preparation outside the critical mutation window.</p><p class="chapter-note">Original chapter reviewed against the insurance host. Each answer now links to its coverage-audit entry and practical extension.</p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-ingestion">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the sequence diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/sequence.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/sequence.html" title="sequence diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q81" data-question="81">
+<div class="q-meta"><span>QUESTION 081</span><span>Code & engineering analysis</span><a href="#q81" aria-label="Link to question 81">#</a></div>
+<details class="answer" open><summary><h2>81. What are the phases of IngestionPipeline.run?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The pipeline loads source documents, verifies load authority, computes a snapshot, checks whether it is unchanged, chunks, embeds, and validates. It then enters a critical session to recheck the snapshot, retire the old version, create a new version, and upsert chunks.</p>
+<h3>Mechanism & reason</h3><p>Slow provider work precedes the mutation-critical section. This reduces the time an internally owned session and advisory lock are held for version changes. The read-only initial snapshot check uses a short session when the caller did not supply one.</p><h3>Risk & safeguards</h3><p>A caller-supplied session may already have an open transaction throughout preparation. The library cannot undo that host decision, so do not claim remote calls are outside every possible transaction in all integrations.</p>
+<h3>Choice & trade-offs</h3><p>Preparation can be duplicated by concurrent workers, but database contention is lower. Serializing all work under a lock saves duplicate embeddings while holding scarce resources longer.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:194</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if hasattr(source, &quot;load&quot;):
+            loaded = await source.load()
+        else:
+            loaded = source
+        if isinstance(loaded, LoadResult):
+            documents = list(loaded)
+            self._last_load_result = loaded
+            if not loaded.authoritative:
+                logger.warning(
+                    &quot;Non-authoritative source scan; skipping ingestion without mutation.&quot;
+                )
+                return 0
+        else:
+            documents = list(loaded) if not isinstance(loaded, list) else loaded
+            self._last_load_result = None
+
+        sql_factory = None
+        if lock_key is not None:
+            # Imported lazily so importing the pipeline does
+            # not require a database driver; the default is
+            # the SQLAlchemy factory.
+            from ragnor.db.sql_factory import SQLAlchemyFactory  # noqa: PLC0415
+</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L194">Read frozen source, lines 194–216</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L194-L216">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Instrument session entry, embedding start, lock acquisition, upsert, and commit. Compare internally owned and caller-owned session paths.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q81">Question 81 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="81"> I can explain this</label><button type="button" class="bookmark" data-bookmark="81" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-81">Explain this in your own words</label><textarea id="note-81" data-note="81" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q82" data-question="82">
+<div class="q-meta"><span>QUESTION 082</span><span>Code & engineering analysis</span><a href="#q82" aria-label="Link to question 82">#</a></div>
+<details class="answer" open><summary><h2>82. Why is there a second snapshot check under the lock?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Two workers can both read an old snapshot, prepare identical new vectors, and then reach the write phase. The second check detects that another worker already activated the intended snapshot and avoids duplicate version mutation.</p>
+<h3>Mechanism & reason</h3><p>_commit_ingestion reads the active version again before retiring anything. This is double-checked coordination: the early check avoids unnecessary work in the common case; the protected check handles races during preparation.</p><h3>Risk & safeguards</h3><p>The recheck is only serialized when the relevant locking and transaction semantics are actually enforced. Without a supplied lock key or equivalent host coordination, concurrent writes may still race.</p>
+<h3>Choice & trade-offs</h3><p>A second read costs a small amount of database work and does not prevent duplicate provider calls. It protects the authoritative mutation rather than promising exactly-once preparation.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:414</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        active = await version_store.find_active(session)
+        if snapshot_matches(current_snapshot, active.snapshot if active else None):
+            return await self._skip_unchanged(session, current_snapshot)
+
+        if active is not None:
+            # Close the old active version and remove its
+            # chunks from the search index. chunk_id is
+            # position-based, so the new version&#x27;s chunks
+            # would violate the unique constraint on chunk_id
+            # if the retired version&#x27;s chunks stayed. The
+            # index always reflects the current version;
+            # version history itself remains in the version
+            # table.
+            await version_store.close_active(session)
+            await version_store.delete_chunks(session, active.version_id)
+
+        version = await version_store.create_version(session, current_snapshot)
+
+        for document in documents_to_upsert:
+            document[&quot;metadata&quot;][self._version_id_key] = version.version_id
+            if version.source_id is not None:
+                document[&quot;metadata&quot;][self._source_id_key] = version.source_id
+</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L414">Read frozen source, lines 414–436</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L414-L436">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Pause two workers after their initial checks, let one commit, then release the second. Verify only one new active version appears when the lock contract is honored.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q82">Question 82 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="82"> I can explain this</label><button type="button" class="bookmark" data-bookmark="82" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-82">Explain this in your own words</label><textarea id="note-82" data-note="82" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q83" data-question="83">
+<div class="q-meta"><span>QUESTION 083</span><span>Code & engineering analysis</span><a href="#q83" aria-label="Link to question 83">#</a></div>
+<details class="answer" open><summary><h2>83. What belongs in an ingestion snapshot?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The snapshot should represent the inputs that determine indexed content: source manifest hash, extractor behavior, chunker identity and configuration, and embedding configuration or profile. A change to any of these can make existing vectors stale despite unchanged source text.</p>
+<h3>Mechanism & reason</h3><p>versioning.py builds and compares structured snapshots using stable serialized data and sanitized configuration. This turns unchanged detection into an explicit compatibility decision.</p><h3>Risk & safeguards</h3><p>Omitting hidden preprocessing or a model revision can cause false unchanged matches. Including unstable or secret-bearing fields can trigger needless rebuilds or expose credentials.</p>
+<h3>Choice & trade-offs</h3><p>Comprehensive snapshots improve repeatability while requiring disciplined adapter metadata. A simple content hash is easier but cannot detect pipeline changes.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/versioning.py:172</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    config: dict[str, Any] = chunker.config
+    if extractor is not None:
+        extractor_id = (
+            extractor
+            if isinstance(extractor, str)
+            else getattr(extractor, &quot;id&quot;, type(extractor).__name__)
+        )
+        extractor_version = getattr(extractor, &quot;version&quot;, extractor_version)
+        extractor_options = getattr(extractor, &quot;options&quot;, extractor_options)
+    profile_hash = &quot;&quot;
+    if embedding_profile is not None and hasattr(embedding_profile, &quot;canonical_hash&quot;):
+        profile_hash = embedding_profile.canonical_hash()
+    return IngestionSnapshot(
+        source_hash=source_hash,
+        embedding_model=(
+            embedding_profile.model_id
+            if embedding_profile is not None
+            else settings.embedding_model
+        ),
+        embedding_dim=(
+            embedding_profile.dimension
+            if embedding_profile is not None
+            else get_embedding_dimension(settings.embedding_model)</code></pre>
+<p><a href="sources/src--ragnor--ingestion--versioning.py.html#L172">Read frozen source, lines 172–194</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/versioning.py#L172-L194">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>List every transformation between source bytes and stored vectors in your host. Identify which are represented in the snapshot and add a documented version for any custom transformation.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q83">Question 83 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="83"> I can explain this</label><button type="button" class="bookmark" data-bookmark="83" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-83">Explain this in your own words</label><textarea id="note-83" data-note="83" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q84" data-question="84">
+<div class="q-meta"><span>QUESTION 084</span><span>Code & engineering analysis</span><a href="#q84" aria-label="Link to question 84">#</a></div>
+<details class="answer" open><summary><h2>84. What is idempotency, and what is actually idempotent here?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">An idempotent operation can be repeated without producing additional logical effects after the intended state is reached. Ingestion uses snapshot comparison to skip unchanged work and rechecks before mutation. That does not mean every low-level call executes once or always reuses identical physical chunk IDs.</p>
+<h3>Mechanism & reason</h3><p>Repeated preparation may call an embedding provider more than once, while activation should preserve one intended current state when coordination is correct. This distinction is essential for crash recovery and job retries.</p><h3>Risk & safeguards</h3><p>Billing side effects, external writes, or custom version-store behavior may not be idempotent. The host must use stable operation identity and ensure repeated processing does not create duplicate application effects.</p>
+<h3>Choice & trade-offs</h3><p>Logical idempotency enables robust retries at the cost of hashes, state checks, and identity tracking. Exactly-once execution across external services is a much stronger claim.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:194</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if hasattr(source, &quot;load&quot;):
+            loaded = await source.load()
+        else:
+            loaded = source
+        if isinstance(loaded, LoadResult):
+            documents = list(loaded)
+            self._last_load_result = loaded
+            if not loaded.authoritative:
+                logger.warning(
+                    &quot;Non-authoritative source scan; skipping ingestion without mutation.&quot;
+                )
+                return 0
+        else:
+            documents = list(loaded) if not isinstance(loaded, list) else loaded
+            self._last_load_result = None
+
+        sql_factory = None
+        if lock_key is not None:
+            # Imported lazily so importing the pipeline does
+            # not require a database driver; the default is
+            # the SQLAlchemy factory.
+            from ragnor.db.sql_factory import SQLAlchemyFactory  # noqa: PLC0415
+</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L194">Read frozen source, lines 194–216</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L194-L216">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Run unchanged ingestion twice and count provider calls, active versions, and stored chunks. Then repeat after a forced failure immediately before commit.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q84">Question 84 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="84"> I can explain this</label><button type="button" class="bookmark" data-bookmark="84" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-84">Explain this in your own words</label><textarea id="note-84" data-note="84" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q85" data-question="85">
+<div class="q-meta"><span>QUESTION 085</span><span>Code & engineering analysis</span><a href="#q85" aria-label="Link to question 85">#</a></div>
+<details class="answer" open><summary><h2>85. Who commits a caller-supplied database session?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The caller owns a supplied session and its transaction. The pipeline yields it into the critical section but does not commit it. When the pipeline opens its own session, it commits after successful critical work. This ownership rule prevents a library from unexpectedly committing unrelated host changes.</p>
+<h3>Mechanism & reason</h3><p>_transacting_session implements the distinction and can acquire the advisory lock on a caller session when a lock key is supplied. The lock lifetime still follows the actual database and transaction behavior.</p><h3>Risk & safeguards</h3><p>A host that forgets to commit loses intended changes; a host that keeps the transaction open across slow preparation can retain connections and locks too long. Session ownership must be clear at integration boundaries.</p>
+<h3>Choice & trade-offs</h3><p>Caller ownership supports composing RAG writes with business operations, while library ownership simplifies isolated ingestion. Mixing the models implicitly is error-prone.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:324</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if session is not None:
+            # Caller-supplied session: the caller owns the
+            # transaction, so the pipeline never commits it.
+            # The advisory lock is still taken on the
+            # caller&#x27;s session when a lock key is supplied.
+            if sql_factory is not None:
+                async with sql_factory.advisory_lock(session, lock_key):
+                    yield session
+            else:
+                yield session
+            return
+
+        if sql_factory is not None:
+            async with (
+                self._session_factory() as owned_session,
+                sql_factory.advisory_lock(owned_session, lock_key),
+            ):
+                yield owned_session
+                await owned_session.commit()
+            return
+
+        async with self._session_factory() as owned_session:
+            yield owned_session</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L324">Read frozen source, lines 324–346</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L324-L346">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Add an unrelated host row before calling ingestion with the same session. Roll back and verify whether both mutations obey the host&#x27;s intended transaction.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q85">Question 85 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="85"> I can explain this</label><button type="button" class="bookmark" data-bookmark="85" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-85">Explain this in your own words</label><textarea id="note-85" data-note="85" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q86" data-question="86">
+<div class="q-meta"><span>QUESTION 086</span><span>Code & engineering analysis</span><a href="#q86" aria-label="Link to question 86">#</a></div>
+<details class="answer" open><summary><h2>86. What does an advisory lock protect, and what does it not protect?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">An advisory lock coordinates cooperating processes using the same lock key and database locking mechanism. It can serialize the mutation phase for one source. It does not force unrelated code paths to honor the lock or create a distributed transaction with an external vector service.</p>
+<h3>Mechanism & reason</h3><p>The pipeline obtains the lock through SQLFactory when lock_key is supplied. Lock-key derivation and consistent source scope are therefore part of the host&#x27;s correctness contract.</p><h3>Risk & safeguards</h3><p>Inconsistent keys allow concurrent writers to bypass each other; overly broad keys serialize unrelated sources. A lock also does not guarantee that the shortest possible transaction duration has been measured.</p>
+<h3>Choice & trade-offs</h3><p>Fine-grained keys improve throughput while increasing key-management complexity. A global ingestion lock is simple but can become a bottleneck.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/locking.py:26</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async with SQLAlchemyFactory().advisory_lock(session, key):
+        yield</code></pre>
+<p><a href="sources/src--ragnor--ingestion--locking.py.html#L26">Read frozen source, lines 26–27</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/locking.py#L26-L27">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Define lock keys for two tenants sharing a source name. Explain why including or excluding tenant scope changes both correctness and contention.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q86">Question 86 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="86"> I can explain this</label><button type="button" class="bookmark" data-bookmark="86" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-86">Explain this in your own words</label><textarea id="note-86" data-note="86" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q87" data-question="87">
+<div class="q-meta"><span>QUESTION 087</span><span>Code & engineering analysis</span><a href="#q87" aria-label="Link to question 87">#</a></div>
+<details class="answer" open><summary><h2>87. How should authoritative emptiness differ from extraction failure?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">An authoritative empty dataset can mean that previously indexed content has been removed. A failed or incomplete read means the source state is unknown. The pipeline defaults empty input to a no-op and requires purge_on_empty to retire current content deliberately.</p>
+<h3>Mechanism & reason</h3><p>Non-authoritative LoadResult is rejected before mutation. For a valid empty source, the purge path closes the active version and deletes its chunks inside the transacting session.</p><h3>Risk & safeguards</h3><p>Enabling purge for an adapter that reports failures as an ordinary empty list can destroy visibility of healthy content. Returning zero chunks is not enough information to decide deletion safely.</p>
+<h3>Choice & trade-offs</h3><p>Conservative defaults retain old knowledge during uncertainty but need a separate deletion and revocation policy. Aggressive replacement is simpler and more dangerous during source outages.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:194</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if hasattr(source, &quot;load&quot;):
+            loaded = await source.load()
+        else:
+            loaded = source
+        if isinstance(loaded, LoadResult):
+            documents = list(loaded)
+            self._last_load_result = loaded
+            if not loaded.authoritative:
+                logger.warning(
+                    &quot;Non-authoritative source scan; skipping ingestion without mutation.&quot;
+                )
+                return 0
+        else:
+            documents = list(loaded) if not isinstance(loaded, list) else loaded
+            self._last_load_result = None
+
+        sql_factory = None
+        if lock_key is not None:
+            # Imported lazily so importing the pipeline does
+            # not require a database driver; the default is
+            # the SQLAlchemy factory.
+            from ragnor.db.sql_factory import SQLAlchemyFactory  # noqa: PLC0415
+</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L194">Read frozen source, lines 194–216</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L194-L216">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Test a genuine empty source, an inaccessible source, and a parser returning no chunks from nonempty input. Explain why each path should have different effects.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q87">Question 87 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="87"> I can explain this</label><button type="button" class="bookmark" data-bookmark="87" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-87">Explain this in your own words</label><textarea id="note-87" data-note="87" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q88" data-question="88">
+<div class="q-meta"><span>QUESTION 088</span><span>Code & engineering analysis</span><a href="#q88" aria-label="Link to question 88">#</a></div>
+<details class="answer" open><summary><h2>88. Why abort when nonempty documents produce zero chunks?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Recording a new active snapshot with no useful chunks could make later runs classify the same source as already indexed and skip it indefinitely. Aborting before version mutation preserves the previous active content and allows a later retry after the chunker or extraction issue is fixed.</p>
+<h3>Mechanism & reason</h3><p>The pipeline explicitly checks for no chunks before embedding and before entering the critical section. This is a small guard protecting a large lifecycle invariant: an active snapshot should correspond to successfully prepared content.</p><h3>Risk & safeguards</h3><p>A host may misinterpret the returned zero as successful deletion or successful replacement. Diagnostics and status handling should distinguish aborted preparation from an authoritative empty purge.</p>
+<h3>Choice & trade-offs</h3><p>Retaining old content favors availability while freshness is unresolved. Some products should additionally mark it stale instead of silently treating it as current.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:194</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if hasattr(source, &quot;load&quot;):
+            loaded = await source.load()
+        else:
+            loaded = source
+        if isinstance(loaded, LoadResult):
+            documents = list(loaded)
+            self._last_load_result = loaded
+            if not loaded.authoritative:
+                logger.warning(
+                    &quot;Non-authoritative source scan; skipping ingestion without mutation.&quot;
+                )
+                return 0
+        else:
+            documents = list(loaded) if not isinstance(loaded, list) else loaded
+            self._last_load_result = None
+
+        sql_factory = None
+        if lock_key is not None:
+            # Imported lazily so importing the pipeline does
+            # not require a database driver; the default is
+            # the SQLAlchemy factory.
+            from ragnor.db.sql_factory import SQLAlchemyFactory  # noqa: PLC0415
+</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L194">Read frozen source, lines 194–216</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L194-L216">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Inject a chunker that returns an empty list for a nonempty source. Verify the old version remains active and that a subsequent valid chunker can ingest it.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q88">Question 88 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="88"> I can explain this</label><button type="button" class="bookmark" data-bookmark="88" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-88">Explain this in your own words</label><textarea id="note-88" data-note="88" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q89" data-question="89">
+<div class="q-meta"><span>QUESTION 089</span><span>Code & engineering analysis</span><a href="#q89" aria-label="Link to question 89">#</a></div>
+<details class="answer" open><summary><h2>89. How does rollback interact with old-version retirement and new-vector upsert?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The critical sequence retires the active version, deletes its chunks, creates the new version, stamps metadata, and upserts new chunks. With a shared transactional backend, a failure should roll all of that back. With nontransactional collaborators, this sequence alone cannot guarantee atomic replacement.</p>
+<h3>Mechanism & reason</h3><p>Passing one session is the mechanism for joining transactional writes. In-memory or remote adapters require their own consistency design; the manifest-based sync system addresses a different visibility model.</p><h3>Risk & safeguards</h3><p>Deleting old content before a remote upsert fails can leave an unavailable or inconsistent index. Do not assume a Python context manager can roll back writes in an external service.</p>
+<h3>Choice & trade-offs</h3><p>In-place transactional replacement is compact in one database. Generation preparation and activation use more storage and state but better fit cross-system operations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:414</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        active = await version_store.find_active(session)
+        if snapshot_matches(current_snapshot, active.snapshot if active else None):
+            return await self._skip_unchanged(session, current_snapshot)
+
+        if active is not None:
+            # Close the old active version and remove its
+            # chunks from the search index. chunk_id is
+            # position-based, so the new version&#x27;s chunks
+            # would violate the unique constraint on chunk_id
+            # if the retired version&#x27;s chunks stayed. The
+            # index always reflects the current version;
+            # version history itself remains in the version
+            # table.
+            await version_store.close_active(session)
+            await version_store.delete_chunks(session, active.version_id)
+
+        version = await version_store.create_version(session, current_snapshot)
+
+        for document in documents_to_upsert:
+            document[&quot;metadata&quot;][self._version_id_key] = version.version_id
+            if version.source_id is not None:
+                document[&quot;metadata&quot;][self._source_id_key] = version.source_id
+</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L414">Read frozen source, lines 414–436</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L414-L436">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Inject an upsert failure after retirement. Test actual visibility and active-version state with your production adapter combination, not only a recording fake.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q89">Question 89 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="89"> I can explain this</label><button type="button" class="bookmark" data-bookmark="89" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-89">Explain this in your own words</label><textarea id="note-89" data-note="89" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q90" data-question="90">
+<div class="q-meta"><span>QUESTION 090</span><span>Code & engineering analysis</span><a href="#q90" aria-label="Link to question 90">#</a></div>
+<details class="answer" open><summary><h2>90. Why are fixed claims such as microsecond swaps or sub-5-ms commits unreliable?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The critical section includes reads, version mutations, deletion, and upsert, not merely a pointer assignment. Its duration depends on chunk count, database load, indexes, network latency, and adapter behavior. No timing benchmark in the inspected implementation proves a universal duration.</p>
+<h3>Mechanism & reason</h3><p>Moving remote embedding out of internally owned mutation sessions is a sound architectural mechanism. That mechanism supports a narrower claim about resource occupancy, not an invented service-level objective.</p><h3>Risk & safeguards</h3><p>Designing connection pools or latency budgets around fictional timings can cause overload. Measure lock wait, transaction duration, upsert volume, and retry behavior under representative workloads.</p>
+<h3>Choice & trade-offs</h3><p>Shorter transactions reduce contention but preparation may still dominate end-to-end ingestion time. Optimization should target measured bottlenecks without weakening atomicity.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/ingestion/pipeline.py:324</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if session is not None:
+            # Caller-supplied session: the caller owns the
+            # transaction, so the pipeline never commits it.
+            # The advisory lock is still taken on the
+            # caller&#x27;s session when a lock key is supplied.
+            if sql_factory is not None:
+                async with sql_factory.advisory_lock(session, lock_key):
+                    yield session
+            else:
+                yield session
+            return
+
+        if sql_factory is not None:
+            async with (
+                self._session_factory() as owned_session,
+                sql_factory.advisory_lock(owned_session, lock_key),
+            ):
+                yield owned_session
+                await owned_session.commit()
+            return
+
+        async with self._session_factory() as owned_session:
+            yield owned_session</code></pre>
+<p><a href="sources/src--ragnor--ingestion--pipeline.py.html#L324">Read frozen source, lines 324–346</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/ingestion/pipeline.py#L324-L346">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Benchmark the critical section across increasing chunk counts. Report distributions and test conditions, and keep provider time separate from database time.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Concrete confirmation and outbox writes demonstrate caller-owned transactions. Remote providers must remain outside business locks.</p><a href="database-concurrency.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q90">Question 90 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="90"> I can explain this</label><button type="button" class="bookmark" data-bookmark="90" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-90">Explain this in your own words</label><textarea id="note-90" data-note="90" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="evidence.html">← Evidence, context, and citations</a><a href="coordination.html">Distributed sync, jobs, and recovery →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

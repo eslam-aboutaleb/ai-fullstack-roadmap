@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Agent observability and trace privacy · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="agent-observability" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a aria-current=page href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 26 / 30 · QUESTIONS 251–260</p><h1>Agent observability and trace privacy</h1><p class="subtitle">Connect requests, tool outcomes, model spend, and business results.</p><p class="chapter-note">Insurance extension · <a href="examples.html#agent-observability">Open the worked code example</a> · <a href="libraries.html">Check implementation status and library comparisons</a></p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-agent-observability">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the insurance-quality diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/insurance-quality.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/insurance-quality.html" title="insurance-quality diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q251" data-question="251">
+<div class="q-meta"><span>QUESTION 251</span><span>Insurance code & design analysis</span><a href="#q251" aria-label="Link to question 251">#</a></div>
+<details class="answer" open><summary><h2>251. How do logs, metrics, traces, audit records, and evaluations differ?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Logs describe events, metrics aggregate measurements, traces connect causal execution spans, audit records document selected authoritative actions, and evaluations assess behavior against expectations. They can correlate through operation IDs but are not substitutes for one another.</p>
+<h3>Mechanism & reason</h3><p>OmniCare has request-context logging, bounded metrics, LangSmith turn/tool/model tracing, an audit service, and stored evaluation runs. Each has its own data and failure policy.</p><h3>Risk & safeguards</h3><p>A successful trace export does not prove a claim committed, and an audit row does not explain a model&#x27;s poor retrieval. Confusing these roles produces incomplete incident diagnosis.</p>
+<h3>Choice & trade-offs</h3><p>Multiple signals add operational work and answer different questions. Start with a small coherent schema rather than unrelated dashboards.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/tracing.py:74</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        destination = langsmith.tracing_destination()
+        if not langsmith.configure_langsmith():
+            return False
+        langsmith.register_langsmith_callback()
+        langsmith.install_llm_trace_context()
+        logger.info(&quot;Tracing enabled (project &#x27;%s&#x27;).&quot;, destination[&quot;project&quot;])
+        return True
+    except Exception:
+        logger.warning(&quot;Tracing setup skipped&quot;, exc_info=True)
+        return False</code></pre>
+<p><a href="sources/insurance--backend--app--observability--tracing.py.html#L74">Read frozen source, lines 74–84</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>For a failed confirmation after a successful model turn, state which signal proves the transaction result and which explains the preceding tool choice.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="251"> I can explain this</label><button type="button" class="bookmark" data-bookmark="251" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-251">Explain this in your own words</label><textarea id="note-251" data-note="251" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q252" data-question="252">
+<div class="q-meta"><span>QUESTION 252</span><span>Insurance code & design analysis</span><a href="#q252" aria-label="Link to question 252">#</a></div>
+<details class="answer" open><summary><h2>252. What should a useful agent trace tree contain?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">One request or turn root should connect relevant model, tool, retrieval, and persistence activity with durations and sanitized outcomes. Include operation and version metadata needed to reproduce the failure, while excluding secrets and unnecessary private content.</p>
+<h3>Mechanism & reason</h3><p>tracing.py exposes a vendor-neutral surface; LangSmith implementation decorates turns and tools and links LiteLLM completions beneath the current turn. Correct parentage makes one operation understandable end to end.</p><h3>Risk & safeguards</h3><p>Orphan model spans can hide which user-visible turn incurred cost. Copying entire state into attributes creates a privacy problem and a noisy trace.</p>
+<h3>Choice & trade-offs</h3><p>Rich trace structure improves diagnosis but adds instrumentation complexity. Keep high-value boundaries stable and avoid tracing every tiny helper.</p><p class="reference">Official reference: <a href="https://opentelemetry.io/docs/concepts/signals/traces/">OpenTelemetry traces</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/langsmith.py:298</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    from google.adk.models.lite_llm import LiteLLMClient
+
+    for method_name in (&quot;acompletion&quot;, &quot;completion&quot;):
+        _patch_completion(LiteLLMClient, method_name)
+    logger.info(&quot;ADK model calls will nest under the LangSmith trace of their turn.&quot;)</code></pre>
+<p><a href="sources/insurance--backend--app--observability--langsmith.py.html#L298">Read frozen source, lines 298–302</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Draw the trace tree for coverage review with two tool calls, retrieval, one retry, and final persistence. Mark parallel versus sequential time honestly.</p></div><p class="reference"><a href="examples.html#observability-spans">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="252"> I can explain this</label><button type="button" class="bookmark" data-bookmark="252" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-252">Explain this in your own words</label><textarea id="note-252" data-note="252" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q253" data-question="253">
+<div class="q-meta"><span>QUESTION 253</span><span>Insurance code & design analysis</span><a href="#q253" aria-label="Link to question 253">#</a></div>
+<details class="answer" open><summary><h2>253. Why does the ADK-LiteLLM-LangSmith bridge need explicit context stitching?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Different instrumentation layers may not share the same active trace context. A parent turn recorded by one SDK and a completion recorded by another callback can otherwise appear as unrelated runs. Correlation metadata bridges that boundary.</p>
+<h3>Mechanism & reason</h3><p>langsmith.py reads the current run tree and injects IDs and ordering metadata at ADK&#x27;s LiteLLMClient seam. It installs the patch idempotently and registers the callback once to avoid duplicate spans.</p><h3>Risk & safeguards</h3><p>Patching a framework seam is sensitive to dependency changes. A successful import does not prove nesting remains correct after an upgrade, and duplicate callbacks can double recorded usage.</p>
+<h3>Choice & trade-offs</h3><p>A localized bridge preserves business-code independence and needs targeted compatibility tests. Provider-native tracing can be simpler but may not connect all application activity.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/langsmith.py:298</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    from google.adk.models.lite_llm import LiteLLMClient
+
+    for method_name in (&quot;acompletion&quot;, &quot;completion&quot;):
+        _patch_completion(LiteLLMClient, method_name)
+    logger.info(&quot;ADK model calls will nest under the LangSmith trace of their turn.&quot;)</code></pre>
+<p><a href="sources/insurance--backend--app--observability--langsmith.py.html#L298">Read frozen source, lines 298–302</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Assert one root turn with nested tool and model spans before and after repeated startup. Verify parent IDs using synthetic data.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="253"> I can explain this</label><button type="button" class="bookmark" data-bookmark="253" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-253">Explain this in your own words</label><textarea id="note-253" data-note="253" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q254" data-question="254">
+<div class="q-meta"><span>QUESTION 254</span><span>Insurance code & design analysis</span><a href="#q254" aria-label="Link to question 254">#</a></div>
+<details class="answer" open><summary><h2>254. How do you distinguish tool exceptions from business failures in telemetry?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Record transport/runtime success separately from domain outcome. A function that returns error=&#x27;backend unavailable&#x27; has executed without raising but did not satisfy the user task. An empty successful search is another distinct outcome.</p>
+<h3>Mechanism & reason</h3><p>instrument_tool records success when the handler returns normally. That is useful runtime information but does not automatically classify returned found=False or success=False payloads. The stream and prompt layers interpret some of those shapes separately.</p><h3>Risk & safeguards</h3><p>A dashboard based only on exceptions can report excellent tool reliability while users receive failed searches or validations. Mixing not-found with outages also obscures incident severity.</p>
+<h3>Choice & trade-offs</h3><p>Typed outcome categories require consistent tool schemas and provide actionable alerts. Raw exception counts are simple and incomplete.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/tool_instrumentation.py:90</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    tool_name = name or getattr(handler, &quot;__name__&quot;, &quot;tool&quot;)
+
+    original = handler
+    # The tracing span is applied innermost, before the latency wrapper, for
+    # two reasons: the span nests under the trace of the turn that invoked the
+    # tool through the run context, and the outer wrappers still resolve the
+    # original handler&#x27;s annotations -- which is what the agent builds the
+    # tool declaration from. Tracing off makes this a no-op.
+    handler = trace_tool(tool_name)(handler)
+
+    def _record(started: float, success: bool, error: BaseException | None) -&gt; None:
+        try:
+            get_metrics().record_tool_call(
+                build_tool_call(
+                    name=tool_name,
+                    latency_seconds=time.perf_counter() - started,
+                    success=success,
+                    error=&quot;&quot; if error is None else repr(error),
+                )
+            )
+        except Exception:
+            logger.debug(&quot;Tool telemetry dropped for &#x27;%s&#x27;&quot;, tool_name, exc_info=True)
+</code></pre>
+<p><a href="sources/insurance--backend--app--observability--tool_instrumentation.py.html#L90">Read frozen source, lines 90–112</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Add outcome dimensions for completed, empty, validation_rejected, unauthorized, backend_failed, and cancelled. Test each without logging private arguments.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="254"> I can explain this</label><button type="button" class="bookmark" data-bookmark="254" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-254">Explain this in your own words</label><textarea id="note-254" data-note="254" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q255" data-question="255">
+<div class="q-meta"><span>QUESTION 255</span><span>Insurance code & design analysis</span><a href="#q255" aria-label="Link to question 255">#</a></div>
+<details class="answer" open><summary><h2>255. How should token and cost telemetry handle unknown prices?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Record observed usage, estimated cost, pricing source, and whether pricing is known. Unknown should not be silently interpreted as free. Compare cost per successful task and per stage rather than only per model request.</p>
+<h3>Mechanism & reason</h3><p>The LiteLLM callback prefers completion_cost and falls back to response metadata, returning zero if pricing cannot be resolved. That observed fallback needs an uncertainty label in operational interpretation.</p><h3>Risk & safeguards</h3><p>A zero-cost metric can hide a new provider or unsupported model price. Retries, embedding, and reranking may also be omitted from a narrow generation-only dashboard.</p>
+<h3>Choice & trade-offs</h3><p>Detailed accounting adds metadata and improves budget control. Provider invoices remain a reconciliation source rather than assuming local estimates are exact bills.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/llm_callback.py:100</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if response_obj is not None:
+        try:
+            return float(litellm.completion_cost(completion_response=response_obj))
+        except Exception:
+            logger.debug(&quot;litellm.completion_cost could not price this call&quot;, exc_info=True)
+    for source in (standard, kwargs):
+        cost = _as_float(_lookup(source, &quot;response_cost&quot;))
+        if cost is not None:
+            return cost
+    return 0.0</code></pre>
+<p><a href="sources/insurance--backend--app--observability--llm_callback.py.html#L100">Read frozen source, lines 100–109</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Send a synthetic unknown-model usage record and verify it is reported as unpriced, not confidently free. Attribute all calls in one successful task.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="255"> I can explain this</label><button type="button" class="bookmark" data-bookmark="255" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-255">Explain this in your own words</label><textarea id="note-255" data-note="255" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q256" data-question="256">
+<div class="q-meta"><span>QUESTION 256</span><span>Insurance code & design analysis</span><a href="#q256" aria-label="Link to question 256">#</a></div>
+<details class="answer" open><summary><h2>256. Why are in-process metrics different from fleet-wide monitoring?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Process-local counters and bounded event buffers describe one process since its start. They do not automatically aggregate across replicas, survive restarts, or provide a durable long-term time series. Fleet monitoring requires collection and identity rules.</p>
+<h3>Mechanism & reason</h3><p>The backend&#x27;s metrics module provides useful local accounting and telemetry routes. Exporters or an external collection system are needed for deployment-wide retention and aggregation.</p><h3>Risk & safeguards</h3><p>Summing request snapshots repeatedly can double count, and restarting a process can look like a sudden drop in demand. High-cardinality labels such as raw claim IDs can overwhelm a metrics backend.</p>
+<h3>Choice & trade-offs</h3><p>Local metrics are lightweight and useful for debugging; shared systems add infrastructure and coherent operational visibility.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/metrics.py:51</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    timestamp: float
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    cost_usd: float
+    latency_seconds: float
+    success: bool
+    request_id: str
+    error: str = &quot;&quot;</code></pre>
+<p><a href="sources/insurance--backend--app--observability--metrics.py.html#L51">Read frozen source, lines 51–59</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Run two replicas and restart one. Specify how counters, gauges, and histograms should be exported and queried without inventing fleet totals.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="256"> I can explain this</label><button type="button" class="bookmark" data-bookmark="256" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-256">Explain this in your own words</label><textarea id="note-256" data-note="256" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q257" data-question="257">
+<div class="q-meta"><span>QUESTION 257</span><span>Insurance code & design analysis</span><a href="#q257" aria-label="Link to question 257">#</a></div>
+<details class="answer" open><summary><h2>257. How can trace collection disclose private insurance data?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Tool arguments, results, prompts, completions, exception strings, and URLs can contain policyholder or claim information. Tracing a trusted tool does not make its payload safe to export. Data minimization must apply before or at the instrumentation/export boundary.</p>
+<h3>Mechanism & reason</h3><p>The host&#x27;s trace wrappers can record tool inputs and outputs, while the Ragnor event layer has different redaction defaults. Those are separate pipelines. A redacted metric does not sanitize a full LangSmith run automatically.</p><h3>Risk & safeguards</h3><p>Trace readers or vendors may gain access broader than the product&#x27;s owner-scoped API permits. Confirmation tokens and source text should not appear by accident in support exports.</p>
+<h3>Choice & trade-offs</h3><p>Content-rich traces help reproduce model failures and increase privacy obligations. Prefer sanitized fixtures and reviewed sampled content when necessary.</p><p class="reference">Official reference: <a href="https://opentelemetry.io/docs/security/handling-sensitive-data/">OpenTelemetry sensitive-data handling</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/langsmith.py:298</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    from google.adk.models.lite_llm import LiteLLMClient
+
+    for method_name in (&quot;acompletion&quot;, &quot;completion&quot;):
+        _patch_completion(LiteLLMClient, method_name)
+    logger.info(&quot;ADK model calls will nest under the LangSmith trace of their turn.&quot;)</code></pre>
+<p><a href="sources/insurance--backend--app--observability--langsmith.py.html#L298">Read frozen source, lines 298–302</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Inventory actual exported payloads for one synthetic claim preparation. Define an allowlist and prove a fake token and private description are absent.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="257"> I can explain this</label><button type="button" class="bookmark" data-bookmark="257" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-257">Explain this in your own words</label><textarea id="note-257" data-note="257" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q258" data-question="258">
+<div class="q-meta"><span>QUESTION 258</span><span>Insurance code & design analysis</span><a href="#q258" aria-label="Link to question 258">#</a></div>
+<details class="answer" open><summary><h2>258. Should tracing failures be allowed to fail business operations?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Optional telemetry often uses best-effort failure containment to preserve availability. Mandatory business audit may require a different policy. Decide per signal rather than declaring that every kind of observation may be dropped harmlessly.</p>
+<h3>Mechanism & reason</h3><p>setup_tracing catches errors and the tracing integration degrades gracefully. audit/service.py also describes best-effort behavior, a separate choice whose suitability depends on the required business guarantees.</p><h3>Risk & safeguards</h3><p>Silent instrumentation failure can leave an incident undiagnosable. Conversely, blocking every request on a slow telemetry vendor can create an avoidable outage.</p>
+<h3>Choice & trade-offs</h3><p>Fail-open telemetry improves availability and needs health signals for lost coverage. Transactional audit or a durable audit outbox increases assurance and operational coupling.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/tracing.py:74</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        destination = langsmith.tracing_destination()
+        if not langsmith.configure_langsmith():
+            return False
+        langsmith.register_langsmith_callback()
+        langsmith.install_llm_trace_context()
+        logger.info(&quot;Tracing enabled (project &#x27;%s&#x27;).&quot;, destination[&quot;project&quot;])
+        return True
+    except Exception:
+        logger.warning(&quot;Tracing setup skipped&quot;, exc_info=True)
+        return False</code></pre>
+<p><a href="sources/insurance--backend--app--observability--tracing.py.html#L74">Read frozen source, lines 74–84</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Simulate unavailable tracing and unavailable audit storage separately. Define the expected request, readiness, and alert behavior for each.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="258"> I can explain this</label><button type="button" class="bookmark" data-bookmark="258" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-258">Explain this in your own words</label><textarea id="note-258" data-note="258" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q259" data-question="259">
+<div class="q-meta"><span>QUESTION 259</span><span>Insurance code & design analysis</span><a href="#q259" aria-label="Link to question 259">#</a></div>
+<details class="answer" open><summary><h2>259. What SLOs and alerts are useful for an insurance assistant?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Monitor successful authorized task completion, stream completion, backend failures, indexing lag, oldest pending job age, provider throttling, and cost per completed task. Use freshness and correctness signals alongside request latency.</p>
+<h3>Mechanism & reason</h3><p>The application exposes health and telemetry surfaces, while evaluation runs provide sampled behavioral evidence. A fast answer that falsely claims submission should count as a failed task, not a latency success.</p><h3>Risk & safeguards</h3><p>Alerting only on average HTTP latency misses stuck jobs and quality failures. Sampling can also miss rare severe authorization incidents, which need deterministic denial monitoring and tests.</p>
+<h3>Choice & trade-offs</h3><p>More nuanced SLOs require definitions and ownership. A small set linked to concrete user impact is more maintainable than dozens of disconnected thresholds.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/observability/metrics.py:51</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    timestamp: float
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    cost_usd: float
+    latency_seconds: float
+    success: bool
+    request_id: str
+    error: str = &quot;&quot;</code></pre>
+<p><a href="sources/insurance--backend--app--observability--metrics.py.html#L51">Read frozen source, lines 51–59</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Define a stream-success SLO and an indexing-lag SLO, including numerator, denominator, window, and corrective action.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="259"> I can explain this</label><button type="button" class="bookmark" data-bookmark="259" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-259">Explain this in your own words</label><textarea id="note-259" data-note="259" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q260" data-question="260">
+<div class="q-meta"><span>QUESTION 260</span><span>Insurance code & design analysis</span><a href="#q260" aria-label="Link to question 260">#</a></div>
+<details class="answer" open><summary><h2>260. How should observability produce better evaluation cases?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Triage a failure trace, minimize and sanitize it, establish the correct outcome with a reviewer, and add a versioned regression case. Keep raw production data access restricted and preserve which failure the new case is intended to catch.</p>
+<h3>Mechanism & reason</h3><p>The host&#x27;s tracing facade and evaluation-run storage can support a feedback loop. A trace alone is an observation; a reviewed expectation turns it into a useful test.</p><h3>Risk & safeguards</h3><p>Automatically adding model answers as gold labels reinforces errors. Copying production conversations into broad datasets can violate data-minimization policy.</p>
+<h3>Choice & trade-offs</h3><p>Reviewed case creation costs human time and improves relevance. Fully synthetic tests scale cheaply and may miss real ambiguity.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/evaluation_runs.py:152</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    if not persistence_enabled():
+        return None
+
+    from app.core.database import async_session_factory  # noqa: PLC0415
+
+    await ensure_eval_runs_table()
+
+    run_id = uuid.uuid4()
+    async with async_session_factory() as session:
+        await _insert(session, run_id, mode, config, metrics, git_sha)
+        await session.commit()
+
+    logger.debug(&quot;Persisted evaluation run %s (%s mode).&quot;, run_id, mode)
+    return run_id</code></pre>
+<p><a href="sources/insurance--backend--app--domain--evaluation_runs.py.html#L152">Read frozen source, lines 152–165</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Turn one synthetic wrong-policy trace into a case with expected revision, required tool steps, allowed final outcomes, and a clear privacy review.</p></div><p class="reference"><a href="examples.html#agent-observability">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="260"> I can explain this</label><button type="button" class="bookmark" data-bookmark="260" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-260">Explain this in your own words</label><textarea id="note-260" data-note="260" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="evaluation-libraries.html">← Agent and RAG evaluation libraries</a><a href="insurance-decisions.html">Insurance evidence and decision boundaries →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

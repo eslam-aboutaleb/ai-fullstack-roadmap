@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Transactions, locks, and concurrency · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="database-concurrency" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a  href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a aria-current=page href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 17 / 30 · QUESTIONS 161–170</p><h1>Transactions, locks, and concurrency</h1><p class="subtitle">Prove what happens when retries, users, and workers race.</p><p class="chapter-note">Insurance extension · <a href="examples.html#database-concurrency">Open the worked code example</a> · <a href="libraries.html">Check implementation status and library comparisons</a></p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-database-concurrency">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the insurance-atomicity diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/insurance-atomicity.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/insurance-atomicity.html" title="insurance-atomicity diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q161" data-question="161">
+<div class="q-meta"><span>QUESTION 161</span><span>Insurance code & design analysis</span><a href="#q161" aria-label="Link to question 161">#</a></div>
+<details class="answer" open><summary><h2>161. How does SELECT FOR UPDATE prevent duplicate confirmation?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Confirmation locks the pending submission selected by token, owner, and pending status. A second transaction targeting the same row waits; after the first commits, the second must observe the updated state under the actual isolation rules. The lock protects a database transition, not the browser button.</p>
+<h3>Mechanism & reason</h3><p>The route holds the row lock through claim creation, filing event, outbox writes, and submission completion. submit_claim_internal flushes a supplied session instead of committing it early.</p><h3>Risk & safeguards</h3><p>An internal commit would release the lock before the pending row changes, enabling duplicate creation. A request timeout or double click is expected behavior to test, not evidence that the client will never retry.</p>
+<h3>Choice & trade-offs</h3><p>Pessimistic locking simplifies this contested transition but makes lock duration important. Keep remote model work out of the locked transaction.</p><p class="reference">Official reference: <a href="https://www.postgresql.org/docs/current/explicit-locking.html">PostgreSQL explicit locking</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/claims.py:205</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        user_uuid = uuid.UUID(current_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=&quot;Invalid user&quot;,
+        ) from None
+
+    async with async_session_factory() as session:
+        submission = (
+            await session.execute(
+                select(ClaimSubmission)
+                .where(
+                    ClaimSubmission.confirmation_token == payload.confirmation_token,
+                    ClaimSubmission.user_id == user_uuid,
+                    ClaimSubmission.status == &quot;pending&quot;,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+
+        if submission is None:
+            logger.warning(</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--claims.py.html#L205">Read frozen source, lines 205–227</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Start two confirmations simultaneously in separate database sessions. Assert one logical claim and one consumed submission, then inspect the losing request&#x27;s result.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="161"> I can explain this</label><button type="button" class="bookmark" data-bookmark="161" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-161">Explain this in your own words</label><textarea id="note-161" data-note="161" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q162" data-question="162">
+<div class="q-meta"><span>QUESTION 162</span><span>Insurance code & design analysis</span><a href="#q162" aria-label="Link to question 162">#</a></div>
+<details class="answer" open><summary><h2>162. What is the difference between flush, commit, and rollback?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Flush sends pending ORM changes to the transaction, allowing generated identities and database constraints to be observed. Commit makes the transaction&#x27;s successful changes durable. Rollback discards its transactional changes. Flushed data is not therefore committed, and another session&#x27;s visibility depends on isolation.</p>
+<h3>Mechanism & reason</h3><p>Submission flushes the Claim to obtain its UUID, adds the embedding job, and leaves commitment to the confirmation route. The caller can then commit claim, job, lifecycle event, notification, and token state together.</p><h3>Risk & safeguards</h3><p>Catching a database exception and continuing with the same failed transaction can produce further errors. A swallowed exception is not a successful recovery; rollback or a correctly scoped savepoint is needed.</p>
+<h3>Choice & trade-offs</h3><p>Caller-owned transactions permit atomic composition but require explicit ownership. Helpers that commit themselves are easier in isolation and unsafe inside larger workflows.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/tools/submit_claim.py:159</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        validated = ClaimSubmission(
+            policy_number=policy_number,
+            claim_type=claim_type,
+            amount=amount,
+            description=description,
+        )
+    except ValidationError as exc:
+        errors = [
+            f&quot;{err[&#x27;loc&#x27;][-1] if err[&#x27;loc&#x27;] else &#x27;field&#x27;}: {err[&#x27;msg&#x27;]}&quot; for err in exc.errors()
+        ]
+        logger.warning(&quot;Claim submission validation failed: %s&quot;, errors)
+        return {&quot;success&quot;: False, &quot;validation_errors&quot;: errors}
+
+    confirmation_id = f&quot;CLM-{uuid.uuid4().hex[:8].upper()}&quot;
+
+    async def _submit(session: AsyncSession) -&gt; dict[str, Any]:
+        new_claim = Claim(
+            claim_id=confirmation_id,
+            policy_number=validated.policy_number,
+            claim_type=validated.claim_type,
+            status=ClaimStatus.SUBMITTED.value,
+            amount=validated.amount,</code></pre>
+<p><a href="sources/insurance--backend--app--agent--tools--submit_claim.py.html#L159">Read frozen source, lines 159–181</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Inject failure after the claim flush but before the final commit. Inspect all related tables from another session after rollback.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="162"> I can explain this</label><button type="button" class="bookmark" data-bookmark="162" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-162">Explain this in your own words</label><textarea id="note-162" data-note="162" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q163" data-question="163">
+<div class="q-meta"><span>QUESTION 163</span><span>Insurance code & design analysis</span><a href="#q163" aria-label="Link to question 163">#</a></div>
+<details class="answer" open><summary><h2>163. What does PostgreSQL Read Committed mean for an application workflow?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Ordinary statements see committed state as of each statement&#x27;s snapshot, so two reads in one transaction can observe intervening commits. A transaction boundary alone does not make a sequence of business decisions appear serial. Locking or conditional updates must protect the relevant invariant.</p>
+<h3>Mechanism & reason</h3><p>The backend constructs an async engine without an explicit isolation override here. Read the deployment&#x27;s actual setting before assuming a level. Confirmation uses a row lock rather than relying on an unprotected read-then-write sequence.</p><h3>Risk & safeguards</h3><p>A pattern that reads pending, calls external work, then updates completed can race under ordinary concurrency. Shared data snapshots and write authority are different properties.</p>
+<h3>Choice & trade-offs</h3><p>Stronger isolation can reduce anomalies while increasing retries and contention. It does not eliminate the need for idempotent external effects.</p><p class="reference">Official reference: <a href="https://www.postgresql.org/docs/current/transaction-iso.html">PostgreSQL isolation</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/database.py:70</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async with async_session_factory() as session:
+        try:
+            yield session
+        finally:
+            await session.close()</code></pre>
+<p><a href="sources/insurance--backend--app--core--database.py.html#L70">Read frozen source, lines 70–74</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Reproduce a changing read in two sessions, then compare a locked confirmation and a conditional UPDATE. Record actual transaction settings.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="163"> I can explain this</label><button type="button" class="bookmark" data-bookmark="163" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-163">Explain this in your own words</label><textarea id="note-163" data-note="163" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q164" data-question="164">
+<div class="q-meta"><span>QUESTION 164</span><span>Insurance code & design analysis</span><a href="#q164" aria-label="Link to question 164">#</a></div>
+<details class="answer" open><summary><h2>164. When would optimistic concurrency control be useful?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Optimistic control updates a row only when its version or prior state matches what the caller observed. A zero-row update signals a conflict. It suits edits where collisions are uncommon and a caller can reload rather than hold a lock during long user interaction.</p>
+<h3>Mechanism & reason</h3><p>The outbox&#x27;s mark_processing uses a guarded status update and returning clause to determine who actually claimed work. A similar version-column pattern is a proposed option for user-visible claim edits or session state.</p><h3>Risk & safeguards</h3><p>Checking a version in Python and then issuing an unconditional update is not optimistic concurrency control. The comparison and mutation must be one database operation.</p>
+<h3>Choice & trade-offs</h3><p>Short conditional writes reduce waiting but require conflict handling. Row locks can be simpler for a small critical transition with many related writes.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/claims/outbox.py:128</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        from sqlalchemy import update  # noqa: PLC0415
+
+        from app.models.claims.embedding_job import EmbeddingJob  # noqa: PLC0415
+
+        if not jobs:
+            return []
+
+        now = datetime.now(UTC)
+        claim_jobs(jobs, worker_id, now)
+
+        claimed: list[JobPayload] = []
+        async with self._session_factory() as session:
+            for job in jobs:
+                result = await session.execute(
+                    update(EmbeddingJob)
+                    .where(
+                        EmbeddingJob.id == uuid.UUID(str(job.job_id)),
+                        EmbeddingJob.status.in_([&quot;pending&quot;, &quot;failed&quot;]),
+                    )
+                    .values(
+                        status=job.status,
+                        status_detail=job.status_detail,
+                        next_retry_at=job.next_retry_at,</code></pre>
+<p><a href="sources/insurance--backend--app--domain--claims--outbox.py.html#L128">Read frozen source, lines 128–150</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write a versioned update for a hypothetical claim note. Make two editors submit the same expected version and verify only one succeeds.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="164"> I can explain this</label><button type="button" class="bookmark" data-bookmark="164" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-164">Explain this in your own words</label><textarea id="note-164" data-note="164" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q165" data-question="165">
+<div class="q-meta"><span>QUESTION 165</span><span>Insurance code & design analysis</span><a href="#q165" aria-label="Link to question 165">#</a></div>
+<details class="answer" open><summary><h2>165. Why does SKIP LOCKED not describe the entire outbox claim guarantee here?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">claim_pending selects rows with SKIP LOCKED inside a session that closes before mark_processing. That selection lock does not persist through remote processing. The later guarded update and returned subset decide which worker successfully changes a still-claimable job to processing.</p>
+<h3>Mechanism & reason</h3><p>Reading both methods reveals the true coordination boundary. A second worker may observe the same candidate after the selection transaction ends, but only a matching conditional status update should claim it.</p><h3>Risk & safeguards</h3><p>Describing selection alone as exclusive ownership hides a race and encourages unsafe future changes. Completion and reclamation also need ownership-aware conditions to prevent obsolete workers from overwriting newer outcomes.</p>
+<h3>Choice & trade-offs</h3><p>Split selection and guarded claiming compose with the generic protocol but require more careful reasoning. One atomic claim statement can simplify the implementation at the cost of adapter-specific SQL.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/domain/claims/outbox.py:128</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        from sqlalchemy import update  # noqa: PLC0415
+
+        from app.models.claims.embedding_job import EmbeddingJob  # noqa: PLC0415
+
+        if not jobs:
+            return []
+
+        now = datetime.now(UTC)
+        claim_jobs(jobs, worker_id, now)
+
+        claimed: list[JobPayload] = []
+        async with self._session_factory() as session:
+            for job in jobs:
+                result = await session.execute(
+                    update(EmbeddingJob)
+                    .where(
+                        EmbeddingJob.id == uuid.UUID(str(job.job_id)),
+                        EmbeddingJob.status.in_([&quot;pending&quot;, &quot;failed&quot;]),
+                    )
+                    .values(
+                        status=job.status,
+                        status_detail=job.status_detail,
+                        next_retry_at=job.next_retry_at,</code></pre>
+<p><a href="sources/insurance--backend--app--domain--claims--outbox.py.html#L128">Read frozen source, lines 128–150</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Interleave two workers between selection and marking. Verify the loser receives no processing payload for the contested job.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="165"> I can explain this</label><button type="button" class="bookmark" data-bookmark="165" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-165">Explain this in your own words</label><textarea id="note-165" data-note="165" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q166" data-question="166">
+<div class="q-meta"><span>QUESTION 166</span><span>Insurance code & design analysis</span><a href="#q166" aria-label="Link to question 166">#</a></div>
+<details class="answer" open><summary><h2>166. Why is one AsyncSession per concurrent task important?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">AsyncSession represents mutable transactional and ORM state. Independent concurrent operations should use independent sessions rather than sharing one session inside asyncio.gather. An async driver does not make one transaction object safe for arbitrary concurrent use.</p>
+<h3>Mechanism & reason</h3><p>get_db supplies request-scoped sessions, and workers create their own sessions. Any proposal to parallelize dense and lexical queries must account for whether they share a session and connection.</p><h3>Risk & safeguards</h3><p>Sharing can cause state errors, unintended transaction coupling, or unpredictable query sequencing. Creating too many sessions instead can exhaust the pool, so concurrency also needs a bound.</p>
+<h3>Choice & trade-offs</h3><p>Separate sessions allow independent I/O while consuming additional connections and potentially observing different snapshots. Sequential queries on one session are easier when one consistent transaction is required.</p><p class="reference">Official reference: <a href="https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html">SQLAlchemy 2.0 async sessions</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/database.py:70</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    async with async_session_factory() as session:
+        try:
+            yield session
+        finally:
+            await session.close()</code></pre>
+<p><a href="sources/insurance--backend--app--core--database.py.html#L70">Read frozen source, lines 70–74</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Compare concurrent reads with separate sessions and sequential reads with one session. Measure pool checkout waits and document the required consistency model.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="166"> I can explain this</label><button type="button" class="bookmark" data-bookmark="166" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-166">Explain this in your own words</label><textarea id="note-166" data-note="166" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q167" data-question="167">
+<div class="q-meta"><span>QUESTION 167</span><span>Insurance code & design analysis</span><a href="#q167" aria-label="Link to question 167">#</a></div>
+<details class="answer" open><summary><h2>167. Can persistent ADK session state still suffer lost updates?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Yes. Persistence prevents process-local loss but does not automatically merge concurrent state safely. The session event writer builds a full persisted_state from the in-memory session plus a delta and writes that blob. Two stale in-memory sessions can overwrite independent changes unless execution is serialized or updates are guarded.</p>
+<h3>Mechanism & reason</h3><p>_store_event inserts an event and updates session state in a transaction, but the observed code does not add a per-session version comparison around the full blob update. The event log and current state therefore deserve separate concurrency tests.</p><h3>Risk & safeguards</h3><p>An append-only event record can survive while the latest state loses another turn&#x27;s field. Sequence numbers also do not prove the model saw a serial conversational history.</p>
+<h3>Choice & trade-offs</h3><p>Per-session turn serialization improves consistency and reduces same-conversation throughput. Delta updates or optimistic versions offer alternatives with their own conflict policy.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/agent/agent.py:415</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        state_delta = bool(event.actions and event.actions.state_delta)
+        persisted_state = dict(session.state)
+        if state_delta:
+            persisted_state.update(
+                {
+                    key: value
+                    for key, value in event.actions.state_delta.items()
+                    if not key.startswith(State.TEMP_PREFIX)
+                }
+            )
+        await connection.execute(
+            insert(_agent_session_events).values(
+                app_name=session.app_name,
+                user_id=session.user_id,
+                session_id=session.id,
+                invocation_id=event.invocation_id,
+                author=event.author,
+                timestamp=event.timestamp,
+                event=payload,
+            )
+        )
+        session_filter = (
+            _agent_sessions.c.app_name == session.app_name,</code></pre>
+<p><a href="sources/insurance--backend--app--agent--agent.py.html#L415">Read frozen source, lines 415–437</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Load the same session twice, apply different state keys concurrently, and inspect both the event log and final state.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="167"> I can explain this</label><button type="button" class="bookmark" data-bookmark="167" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-167">Explain this in your own words</label><textarea id="note-167" data-note="167" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q168" data-question="168">
+<div class="q-meta"><span>QUESTION 168</span><span>Insurance code & design analysis</span><a href="#q168" aria-label="Link to question 168">#</a></div>
+<details class="answer" open><summary><h2>168. Why is the Redis idempotency claim a best-effort mechanism rather than exactly-once execution?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">The claim has a finite TTL, waiters stop waiting after a bounded time, and Redis outages permit local execution. A slow winner can still run while another replica gives up and recomputes. The claim value is not a durable operation result or a fencing token for a business write.</p>
+<h3>Mechanism & reason</h3><p>RedisIdempotencyBackend uses a short NX claim and a separate response cache. Its release deletes the claim key without an owner token comparison. These choices favor availability and reduction of duplicate model work, not an unconditional exactly-once contract.</p><h3>Risk & safeguards</h3><p>A resumed old worker could affect a later claim, and duplicate generation may incur cost. Claim submission must rely on its database confirmation boundary rather than this chat cache.</p>
+<h3>Choice & trade-offs</h3><p>Best-effort deduplication improves responsiveness. Stronger operation state requires ownership tokens, durable result identity, and explicit timeout/retry semantics.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/core/idempotency.py:183</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        try:
+            return await self._client.set(
+                self._claim_key(key), &quot;1&quot;, ttl=self._claim_ttl_seconds, nx=True
+            )
+        except RedisUnavailable:
+            # Behave as if the claim succeeded: computing the response locally
+            # is safer than refusing the request.
+            return True</code></pre>
+<p><a href="sources/insurance--backend--app--core--idempotency.py.html#L183">Read frozen source, lines 183–190</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Make a model turn outlast the claim TTL and waiter deadline. Count model executions separately from durable business effects.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="168"> I can explain this</label><button type="button" class="bookmark" data-bookmark="168" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-168">Explain this in your own words</label><textarea id="note-168" data-note="168" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q169" data-question="169">
+<div class="q-meta"><span>QUESTION 169</span><span>Insurance code & design analysis</span><a href="#q169" aria-label="Link to question 169">#</a></div>
+<details class="answer" open><summary><h2>169. How should deadlocks, lock timeouts, and serialization failures be handled?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Acquire shared resources in a consistent order, keep transactions short, bound waiting, and retry only the whole appropriate transactional unit when the database reports a retryable conflict. Reusing a partially failed session or blindly retrying external effects is unsafe.</p>
+<h3>Mechanism & reason</h3><p>The locked confirmation path is a concrete unit to analyze. Future workflows touching multiple claims or users need an explicit lock order; the current single-row example is not proof that all later operations are deadlock-free.</p><h3>Risk & safeguards</h3><p>Retrying a transaction can repeat already-sent emails or model calls if they occur inside the unit. Outbox writes let the database retry without repeating external delivery synchronously.</p>
+<h3>Choice & trade-offs</h3><p>Retries improve recovery while increasing tail latency. An overloaded system needs admission control, not only more retry attempts.</p><p class="reference">Official reference: <a href="https://www.postgresql.org/docs/current/explicit-locking.html">PostgreSQL explicit locking</a> · reviewed 19 October 2026. Examples are proposed unless explicitly identified as existing code; pin compatible package versions before running optional integrations.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/app/api/v1/claims.py:205</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    try:
+        user_uuid = uuid.UUID(current_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=&quot;Invalid user&quot;,
+        ) from None
+
+    async with async_session_factory() as session:
+        submission = (
+            await session.execute(
+                select(ClaimSubmission)
+                .where(
+                    ClaimSubmission.confirmation_token == payload.confirmation_token,
+                    ClaimSubmission.user_id == user_uuid,
+                    ClaimSubmission.status == &quot;pending&quot;,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+
+        if submission is None:
+            logger.warning(</code></pre>
+<p><a href="sources/insurance--backend--app--api--v1--claims.py.html#L205">Read frozen source, lines 205–227</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Create a two-row opposite-order locking exercise in a disposable database. Record the failure class and retry the complete unit with a bounded policy.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="169"> I can explain this</label><button type="button" class="bookmark" data-bookmark="169" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-169">Explain this in your own words</label><textarea id="note-169" data-note="169" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q170" data-question="170">
+<div class="q-meta"><span>QUESTION 170</span><span>Insurance code & design analysis</span><a href="#q170" aria-label="Link to question 170">#</a></div>
+<details class="answer" open><summary><h2>170. How do you test concurrency without relying on random sleeps?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Use controlled barriers or events to pause workers at known boundaries, then force a specific interleaving. Assert durable state and ownership outcomes, not only response codes. Use a real PostgreSQL instance for lock and isolation claims.</p>
+<h3>Mechanism & reason</h3><p>The backend contains contract and integration tests for claim atomicity, jobs, and shared state. They are useful starting points, while mocks can only demonstrate the ordering they simulate.</p><h3>Risk & safeguards</h3><p>A test that runs two coroutines on one session may test an invalid integration rather than a real race. An in-memory SQLite database cannot establish PostgreSQL row-lock semantics.</p>
+<h3>Choice & trade-offs</h3><p>Deterministic integration tests take setup but produce stronger evidence and fewer flaky timing assumptions. Broad stress tests complement them and do not replace them.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · insurance/backend/tests/contract/test_contract_claim_atomicity.py:36</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    def __init__(self) -&gt; None:
+        self.added: list[object] = []
+        self.commits = 0
+        self.flushes = 0
+
+    def add(self, obj) -&gt; None:
+        self.added.append(obj)
+
+    async def flush(self) -&gt; None:
+        self.flushes += 1
+
+    async def commit(self) -&gt; None:
+        self.commits += 1
+
+    async def rollback(self) -&gt; None:
+        return None</code></pre>
+<p><a href="sources/insurance--backend--tests--contract--test_contract_claim_atomicity.py.html#L36">Read frozen source, lines 36–51</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Specify barriers for two confirmations, two job claims, and two session-state updates. State the invariant each test could falsify.</p></div><p class="reference"><a href="examples.html#database-concurrency">Worked example, dependencies, and validation scope →</a></p></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="170"> I can explain this</label><button type="button" class="bookmark" data-bookmark="170" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-170">Explain this in your own words</label><textarea id="note-170" data-note="170" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="database-modeling.html">← Relational data modeling and migrations</a><a href="database-security.html">Securing database operations →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>

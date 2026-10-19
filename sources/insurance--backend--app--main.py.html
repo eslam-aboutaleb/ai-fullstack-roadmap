@@ -1,0 +1,410 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>insurance/backend/app/main.py</title><link rel="stylesheet" href="../style.css"></head><body class="source-page"><main><a href="../atlas.html">← Module atlas</a><h1>insurance/backend/app/main.py</h1><p>Frozen repository source at 70084f7fc1ddca86bd45ceed42a86ae7929caffc. Not the current working tree.</p><pre class="full-source"><code><span class="source-line" id="L1"><a href="#L1" class="line-number" aria-label="Line 1">1</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L2"><a href="#L2" class="line-number" aria-label="Line 2">2</a>FastAPI application entry point for OmniCare Financial Backend.
+</span><span class="source-line" id="L3"><a href="#L3" class="line-number" aria-label="Line 3">3</a>
+</span><span class="source-line" id="L4"><a href="#L4" class="line-number" aria-label="Line 4">4</a>Configures the app with dynamic settings, CORS from environment variables,
+</span><span class="source-line" id="L5"><a href="#L5" class="line-number" aria-label="Line 5">5</a>lifespan events (database migrations and RAG ingestion on startup), and mounts
+</span><span class="source-line" id="L6"><a href="#L6" class="line-number" aria-label="Line 6">6</a>the v1 API router.
+</span><span class="source-line" id="L7"><a href="#L7" class="line-number" aria-label="Line 7">7</a>&quot;&quot;&quot;
+</span><span class="source-line" id="L8"><a href="#L8" class="line-number" aria-label="Line 8">8</a>
+</span><span class="source-line" id="L9"><a href="#L9" class="line-number" aria-label="Line 9">9</a>import asyncio
+</span><span class="source-line" id="L10"><a href="#L10" class="line-number" aria-label="Line 10">10</a>import logging
+</span><span class="source-line" id="L11"><a href="#L11" class="line-number" aria-label="Line 11">11</a>import subprocess
+</span><span class="source-line" id="L12"><a href="#L12" class="line-number" aria-label="Line 12">12</a>import sys
+</span><span class="source-line" id="L13"><a href="#L13" class="line-number" aria-label="Line 13">13</a>from contextlib import asynccontextmanager
+</span><span class="source-line" id="L14"><a href="#L14" class="line-number" aria-label="Line 14">14</a>from pathlib import Path
+</span><span class="source-line" id="L15"><a href="#L15" class="line-number" aria-label="Line 15">15</a>from datetime import date, datetime
+</span><span class="source-line" id="L16"><a href="#L16" class="line-number" aria-label="Line 16">16</a>from decimal import Decimal
+</span><span class="source-line" id="L17"><a href="#L17" class="line-number" aria-label="Line 17">17</a>from typing import Any
+</span><span class="source-line" id="L18"><a href="#L18" class="line-number" aria-label="Line 18">18</a>from uuid import UUID
+</span><span class="source-line" id="L19"><a href="#L19" class="line-number" aria-label="Line 19">19</a>
+</span><span class="source-line" id="L20"><a href="#L20" class="line-number" aria-label="Line 20">20</a>from fastapi import FastAPI, HTTPException, Request, Response
+</span><span class="source-line" id="L21"><a href="#L21" class="line-number" aria-label="Line 21">21</a>from fastapi.exceptions import RequestValidationError
+</span><span class="source-line" id="L22"><a href="#L22" class="line-number" aria-label="Line 22">22</a>from fastapi.middleware.cors import CORSMiddleware
+</span><span class="source-line" id="L23"><a href="#L23" class="line-number" aria-label="Line 23">23</a>from fastapi.responses import JSONResponse
+</span><span class="source-line" id="L24"><a href="#L24" class="line-number" aria-label="Line 24">24</a>from slowapi import _rate_limit_exceeded_handler
+</span><span class="source-line" id="L25"><a href="#L25" class="line-number" aria-label="Line 25">25</a>from slowapi.errors import RateLimitExceeded
+</span><span class="source-line" id="L26"><a href="#L26" class="line-number" aria-label="Line 26">26</a>from slowapi.middleware import SlowAPIMiddleware
+</span><span class="source-line" id="L27"><a href="#L27" class="line-number" aria-label="Line 27">27</a>
+</span><span class="source-line" id="L28"><a href="#L28" class="line-number" aria-label="Line 28">28</a>from app.agent.agent import configure_llm, warm_session_service
+</span><span class="source-line" id="L29"><a href="#L29" class="line-number" aria-label="Line 29">29</a>from app.api.v1.router import router as v1_router
+</span><span class="source-line" id="L30"><a href="#L30" class="line-number" aria-label="Line 30">30</a>from app.core.config import get_settings
+</span><span class="source-line" id="L31"><a href="#L31" class="line-number" aria-label="Line 31">31</a>from app.core.idempotency import configure_idempotency_storage
+</span><span class="source-line" id="L32"><a href="#L32" class="line-number" aria-label="Line 32">32</a>from app.core.middleware import RequestSizeLimitMiddleware
+</span><span class="source-line" id="L33"><a href="#L33" class="line-number" aria-label="Line 33">33</a>from app.domain.policies.ingestion import ingest_policy
+</span><span class="source-line" id="L34"><a href="#L34" class="line-number" aria-label="Line 34">34</a>from app.domain.procedures.ingestion import (
+</span><span class="source-line" id="L35"><a href="#L35" class="line-number" aria-label="Line 35">35</a>    ingest_procedures,
+</span><span class="source-line" id="L36"><a href="#L36" class="line-number" aria-label="Line 36">36</a>    procedures_ingestion_enabled,
+</span><span class="source-line" id="L37"><a href="#L37" class="line-number" aria-label="Line 37">37</a>)
+</span><span class="source-line" id="L38"><a href="#L38" class="line-number" aria-label="Line 38">38</a>from app.observability.tracing import setup_tracing
+</span><span class="source-line" id="L39"><a href="#L39" class="line-number" aria-label="Line 39">39</a>from app.observability.llm_callback import register_llm_cost_callback
+</span><span class="source-line" id="L40"><a href="#L40" class="line-number" aria-label="Line 40">40</a>from app.observability.logging_config import configure_logging
+</span><span class="source-line" id="L41"><a href="#L41" class="line-number" aria-label="Line 41">41</a>from app.observability.middleware import RequestIdMiddleware
+</span><span class="source-line" id="L42"><a href="#L42" class="line-number" aria-label="Line 42">42</a>from app.observability.routes import router as observability_router
+</span><span class="source-line" id="L43"><a href="#L43" class="line-number" aria-label="Line 43">43</a>from app.observability.tool_instrumentation import install_tool_instrumentation
+</span><span class="source-line" id="L44"><a href="#L44" class="line-number" aria-label="Line 44">44</a>from app.core.rate_limiter import limiter, record_rate_limit_rejection
+</span><span class="source-line" id="L45"><a href="#L45" class="line-number" aria-label="Line 45">45</a>from app.schemas.models import ErrorDetail, ErrorResponse
+</span><span class="source-line" id="L46"><a href="#L46" class="line-number" aria-label="Line 46">46</a>
+</span><span class="source-line" id="L47"><a href="#L47" class="line-number" aria-label="Line 47">47</a># Load centralized settings
+</span><span class="source-line" id="L48"><a href="#L48" class="line-number" aria-label="Line 48">48</a>settings = get_settings()
+</span><span class="source-line" id="L49"><a href="#L49" class="line-number" aria-label="Line 49">49</a>
+</span><span class="source-line" id="L50"><a href="#L50" class="line-number" aria-label="Line 50">50</a># Structured logging replaces ``logging.basicConfig`` so every record carries the
+</span><span class="source-line" id="L51"><a href="#L51" class="line-number" aria-label="Line 51">51</a># correlation id and one JSON object lands per line for a log aggregator.
+</span><span class="source-line" id="L52"><a href="#L52" class="line-number" aria-label="Line 52">52</a>configure_logging(settings.log_level, settings.log_format)
+</span><span class="source-line" id="L53"><a href="#L53" class="line-number" aria-label="Line 53">53</a>logger = logging.getLogger(__name__)
+</span><span class="source-line" id="L54"><a href="#L54" class="line-number" aria-label="Line 54">54</a>
+</span><span class="source-line" id="L55"><a href="#L55" class="line-number" aria-label="Line 55">55</a>
+</span><span class="source-line" id="L56"><a href="#L56" class="line-number" aria-label="Line 56">56</a>def _install_observability_hooks() -&gt; None:
+</span><span class="source-line" id="L57"><a href="#L57" class="line-number" aria-label="Line 57">57</a>    &quot;&quot;&quot;Register the optional LLM and tool telemetry hooks.
+</span><span class="source-line" id="L58"><a href="#L58" class="line-number" aria-label="Line 58">58</a>
+</span><span class="source-line" id="L59"><a href="#L59" class="line-number" aria-label="Line 59">59</a>    Kept in its own function because the hooks fail independently and none is
+</span><span class="source-line" id="L60"><a href="#L60" class="line-number" aria-label="Line 60">60</a>    worth a failed startup: losing telemetry must never take the chat
+</span><span class="source-line" id="L61"><a href="#L61" class="line-number" aria-label="Line 61">61</a>    endpoints down with it.
+</span><span class="source-line" id="L62"><a href="#L62" class="line-number" aria-label="Line 62">62</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L63"><a href="#L63" class="line-number" aria-label="Line 63">63</a>    try:
+</span><span class="source-line" id="L64"><a href="#L64" class="line-number" aria-label="Line 64">64</a>        if settings.llm_cost_tracking_enabled:
+</span><span class="source-line" id="L65"><a href="#L65" class="line-number" aria-label="Line 65">65</a>            register_llm_cost_callback()
+</span><span class="source-line" id="L66"><a href="#L66" class="line-number" aria-label="Line 66">66</a>    except Exception:
+</span><span class="source-line" id="L67"><a href="#L67" class="line-number" aria-label="Line 67">67</a>        logger.warning(&quot;LLM cost callback registration skipped&quot;, exc_info=True)
+</span><span class="source-line" id="L68"><a href="#L68" class="line-number" aria-label="Line 68">68</a>
+</span><span class="source-line" id="L69"><a href="#L69" class="line-number" aria-label="Line 69">69</a>    try:
+</span><span class="source-line" id="L70"><a href="#L70" class="line-number" aria-label="Line 70">70</a>        # One call, one decision: whether tracing is live is the tracing
+</span><span class="source-line" id="L71"><a href="#L71" class="line-number" aria-label="Line 71">71</a>        # layer&#x27;s business, including the warning when it was configured
+</span><span class="source-line" id="L72"><a href="#L72" class="line-number" aria-label="Line 72">72</a>        # without a key. This module only catches what would otherwise take
+</span><span class="source-line" id="L73"><a href="#L73" class="line-number" aria-label="Line 73">73</a>        # the application down.
+</span><span class="source-line" id="L74"><a href="#L74" class="line-number" aria-label="Line 74">74</a>        setup_tracing()
+</span><span class="source-line" id="L75"><a href="#L75" class="line-number" aria-label="Line 75">75</a>    except Exception:
+</span><span class="source-line" id="L76"><a href="#L76" class="line-number" aria-label="Line 76">76</a>        logger.warning(&quot;Tracing setup skipped&quot;, exc_info=True)
+</span><span class="source-line" id="L77"><a href="#L77" class="line-number" aria-label="Line 77">77</a>
+</span><span class="source-line" id="L78"><a href="#L78" class="line-number" aria-label="Line 78">78</a>    try:
+</span><span class="source-line" id="L79"><a href="#L79" class="line-number" aria-label="Line 79">79</a>        install_tool_instrumentation()
+</span><span class="source-line" id="L80"><a href="#L80" class="line-number" aria-label="Line 80">80</a>    except Exception:
+</span><span class="source-line" id="L81"><a href="#L81" class="line-number" aria-label="Line 81">81</a>        logger.warning(&quot;Tool latency instrumentation skipped&quot;, exc_info=True)
+</span><span class="source-line" id="L82"><a href="#L82" class="line-number" aria-label="Line 82">82</a>
+</span><span class="source-line" id="L83"><a href="#L83" class="line-number" aria-label="Line 83">83</a>
+</span><span class="source-line" id="L84"><a href="#L84" class="line-number" aria-label="Line 84">84</a>async def _run_alembic_migrations() -&gt; None:
+</span><span class="source-line" id="L85"><a href="#L85" class="line-number" aria-label="Line 85">85</a>    &quot;&quot;&quot;Apply pending Alembic migrations during application startup.
+</span><span class="source-line" id="L86"><a href="#L86" class="line-number" aria-label="Line 86">86</a>
+</span><span class="source-line" id="L87"><a href="#L87" class="line-number" aria-label="Line 87">87</a>    Runs ``alembic upgrade head`` in a subprocess so that the migration
+</span><span class="source-line" id="L88"><a href="#L88" class="line-number" aria-label="Line 88">88</a>    environment can safely import application settings and models without
+</span><span class="source-line" id="L89"><a href="#L89" class="line-number" aria-label="Line 89">89</a>    conflicting with the running Uvicorn event loop.
+</span><span class="source-line" id="L90"><a href="#L90" class="line-number" aria-label="Line 90">90</a>
+</span><span class="source-line" id="L91"><a href="#L91" class="line-number" aria-label="Line 91">91</a>    Raises:
+</span><span class="source-line" id="L92"><a href="#L92" class="line-number" aria-label="Line 92">92</a>        RuntimeError: If migrations fail. This causes the application to
+</span><span class="source-line" id="L93"><a href="#L93" class="line-number" aria-label="Line 93">93</a>            fail fast rather than running with a mismatched schema.
+</span><span class="source-line" id="L94"><a href="#L94" class="line-number" aria-label="Line 94">94</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L95"><a href="#L95" class="line-number" aria-label="Line 95">95</a>    backend_dir = Path(__file__).resolve().parents[1]
+</span><span class="source-line" id="L96"><a href="#L96" class="line-number" aria-label="Line 96">96</a>    try:
+</span><span class="source-line" id="L97"><a href="#L97" class="line-number" aria-label="Line 97">97</a>        # Run in a worker thread: subprocess.run blocks for up to
+</span><span class="source-line" id="L98"><a href="#L98" class="line-number" aria-label="Line 98">98</a>        # the timeout, and this runs inside the async lifespan.
+</span><span class="source-line" id="L99"><a href="#L99" class="line-number" aria-label="Line 99">99</a>        result = await asyncio.to_thread(  # noqa: S603
+</span><span class="source-line" id="L100"><a href="#L100" class="line-number" aria-label="Line 100">100</a>            subprocess.run,
+</span><span class="source-line" id="L101"><a href="#L101" class="line-number" aria-label="Line 101">101</a>            [sys.executable, &quot;-m&quot;, &quot;alembic&quot;, &quot;upgrade&quot;, &quot;head&quot;],
+</span><span class="source-line" id="L102"><a href="#L102" class="line-number" aria-label="Line 102">102</a>            cwd=backend_dir,
+</span><span class="source-line" id="L103"><a href="#L103" class="line-number" aria-label="Line 103">103</a>            capture_output=True,
+</span><span class="source-line" id="L104"><a href="#L104" class="line-number" aria-label="Line 104">104</a>            text=True,
+</span><span class="source-line" id="L105"><a href="#L105" class="line-number" aria-label="Line 105">105</a>            timeout=120,
+</span><span class="source-line" id="L106"><a href="#L106" class="line-number" aria-label="Line 106">106</a>            check=False,
+</span><span class="source-line" id="L107"><a href="#L107" class="line-number" aria-label="Line 107">107</a>        )
+</span><span class="source-line" id="L108"><a href="#L108" class="line-number" aria-label="Line 108">108</a>        if result.returncode == 0:
+</span><span class="source-line" id="L109"><a href="#L109" class="line-number" aria-label="Line 109">109</a>            logger.info(&quot;Database migrations applied successfully.&quot;)
+</span><span class="source-line" id="L110"><a href="#L110" class="line-number" aria-label="Line 110">110</a>            if result.stdout.strip():
+</span><span class="source-line" id="L111"><a href="#L111" class="line-number" aria-label="Line 111">111</a>                logger.debug(&quot;Alembic output: %s&quot;, result.stdout.strip())
+</span><span class="source-line" id="L112"><a href="#L112" class="line-number" aria-label="Line 112">112</a>        else:
+</span><span class="source-line" id="L113"><a href="#L113" class="line-number" aria-label="Line 113">113</a>            error_msg = (
+</span><span class="source-line" id="L114"><a href="#L114" class="line-number" aria-label="Line 114">114</a>                &quot;Alembic migration failed with exit code %s: %s&quot;,
+</span><span class="source-line" id="L115"><a href="#L115" class="line-number" aria-label="Line 115">115</a>                result.returncode,
+</span><span class="source-line" id="L116"><a href="#L116" class="line-number" aria-label="Line 116">116</a>                result.stderr.strip(),
+</span><span class="source-line" id="L117"><a href="#L117" class="line-number" aria-label="Line 117">117</a>            )
+</span><span class="source-line" id="L118"><a href="#L118" class="line-number" aria-label="Line 118">118</a>            logger.error(*error_msg)
+</span><span class="source-line" id="L119"><a href="#L119" class="line-number" aria-label="Line 119">119</a>            raise RuntimeError(f&quot;Database migration failed: {result.stderr.strip()}&quot;)
+</span><span class="source-line" id="L120"><a href="#L120" class="line-number" aria-label="Line 120">120</a>    except Exception as e:
+</span><span class="source-line" id="L121"><a href="#L121" class="line-number" aria-label="Line 121">121</a>        logger.error(&quot;Failed to run database migrations: %s&quot;, e)
+</span><span class="source-line" id="L122"><a href="#L122" class="line-number" aria-label="Line 122">122</a>        raise RuntimeError(f&quot;Failed to run database migrations: {e}&quot;) from e
+</span><span class="source-line" id="L123"><a href="#L123" class="line-number" aria-label="Line 123">123</a>
+</span><span class="source-line" id="L124"><a href="#L124" class="line-number" aria-label="Line 124">124</a>
+</span><span class="source-line" id="L125"><a href="#L125" class="line-number" aria-label="Line 125">125</a>async def _configure_distributed_state() -&gt; None:
+</span><span class="source-line" id="L126"><a href="#L126" class="line-number" aria-label="Line 126">126</a>    &quot;&quot;&quot;Wire the session store and the Redis-backed caches from settings.
+</span><span class="source-line" id="L127"><a href="#L127" class="line-number" aria-label="Line 127">127</a>
+</span><span class="source-line" id="L128"><a href="#L128" class="line-number" aria-label="Line 128">128</a>    Both stores degrade rather than fail: Redis that is not configured, not
+</span><span class="source-line" id="L129"><a href="#L129" class="line-number" aria-label="Line 129">129</a>    answering, or misconfigured leaves the in-process behaviour in place, which
+</span><span class="source-line" id="L130"><a href="#L130" class="line-number" aria-label="Line 130">130</a>    costs replay deduplication and global rate limits but never the endpoints
+</span><span class="source-line" id="L131"><a href="#L131" class="line-number" aria-label="Line 131">131</a>    themselves. Wired here, once, so the first request does not pay for it.
+</span><span class="source-line" id="L132"><a href="#L132" class="line-number" aria-label="Line 132">132</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L133"><a href="#L133" class="line-number" aria-label="Line 133">133</a>    try:
+</span><span class="source-line" id="L134"><a href="#L134" class="line-number" aria-label="Line 134">134</a>        await configure_idempotency_storage()
+</span><span class="source-line" id="L135"><a href="#L135" class="line-number" aria-label="Line 135">135</a>    except Exception:
+</span><span class="source-line" id="L136"><a href="#L136" class="line-number" aria-label="Line 136">136</a>        logger.warning(
+</span><span class="source-line" id="L137"><a href="#L137" class="line-number" aria-label="Line 137">137</a>            &quot;Idempotency storage could not be configured; staying in-process.&quot;,
+</span><span class="source-line" id="L138"><a href="#L138" class="line-number" aria-label="Line 138">138</a>            exc_info=True,
+</span><span class="source-line" id="L139"><a href="#L139" class="line-number" aria-label="Line 139">139</a>        )
+</span><span class="source-line" id="L140"><a href="#L140" class="line-number" aria-label="Line 140">140</a>    try:
+</span><span class="source-line" id="L141"><a href="#L141" class="line-number" aria-label="Line 141">141</a>        await warm_session_service()
+</span><span class="source-line" id="L142"><a href="#L142" class="line-number" aria-label="Line 142">142</a>    except Exception:
+</span><span class="source-line" id="L143"><a href="#L143" class="line-number" aria-label="Line 143">143</a>        logger.warning(
+</span><span class="source-line" id="L144"><a href="#L144" class="line-number" aria-label="Line 144">144</a>            &quot;Session storage could not be warmed; this process keeps in-memory sessions.&quot;,
+</span><span class="source-line" id="L145"><a href="#L145" class="line-number" aria-label="Line 145">145</a>            exc_info=True,
+</span><span class="source-line" id="L146"><a href="#L146" class="line-number" aria-label="Line 146">146</a>        )
+</span><span class="source-line" id="L147"><a href="#L147" class="line-number" aria-label="Line 147">147</a>
+</span><span class="source-line" id="L148"><a href="#L148" class="line-number" aria-label="Line 148">148</a>
+</span><span class="source-line" id="L149"><a href="#L149" class="line-number" aria-label="Line 149">149</a>@asynccontextmanager
+</span><span class="source-line" id="L150"><a href="#L150" class="line-number" aria-label="Line 150">150</a>async def lifespan(app: FastAPI):
+</span><span class="source-line" id="L151"><a href="#L151" class="line-number" aria-label="Line 151">151</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L152"><a href="#L152" class="line-number" aria-label="Line 152">152</a>    Application lifespan handler.
+</span><span class="source-line" id="L153"><a href="#L153" class="line-number" aria-label="Line 153">153</a>    On startup:
+</span><span class="source-line" id="L154"><a href="#L154" class="line-number" aria-label="Line 154">154</a>      - Applies pending database migrations via Alembic.
+</span><span class="source-line" id="L155"><a href="#L155" class="line-number" aria-label="Line 155">155</a>      - Configures LiteLLM environment variables.
+</span><span class="source-line" id="L156"><a href="#L156" class="line-number" aria-label="Line 156">156</a>      - Registers the cost/latency telemetry hooks, and brings tracing up
+</span><span class="source-line" id="L157"><a href="#L157" class="line-number" aria-label="Line 157">157</a>        when it is configured.
+</span><span class="source-line" id="L158"><a href="#L158" class="line-number" aria-label="Line 158">158</a>      - Selects session storage and the shared caches (Redis when configured).
+</span><span class="source-line" id="L159"><a href="#L159" class="line-number" aria-label="Line 159">159</a>      - Ingests the policy document into pgvector store (idempotent).
+</span><span class="source-line" id="L160"><a href="#L160" class="line-number" aria-label="Line 160">160</a>      - Ingests the procedure playbooks into their own index, gated separately
+</span><span class="source-line" id="L161"><a href="#L161" class="line-number" aria-label="Line 161">161</a>        from the policy corpus by OMNICARE_INGEST_PROCEDURES.
+</span><span class="source-line" id="L162"><a href="#L162" class="line-number" aria-label="Line 162">162</a>    On shutdown:
+</span><span class="source-line" id="L163"><a href="#L163" class="line-number" aria-label="Line 163">163</a>      - Gracefully terminates running sessions and resources.
+</span><span class="source-line" id="L164"><a href="#L164" class="line-number" aria-label="Line 164">164</a>
+</span><span class="source-line" id="L165"><a href="#L165" class="line-number" aria-label="Line 165">165</a>    Both ingests are best-effort: a failure is logged and startup continues,
+</span><span class="source-line" id="L166"><a href="#L166" class="line-number" aria-label="Line 166">166</a>    so a broken policy file cannot take the claim endpoints down with it.
+</span><span class="source-line" id="L167"><a href="#L167" class="line-number" aria-label="Line 167">167</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L168"><a href="#L168" class="line-number" aria-label="Line 168">168</a>    logger.info(
+</span><span class="source-line" id="L169"><a href="#L169" class="line-number" aria-label="Line 169">169</a>        &quot;Starting %s (Environment: %s, Version: %s)...&quot;,
+</span><span class="source-line" id="L170"><a href="#L170" class="line-number" aria-label="Line 170">170</a>        settings.app_name,
+</span><span class="source-line" id="L171"><a href="#L171" class="line-number" aria-label="Line 171">171</a>        settings.environment,
+</span><span class="source-line" id="L172"><a href="#L172" class="line-number" aria-label="Line 172">172</a>        settings.app_version,
+</span><span class="source-line" id="L173"><a href="#L173" class="line-number" aria-label="Line 173">173</a>    )
+</span><span class="source-line" id="L174"><a href="#L174" class="line-number" aria-label="Line 174">174</a>
+</span><span class="source-line" id="L175"><a href="#L175" class="line-number" aria-label="Line 175">175</a>    await _run_alembic_migrations()
+</span><span class="source-line" id="L176"><a href="#L176" class="line-number" aria-label="Line 176">176</a>
+</span><span class="source-line" id="L177"><a href="#L177" class="line-number" aria-label="Line 177">177</a>    # Configure LiteLLM environment variables from centralized settings
+</span><span class="source-line" id="L178"><a href="#L178" class="line-number" aria-label="Line 178">178</a>    try:
+</span><span class="source-line" id="L179"><a href="#L179" class="line-number" aria-label="Line 179">179</a>        configure_llm()
+</span><span class="source-line" id="L180"><a href="#L180" class="line-number" aria-label="Line 180">180</a>        logger.info(&quot;LiteLLM configuration applied&quot;)
+</span><span class="source-line" id="L181"><a href="#L181" class="line-number" aria-label="Line 181">181</a>    except Exception as e:
+</span><span class="source-line" id="L182"><a href="#L182" class="line-number" aria-label="Line 182">182</a>        logger.warning(f&quot;LiteLLM configuration skipped: {e}&quot;)
+</span><span class="source-line" id="L183"><a href="#L183" class="line-number" aria-label="Line 183">183</a>
+</span><span class="source-line" id="L184"><a href="#L184" class="line-number" aria-label="Line 184">184</a>    if settings.observability_enabled:
+</span><span class="source-line" id="L185"><a href="#L185" class="line-number" aria-label="Line 185">185</a>        _install_observability_hooks()
+</span><span class="source-line" id="L186"><a href="#L186" class="line-number" aria-label="Line 186">186</a>    else:
+</span><span class="source-line" id="L187"><a href="#L187" class="line-number" aria-label="Line 187">187</a>        logger.info(
+</span><span class="source-line" id="L188"><a href="#L188" class="line-number" aria-label="Line 188">188</a>            &quot;Observability hooks disabled (OBSERVABILITY_ENABLED=false); no telemetry recorded.&quot;
+</span><span class="source-line" id="L189"><a href="#L189" class="line-number" aria-label="Line 189">189</a>        )
+</span><span class="source-line" id="L190"><a href="#L190" class="line-number" aria-label="Line 190">190</a>
+</span><span class="source-line" id="L191"><a href="#L191" class="line-number" aria-label="Line 191">191</a>    await _configure_distributed_state()
+</span><span class="source-line" id="L192"><a href="#L192" class="line-number" aria-label="Line 192">192</a>
+</span><span class="source-line" id="L193"><a href="#L193" class="line-number" aria-label="Line 193">193</a>    # Ingest policy documents into vector store on startup
+</span><span class="source-line" id="L194"><a href="#L194" class="line-number" aria-label="Line 194">194</a>    if settings.ingest_on_startup:
+</span><span class="source-line" id="L195"><a href="#L195" class="line-number" aria-label="Line 195">195</a>        try:
+</span><span class="source-line" id="L196"><a href="#L196" class="line-number" aria-label="Line 196">196</a>            count = await ingest_policy()
+</span><span class="source-line" id="L197"><a href="#L197" class="line-number" aria-label="Line 197">197</a>            logger.info(f&quot;Policy ingestion complete: {count} chunks indexed&quot;)
+</span><span class="source-line" id="L198"><a href="#L198" class="line-number" aria-label="Line 198">198</a>        except Exception as e:
+</span><span class="source-line" id="L199"><a href="#L199" class="line-number" aria-label="Line 199">199</a>            logger.error(f&quot;Policy ingestion failed: {e}&quot;)
+</span><span class="source-line" id="L200"><a href="#L200" class="line-number" aria-label="Line 200">200</a>            # Server continues running so claim status/submission endpoints remain available
+</span><span class="source-line" id="L201"><a href="#L201" class="line-number" aria-label="Line 201">201</a>    else:
+</span><span class="source-line" id="L202"><a href="#L202" class="line-number" aria-label="Line 202">202</a>        logger.info(
+</span><span class="source-line" id="L203"><a href="#L203" class="line-number" aria-label="Line 203">203</a>            &quot;Startup ingestion disabled (INGEST_ON_STARTUP=false); &quot;
+</span><span class="source-line" id="L204"><a href="#L204" class="line-number" aria-label="Line 204">204</a>            &quot;serving the policy index already present in the database.&quot;
+</span><span class="source-line" id="L205"><a href="#L205" class="line-number" aria-label="Line 205">205</a>        )
+</span><span class="source-line" id="L206"><a href="#L206" class="line-number" aria-label="Line 206">206</a>
+</span><span class="source-line" id="L207"><a href="#L207" class="line-number" aria-label="Line 207">207</a>    # Ingest the procedure playbooks into their own index. Gated separately from
+</span><span class="source-line" id="L208"><a href="#L208" class="line-number" aria-label="Line 208">208</a>    # the policy corpus because the two are operated independently: compliance
+</span><span class="source-line" id="L209"><a href="#L209" class="line-number" aria-label="Line 209">209</a>    # ships a new playbook without touching policies, and the call is idempotent
+</span><span class="source-line" id="L210"><a href="#L210" class="line-number" aria-label="Line 210">210</a>    # so a warm boot costs a file read plus a snapshot compare. As above, a
+</span><span class="source-line" id="L211"><a href="#L211" class="line-number" aria-label="Line 211">211</a>    # failure here must not take the chat endpoints down with it.
+</span><span class="source-line" id="L212"><a href="#L212" class="line-number" aria-label="Line 212">212</a>    if procedures_ingestion_enabled():
+</span><span class="source-line" id="L213"><a href="#L213" class="line-number" aria-label="Line 213">213</a>        try:
+</span><span class="source-line" id="L214"><a href="#L214" class="line-number" aria-label="Line 214">214</a>            count = await ingest_procedures()
+</span><span class="source-line" id="L215"><a href="#L215" class="line-number" aria-label="Line 215">215</a>            logger.info(f&quot;Procedure ingestion complete: {count} chunks indexed&quot;)
+</span><span class="source-line" id="L216"><a href="#L216" class="line-number" aria-label="Line 216">216</a>        except Exception as e:
+</span><span class="source-line" id="L217"><a href="#L217" class="line-number" aria-label="Line 217">217</a>            logger.error(f&quot;Procedure ingestion failed: {e}&quot;)
+</span><span class="source-line" id="L218"><a href="#L218" class="line-number" aria-label="Line 218">218</a>
+</span><span class="source-line" id="L219"><a href="#L219" class="line-number" aria-label="Line 219">219</a>    yield  # Server is running and receiving traffic
+</span><span class="source-line" id="L220"><a href="#L220" class="line-number" aria-label="Line 220">220</a>
+</span><span class="source-line" id="L221"><a href="#L221" class="line-number" aria-label="Line 221">221</a>    logger.info(f&quot;Shutting down {settings.app_name}...&quot;)
+</span><span class="source-line" id="L222"><a href="#L222" class="line-number" aria-label="Line 222">222</a>    from app.core.database import engine  # noqa: PLC0415
+</span><span class="source-line" id="L223"><a href="#L223" class="line-number" aria-label="Line 223">223</a>
+</span><span class="source-line" id="L224"><a href="#L224" class="line-number" aria-label="Line 224">224</a>    await engine.dispose()
+</span><span class="source-line" id="L225"><a href="#L225" class="line-number" aria-label="Line 225">225</a>
+</span><span class="source-line" id="L226"><a href="#L226" class="line-number" aria-label="Line 226">226</a>
+</span><span class="source-line" id="L227"><a href="#L227" class="line-number" aria-label="Line 227">227</a># Initialize the FastAPI application
+</span><span class="source-line" id="L228"><a href="#L228" class="line-number" aria-label="Line 228">228</a>app = FastAPI(
+</span><span class="source-line" id="L229"><a href="#L229" class="line-number" aria-label="Line 229">229</a>    title=settings.app_name,
+</span><span class="source-line" id="L230"><a href="#L230" class="line-number" aria-label="Line 230">230</a>    description=(
+</span><span class="source-line" id="L231"><a href="#L231" class="line-number" aria-label="Line 231">231</a>        &quot;Production AI customer assistant API for OmniCare Financial. &quot;
+</span><span class="source-line" id="L232"><a href="#L232" class="line-number" aria-label="Line 232">232</a>        &quot;Supports grounded policy coverage Q&amp;A (RAG), &quot;
+</span><span class="source-line" id="L233"><a href="#L233" class="line-number" aria-label="Line 233">233</a>        &quot;claim status lookup, and new claim submission.&quot;
+</span><span class="source-line" id="L234"><a href="#L234" class="line-number" aria-label="Line 234">234</a>    ),
+</span><span class="source-line" id="L235"><a href="#L235" class="line-number" aria-label="Line 235">235</a>    version=settings.app_version,
+</span><span class="source-line" id="L236"><a href="#L236" class="line-number" aria-label="Line 236">236</a>    lifespan=lifespan,
+</span><span class="source-line" id="L237"><a href="#L237" class="line-number" aria-label="Line 237">237</a>    docs_url=&quot;/docs&quot;,
+</span><span class="source-line" id="L238"><a href="#L238" class="line-number" aria-label="Line 238">238</a>    redoc_url=&quot;/redoc&quot;,
+</span><span class="source-line" id="L239"><a href="#L239" class="line-number" aria-label="Line 239">239</a>    openapi_url=&quot;/openapi.json&quot;,
+</span><span class="source-line" id="L240"><a href="#L240" class="line-number" aria-label="Line 240">240</a>)
+</span><span class="source-line" id="L241"><a href="#L241" class="line-number" aria-label="Line 241">241</a>
+</span><span class="source-line" id="L242"><a href="#L242" class="line-number" aria-label="Line 242">242</a>
+</span><span class="source-line" id="L243"><a href="#L243" class="line-number" aria-label="Line 243">243</a># Types that may appear in a Pydantic error ``ctx`` and are safe to pass through.
+</span><span class="source-line" id="L244"><a href="#L244" class="line-number" aria-label="Line 244">244</a># Anything else is rendered with ``repr`` so an unexpected object cannot expand into a
+</span><span class="source-line" id="L245"><a href="#L245" class="line-number" aria-label="Line 245">245</a># response body that dumps its attributes.
+</span><span class="source-line" id="L246"><a href="#L246" class="line-number" aria-label="Line 246">246</a>_JSON_SAFE_ERROR_TYPES = (str, int, float, bool, type(None))
+</span><span class="source-line" id="L247"><a href="#L247" class="line-number" aria-label="Line 247">247</a>_JSON_CONVERTED_ERROR_TYPES = (Decimal, UUID, datetime, date)
+</span><span class="source-line" id="L248"><a href="#L248" class="line-number" aria-label="Line 248">248</a>
+</span><span class="source-line" id="L249"><a href="#L249" class="line-number" aria-label="Line 249">249</a>
+</span><span class="source-line" id="L250"><a href="#L250" class="line-number" aria-label="Line 250">250</a>def _jsonify_validation_value(value: Any) -&gt; Any:  # noqa: PLR0911
+</span><span class="source-line" id="L251"><a href="#L251" class="line-number" aria-label="Line 251">251</a>    &quot;&quot;&quot;Convert one value from ``exc.errors()`` into a JSON-serialisable primitive.
+</span><span class="source-line" id="L252"><a href="#L252" class="line-number" aria-label="Line 252">252</a>
+</span><span class="source-line" id="L253"><a href="#L253" class="line-number" aria-label="Line 253">253</a>    Each branch maps one input shape to its JSON form. The table is explicit so an
+</span><span class="source-line" id="L254"><a href="#L254" class="line-number" aria-label="Line 254">254</a>    unexpected type degrades to ``repr`` rather than being expanded attribute by
+</span><span class="source-line" id="L255"><a href="#L255" class="line-number" aria-label="Line 255">255</a>    attribute, which is what ``jsonable_encoder`` would do.
+</span><span class="source-line" id="L256"><a href="#L256" class="line-number" aria-label="Line 256">256</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L257"><a href="#L257" class="line-number" aria-label="Line 257">257</a>    if isinstance(value, bytes | bytearray):
+</span><span class="source-line" id="L258"><a href="#L258" class="line-number" aria-label="Line 258">258</a>        return value.decode(&quot;utf-8&quot;, errors=&quot;replace&quot;)
+</span><span class="source-line" id="L259"><a href="#L259" class="line-number" aria-label="Line 259">259</a>    if isinstance(value, _JSON_SAFE_ERROR_TYPES):
+</span><span class="source-line" id="L260"><a href="#L260" class="line-number" aria-label="Line 260">260</a>        return value
+</span><span class="source-line" id="L261"><a href="#L261" class="line-number" aria-label="Line 261">261</a>    if isinstance(value, Decimal):
+</span><span class="source-line" id="L262"><a href="#L262" class="line-number" aria-label="Line 262">262</a>        # Keep integral values as int so the wire format is unchanged for whole-number
+</span><span class="source-line" id="L263"><a href="#L263" class="line-number" aria-label="Line 263">263</a>        # constraints (0 stays 0, not 0.0); fractional constraints become float.
+</span><span class="source-line" id="L264"><a href="#L264" class="line-number" aria-label="Line 264">264</a>        return int(value) if value == value.to_integral_value() else float(value)
+</span><span class="source-line" id="L265"><a href="#L265" class="line-number" aria-label="Line 265">265</a>    if isinstance(value, UUID | datetime | date):
+</span><span class="source-line" id="L266"><a href="#L266" class="line-number" aria-label="Line 266">266</a>        return value.isoformat()
+</span><span class="source-line" id="L267"><a href="#L267" class="line-number" aria-label="Line 267">267</a>    if isinstance(value, dict):
+</span><span class="source-line" id="L268"><a href="#L268" class="line-number" aria-label="Line 268">268</a>        return {str(key): _jsonify_validation_value(item) for key, item in value.items()}
+</span><span class="source-line" id="L269"><a href="#L269" class="line-number" aria-label="Line 269">269</a>    return (
+</span><span class="source-line" id="L270"><a href="#L270" class="line-number" aria-label="Line 270">270</a>        [_jsonify_validation_value(item) for item in value]
+</span><span class="source-line" id="L271"><a href="#L271" class="line-number" aria-label="Line 271">271</a>        if isinstance(value, list | tuple | set)
+</span><span class="source-line" id="L272"><a href="#L272" class="line-number" aria-label="Line 272">272</a>        else repr(value)
+</span><span class="source-line" id="L273"><a href="#L273" class="line-number" aria-label="Line 273">273</a>    )
+</span><span class="source-line" id="L274"><a href="#L274" class="line-number" aria-label="Line 274">274</a>
+</span><span class="source-line" id="L275"><a href="#L275" class="line-number" aria-label="Line 275">275</a>
+</span><span class="source-line" id="L276"><a href="#L276" class="line-number" aria-label="Line 276">276</a>def _sanitize_error_detail(value: Any) -&gt; Any:
+</span><span class="source-line" id="L277"><a href="#L277" class="line-number" aria-label="Line 277">277</a>    &quot;&quot;&quot;Coerce a Pydantic error payload into JSON-serialisable primitives.
+</span><span class="source-line" id="L278"><a href="#L278" class="line-number" aria-label="Line 278">278</a>
+</span><span class="source-line" id="L279"><a href="#L279" class="line-number" aria-label="Line 279">279</a>    ``exc.errors()`` carries raw constraint values inside ``ctx``, and those are not
+</span><span class="source-line" id="L280"><a href="#L280" class="line-number" aria-label="Line 280">280</a>    limited to JSON types: a ``gt`` constraint on a ``Decimal`` field puts
+</span><span class="source-line" id="L281"><a href="#L281" class="line-number" aria-label="Line 281">281</a>    ``Decimal(&quot;0&quot;)`` in ``ctx``, and a UUID constraint puts a ``UUID``. Embedding them
+</span><span class="source-line" id="L282"><a href="#L282" class="line-number" aria-label="Line 282">282</a>    verbatim makes ``JSONResponse`` raise ``TypeError``, which turns a validation failure
+</span><span class="source-line" id="L283"><a href="#L283" class="line-number" aria-label="Line 283">283</a>    into an opaque 500.
+</span><span class="source-line" id="L284"><a href="#L284" class="line-number" aria-label="Line 284">284</a>
+</span><span class="source-line" id="L285"><a href="#L285" class="line-number" aria-label="Line 285">285</a>    This uses an explicit conversion table rather than ``jsonable_encoder`` on purpose.
+</span><span class="source-line" id="L286"><a href="#L286" class="line-number" aria-label="Line 286">286</a>    The encoder expands unknown objects through ``dict()`` then ``vars()``, so a custom
+</span><span class="source-line" id="L287"><a href="#L287" class="line-number" aria-label="Line 287">287</a>    validator&#x27;s exception would be serialised attribute by attribute into the response
+</span><span class="source-line" id="L288"><a href="#L288" class="line-number" aria-label="Line 288">288</a>    body, and it still raises when neither succeeds -- reintroducing the very failure
+</span><span class="source-line" id="L289"><a href="#L289" class="line-number" aria-label="Line 289">289</a>    this exists to prevent.
+</span><span class="source-line" id="L290"><a href="#L290" class="line-number" aria-label="Line 290">290</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L291"><a href="#L291" class="line-number" aria-label="Line 291">291</a>    return _jsonify_validation_value(value)
+</span><span class="source-line" id="L292"><a href="#L292" class="line-number" aria-label="Line 292">292</a>
+</span><span class="source-line" id="L293"><a href="#L293" class="line-number" aria-label="Line 293">293</a>
+</span><span class="source-line" id="L294"><a href="#L294" class="line-number" aria-label="Line 294">294</a>@app.exception_handler(RequestValidationError)
+</span><span class="source-line" id="L295"><a href="#L295" class="line-number" aria-label="Line 295">295</a>async def request_validation_exception_handler(
+</span><span class="source-line" id="L296"><a href="#L296" class="line-number" aria-label="Line 296">296</a>    request: Request,
+</span><span class="source-line" id="L297"><a href="#L297" class="line-number" aria-label="Line 297">297</a>    exc: RequestValidationError,
+</span><span class="source-line" id="L298"><a href="#L298" class="line-number" aria-label="Line 298">298</a>) -&gt; JSONResponse:
+</span><span class="source-line" id="L299"><a href="#L299" class="line-number" aria-label="Line 299">299</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L300"><a href="#L300" class="line-number" aria-label="Line 300">300</a>    Convert FastAPI/Pydantic RequestValidationError into a standardized
+</span><span class="source-line" id="L301"><a href="#L301" class="line-number" aria-label="Line 301">301</a>    ErrorResponse envelope with HTTP 422 Unprocessable Content.
+</span><span class="source-line" id="L302"><a href="#L302" class="line-number" aria-label="Line 302">302</a>
+</span><span class="source-line" id="L303"><a href="#L303" class="line-number" aria-label="Line 303">303</a>    This ensures the actual response schema matches the OpenAPI declaration
+</span><span class="source-line" id="L304"><a href="#L304" class="line-number" aria-label="Line 304">304</a>    in the /chat endpoint (responses[422] = ErrorResponse).
+</span><span class="source-line" id="L305"><a href="#L305" class="line-number" aria-label="Line 305">305</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L306"><a href="#L306" class="line-number" aria-label="Line 306">306</a>    logger.warning(
+</span><span class="source-line" id="L307"><a href="#L307" class="line-number" aria-label="Line 307">307</a>        &quot;Validation error on %s %s: %s&quot;,
+</span><span class="source-line" id="L308"><a href="#L308" class="line-number" aria-label="Line 308">308</a>        request.method,
+</span><span class="source-line" id="L309"><a href="#L309" class="line-number" aria-label="Line 309">309</a>        request.url.path,
+</span><span class="source-line" id="L310"><a href="#L310" class="line-number" aria-label="Line 310">310</a>        _sanitize_error_detail(exc.errors()),
+</span><span class="source-line" id="L311"><a href="#L311" class="line-number" aria-label="Line 311">311</a>    )
+</span><span class="source-line" id="L312"><a href="#L312" class="line-number" aria-label="Line 312">312</a>
+</span><span class="source-line" id="L313"><a href="#L313" class="line-number" aria-label="Line 313">313</a>    error = ErrorDetail(
+</span><span class="source-line" id="L314"><a href="#L314" class="line-number" aria-label="Line 314">314</a>        code=&quot;VALIDATION_ERROR&quot;,
+</span><span class="source-line" id="L315"><a href="#L315" class="line-number" aria-label="Line 315">315</a>        message=&quot;Request validation failed. See details for field-level errors.&quot;,
+</span><span class="source-line" id="L316"><a href="#L316" class="line-number" aria-label="Line 316">316</a>        details=_sanitize_error_detail(exc.errors()),
+</span><span class="source-line" id="L317"><a href="#L317" class="line-number" aria-label="Line 317">317</a>    )
+</span><span class="source-line" id="L318"><a href="#L318" class="line-number" aria-label="Line 318">318</a>    return JSONResponse(
+</span><span class="source-line" id="L319"><a href="#L319" class="line-number" aria-label="Line 319">319</a>        status_code=422,
+</span><span class="source-line" id="L320"><a href="#L320" class="line-number" aria-label="Line 320">320</a>        content=ErrorResponse(error=error).model_dump(),
+</span><span class="source-line" id="L321"><a href="#L321" class="line-number" aria-label="Line 321">321</a>    )
+</span><span class="source-line" id="L322"><a href="#L322" class="line-number" aria-label="Line 322">322</a>
+</span><span class="source-line" id="L323"><a href="#L323" class="line-number" aria-label="Line 323">323</a>
+</span><span class="source-line" id="L324"><a href="#L324" class="line-number" aria-label="Line 324">324</a>def _rate_limit_exceeded_handler_with_metrics(
+</span><span class="source-line" id="L325"><a href="#L325" class="line-number" aria-label="Line 325">325</a>    request: Request,
+</span><span class="source-line" id="L326"><a href="#L326" class="line-number" aria-label="Line 326">326</a>    exc: RateLimitExceeded,
+</span><span class="source-line" id="L327"><a href="#L327" class="line-number" aria-label="Line 327">327</a>) -&gt; Response:
+</span><span class="source-line" id="L328"><a href="#L328" class="line-number" aria-label="Line 328">328</a>    &quot;&quot;&quot;Count a rejected request before handing it to SlowAPI&#x27;s own handler.
+</span><span class="source-line" id="L329"><a href="#L329" class="line-number" aria-label="Line 329">329</a>
+</span><span class="source-line" id="L330"><a href="#L330" class="line-number" aria-label="Line 330">330</a>    The status code, body, and rate-limit headers are produced by SlowAPI
+</span><span class="source-line" id="L331"><a href="#L331" class="line-number" aria-label="Line 331">331</a>    unchanged; only the telemetry counter moves, so the frozen 429 contract is
+</span><span class="source-line" id="L332"><a href="#L332" class="line-number" aria-label="Line 332">332</a>    untouched.
+</span><span class="source-line" id="L333"><a href="#L333" class="line-number" aria-label="Line 333">333</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L334"><a href="#L334" class="line-number" aria-label="Line 334">334</a>    record_rate_limit_rejection(request.url.path)
+</span><span class="source-line" id="L335"><a href="#L335" class="line-number" aria-label="Line 335">335</a>    return _rate_limit_exceeded_handler(request, exc)
+</span><span class="source-line" id="L336"><a href="#L336" class="line-number" aria-label="Line 336">336</a>
+</span><span class="source-line" id="L337"><a href="#L337" class="line-number" aria-label="Line 337">337</a>
+</span><span class="source-line" id="L338"><a href="#L338" class="line-number" aria-label="Line 338">338</a># Configure CORS dynamically from validated settings
+</span><span class="source-line" id="L339"><a href="#L339" class="line-number" aria-label="Line 339">339</a>app.add_middleware(
+</span><span class="source-line" id="L340"><a href="#L340" class="line-number" aria-label="Line 340">340</a>    CORSMiddleware,
+</span><span class="source-line" id="L341"><a href="#L341" class="line-number" aria-label="Line 341">341</a>    allow_origins=settings.cors_origins,
+</span><span class="source-line" id="L342"><a href="#L342" class="line-number" aria-label="Line 342">342</a>    allow_credentials=True,
+</span><span class="source-line" id="L343"><a href="#L343" class="line-number" aria-label="Line 343">343</a>    allow_methods=[&quot;*&quot;],
+</span><span class="source-line" id="L344"><a href="#L344" class="line-number" aria-label="Line 344">344</a>    allow_headers=[&quot;*&quot;],
+</span><span class="source-line" id="L345"><a href="#L345" class="line-number" aria-label="Line 345">345</a>)
+</span><span class="source-line" id="L346"><a href="#L346" class="line-number" aria-label="Line 346">346</a>
+</span><span class="source-line" id="L347"><a href="#L347" class="line-number" aria-label="Line 347">347</a># Register rate limit exception handler BEFORE middleware so it can catch
+</span><span class="source-line" id="L348"><a href="#L348" class="line-number" aria-label="Line 348">348</a># RateLimitExceeded raised by SlowAPIMiddleware.
+</span><span class="source-line" id="L349"><a href="#L349" class="line-number" aria-label="Line 349">349</a>app.state.limiter = limiter
+</span><span class="source-line" id="L350"><a href="#L350" class="line-number" aria-label="Line 350">350</a>app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler_with_metrics)
+</span><span class="source-line" id="L351"><a href="#L351" class="line-number" aria-label="Line 351">351</a>
+</span><span class="source-line" id="L352"><a href="#L352" class="line-number" aria-label="Line 352">352</a># Register SlowAPIMiddleware so @limiter.limit(...) decorators actually enforce limits.
+</span><span class="source-line" id="L353"><a href="#L353" class="line-number" aria-label="Line 353">353</a>app.add_middleware(SlowAPIMiddleware)
+</span><span class="source-line" id="L354"><a href="#L354" class="line-number" aria-label="Line 354">354</a>
+</span><span class="source-line" id="L355"><a href="#L355" class="line-number" aria-label="Line 355">355</a>app.add_middleware(RequestSizeLimitMiddleware, max_upload_size=5 * 1024 * 1024)
+</span><span class="source-line" id="L356"><a href="#L356" class="line-number" aria-label="Line 356">356</a>
+</span><span class="source-line" id="L357"><a href="#L357" class="line-number" aria-label="Line 357">357</a># Registered last, so the correlation id wraps every other middleware and every
+</span><span class="source-line" id="L358"><a href="#L358" class="line-number" aria-label="Line 358">358</a># exception handler and is therefore echoed on validation errors and rate-limit
+</span><span class="source-line" id="L359"><a href="#L359" class="line-number" aria-label="Line 359">359</a># rejections too, not only on successful responses.
+</span><span class="source-line" id="L360"><a href="#L360" class="line-number" aria-label="Line 360">360</a>if settings.observability_enabled:
+</span><span class="source-line" id="L361"><a href="#L361" class="line-number" aria-label="Line 361">361</a>    app.add_middleware(RequestIdMiddleware)
+</span><span class="source-line" id="L362"><a href="#L362" class="line-number" aria-label="Line 362">362</a>
+</span><span class="source-line" id="L363"><a href="#L363" class="line-number" aria-label="Line 363">363</a># Mount API v1 router
+</span><span class="source-line" id="L364"><a href="#L364" class="line-number" aria-label="Line 364">364</a>app.include_router(v1_router)
+</span><span class="source-line" id="L365"><a href="#L365" class="line-number" aria-label="Line 365">365</a>
+</span><span class="source-line" id="L366"><a href="#L366" class="line-number" aria-label="Line 366">366</a># Detailed telemetry shares the v1 prefix but is registered separately so the
+</span><span class="source-line" id="L367"><a href="#L367" class="line-number" aria-label="Line 367">367</a># pinned /health route and its response shape stay untouched.
+</span><span class="source-line" id="L368"><a href="#L368" class="line-number" aria-label="Line 368">368</a>app.include_router(observability_router)
+</span><span class="source-line" id="L369"><a href="#L369" class="line-number" aria-label="Line 369">369</a>
+</span><span class="source-line" id="L370"><a href="#L370" class="line-number" aria-label="Line 370">370</a>
+</span><span class="source-line" id="L371"><a href="#L371" class="line-number" aria-label="Line 371">371</a>@app.exception_handler(HTTPException)
+</span><span class="source-line" id="L372"><a href="#L372" class="line-number" aria-label="Line 372">372</a>async def http_exception_handler(
+</span><span class="source-line" id="L373"><a href="#L373" class="line-number" aria-label="Line 373">373</a>    request: Request,
+</span><span class="source-line" id="L374"><a href="#L374" class="line-number" aria-label="Line 374">374</a>    exc: HTTPException,
+</span><span class="source-line" id="L375"><a href="#L375" class="line-number" aria-label="Line 375">375</a>) -&gt; JSONResponse:
+</span><span class="source-line" id="L376"><a href="#L376" class="line-number" aria-label="Line 376">376</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L377"><a href="#L377" class="line-number" aria-label="Line 377">377</a>    Convert all HTTPExceptions into a standardized ErrorResponse envelope.
+</span><span class="source-line" id="L378"><a href="#L378" class="line-number" aria-label="Line 378">378</a>
+</span><span class="source-line" id="L379"><a href="#L379" class="line-number" aria-label="Line 379">379</a>    This ensures 401, 403, 404, 422, 500, etc. all return the same
+</span><span class="source-line" id="L380"><a href="#L380" class="line-number" aria-label="Line 380">380</a>    {&quot;error&quot;: {&quot;code&quot;: &quot;...&quot;, &quot;message&quot;: &quot;...&quot;, &quot;details&quot;: ...}} shape.
+</span><span class="source-line" id="L381"><a href="#L381" class="line-number" aria-label="Line 381">381</a>    &quot;&quot;&quot;
+</span><span class="source-line" id="L382"><a href="#L382" class="line-number" aria-label="Line 382">382</a>    logger.warning(
+</span><span class="source-line" id="L383"><a href="#L383" class="line-number" aria-label="Line 383">383</a>        &quot;HTTP %s on %s %s: %s&quot;,
+</span><span class="source-line" id="L384"><a href="#L384" class="line-number" aria-label="Line 384">384</a>        exc.status_code,
+</span><span class="source-line" id="L385"><a href="#L385" class="line-number" aria-label="Line 385">385</a>        request.method,
+</span><span class="source-line" id="L386"><a href="#L386" class="line-number" aria-label="Line 386">386</a>        request.url.path,
+</span><span class="source-line" id="L387"><a href="#L387" class="line-number" aria-label="Line 387">387</a>        exc.detail,
+</span><span class="source-line" id="L388"><a href="#L388" class="line-number" aria-label="Line 388">388</a>    )
+</span><span class="source-line" id="L389"><a href="#L389" class="line-number" aria-label="Line 389">389</a>    # Map status codes to error codes
+</span><span class="source-line" id="L390"><a href="#L390" class="line-number" aria-label="Line 390">390</a>    code_map = {
+</span><span class="source-line" id="L391"><a href="#L391" class="line-number" aria-label="Line 391">391</a>        400: &quot;BAD_REQUEST&quot;,
+</span><span class="source-line" id="L392"><a href="#L392" class="line-number" aria-label="Line 392">392</a>        401: &quot;UNAUTHORIZED&quot;,
+</span><span class="source-line" id="L393"><a href="#L393" class="line-number" aria-label="Line 393">393</a>        403: &quot;FORBIDDEN&quot;,
+</span><span class="source-line" id="L394"><a href="#L394" class="line-number" aria-label="Line 394">394</a>        404: &quot;NOT_FOUND&quot;,
+</span><span class="source-line" id="L395"><a href="#L395" class="line-number" aria-label="Line 395">395</a>        409: &quot;CONFLICT&quot;,
+</span><span class="source-line" id="L396"><a href="#L396" class="line-number" aria-label="Line 396">396</a>        422: &quot;VALIDATION_ERROR&quot;,
+</span><span class="source-line" id="L397"><a href="#L397" class="line-number" aria-label="Line 397">397</a>        429: &quot;RATE_LIMIT_EXCEEDED&quot;,
+</span><span class="source-line" id="L398"><a href="#L398" class="line-number" aria-label="Line 398">398</a>        500: &quot;INTERNAL_ERROR&quot;,
+</span><span class="source-line" id="L399"><a href="#L399" class="line-number" aria-label="Line 399">399</a>        503: &quot;SERVICE_UNAVAILABLE&quot;,
+</span><span class="source-line" id="L400"><a href="#L400" class="line-number" aria-label="Line 400">400</a>    }
+</span><span class="source-line" id="L401"><a href="#L401" class="line-number" aria-label="Line 401">401</a>    error = ErrorDetail(
+</span><span class="source-line" id="L402"><a href="#L402" class="line-number" aria-label="Line 402">402</a>        code=code_map.get(exc.status_code, &quot;HTTP_ERROR&quot;),
+</span><span class="source-line" id="L403"><a href="#L403" class="line-number" aria-label="Line 403">403</a>        message=exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+</span><span class="source-line" id="L404"><a href="#L404" class="line-number" aria-label="Line 404">404</a>        details=None,
+</span><span class="source-line" id="L405"><a href="#L405" class="line-number" aria-label="Line 405">405</a>    )
+</span><span class="source-line" id="L406"><a href="#L406" class="line-number" aria-label="Line 406">406</a>    return JSONResponse(
+</span><span class="source-line" id="L407"><a href="#L407" class="line-number" aria-label="Line 407">407</a>        status_code=exc.status_code,
+</span><span class="source-line" id="L408"><a href="#L408" class="line-number" aria-label="Line 408">408</a>        content=ErrorResponse(error=error).model_dump(),
+</span><span class="source-line" id="L409"><a href="#L409" class="line-number" aria-label="Line 409">409</a>    )
+</span></code></pre></main></body></html>

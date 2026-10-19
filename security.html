@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Source-backed interview handbook and learning path"><title>Security, tools, and trust boundaries · Ragnor Field Guide</title>
+<link rel="stylesheet" href="style.css"><script src="search-index.js" defer></script><script src="app.js" defer></script></head>
+<body data-page="security" data-question-count="300"><a class="skip" href="#main">Skip to content</a>
+<aside class="sidebar"><a class="brand" href="index.html"><span class="brand-icon">R/</span> RAGNOR <small>ENGINEERING FIELD GUIDE</small></a>
+<nav aria-label="Study pages"><a href="index.html">Overview & search</a><a href="roadmap.html">Learning path & labs</a><a href="coverage-audit.html">Original-question coverage audit</a><a href="libraries.html">Frameworks & evaluators</a><a href="examples.html">Worked code examples</a><a href="glossary.html">Acronym glossary</a><a href="atlas.html">Module & source atlas</a><a href="diagrams.html">Diagram library</a></nav>
+<p class="nav-label">THE INTERVIEW CHAPTERS</p><nav class="chapters" aria-label="Chapters"><a  href="foundations.html"><span>01</span>RAG foundations</a><a  href="architecture.html"><span>02</span>Architecture and design patterns</a><a  href="sources.html"><span>03</span>Sources, connectors, and extraction</a><a  href="chunking.html"><span>04</span>Chunking and document structure</a><a  href="embeddings.html"><span>05</span>Embeddings and resilient execution</a><a  href="storage.html"><span>06</span>Vector storage and database design</a><a  href="retrieval.html"><span>07</span>Retrieval, fusion, and reranking</a><a  href="evidence.html"><span>08</span>Evidence, context, and citations</a><a  href="ingestion.html"><span>09</span>Ingestion and transaction ownership</a><a  href="coordination.html"><span>10</span>Distributed sync, jobs, and recovery</a><a aria-current=page href="security.html"><span>11</span>Security, tools, and trust boundaries</a><a  href="evaluation.html"><span>12</span>Evaluation, testing, and operations</a><a  href="models.html"><span>13</span>Deep learning and generative AI</a><a  href="fullstack.html"><span>14</span>From subsystem to AI full-stack product</a><a  href="insurance-system.html"><span>15</span>The insurance application end to end</a><a  href="database-modeling.html"><span>16</span>Relational data modeling and migrations</a><a  href="database-concurrency.html"><span>17</span>Transactions, locks, and concurrency</a><a  href="database-security.html"><span>18</span>Securing database operations</a><a  href="api-security.html"><span>19</span>API identity and application security</a><a  href="adk-agents.html"><span>20</span>ADK agents, tools, and memory</a><a  href="langchain.html"><span>21</span>LangChain as an integration alternative</a><a  href="langgraph.html"><span>22</span>LangGraph stateful workflows</a><a  href="a2a.html"><span>23</span>A2A and distributed agent collaboration</a><a  href="agent-evaluation.html"><span>24</span>Evaluating agents and insurance outcomes</a><a  href="evaluation-libraries.html"><span>25</span>Agent and RAG evaluation libraries</a><a  href="agent-observability.html"><span>26</span>Agent observability and trace privacy</a><a  href="insurance-decisions.html"><span>27</span>Insurance evidence and decision boundaries</a><a  href="product-delivery.html"><span>28</span>Full-stack streaming and user workflows</a><a  href="deployment-reliability.html"><span>29</span>Deployment, recovery, and production readiness</a><a  href="model-engineering.html"><span>30</span>Model engineering and the advanced learning path</a></nav>
+<div class="sidebar-foot"><span id="progress-label">Study at your pace</span><progress id="progress" max="300" value="0" aria-label="Questions learned"></progress><small>Original Q1–140 keep their study history.</small></div></aside>
+<div class="workspace"><header class="toolbar"><a href="index.html#search">Search the handbook <kbd>/</kbd></a><div><button id="theme" type="button">Change theme</button><button id="print" type="button">Print / PDF</button></div></header>
+<main id="main" tabindex="-1"><p class="eyebrow">CHAPTER 11 / 30 · QUESTIONS 101–110</p><h1>Security, tools, and trust boundaries</h1><p class="subtitle">Connect identities to scopes before exposing knowledge to users or agents.</p><p class="chapter-note">Original chapter reviewed against the insurance host. Each answer now links to its coverage-audit entry and practical extension.</p>
+<div class="chapter-tools"><button type="button" id="practice">Practice: hide answers</button><button type="button" id="expand">Expand all answers</button><a href="roadmap.html#lab-security">Open this chapter's lab ↗</a></div>
+<details class="diagram-panel"><summary>Explore the architecture diagram</summary><p>Archify teaching artifact. Read its scope and source-backed qualifications; proposed paths are labeled. Illustrative timings are not benchmarks.</p><a href="diagrams/architecture.html" target="_blank" rel="noopener">Open full interactive diagram ↗</a><iframe loading="lazy" src="diagrams/architecture.html" title="architecture diagram" sandbox="allow-scripts allow-same-origin allow-downloads"></iframe></details><article class="question" id="q101" data-question="101">
+<div class="q-meta"><span>QUESTION 101</span><span>Code & engineering analysis</span><a href="#q101" aria-label="Link to question 101">#</a></div>
+<details class="answer" open><summary><h2>101. How are authentication, authorization, and retrieval filtering different?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Authentication establishes who is calling. Authorization decides what that identity may access or do. Retrieval filtering constrains the records searched and returned. A tenant_id filter supplied by an untrusted caller is not authentication or authorization.</p>
+<h3>Mechanism & reason</h3><p>The tool bridge composes scope authorization with retrieval and source lookup. MCP identity can come from trusted transport context or a host callback rather than a model-supplied client identifier.</p><h3>Risk & safeguards</h3><p>Allowing a request to choose both its identity and scope creates an impersonation path. The host must establish trusted identity and map it to allowed collections before issuing constrained retrieval.</p>
+<h3>Choice & trade-offs</h3><p>Central authorization adds integration work but prevents duplicated, inconsistent policy across tools. Filters remain necessary for efficient authorized search even after permission is granted.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/mcp/server.py:60</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    cls = server_class or _MCPServerClass
+    if cls is None:
+        raise ImportError(
+            &quot;The MCP server adapter requires the &#x27;mcp&#x27; package. &quot;
+            &quot;Install it with: pip install &#x27;ragnor[mcp]&#x27; or pip install &#x27;mcp&gt;=1.0.0&#x27;&quot;
+        )
+
+    server = cls(name)
+
+    def identity() -&gt; str | None:
+        # The provider is trusted host code, never a model-supplied tool argument.
+        if client_id_provider is not None:
+            return client_id_provider()
+        try:
+            from mcp.server.auth.middleware.auth_context import get_access_token  # noqa: PLC0415
+        except ImportError:
+            return client_id
+        token = get_access_token()
+        return token.client_id if token is not None else client_id
+
+    # search_knowledge tool
+    @server.tool(
+        name=&quot;search_knowledge&quot;,</code></pre>
+<p><a href="sources/src--ragnor--mcp--server.py.html#L60">Read frozen source, lines 60–82</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/mcp/server.py#L60-L82">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Draw an API request with identity, requested collection, and requested scope. Mark which values are trusted and where each becomes constrained.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q101">Question 101 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="101"> I can explain this</label><button type="button" class="bookmark" data-bookmark="101" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-101">Explain this in your own words</label><textarea id="note-101" data-note="101" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q102" data-question="102">
+<div class="q-meta"><span>QUESTION 102</span><span>Code & engineering analysis</span><a href="#q102" aria-label="Link to question 102">#</a></div>
+<details class="answer" open><summary><h2>102. Are the remote transport defaults production-secure by themselves?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">No universal claim is justified. RemoteTransportConfig accepts tokens when no validator is configured, uses a permissive default scope authorizer, and has wildcard CORS defaults. These are integration defaults that a production host must review and tighten deliberately.</p>
+<h3>Mechanism & reason</h3><p>The security module exposes callbacks and mappings so a host can enforce its actual identity system. Loopback binding reduces default exposure, but it is not a substitute for authorization once the service is reachable remotely.</p><h3>Risk & safeguards</h3><p>Deploying with permissive defaults can make private knowledge broadly accessible. CORS also does not authenticate non-browser callers; restricting it alone is insufficient.</p>
+<h3>Choice & trade-offs</h3><p>Permissive local defaults simplify experimentation. Explicit validators, deny-by-default scope mappings, bounded origins, TLS, and deployment policy require more setup and give a meaningful remote trust boundary.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/tools/security.py:161</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if self.auth_token_validator is None:
+            return True
+        if not token:
+            return False
+        return self.auth_token_validator(token)</code></pre>
+<p><a href="sources/src--ragnor--tools--security.py.html#L161">Read frozen source, lines 161–165</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/tools/security.py#L161-L165">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Construct a configuration that rejects missing tokens and unknown clients. Test an authenticated user requesting another tenant&#x27;s collection as well as an unauthenticated caller.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q102">Question 102 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="102"> I can explain this</label><button type="button" class="bookmark" data-bookmark="102" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-102">Explain this in your own words</label><textarea id="note-102" data-note="102" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q103" data-question="103">
+<div class="q-meta"><span>QUESTION 103</span><span>Code & engineering analysis</span><a href="#q103" aria-label="Link to question 103">#</a></div>
+<details class="answer" open><summary><h2>103. What should the KnowledgeBridge centralize?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">It provides one framework-neutral boundary for search, bounded evidence, source lookup, collection selection, and health or management operations. Transport adapters should translate requests into that boundary rather than each rebuilding retrieval and permission logic.</p>
+<h3>Mechanism & reason</h3><p>CollectionConfig supplies retriever and source-lookup configuration; KnowledgeBridge composes authorizer, assembler, and health checker. This resembles a facade or application-service boundary over the lower-level components.</p><h3>Risk & safeguards</h3><p>A central facade is only protective if all exposed routes use it correctly. Direct backend endpoints or source lookup shortcuts can bypass the common policy.</p>
+<h3>Choice & trade-offs</h3><p>Centralization reduces duplicated integration logic but can become overly broad if every domain behavior is added to it. Keep application-specific decisions in the host.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/tools/bridge.py:75</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    def __init__(  # noqa: PLR0913
+        self,
+        retriever: Any | None = None,
+        *,
+        collections: Mapping[str, CollectionConfig | Any] | None = None,
+        assembler: EvidenceAssembler | None = None,
+        source_lookup: SourceLookup | None = None,
+        health_checker: HealthChecker | None = None,
+        authorizer: ScopeAuthorizer | None = None,
+        allow_management: bool = False,
+        default_collection: str = &quot;default&quot;,
+        default_budget_tokens: int = 4000,
+    ) -&gt; None:
+        &quot;&quot;&quot;Initialize KnowledgeBridge.
+
+        Args:
+            retriever: Default retriever for single-collection setups.
+            collections: Optional mapping of collection names to retrievers or configs.
+            assembler: Injected EvidenceAssembler (defaults to ApproximateTokenizer).
+            source_lookup: Injected SourceLookup (defaults to MemorySnapshotStore).
+            health_checker: Injected HealthChecker for status probes.
+            authorizer: Injected ScopeAuthorizer for tenant validation.</code></pre>
+<p><a href="sources/src--ragnor--tools--bridge.py.html#L75">Read frozen source, lines 75–96</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/tools/bridge.py#L75-L96">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Compare a chat endpoint and an agent tool endpoint. Identify which validation and authorization behavior should be shared through the bridge and which presentation behavior should differ.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q103">Question 103 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="103"> I can explain this</label><button type="button" class="bookmark" data-bookmark="103" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-103">Explain this in your own words</label><textarea id="note-103" data-note="103" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q104" data-question="104">
+<div class="q-meta"><span>QUESTION 104</span><span>Code & engineering analysis</span><a href="#q104" aria-label="Link to question 104">#</a></div>
+<details class="answer" open><summary><h2>104. What is MCP, and what does this adapter expose?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Model Context Protocol is a protocol for exposing tools and resources to model-enabled clients. Ragnor&#x27;s MCP adapter wraps the bridge with read tools such as search_knowledge, get_source, and knowledge_status. Management operations require explicit enabling conditions.</p>
+<h3>Mechanism & reason</h3><p>The adapter keeps protocol concerns outside retrieval logic and obtains identity through trusted integration hooks. It supports SDK variation through an adapter layer rather than making the core depend on MCP.</p><h3>Risk & safeguards</h3><p>A protocol does not make a tool inherently authorized or safe. A model can request an operation, but the server must enforce permissions, budgets, and management policy independently of the model&#x27;s wording.</p>
+<h3>Choice & trade-offs</h3><p>Standardized tool access broadens integration while introducing another exposed surface and dependency. A simple host API may be sufficient for one application.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/mcp/server.py:60</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    cls = server_class or _MCPServerClass
+    if cls is None:
+        raise ImportError(
+            &quot;The MCP server adapter requires the &#x27;mcp&#x27; package. &quot;
+            &quot;Install it with: pip install &#x27;ragnor[mcp]&#x27; or pip install &#x27;mcp&gt;=1.0.0&#x27;&quot;
+        )
+
+    server = cls(name)
+
+    def identity() -&gt; str | None:
+        # The provider is trusted host code, never a model-supplied tool argument.
+        if client_id_provider is not None:
+            return client_id_provider()
+        try:
+            from mcp.server.auth.middleware.auth_context import get_access_token  # noqa: PLC0415
+        except ImportError:
+            return client_id
+        token = get_access_token()
+        return token.client_id if token is not None else client_id
+
+    # search_knowledge tool
+    @server.tool(
+        name=&quot;search_knowledge&quot;,</code></pre>
+<p><a href="sources/src--ragnor--mcp--server.py.html#L60">Read frozen source, lines 60–82</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/mcp/server.py#L60-L82">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Inspect the registered tools and their input schemas. Explain why a tool description is useful for model behavior but cannot enforce a security rule.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q104">Question 104 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="104"> I can explain this</label><button type="button" class="bookmark" data-bookmark="104" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-104">Explain this in your own words</label><textarea id="note-104" data-note="104" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q105" data-question="105">
+<div class="q-meta"><span>QUESTION 105</span><span>Code & engineering analysis</span><a href="#q105" aria-label="Link to question 105">#</a></div>
+<details class="answer" open><summary><h2>105. Why are read and management tools separate opt-ins?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Searching knowledge and changing or revoking knowledge have different consequences. A client that may read a collection should not automatically be able to ingest arbitrary sources, trigger expensive sync, or remove access for other users.</p>
+<h3>Mechanism & reason</h3><p>The MCP server defaults to read tools, while management registration and the bridge&#x27;s allow_management setting provide separate opt-in controls. Those controls complement, rather than replace, identity-based authorization.</p><h3>Risk & safeguards</h3><p>Enabling a management tool globally without per-caller policy can give an agent excessive authority. Source text must never grant that authority by instructing the model to call a privileged tool.</p>
+<h3>Choice & trade-offs</h3><p>Separate permissions and configuration increase setup but support least privilege. A single unrestricted tool surface is simpler and broadens both accidental and malicious impact.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/mcp/server.py:60</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    cls = server_class or _MCPServerClass
+    if cls is None:
+        raise ImportError(
+            &quot;The MCP server adapter requires the &#x27;mcp&#x27; package. &quot;
+            &quot;Install it with: pip install &#x27;ragnor[mcp]&#x27; or pip install &#x27;mcp&gt;=1.0.0&#x27;&quot;
+        )
+
+    server = cls(name)
+
+    def identity() -&gt; str | None:
+        # The provider is trusted host code, never a model-supplied tool argument.
+        if client_id_provider is not None:
+            return client_id_provider()
+        try:
+            from mcp.server.auth.middleware.auth_context import get_access_token  # noqa: PLC0415
+        except ImportError:
+            return client_id
+        token = get_access_token()
+        return token.client_id if token is not None else client_id
+
+    # search_knowledge tool
+    @server.tool(
+        name=&quot;search_knowledge&quot;,</code></pre>
+<p><a href="sources/src--ragnor--mcp--server.py.html#L60">Read frozen source, lines 60–82</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/mcp/server.py#L60-L82">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Define reader, operator, and administrator roles. Map each to search, source lookup, sync, and revocation, then state where the host enforces each permission.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q105">Question 105 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="105"> I can explain this</label><button type="button" class="bookmark" data-bookmark="105" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-105">Explain this in your own words</label><textarea id="note-105" data-note="105" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q106" data-question="106">
+<div class="q-meta"><span>QUESTION 106</span><span>Code & engineering analysis</span><a href="#q106" aria-label="Link to question 106">#</a></div>
+<details class="answer" open><summary><h2>106. Why is prompt injection an authorization problem as well as a prompting problem?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Retrieved documents may contain instructions aimed at the model rather than information for the user. If the model can turn those instructions into privileged actions, untrusted content has crossed an authority boundary. Prompt wording alone should not determine which actions are permitted.</p>
+<h3>Mechanism & reason</h3><p>Evidence rendering escapes some markers, bridge operations apply authorization, and management tools are opt-in. These controls address different layers: presentation, data access, and action authority.</p><h3>Risk & safeguards</h3><p>Natural-language attacks can survive escaping, and a model can misinterpret legitimate text. Server-side tool validation and least privilege must remain effective even when the model requests the wrong action.</p>
+<h3>Choice & trade-offs</h3><p>Tighter permissions can limit autonomous workflows. Grant narrow capabilities for a task rather than broad access based on assumed model compliance.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/types.py:104</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    total_budget: int
+    reserved_instructions: int = 0
+    reserved_user_input: int = 0
+    reserved_answer: int = 0
+    max_evidence_items: int | None = None
+
+    def __post_init__(self) -&gt; None:
+        if self.total_budget &lt;= 0:
+            raise ValueError(f&quot;total_budget must be positive; got {self.total_budget}&quot;)
+        if self.reserved_instructions &lt; 0:
+            raise ValueError(&quot;reserved_instructions must be non-negative&quot;)
+        if self.reserved_user_input &lt; 0:
+            raise ValueError(&quot;reserved_user_input must be non-negative&quot;)
+        if self.reserved_answer &lt; 0:
+            raise ValueError(&quot;reserved_answer must be non-negative&quot;)
+
+    @property
+    def reserved_total(self) -&gt; int:
+        &quot;&quot;&quot;Total tokens reserved for instructions, user input, and answer.&quot;&quot;&quot;
+        return self.reserved_instructions + self.reserved_user_input + self.reserved_answer
+
+    @property</code></pre>
+<p><a href="sources/src--ragnor--evidence--types.py.html#L104">Read frozen source, lines 104–125</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/types.py#L104-L125">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Put a malicious instruction in a test document asking for another tenant&#x27;s source. Verify the server refuses the operation even if a simulated model follows the instruction exactly.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q106">Question 106 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="106"> I can explain this</label><button type="button" class="bookmark" data-bookmark="106" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-106">Explain this in your own words</label><textarea id="note-106" data-note="106" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q107" data-question="107">
+<div class="q-meta"><span>QUESTION 107</span><span>Code & engineering analysis</span><a href="#q107" aria-label="Link to question 107">#</a></div>
+<details class="answer" open><summary><h2>107. Why must source lookup enforce authorization separately from search?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">A citation reference can be copied, guessed, or reused after access changes. Possession of an identifier is not proof that the caller may read the referenced document. Historical snapshots can also retain text no longer visible in current search.</p>
+<h3>Mechanism & reason</h3><p>SourceLookup supports scoped access, revocation, bounded spans, and explicit revision availability. The bridge authorizes source retrieval rather than treating a citation label as an unrestricted download token.</p><h3>Risk & safeguards</h3><p>Protecting search while exposing an unguarded get_source endpoint leaks the same underlying corpus. Retention policy must distinguish audit storage from permission to disclose that storage.</p>
+<h3>Choice & trade-offs</h3><p>Rechecking permissions adds work to every citation open, but preserves access changes over time. Caching source responses also needs scope and revocation-aware keys.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/evidence/source_lookup.py:230</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        span_limit = self.default_max_span_length if max_span_length is None else max_span_length
+        self._validate_span_limit(span_limit)
+        span_limit = min(span_limit, self.default_max_span_length)
+        try:
+            if hasattr(self._store, &quot;is_revoked&quot;) and self._store.is_revoked(
+                source_id, document_id, authorization_scope
+            ):
+                raise ScopeAuthorizationError(&quot;Document access has been revoked&quot;)
+            if hasattr(self._store, &quot;get_scoped&quot;):
+                snapshot = self._store.get_scoped(
+                    source_id, document_id, revision, authorization_scope
+                )
+                if snapshot is None and self._store.has_revision(source_id, document_id, revision):
+                    raise ScopeAuthorizationError(&quot;Document revision belongs to a different scope&quot;)
+            else:
+                snapshot = self._store.get(source_id, document_id, revision)
+        except ScopeAuthorizationError:
+            if strict:
+                raise
+            return BoundedSpanResult(
+                source_id,
+                document_id,
+                revision,</code></pre>
+<p><a href="sources/src--ragnor--evidence--source_lookup.py.html#L230">Read frozen source, lines 230–252</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/evidence/source_lookup.py#L230-L252">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Obtain a valid citation, revoke access, then try opening it again. Verify both search and retained-source lookup reject disclosure.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q107">Question 107 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="107"> I can explain this</label><button type="button" class="bookmark" data-bookmark="107" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-107">Explain this in your own words</label><textarea id="note-107" data-note="107" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q108" data-question="108">
+<div class="q-meta"><span>QUESTION 108</span><span>Code & engineering analysis</span><a href="#q108" aria-label="Link to question 108">#</a></div>
+<details class="answer" open><summary><h2>108. What does the built-in rate limiter control, and what does it not control?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">It tracks request timestamps and active counts per client within one process, enforcing a sliding-window request ceiling and concurrency limit. It is not a shared quota service across many replicas and does not automatically price embedding or generation tokens.</p>
+<h3>Mechanism & reason</h3><p>RateLimiter uses in-memory dictionaries and an asyncio lock. Remote transport configuration can inject it as one guard around tool work, while embedding execution has a different semaphore for provider calls.</p><h3>Risk & safeguards</h3><p>Multiple replicas multiply an apparent per-client limit unless they coordinate. Failed release logic can also strand active slots, so acquire and release must be paired even on exceptions and cancellation.</p>
+<h3>Choice & trade-offs</h3><p>In-process limits are fast and simple. Fleet-wide limits need shared state or an API gateway and introduce another availability dependency.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/tools/security.py:161</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>        if self.auth_token_validator is None:
+            return True
+        if not token:
+            return False
+        return self.auth_token_validator(token)</code></pre>
+<p><a href="sources/src--ragnor--tools--security.py.html#L161">Read frozen source, lines 161–165</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/tools/security.py#L161-L165">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Send requests for one identity through two limiter instances. Explain the combined effective quota and design a shared policy for a multi-replica deployment.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q108">Question 108 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="108"> I can explain this</label><button type="button" class="bookmark" data-bookmark="108" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-108">Explain this in your own words</label><textarea id="note-108" data-note="108" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q109" data-question="109">
+<div class="q-meta"><span>QUESTION 109</span><span>Code & engineering analysis</span><a href="#q109" aria-label="Link to question 109">#</a></div>
+<details class="answer" open><summary><h2>109. How should telemetry avoid becoming a data leak?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Prefer counts, durations, sanitized error categories, and controlled identifiers. Raw questions, passages, credentials, and user identifiers can expose private knowledge through logs, traces, and analytics systems even when retrieval itself is authorized.</p>
+<h3>Mechanism & reason</h3><p>RedactionConfig defaults raw query, document text, user identifiers, and unmasked errors to disabled. Event construction sanitizes errors and supports host-controlled redaction. This does not imply that every ordinary logger in the repository or host is automatically covered.</p><h3>Risk & safeguards</h3><p>Exception strings, URLs, and custom metadata can carry secrets. A redacted event sink cannot sanitize unrelated logs or a provider&#x27;s own diagnostics.</p>
+<h3>Choice & trade-offs</h3><p>Less raw data makes debugging harder and reduces exposure. Use temporary, controlled debugging fixtures rather than permanently recording production passages.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/telemetry/events.py:84</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    allow_queries: bool = False
+    allow_document_text: bool = False
+    allow_user_identifiers: bool = False
+    allow_unmasked_errors: bool = False
+    mask_credentials: bool = True
+
+    def __init__(  # noqa: PLR0913
+        self,
+        allow_queries: bool = False,
+        allow_document_text: bool = False,
+        allow_user_identifiers: bool = False,
+        allow_unmasked_errors: bool = False,
+        mask_credentials: bool = True,
+        *,
+        allow_raw_query: bool | None = None,
+        allow_raw_text: bool | None = None,
+        allow_user_id: bool | None = None,
+        scrub_credentials: bool | None = None,
+    ) -&gt; None:
+        self.allow_queries = allow_raw_query if allow_raw_query is not None else allow_queries
+        self.allow_document_text = (
+            allow_raw_text if allow_raw_text is not None else allow_document_text</code></pre>
+<p><a href="sources/src--ragnor--telemetry--events.py.html#L84">Read frozen source, lines 84–105</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/telemetry/events.py#L84-L105">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Raise an error containing an API key, source URL, and query text. Inspect events and ordinary logs separately and document remaining exposure paths.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q109">Question 109 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="109"> I can explain this</label><button type="button" class="bookmark" data-bookmark="109" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-109">Explain this in your own words</label><textarea id="note-109" data-note="109" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><article class="question" id="q110" data-question="110">
+<div class="q-meta"><span>QUESTION 110</span><span>Code & engineering analysis</span><a href="#q110" aria-label="Link to question 110">#</a></div>
+<details class="answer" open><summary><h2>110. What security acceptance tests matter most for this integration?</h2><span class="reveal">Read / reveal answer</span></summary>
+<div class="answer-body"><p class="lead-answer">Prioritize cross-tenant access, unsupported mandatory filters, source lookup after revocation, management permissions, malicious source instructions, SSRF redirects, and backend failures. These test authority boundaries rather than merely validating that a happy-path search returns text.</p>
+<h3>Mechanism & reason</h3><p>The repository has focused tests around retrieval constraints, connectors, tool bridges, and sync. A host must extend those checks to its own identity provider, deployment routes, and durable adapters.</p><h3>Risk & safeguards</h3><p>A mock that always applies filters can conceal an actual backend mismatch. Include tests against the deployed adapter combination and inspect what leaves the process for reranking or telemetry.</p>
+<h3>Choice & trade-offs</h3><p>Boundary tests take setup but prevent high-impact failures. Duplicating every implementation branch with brittle tests is less valuable than exercising the invariants users depend on.</p>
+<details class="code-panel"><summary>Inspect the repository excerpt · src/ragnor/tools/bridge.py:75</summary>
+<p>This is an exact excerpt, not a standalone runnable program. Follow the source link for imports, surrounding branches, and the complete contract.</p>
+<button type="button" class="copy">Copy excerpt</button><pre><code>    def __init__(  # noqa: PLR0913
+        self,
+        retriever: Any | None = None,
+        *,
+        collections: Mapping[str, CollectionConfig | Any] | None = None,
+        assembler: EvidenceAssembler | None = None,
+        source_lookup: SourceLookup | None = None,
+        health_checker: HealthChecker | None = None,
+        authorizer: ScopeAuthorizer | None = None,
+        allow_management: bool = False,
+        default_collection: str = &quot;default&quot;,
+        default_budget_tokens: int = 4000,
+    ) -&gt; None:
+        &quot;&quot;&quot;Initialize KnowledgeBridge.
+
+        Args:
+            retriever: Default retriever for single-collection setups.
+            collections: Optional mapping of collection names to retrievers or configs.
+            assembler: Injected EvidenceAssembler (defaults to ApproximateTokenizer).
+            source_lookup: Injected SourceLookup (defaults to MemorySnapshotStore).
+            health_checker: Injected HealthChecker for status probes.
+            authorizer: Injected ScopeAuthorizer for tenant validation.</code></pre>
+<p><a href="sources/src--ragnor--tools--bridge.py.html#L75">Read frozen source, lines 75–96</a> · <a href="https://github.com/eslam-aboutaleb/ragnor/blob/e57f6468d334190d519df375e5feeb6149031da2/src/ragnor/tools/bridge.py#L75-L96">Pinned GitHub source</a></p></details>
+<div class="exercise"><h3>Apply it</h3><p>Write five adversarial scenarios with expected denial and one authorized control case for each. Specify whether denial must occur before any external provider receives document text.</p></div><div class="insurance-connection"><h3>Revisited against the insurance host</h3><p>Cookie flags derive from environment; ownership and roles differ. Preparation correction does not itself prove old tokens are revoked.</p><a href="api-security.html">Continue with the insurance implementation →</a> · <a href="coverage-audit.html#audit-q110">Question 110 audit</a></div></div></details>
+<div class="study-controls"><label><input type="checkbox" data-learned="110"> I can explain this</label><button type="button" class="bookmark" data-bookmark="110" aria-pressed="false">Bookmark</button></div>
+<details class="notes"><summary>My explanation & notes</summary><label for="note-110">Explain this in your own words</label><textarea id="note-110" data-note="110" rows="4" placeholder="Mechanism → failure case → trade-off → evidence"></textarea></details></article><nav class="pager" aria-label="Adjacent chapters"><a href="coordination.html">← Distributed sync, jobs, and recovery</a><a href="evaluation.html">Evaluation, testing, and operations →</a></nav></main><footer>Ragnor <code>e57f646</code> + insurance backend <code>70084f7</code> · 19 October 2026 · Implemented behavior and proposed integrations are distinguished. <a href="provenance.html">Scope & provenance</a></footer></div>
+</body></html>
