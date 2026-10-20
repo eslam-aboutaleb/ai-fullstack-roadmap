@@ -1,6 +1,6 @@
 """Optional local NumPy/PyTorch bridge; CPU only, tiny synthetic data.
 
-Tested with numpy 2.5.4 and torch 2.14.1. No model downloads or pickle loading.
+Tested with numpy 2.0.2 and torch 2.8.0. No model downloads or pickle loading.
 """
 import json
 import numpy as np
