@@ -13,7 +13,60 @@
     "Why": "Decode UTF-8 incrementally and accumulate SSE fields through the blank-line delimiter. Validate the completed event payload separately and test every relevant network fragmentation boundary.",
     "Risk": "Naive JSON.parse on each read loses events or fails on multibyte characters. Error recovery must also distinguish a malformed event from a clean terminal completion.",
     "Trade": "A small parser handles a narrow contract; a mature SSE client can cover more protocol details. Test the actual API framing and reconnection requirements.",
-    "Try": "Feed the same stream split at every possible byte boundary, including inside Unicode text. Verify identical parsed events."
+    "Try": "Feed the same stream split at every possible byte boundary, including inside Unicode text. Verify identical parsed events.",
+    "spoken": "Streaming UI state machines track request state across connection drops and reconnects. Citation rendering shows source passages alongside answers. The UI must handle loading, streaming, complete, and error states without losing user context.",
+    "domain": "frontend",
+    "subdomain": "streaming-ui",
+    "module": "product-delivery",
+    "concept": "streaming UI state machines and citation rendering",
+    "difficulty": "implementation",
+    "misconception_target": "Streaming UI is just showing text as it arrives",
+    "definitions": [
+      {
+        "term": "UI state machine",
+        "definition": "Tracks request state across loading, streaming, complete, and error"
+      },
+      {
+        "term": "Citation rendering",
+        "definition": "Displaying source passages alongside generated answers"
+      },
+      {
+        "term": "Reconnection",
+        "definition": "Resuming a stream after a connection drop"
+      }
+    ],
+    "execution_timeline": "User submits -> Loading state -> Stream begins -> Handle chunks -> Complete or error -> Reconnect if needed",
+    "example": {
+      "code": "const states = { LOADING, STREAMING, COMPLETE, ERROR };\\nlet current = states.LOADING;\\nfunction onChunk(text) { current = states.STREAMING; append(text); }\\nfunction onError(err) { current = states.ERROR; showError(err); }",
+      "explanation": "Track state transitions for streaming UI.",
+      "output": "UI state transitions correctly"
+    },
+    "production_case": "A chat interface that streams model responses with citations and handles reconnection.",
+    "alternatives": [
+      "Polling for updates",
+      "Server-sent events without state machine"
+    ],
+    "pitfalls": [
+      "Losing state on reconnect",
+      "No error state handling",
+      "Citations not matched to text"
+    ],
+    "complexity": "O(1) per state transition",
+    "follow_ups": [
+      {
+        "Q": "Why a state machine instead of simple flags?",
+        "A": "State machines prevent invalid transitions and make reconnection logic explicit."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/EventSource"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Why do persisted message IDs matter for feedback?",

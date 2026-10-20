@@ -5,7 +5,60 @@
     "Why": "The retrieval service injects a Chunker into ingestion. This makes chunking a replaceable strategy whose version and configuration participate in snapshot comparison, rather than an untracked preprocessing script.",
     "Risk": "A boundary can separate a rule from its exception or a table heading from its values. Overlap and section-aware parsing mitigate some boundary loss, but only corpus-specific evaluation reveals whether the chosen units preserve meaning.",
     "Trade": "Smaller chunks improve targeting and increase index size; larger chunks preserve context and can dilute relevance. There is no universally best chunk size.",
-    "Try": "Split the same policy into small and large chunks. Use questions about exceptions and compare whether each retrieved unit contains enough information to answer safely."
+    "Try": "Split the same policy into small and large chunks. Use questions about exceptions and compare whether each retrieved unit contains enough information to answer safely.",
+    "spoken": "Chunking splits documents into passages for retrieval. Fixed-size chunks are simple but can split mid-sentence. Semantic chunking preserves sentence and paragraph boundaries. Overlap between adjacent chunks preserves context that would otherwise be lost at boundaries.",
+    "domain": "ai-rag",
+    "subdomain": "chunking",
+    "module": "chunking",
+    "concept": "document chunking strategies",
+    "difficulty": "foundations",
+    "misconception_target": "Smaller chunks always improve retrieval",
+    "definitions": [
+      {
+        "term": "Chunking",
+        "definition": "Splitting documents into passages for indexing and retrieval"
+      },
+      {
+        "term": "Overlap",
+        "definition": "Shared content between adjacent chunks to preserve boundary context"
+      },
+      {
+        "term": "Semantic chunking",
+        "definition": "Chunking that respects sentence and paragraph boundaries"
+      }
+    ],
+    "execution_timeline": "Read document → Split into sentences → Group into chunks of target size → Add overlap → Index each chunk with metadata",
+    "example": {
+      "code": "chunks = []\nfor i in range(0, len(text), chunk_size - overlap):\n    chunks.append(text[i:i + chunk_size])",
+      "explanation": "Slide a window of chunk_size over text with overlap between windows.",
+      "output": "List of overlapping text chunks"
+    },
+    "production_case": "A research paper indexing system where context must not be lost at chunk boundaries.",
+    "alternatives": [
+      "Fixed-size without overlap",
+      "Paragraph-based chunking"
+    ],
+    "pitfalls": [
+      "Splitting mid-sentence",
+      "Too much overlap wastes index space",
+      "Too little overlap loses context"
+    ],
+    "complexity": "O(document length) for single pass chunking",
+    "follow_ups": [
+      {
+        "Q": "What does overlap prevent?",
+        "A": "Context loss at chunk boundaries where relevant terms fall in different chunks."
+      }
+    ],
+    "citations": [
+      "https://python.langchain.com/docs/modules/data_connection/document_transformers/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Does a sliding-window chunker count tokens, words, or characters?",

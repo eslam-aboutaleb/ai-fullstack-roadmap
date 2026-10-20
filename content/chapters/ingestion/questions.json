@@ -5,7 +5,60 @@
     "Why": "Slow provider work precedes the mutation-critical section. This reduces the time an internally owned session and advisory lock are held for version changes. The read-only initial snapshot check uses a short session when the caller did not supply one.",
     "Risk": "A caller-supplied session may already have an open transaction throughout preparation. The library cannot undo that host decision, so do not claim remote calls are outside every possible transaction in all integrations.",
     "Trade": "Preparation can be duplicated by concurrent workers, but database contention is lower. Serializing all work under a lock saves duplicate embeddings while holding scarce resources longer.",
-    "Try": "Instrument session entry, embedding start, lock acquisition, upsert, and commit. Compare internally owned and caller-owned session paths."
+    "Try": "Instrument session entry, embedding start, lock acquisition, upsert, and commit. Compare internally owned and caller-owned session paths.",
+    "spoken": "Run ingestion idempotently: compare document revisions before writing, skip unchanged content, and use unique operation keys so retries do not create duplicates. Support rollback by keeping previous revision metadata and providing a way to revert to a known-good snapshot.",
+    "domain": "backend",
+    "subdomain": "ingestion",
+    "module": "ingestion",
+    "concept": "idempotent ingestion with revision checks",
+    "difficulty": "implementation",
+    "misconception_target": "Ingestion can be safely re-run without side effects",
+    "definitions": [
+      {
+        "term": "Idempotent ingestion",
+        "definition": "Ingestion that produces the same result regardless of how many times it runs"
+      },
+      {
+        "term": "Revision check",
+        "definition": "Comparing document version before overwriting stored content"
+      },
+      {
+        "term": "Rollback",
+        "definition": "Returning to a previously known-good state"
+      }
+    ],
+    "execution_timeline": "Fetch document → Compare revision → Skip if unchanged → Write new revision → Save snapshot → Mark complete",
+    "example": {
+      "code": "existing = db.get(doc_id)\nif existing and existing.revision >= doc.revision:\n    return  # skip unchanged\ndb.upsert(doc)\ndb.save_snapshot(doc_id, existing)",
+      "explanation": "Skip unchanged documents, write new revisions, keep snapshots for rollback.",
+      "output": "Document updated or skipped"
+    },
+    "production_case": "A nightly sync that refreshes product catalog data from a supplier API.",
+    "alternatives": [
+      "Full refresh on every run",
+      "Event-driven ingestion via webhooks"
+    ],
+    "pitfalls": [
+      "Missing revision comparison",
+      "No snapshot for rollback",
+      "Non-unique operation keys"
+    ],
+    "complexity": "O(documents) per ingestion run",
+    "follow_ups": [
+      {
+        "Q": "How do you handle a failed rollback?",
+        "A": "Keep multiple snapshots and verify integrity before restoring."
+      }
+    ],
+    "citations": [
+      "https://www.postgresql.org/docs/current/popups.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Why is there a second snapshot check under the lock?",

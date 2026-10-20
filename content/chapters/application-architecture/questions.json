@@ -13,7 +13,58 @@
     "Why": "Draw separate boxes for the runtime, model adapter, retrieval service, business services, and telemetry. Evaluate a replacement at its contract boundary rather than inferring responsibilities from package names.",
     "Risk": "Framework confusion leads to examples that cannot run against the reference design's dependencies. The later LangChain, LangGraph, and A2A chapters explicitly describe alternatives or additions rather than pretending those frameworks are already installed.",
     "Trade": "Staying with one orchestrator reduces state-model overlap. Adding another can solve a measured workflow need but introduces serialization, tracing, error, and deployment boundaries.",
-    "Try": "Make a dependency-layer table with web framework, agent runtime, model adapter, retrieval library, persistence layer, and tracing service. Name their concrete constructors."
+    "Try": "Make a dependency-layer table with web framework, agent runtime, model adapter, retrieval library, persistence layer, and tracing service. Name their concrete constructors.",
+    "spoken": "The browser handles the form event and sends an HTTP request. DNS resolves the host, TLS encrypts the connection, and a reverse proxy routes to the application. The application authenticates the caller, validates input, calls business services, and returns a status, headers, and body. Parsing JSON is not validation; it only converts text to data.",
+    "domain": "frontend",
+    "subdomain": "api-lifecycle",
+    "difficulty": "foundations",
+    "misconception_target": "Parsing JSON means the data is valid",
+    "definitions": [
+      {
+        "term": "DNS",
+        "definition": "Resolves host names to IP addresses"
+      },
+      {
+        "term": "TLS",
+        "definition": "Encrypts the connection between client and server"
+      },
+      {
+        "term": "JSON parsing",
+        "definition": "Converting JSON text to data structures; distinct from business validation"
+      }
+    ],
+    "execution_timeline": "Browser submits form -> DNS resolves -> TLS encrypts -> Reverse proxy routes -> Application authenticates -> Validates -> Calls services -> Returns response",
+    "example": {
+      "code": "POST /questions\nContent-Type: application/json\n\n{\"question\": \"Can I return this?\"}\n\nHTTP/1.1 202 Accepted\n{\"task_id\": \"task-123\"}",
+      "explanation": "Valid question returns accepted task ID; blank question returns 400 validation error.",
+      "output": "HTTP 201 with task ID, or HTTP 400 with validation error"
+    },
+    "production_case": "A question submission endpoint that validates input before accepting long-running requests.",
+    "alternatives": [
+      "GraphQL for flexible queries",
+      "WebSocket for bidirectional streaming"
+    ],
+    "pitfalls": [
+      "Blank input reaches business layer",
+      "Malformed JSON crashes handler",
+      "Authentication bypassed"
+    ],
+    "complexity": "HTTP request handling is O(1) per request; validation adds CPU proportional to field count",
+    "follow_ups": [
+      {
+        "Q": "Why is JSON parsing not business validation?",
+        "A": "Parsing only checks syntax; validation checks that values satisfy business constraints."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How does an eligibility question differ from a request-status question?",
@@ -21,7 +72,60 @@
     "Why": "Route an exact request identifier to an authorized structured lookup. Route a knowledge question to applicable evidence. Evaluate both the intent decision and the resulting resource scope.",
     "Risk": "Semantic similarity cannot establish that an arbitrary request ID belongs to the user or that a versioned rule applies to their contract. Tool-side identity checks remain necessary even when prompting selects the right tool.",
     "Trade": "Separate tools make intent and authority clearer but require route-selection evaluation. One universal search tool is simpler and can blur exact facts with approximate matches.",
-    "Try": "Write expected tool sequences for an exact request ID, a remembered incident without an ID, and an eligibility question with missing facts."
+    "Try": "Write expected tool sequences for an exact request ID, a remembered incident without an ID, and an eligibility question with missing facts.",
+    "spoken": "JavaScript connects page events to data and rendering. A promise represents a future result; await lets an async function wait without blocking other browser work. A fetch response must be checked with response.ok before its body is treated as success, because HTTP errors do not automatically reject the promise. TypeScript types help catch incompatible code, but received JSON still needs runtime checks.",
+    "domain": "frontend",
+    "subdomain": "javascript-typescript",
+    "module": "application-architecture",
+    "concept": "JavaScript promises, fetch, TypeScript runtime checks",
+    "difficulty": "foundations",
+    "misconception_target": "HTTP errors automatically reject fetch promises",
+    "definitions": [
+      {
+        "term": "Promise",
+        "definition": "Object representing the eventual completion of an asynchronous operation"
+      },
+      {
+        "term": "fetch",
+        "definition": "Browser API for making HTTP requests"
+      },
+      {
+        "term": "TypeScript runtime check",
+        "definition": "Validating received data at runtime despite TypeScript types"
+      }
+    ],
+    "execution_timeline": "User submits -> preventDefault -> Read input -> Set loading -> Await fetch -> Check response.ok -> Validate JSON -> Render or catch error -> Finally restore control",
+    "example": {
+      "code": "const res = await fetch(url);\\nif (!res.ok) throw new Error(res.status);\\nconst data = await res.json();\\nvalidate(data);",
+      "explanation": "Check response.ok before parsing JSON.",
+      "output": "Validated data or error"
+    },
+    "production_case": "A form submission that handles network errors, HTTP errors, and invalid JSON separately.",
+    "alternatives": [
+      "XMLHttpRequest",
+      "Third-party HTTP libraries"
+    ],
+    "pitfalls": [
+      "Not checking response.ok",
+      "Trusting TypeScript types at runtime",
+      "No error handling"
+    ],
+    "complexity": "O(1) per request",
+    "follow_ups": [
+      {
+        "Q": "Why validate JSON at runtime with TypeScript?",
+        "A": "TypeScript types are compile-time only; received JSON may not match."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "What is the difference between an agent session and a conversation record?",

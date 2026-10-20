@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -14,31 +15,120 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  quality:
+    name: Static content and examples
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/project-check.yml@f989c2d0742cdab6cdef8437685d128b28904abc
+    with:
+      project-dir: .
+      target: ci-quality
+      python-version: '3.11'
+      node-version: '22'
+
+  workflow-lint:
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/workflow-lint.yml@f989c2d0742cdab6cdef8437685d128b28904abc
+
+  security:
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/security.yml@f989c2d0742cdab6cdef8437685d128b28904abc
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      pull-requests: read
+    with:
+      languages: '["python", "javascript-typescript", "actions"]'
+      dependency-severity: high
+
+  browser-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
       - name: Set up Node.js for example checks
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           package-manager-cache: false
-      - name: Build, package, and verify
-        run: make check
+      - name: Build browser test artifact
+        run: |
+          make runtime
+          make site
+      - name: Install and audit accessibility test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
+      - name: Install browser and local integration test dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m playwright install --with-deps chromium
+      - name: Verify browser interactions and local FastAPI pilot
+        run: |
+          python tests/check_browser.py
+          python tests/check_learning_browser.py
+          python tests/check_accessibility.py
+          python tests/check_scale_browser.py
+          python labs/request_lifecycle.py
+          python scripts/test_postgres_pilot.py
+      - name: Build and verify the Pages subpath artifact
+        env:
+          PAGES_BASE_PATH: /ai-fullstack-roadmap/
+        run: |
+          make site
+          python tests/check_browser.py --base-path /ai-fullstack-roadmap/
+          python tests/check_learning_browser.py --base-path /ai-fullstack-roadmap/
+          python tests/check_scale_browser.py --base-path /ai-fullstack-roadmap/
       - name: Upload public Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: _site
+          retention-days: 7
+
+  model-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Verify NumPy and CPU autograd bridge
+        run: |
+          python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements-models.txt
+          python -m labs.numpy_torch_bridge
+
+  gate:
+    name: Quality gate
+    if: always()
+    needs: [quality, browser-check, model-check, workflow-lint, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all selected checks to succeed
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['CHECK_RESULTS'])
+          failures = {name: value['result'] for name, value in results.items() if value['result'] != 'success'}
+          if failures:
+              raise SystemExit(f'Required checks did not succeed: {failures}')
+          print('All required checks passed')
+          PY
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: check
+    needs: gate
     permissions:
       contents: read
       pages: write
@@ -49,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Deploy verified artifact
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

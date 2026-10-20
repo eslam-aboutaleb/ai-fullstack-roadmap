@@ -28,13 +28,95 @@
     "explain": "An oracle defines what counts as success or failure independently of persuasive output. It may be a known database state, a permitted set of source spans, a required review transition, or a business invariant. Use deterministic oracles where possible and reviewed judgments where meaning cannot be reduced to exact matching.",
     "example": "The expected outcome is one request with the corrected item ID and no request with the superseded ID. Inspect the effect ledger rather than asking the model whether it completed the task.",
     "takeaway": "Evaluate real state and constraints separately from the agent's self-report.",
+    "estimated_time_minutes": 14,
+    "prerequisites": [
+      "Understand the difference between an answer and a side effect",
+      "Have read an agent evaluation question"
+    ],
+    "version": "1.0.0",
+    "references": [
+      "https://www.microsoft.com/en-us/research/blog/rag-evaluation/",
+      "https://langchain-ai.github.io/langgraph/tutorials/introduction/"
+    ],
+    "outcomes": [
+      "Define a deterministic oracle for an agent task",
+      "Distinguish task success from fluent final text",
+      "Use reviewed judgment only where exact matching cannot express meaning"
+    ],
+    "conceptual_narrative": "An oracle is an independent specification of correct behavior that does not depend on the agent under test. It specifies what should be true in the world after the task runs: which database rows exist, which source spans were cited, whether a review transition occurred. Task success means the intended authorized outcome occurred, not just that the final message reads fluently. Deterministic oracles compare actual state against expected state. Reviewed judgments handle open-ended quality where exact matching cannot express meaning, but they are slower, costlier, and less reproducible.",
+    "glossary_terms": [
+      {
+        "term": "Oracle",
+        "definition": "An independent specification of correct behavior used to evaluate an agent's output without relying on the agent's own claims."
+      },
+      {
+        "term": "Effect ledger",
+        "definition": "A complete record of every tool call, its arguments, its result, and every durable write made during an agent trajectory."
+      },
+      {
+        "term": "Task success",
+        "definition": "The intended authorized outcome occurred in the system, verified by checking actual state rather than the agent's self-report."
+      }
+    ],
+    "worked_examples": [
+      {
+        "title": "Oracle for request-preparation task",
+        "code": "\"\"\"Deterministic fixture oracle; a real system needs a trusted complete ledger.\"\"\"\n\n\ndef oracle(corrected_id, superseded_id, rows, events):\n    ids = [row['id'] for row in rows]\n    writes = [index for index, event in enumerate(events) if event['kind'] == 'write']\n    checks = {\n        'one corrected request': ids == [corrected_id],\n        'no superseded request': superseded_id not in ids,\n        'one write': len(writes) == 1,\n        'authorized trajectory': bool(events) and all(event.get('authorized') is True for event in events),\n    }\n    before_write = events[:writes[0]] if writes else []\n    checks['eligibility before write'] = any(event['kind'] == 'eligibility' and event.get('passed') is True for event in before_write)\n    checks['approval before write'] = any(event['kind'] == 'approval' and event.get('passed') is True for event in before_write)\n    return all(checks.values()), checks\n\n\nif __name__ == '__main__':\n    rows = [{'id': 'corrected'}]\n    events = [{'kind': kind, 'authorized': True, 'passed': True} for kind in ('eligibility', 'approval', 'write')]\n    assert oracle('corrected', 'old', rows, events)[0]\n    assert not oracle('corrected', 'old', rows, events[1:])[0]\n    assert not oracle('corrected', 'old', rows, list(reversed(events)))[0]\n    assert not oracle('corrected', 'old', rows * 2, events)[0]\n    assert not oracle('corrected', 'old', rows, events + [{'kind': 'read', 'authorized': False}])[0]\n    print('Oracle accepts valid state and rejects missing approval, wrong order, duplicates, and unauthorized reads.')\n",
+        "explanation": "The oracle checks exact final rows, the number of writes, authorization of every recorded event, and eligibility and approval before the write. Negative fixtures prove that missing approval and unauthorized reads cannot pass."
+      }
+    ],
+    "syntax_highlighted_source": "\"\"\"Deterministic fixture oracle; a real system needs a trusted complete ledger.\"\"\"\n\n\ndef oracle(corrected_id, superseded_id, rows, events):\n    ids = [row['id'] for row in rows]\n    writes = [index for index, event in enumerate(events) if event['kind'] == 'write']\n    checks = {\n        'one corrected request': ids == [corrected_id],\n        'no superseded request': superseded_id not in ids,\n        'one write': len(writes) == 1,\n        'authorized trajectory': bool(events) and all(event.get('authorized') is True for event in events),\n    }\n    before_write = events[:writes[0]] if writes else []\n    checks['eligibility before write'] = any(event['kind'] == 'eligibility' and event.get('passed') is True for event in before_write)\n    checks['approval before write'] = any(event['kind'] == 'approval' and event.get('passed') is True for event in before_write)\n    return all(checks.values()), checks\n\n\nif __name__ == '__main__':\n    rows = [{'id': 'corrected'}]\n    events = [{'kind': kind, 'authorized': True, 'passed': True} for kind in ('eligibility', 'approval', 'write')]\n    assert oracle('corrected', 'old', rows, events)[0]\n    assert not oracle('corrected', 'old', rows, events[1:])[0]\n    assert not oracle('corrected', 'old', rows, list(reversed(events)))[0]\n    assert not oracle('corrected', 'old', rows * 2, events)[0]\n    assert not oracle('corrected', 'old', rows, events + [{'kind': 'read', 'authorized': False}])[0]\n    print('Oracle accepts valid state and rejects missing approval, wrong order, duplicates, and unauthorized reads.')\n",
+    "expected_output": "Oracle accepts valid state and rejects missing approval, wrong order, duplicates, and unauthorized reads.",
+    "visualizations": [
+      {
+        "alt": "Effect ledger vs answer text",
+        "description": "Evaluation checks the full trajectory (tool calls, arguments, results, durable writes) not just the final answer text.",
+        "svg": "<svg width=\"400\" height=\"160\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"20\" y=\"40\" width=\"180\" height=\"100\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"110\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Agent answer text</text><rect x=\"220\" y=\"40\" width=\"160\" height=\"100\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"300\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Effect ledger</text><line x1=\"200\" y1=\"90\" x2=\"220\" y2=\"90\" stroke=\"var(--muted)\" stroke-width=\"2\" marker-end=\"url(#arrow2)\"/><text x=\"260\" y=\"20\" fill=\"var(--accent)\" font-size=\"12\">Oracle checks state, not words</text><defs><marker id=\"arrow2\" markerWidth=\"8\" markerHeight=\"8\" refX=\"7\" refY=\"4\" orient=\"auto\"><polygon points=\"0 0, 8 4, 0 8\" fill=\"var(--muted)\"/></marker></defs></svg>"
+      }
+    ],
+    "assumed_knowledge": "You have read an agent evaluation question and understand the difference between an answer and a side effect.",
+    "motivating_problem": "An agent produces a fluent, confident answer but actually read another customer's record and wrote an unauthorized update. Answer-level evaluation would mark it correct.",
+    "underlying_mechanics": "Capture the effect ledger: every tool call, its arguments, its result, and every durable write. Compare the final database state against an expected state. For open-ended quality, use a calibrated human or model judge with a rubric, clearly separated from the agent under test.",
+    "line_by_line": [
+      "Run the agent task against synthetic fixtures.",
+      "Record every tool call, argument, result, and durable write.",
+      "Compare final database state to the expected state.",
+      "Assert required invariants: eligibility verified, review before write, no duplicate effects.",
+      "For open-ended quality, present the trace to a reviewer with a rubric."
+    ],
+    "edge_cases": [
+      "The agent chooses a valid but different sequence of tools.",
+      "The final answer is fluent but the trace contains an unauthorized read.",
+      "A tool succeeds but produces no business effect."
+    ],
+    "tradeoffs": "Exact matching is deterministic but brittle across valid variations. Reviewed judgments capture meaning but are slower, costlier, and less reproducible.",
+    "security_implications": "An oracle that only checks the final text misses unauthorized reads and writes. Evaluate the entire trajectory, not just the answer.",
+    "performance_implications": "Running agents repeatedly for evaluation consumes model budget and time. Use synthetic fixtures and deterministic oracles where possible.",
+    "debugging": "If the answer is correct but a test fails, inspect the effect ledger for unauthorized or duplicate writes. Fix the boundary, not just the prompt.",
+    "practice": "Define an oracle for a request-preparation task: exactly one request with the corrected ID, no superseded request, eligibility checked before write, and review approval recorded.",
+    "recap": "Task success is real authorized state, not fluent text. Use deterministic oracles and effect ledgers; reserve reviewed judgment for what exact matching cannot express.",
+    "mastery_checks": [
+      "Explain why answer-level evaluation misses unauthorized side effects.",
+      "Describe what belongs in an effect ledger.",
+      "Distinguish task success from a fluent final answer."
+    ],
+    "local_lab": "labs/effect_oracle.py",
+    "independent_tasks": [
+      "Define an oracle for a different agent task (e.g., document summarization) with exact and soft constraints.",
+      "Create an adversarial case where the agent produces fluent text but performs an unauthorized write.",
+      "Measure evaluation time for deterministic vs. reviewed-judgment approaches."
+    ],
+    "review_and_answer_keys": {
+      "reviewer": "automated regression checks; independent SME review pending",
+      "reviewed_at": "2026-10-20",
+      "known_limitations": "Trusted synthetic complete ledger only. The oracle does not prove that an untrusted runtime logged all its effects."
+    },
     "added": true
   },
   {
     "Q": "How do I test flexible paths without accepting unsafe behavior?",
     "explain": "Specify required conditions and partial ordering instead of one exact trace when several routes are valid. Keep hard constraints for resource scope, review before write, and duplicate effects. Add adversarial transitions such as corrections, expired sessions, tool failures, and reconnects. Score task success only after examining the entire interaction.",
     "example": "Two agents may retrieve documents in different orders, but both must verify eligibility before the write and apply the current user correction. Either valid read order can pass the same invariant test.",
-    "takeaway": "Allow useful flexibility while keeping necessary boundaries exact.",
-    "added": true
+    "takeaway": "Allow useful flexibility while keeping necessary boundaries exact."
   }
 ]

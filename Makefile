@@ -1,7 +1,13 @@
-PYTHON ?= python3
+PYTHON ?= $(shell command -v python3.11 2>/dev/null || command -v python3)
 PORT ?= 8765
+.DEFAULT_GOAL := help
 
-.PHONY: help build package site check serve clean
+.PHONY: help build package site check serve clean runtime ci-install ci-quality
+
+# Contract consumed by the SHA-pinned shared project-check workflow.
+ci-install: runtime
+
+ci-quality: check
 
 help:
 	@echo "make site   - build and package the public site"
@@ -9,6 +15,9 @@ help:
 	@echo "make serve  - rebuild and preview at http://127.0.0.1:$(PORT)"
 	@echo "make clean  - remove generated output only"
 	@echo "Override PYTHON=python3.11 or PORT=8767 when needed."
+
+runtime:
+	$(PYTHON) -B scripts/vendor_pyodide.py
 
 build:
 	$(PYTHON) -B scripts/build.py

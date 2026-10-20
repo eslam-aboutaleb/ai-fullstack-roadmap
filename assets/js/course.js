@@ -64,7 +64,10 @@
   }
   function revealTarget() {
     const target = document.getElementById(location.hash.slice(1));
-    if (!target || new URLSearchParams(location.search).get('mode') === 'practice') return;
+    if (!target) return;
+    const moved = target.querySelector('[data-topic-redirect]');
+    if (moved) { const destination = new URL(moved.href); destination.search = location.search; location.replace(destination.href); return; }
+    if (new URLSearchParams(location.search).get('mode') === 'practice') return;
     target.querySelectorAll('details.answer').forEach(element => { element.open = true; });
   }
   window.addEventListener('hashchange', revealTarget); revealTarget();

@@ -5,7 +5,64 @@
     "Why": "A sync coordinator composes source scans, manifests, fencing state, embeddings, vector storage, optional reconciliation jobs, and garbage collection. It prepares generations before committing visibility through manifests.",
     "Risk": "The coordinator's logic depends on durable adapters implementing atomic fencing and batch compare-and-swap. The provided in-memory implementations demonstrate semantics within a process, not a production multi-process coordination service.",
     "Trade": "The richer protocol improves recoverability while adding state and adapter obligations. Small single-process applications may reasonably use the simpler pipeline.",
-    "Try": "Compare the state required to replace one file with the state required to sync a million-object collection across two workers and intermittent source failures."
+    "Try": "Compare the state required to replace one file with the state required to sync a million-object collection across two workers and intermittent source failures.",
+    "spoken": "Use leases to prevent multiple workers from processing the same task. Use fencing tokens to reject stale writers. Use an outbox pattern to reliably publish events after database commits. Use SKIP LOCKED to let workers claim available rows without blocking each other.",
+    "domain": "backend",
+    "subdomain": "coordination",
+    "module": "coordination",
+    "concept": "distributed coordination patterns",
+    "difficulty": "implementation",
+    "misconception_target": "A database lock coordinates across all services",
+    "definitions": [
+      {
+        "term": "Lease",
+        "definition": "Time-limited exclusive right to process a resource"
+      },
+      {
+        "term": "Fencing token",
+        "definition": "Monotonically increasing token that rejects stale writers"
+      },
+      {
+        "term": "Outbox",
+        "definition": "Table that stores events to publish after database commit"
+      },
+      {
+        "term": "SKIP LOCKED",
+        "definition": "SQL clause that skips rows locked by other transactions"
+      }
+    ],
+    "execution_timeline": "Worker claims row with SKIP LOCKED → Acquires lease → Processes task → Writes outbox events → Commits → Releases lease",
+    "example": {
+      "code": "SELECT * FROM tasks WHERE status = 'pending' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED;",
+      "explanation": "Claim an available task row without waiting for locks held by other workers.",
+      "output": "One task row claimed by this worker"
+    },
+    "production_case": "A background job system where multiple workers process tasks from a shared queue.",
+    "alternatives": [
+      "Distributed lock service (Redis, etcd)",
+      "Message queue with competing consumers"
+    ],
+    "pitfalls": [
+      "Lease expiry during long tasks",
+      "Fencing token not checked on write",
+      "Outbox events not published atomically"
+    ],
+    "complexity": "O(1) per task claim with proper indexes",
+    "follow_ups": [
+      {
+        "Q": "What happens if a lease expires mid-task?",
+        "A": "Another worker may claim the task; fencing tokens prevent stale writes from corrupting state."
+      }
+    ],
+    "citations": [
+      "https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "What are leases and fencing tokens, and why are both needed?",

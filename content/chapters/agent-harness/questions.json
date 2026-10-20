@@ -5,7 +5,58 @@
     "Why": "Make the run lifecycle explicit and give each task a durable ID. Keep authoritative writes in application services reachable only through validated dispatch.",
     "Risk": "A powerful model in an unconstrained harness can amplify errors through its tools.",
     "Trade": "Strong runtime controls take engineering effort and improve predictability.",
-    "Try": "Draw the harness around a model and identify every external effect it can initiate."
+    "Try": "Draw the harness around a model and identify every external effect it can initiate.",
+    "spoken": "A harness runs the agent loop: it calls the model, executes proposed tools, feeds results back, and repeats until a stop condition. Stop conditions include max steps, final answer detected, or tool error. Human approval gates can pause execution before side-effecting tools run.",
+    "domain": "agents",
+    "subdomain": "harness",
+    "difficulty": "foundations",
+    "misconception_target": "The model decides when to stop by itself",
+    "definitions": [
+      {
+        "term": "Harness",
+        "definition": "The loop that drives an agent: model call, tool execution, result feedback"
+      },
+      {
+        "term": "Stop condition",
+        "definition": "Rule that ends the agent loop, such as max steps or final answer"
+      },
+      {
+        "term": "Human approval",
+        "definition": "Gate that pauses execution before side-effecting actions"
+      }
+    ],
+    "execution_timeline": "Model proposes action -> Harness validates -> Approval gate if needed -> Tool executes -> Result fed back -> Repeat until stop",
+    "example": {
+      "code": "while step < max_steps:\n    action = model.propose(state)\n    if action.is_final: break\n    result = tool.execute(action)\n    state = update(state, result)",
+      "explanation": "Loop until final answer or max steps exceeded.",
+      "output": "Final answer or stop reason"
+    },
+    "production_case": "A support agent with a 5-step max and human approval before sending emails.",
+    "alternatives": [
+      "Fixed pipeline (no agent loop)",
+      "Unbounded agent loop (risk of runaway)"
+    ],
+    "pitfalls": [
+      "Max steps too low for complex tasks",
+      "No approval gate for destructive tools",
+      "Infinite loops"
+    ],
+    "complexity": "O(max_steps) model invocations",
+    "follow_ups": [
+      {
+        "Q": "How do you bound agent memory?",
+        "A": "Summarize old turns, use sliding windows, or compress context between steps."
+      }
+    ],
+    "citations": [
+      "https://python.langchain.com/docs/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How should stop conditions be designed?",
@@ -13,7 +64,60 @@
     "Why": "Check limits before each model and tool operation. Detect repeated equivalent calls and preserve a final reason code.",
     "Risk": "Natural-language declarations of done can precede actual persistence.",
     "Trade": "Conservative stopping reduces runaway work and may interrupt recoverable tasks.",
-    "Try": "Trigger each terminal state in a synthetic run and inspect its user-facing explanation."
+    "Try": "Trigger each terminal state in a synthetic run and inspect its user-facing explanation.",
+    "spoken": "A harness runs the agent loop by calling the model, executing proposed tools, feeding results back, and repeating until a stop condition. Stop conditions include max steps, a final answer, or a tool error. Human approval gates can pause execution before side-effecting tools run.",
+    "domain": "agents",
+    "subdomain": "harness",
+    "module": "agent-harness",
+    "concept": "agent harness loop and stop conditions",
+    "difficulty": "foundations",
+    "misconception_target": "The model decides when to stop by itself",
+    "definitions": [
+      {
+        "term": "Harness",
+        "definition": "The loop that drives an agent: model call, tool execution, result feedback"
+      },
+      {
+        "term": "Stop condition",
+        "definition": "Rule that ends the agent loop, such as max steps or final answer"
+      },
+      {
+        "term": "Human approval",
+        "definition": "Gate that pauses execution before side-effecting actions"
+      }
+    ],
+    "execution_timeline": "Model proposes action -> Harness validates -> Approval gate if needed -> Tool executes -> Result fed back -> Repeat until stop",
+    "example": {
+      "code": "while step < max_steps:\n    action = model.propose(state)\n    if action.is_final: break\n    result = tool.execute(action)\n    state = update(state, result)",
+      "explanation": "Loop until final answer or max steps exceeded.",
+      "output": "Final answer or stop reason"
+    },
+    "production_case": "A support agent with a 5-step max and human approval before sending emails.",
+    "alternatives": [
+      "Fixed pipeline (no agent loop)",
+      "Unbounded agent loop (risk of runaway)"
+    ],
+    "pitfalls": [
+      "Max steps too low for complex tasks",
+      "No approval gate for destructive tools",
+      "Infinite loops"
+    ],
+    "complexity": "O(max_steps) model invocations",
+    "follow_ups": [
+      {
+        "Q": "How do you bound agent memory?",
+        "A": "Summarize old turns, use sliding windows, or compress context between steps."
+      }
+    ],
+    "citations": [
+      "https://python.langchain.com/docs/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How should tool dispatch enforce policy?",

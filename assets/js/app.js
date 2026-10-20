@@ -1,54 +1,57 @@
 /* Browser-only interactions; core content remains readable without JavaScript. */
-(() => {
+(async () => {
   'use strict';
-  const KEY = 'ai-fullstack-roadmap-v1';
+  const SITE_ROOT = new URL('./', document.currentScript.src);
+  const TOPIC_COUNT = Number(document.body.dataset.topicCount) || 0;
   const QUESTION_COUNT = Number(document.body.dataset.questionCount) || 0;
   const THEMES = ['light', 'warm', 'dark'];
-  let state = { learned: {}, bookmarks: {}, notes: {}, theme: 'light' };
-  let storageOK = true;
-
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('ragnor-learning-v1') || 'null');
-    if (saved && typeof saved === 'object') state = validate(saved);
-  } catch { storageOK = false; }
-
-  function validate(input) {
-    const out = {
-      learned: {},
-      bookmarks: {},
-      notes: {},
-      theme: THEMES.includes(input.theme) ? input.theme : 'light'
-    };
-    for (let id = 1; id <= QUESTION_COUNT; id++) {
-      if (input.learned?.[id] === true) out.learned[id] = true;
-      if (input.bookmarks?.[id] === true) out.bookmarks[id] = true;
-      if (typeof input.notes?.[id] === 'string') out.notes[id] = input.notes[id].slice(0, 20000);
-    }
-    return out;
-  }
-
+  const store = window.GuideStudy.store;
+  await store.ready;
+  let state = store.snapshot;
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); }
-    catch { storageOK = false; }
-    updateProgress();
+    const previous = store.snapshot;
+    const changes = [];
+    for (const field of ['learned', 'bookmarks', 'notes', 'reviews', 'confidence']) {
+      for (const [id, value] of Object.entries(state[field])) {
+        if (JSON.stringify(previous[field][id]) !== JSON.stringify(value)) changes.push([field, id, value]);
+      }
+    }
+    for (const field of ['theme', 'distractionFree']) if (previous[field] !== state[field]) changes.push([field, 'global', state[field]]);
+    return Promise.all(changes.map(args => store.set(...args)));
   }
 
+  function scheduleReview(id) {
+    const now = Date.now();
+    const r = state.reviews[id] || { interval: 0, reps: 0, nextReview: 0 };
+    state.reviews[id] = window.GuideStudyModel.schedule(r, true, now);
+  }
+
+  function dueForReview() {
+    const now = Date.now();
+    return Object.entries(state.reviews).filter(([id, r]) => r.nextReview <= now).map(([id]) => Number(id));
+  }
 
   function updateProgress() {
-    const total = Object.values(state.learned).filter(Boolean).length;
+    const topics = new Set([...Object.keys(state.learned), ...state.attempts.map(attempt => String(attempt.topic))]);
+    const stages = [...topics].filter(id => !QUESTION_COUNT || Number(id) <= QUESTION_COUNT).map(id => window.GuideStudyModel.mastery(state,id).stage);
+    const total = stages.filter(stage => stage !== 'Not started').length;
     const bar = document.querySelector('#progress');
-    if (bar) bar.value = total;
+    if (bar) { bar.max = TOPIC_COUNT || QUESTION_COUNT; bar.value = total; }
     const label = document.querySelector('#progress-label');
-    if (label) label.textContent = `${total} / ${QUESTION_COUNT} topics understood`;
+    if (label) label.textContent = `${total} / ${TOPIC_COUNT || QUESTION_COUNT} topics started · ${stages.filter(stage => stage === 'Mastered').length} estimated mastered`;
+    const due = dueForReview().length;
+    const dueLabel = document.querySelector('#review-label');
+    if (dueLabel) dueLabel.textContent = due ? `${due} due for review` : 'Nothing due for review';
 
 
     const storage = document.querySelector('#storage-status');
-    if (storage && !storageOK) storage.textContent = 'Browser storage is unavailable. Changes last for this page session; export a backup.';
+    if (storage) storage.textContent = store.status.warning || `Study record saved in ${store.status.backend}. No account or server sync; export to move devices.`;
   }
 
   function syncControls() {
-    document.documentElement.dataset.theme = state.theme;
-    const themeBtn = document.querySelector('#theme');
+  document.documentElement.dataset.theme = state.theme;
+  document.body.classList.toggle('distraction-free', state.distractionFree);
+  const themeBtn = document.querySelector('#theme');
     if (themeBtn) {
       const labels = { light: 'Theme: Light ☀️', warm: 'Theme: Warm ☕', dark: 'Theme: Dark 🌙' };
       themeBtn.textContent = labels[state.theme] || 'Change theme';
@@ -61,10 +64,20 @@
       el.setAttribute('aria-pressed', String(on));
       el.textContent = on ? 'Bookmarked' : 'Bookmark';
     });
-    document.querySelectorAll('[data-note]').forEach(el => { el.value = state.notes[el.dataset.note] || ''; });
+    document.querySelectorAll('[data-note]').forEach(el => { if (document.activeElement !== el || state.notes[el.dataset.note] === undefined) el.value = state.notes[el.dataset.note] || ''; });
+    document.querySelectorAll('[data-rating]').forEach(el => {
+      const id = Number(el.closest('[data-question]').dataset.question);
+      const selected = Number(el.dataset.rating) === (state.confidence[id] || 0);
+      el.classList.toggle('active', selected); el.setAttribute('aria-pressed', String(selected));
+    });
+    document.querySelectorAll('[data-mastery]').forEach(el => {
+      const evidence = window.GuideStudyModel.mastery(state, el.dataset.mastery);
+      el.textContent = `${evidence.stage} · ${evidence.passes} passed / ${evidence.attempts} attempts`;
+    });
     updateProgress();
   }
 
+  store.addEventListener('change', () => { state = store.snapshot; syncControls(); });
   syncControls();
 
   document.querySelector('#theme')?.addEventListener('click', () => {
@@ -76,8 +89,23 @@
   });
 
   document.querySelectorAll('[data-learned]').forEach(el => el.addEventListener('change', () => {
-    state.learned[el.dataset.learned] = el.checked; save();
+    const id = el.dataset.learned;
+    state.learned[id] = el.checked;
+    if (el.checked) scheduleReview(id);
+    save();
   }));
+  document.querySelectorAll('[data-review]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.review;
+    if (window.GuideStudyModel.mastery(state,id).stage === 'Not started') { el.textContent = 'Try a self-check or assessment first'; return; }
+    scheduleReview(id);
+    save();
+    el.textContent = 'Review scheduled';
+  }));
+  document.querySelector('#reset-progress')?.addEventListener('click', async () => {
+    if (!window.confirm('Clear this browser’s notes, bookmarks, confidence, and review history? Export a backup first.')) return;
+    await store.clear();
+    state = store.snapshot; syncControls(); search();
+  });
   document.querySelectorAll('[data-bookmark]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.bookmark;
     state.bookmarks[id] = !state.bookmarks[id]; save(); syncControls();
@@ -86,8 +114,11 @@
     state.notes[el.dataset.note] = el.value.slice(0, 20000); save();
   }));
 
+  const originalCode = new WeakMap();
+  document.querySelectorAll('pre code').forEach(block => originalCode.set(block, block.textContent));
   document.querySelectorAll('.copy').forEach(el => el.addEventListener('click', async () => {
-    const text = el.parentElement.querySelector('code').textContent;
+    const block = el.parentElement.querySelector('code');
+    const text = originalCode.get(block) ?? block.textContent;
     try { await navigator.clipboard.writeText(text); el.textContent = 'Copied'; }
     catch {
       const range = document.createRange(); range.selectNodeContents(el.parentElement.querySelector('code'));
@@ -108,59 +139,33 @@
   document.querySelector('#practice')?.addEventListener('click', () => practice(!practicing));
   document.querySelector('#expand')?.addEventListener('click', () => practice(false));
 
-  /* Syntax Highlighting */
-  function highlightCode() {
-    const kwRegex = /\b(def|class|return|if|elif|else|for|while|try|except|finally|with|as|import|from|in|is|not|and|or|lambda|yield|raise|assert|async|await|pass|break|continue|None|True|False|SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|LEFT|INNER|GROUP|BY|ORDER|LIMIT|HAVING|CREATE|TABLE|ALTER|DROP|PRIMARY|KEY|FOREIGN|REFERENCES|function|const|let|var)\b/g;
-    const builtinRegex = /\b(int|str|float|bool|list|dict|set|tuple|print|len|range|enumerate|zip|map|filter|sorted|isinstance|type|super|self|cls|open|VARCHAR|INTEGER|TEXT|TIMESTAMP|BOOLEAN|BIGINT|UUID)\b/g;
-
-    function esc(s) {
-      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    document.querySelectorAll('pre code').forEach(block => {
-      if (block.id === 'rag-packet' || block.dataset.highlighted) return;
-      block.dataset.highlighted = 'true';
-      let raw = block.textContent;
-      const tokens = [];
-      const replacer = (cls, m) => {
-        const id = tokens.length;
-        tokens.push(`<span class="${cls}">${esc(m)}</span>`);
-        return `@@@TOK${id}@@@`;
-      };
-
-      raw = raw.replace(/(#.*$|--.*$|\/\/.*$)/gm, m => replacer('tok-cmt', m));
-      raw = raw.replace(/("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g, m => replacer('tok-str', m));
-      raw = raw.replace(/(@[a-zA-Z_]\w*)/g, m => replacer('tok-deco', m));
-      raw = raw.replace(/\b(\d+(?:\.\d+)?)\b/g, m => replacer('tok-num', m));
-      raw = raw.replace(kwRegex, m => replacer('tok-kw', m));
-      raw = raw.replace(builtinRegex, m => replacer('tok-builtin', m));
-
-      let res = esc(raw);
-      tokens.forEach((t, i) => {
-        res = res.replace(`@@@TOK${i}@@@`, t);
-      });
-      block.innerHTML = res;
-    });
-  }
-  highlightCode();
+  document.querySelectorAll('pre code').forEach(block => {
+    if (block.id !== 'rag-packet' && !block.closest('.example-output')) window.GuideCode.highlight(block);
+  });
 
   /* In-page search (index.html) */
-  const all = window.GUIDE_SEARCH || [];
+  let all = [];
+  let searchGeneration = 0, modalGeneration = 0;
   const query = document.querySelector('#query');
   const chapter = document.querySelector('#chapter-filter');
   const status = document.querySelector('#status-filter');
   const results = document.querySelector('#results');
   let visibleResults = 20;
 
-  function search(reset = true) {
+  async function search(reset = true) {
     if (reset) visibleResults = 20;
     if (!results) return;
+    const generation = ++searchGeneration;
+    try { all = await window.GuideSearch.load(chapter.value); }
+    catch (error) { document.querySelector('#search-count').textContent = error.message; return; }
+    if (generation !== searchGeneration) return;
     const terms = query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
     const filtered = all.filter(q => {
       const text = q.text.toLocaleLowerCase();
       const selected = status.value;
+      const stage = window.GuideStudyModel.mastery(state,q.id).stage.toLocaleLowerCase();
       return (!chapter.value || q.slug === chapter.value) && terms.every(term => text.includes(term)) &&
-        (selected === 'all' || selected === 'learned' && state.learned[q.id] || selected === 'unlearned' && !state.learned[q.id] || selected === 'bookmarked' && state.bookmarks[q.id]);
+        (selected === 'all' || selected === stage || selected === 'learned' && stage !== 'not started' || selected === 'unlearned' && stage === 'not started' || selected === 'bookmarked' && state.bookmarks[q.id] || selected === 'review' && dueForReview().includes(q.id));
     });
     results.replaceChildren();
     document.querySelector('#search-count').textContent = `${filtered.length} matching question${filtered.length === 1 ? '' : 's'}`;
@@ -168,7 +173,7 @@
       const message = document.createElement('p'); message.textContent = 'No questions match these filters. Try fewer words or another chapter.'; results.append(message);
     }
     for (const q of filtered.slice(0, visibleResults)) {
-      const link = document.createElement('a'); link.className = 'result'; link.href = `${q.slug}.html#q${q.id}`;
+      const link = document.createElement('a'); link.className = 'result'; link.href = new URL(q.href || `${q.slug}.html#q${q.id}`, SITE_ROOT).href;
       const title = document.createElement('strong'); title.textContent = q.title;
       const meta = document.createElement('small'); meta.textContent = `${q.type || "Topic"} · ${q.chapter}${state.learned[q.id] ? ' · learned' : ''}${state.bookmarks[q.id] ? ' · bookmarked' : ''}`;
       const excerpt = document.createElement('span'); excerpt.className = 'snippet';
@@ -180,13 +185,14 @@
     if (more) more.hidden = visibleResults >= filtered.length;
   }
   document.querySelector('#more-results')?.addEventListener('click', () => { visibleResults += 20; search(false); });
-  query?.addEventListener('input', search); chapter?.addEventListener('change', search); status?.addEventListener('change', search); search();
+  query?.addEventListener('input', search); chapter?.addEventListener('change', search); status?.addEventListener('change', search);
 
-  document.querySelector('#random')?.addEventListener('click', () => {
+  document.querySelector('#random')?.addEventListener('click', async () => {
+    try { all = await window.GuideSearch.load(); } catch { return; }
     const pending = all.filter(q => !state.learned[q.id]);
     const pool = pending.length ? pending : all;
     const q = pool[Math.floor(Math.random() * pool.length)];
-    if (q) location.href = `${q.slug}.html?mode=practice#q${q.id}`;
+    if (q) location.href = new URL(`${q.slug}.html?mode=practice#q${q.id}`, SITE_ROOT).href;
   });
 
   document.querySelector('#term-search')?.addEventListener('input', event => {
@@ -206,7 +212,7 @@
       <div class="search-modal-box">
         <div class="search-modal-input">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
-          <input type="search" id="modal-query" placeholder="Type to search all 703 topics, tools, failure modes..." autocomplete="off">
+          <input type="search" id="modal-query" aria-label="Search course topics" placeholder="Search topics, tools, and failure modes" autocomplete="off">
           <button type="button" class="search-modal-close" id="modal-close" aria-label="Close modal search">esc</button>
         </div>
         <div class="search-modal-results" id="modal-results"></div>
@@ -225,20 +231,36 @@
   const modalClose = searchModal.querySelector('#modal-close');
   let selectedIndex = -1;
 
+  let searchOpener;
+  const inertBefore = new Map();
   function openSearchModal() {
+    if (searchModal.classList.contains('is-open')) return;
+    searchOpener = document.activeElement;
+    for (const child of document.body.children) {
+      if (child === searchModal || ['SCRIPT', 'STYLE'].includes(child.tagName)) continue;
+      inertBefore.set(child, child.inert);
+      child.inert = true;
+    }
     searchModal.classList.add('is-open');
     modalQuery.value = '';
     selectedIndex = -1;
     runModalSearch();
-    setTimeout(() => modalQuery.focus(), 50);
+    modalQuery.focus();
   }
 
   function closeSearchModal() {
     searchModal.classList.remove('is-open');
+    for (const [child, inert] of inertBefore) child.inert = inert;
+    inertBefore.clear();
+    searchOpener?.focus();
   }
 
-  function runModalSearch() {
-    const searchData = window.GUIDE_SEARCH || [];
+  async function runModalSearch() {
+    const generation = ++modalGeneration;
+    let searchData;
+    try { searchData = await window.GuideSearch.load(); }
+    catch (error) { modalResults.textContent = error.message; return; }
+    if (generation !== modalGeneration) return;
     const val = modalQuery.value.toLocaleLowerCase().trim();
     const terms = val.split(/\s+/).filter(Boolean);
     const filtered = terms.length ? searchData.filter(q => {
@@ -246,6 +268,7 @@
       return terms.every(term => text.includes(term));
     }).slice(0, 15) : searchData.slice(0, 10);
 
+    const focusedResult = modalResults.contains(document.activeElement) ? document.activeElement.href : undefined;
     modalResults.replaceChildren();
     selectedIndex = -1;
 
@@ -254,13 +277,14 @@
       empty.className = 'search-modal-empty';
       empty.textContent = 'No matching topics found.';
       modalResults.appendChild(empty);
+      if (focusedResult) modalQuery.focus();
       return;
     }
 
     filtered.forEach((q, i) => {
       const link = document.createElement('a');
       link.className = 'result';
-      link.href = `${q.slug}.html#q${q.id}`;
+      link.href = new URL(q.href || `${q.slug}.html#q${q.id}`, SITE_ROOT).href;
       link.dataset.index = String(i);
 
       const title = document.createElement('strong');
@@ -273,8 +297,19 @@
       link.addEventListener('click', closeSearchModal);
       modalResults.appendChild(link);
     });
+    if (focusedResult) {
+      const replacement = [...modalResults.querySelectorAll('a')].find(link => link.href === focusedResult);
+      (replacement || modalQuery).focus();
+    }
   }
 
+  searchModal.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const controls = [...searchModal.querySelectorAll('input, button, a[href]')];
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
   modalQuery?.addEventListener('input', runModalSearch);
   modalClose?.addEventListener('click', closeSearchModal);
   searchModal.addEventListener('click', (e) => {
@@ -327,32 +362,49 @@
       openSearchModal();
       return;
     }
-    if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
+    if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.isContentEditable && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
       event.preventDefault();
       openSearchModal();
+      return;
     }
   });
 
-  document.querySelector('#export')?.addEventListener('click', () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, ...state }, null, 2)], { type: 'application/json' }));
+  document.querySelector('#distraction-free')?.addEventListener('click', () => {
+    state.distractionFree = !state.distractionFree;
+    document.body.classList.toggle('distraction-free', state.distractionFree);
+    save(); syncControls();
+  });
+
+  document.querySelectorAll('[data-rating]').forEach(el => el.addEventListener('click', function() {
+    const id = Number(this.closest('[data-question]').dataset.question);
+    const rating = Number(this.dataset.rating);
+    state.confidence[id] = rating;
+    syncControls();
+    save();
+  }));
+
+  document.querySelector('#export')?.addEventListener('click', async () => {
+    await store.flush();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(store.export(), null, 2)], {type:'application/json'}));
     const link = document.createElement('a'); link.href = url; link.download = 'ai-fullstack-study-progress.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
+  document.querySelector('#bank-filter')?.addEventListener('input', event => {
+    const term = event.target.value.toLocaleLowerCase().trim();
+    const items = [...document.querySelectorAll('[data-bank-text]')];
+    for (const item of items) item.hidden = !item.dataset.bankText.includes(term);
+    document.querySelector('#bank-filter-status').textContent = `${items.filter(item => !item.hidden).length} questions on this page`;
+  });
+  window.GuideAppReady = true;
   document.querySelector('#import')?.addEventListener('change', async event => {
     const file = event.target.files[0]; if (!file) return;
     const message = document.querySelector('#storage-status');
     try {
-      if (file.size > 32000000) throw new Error('File is too large.');
-      const data = JSON.parse(await file.text());
-      if (!data || data.version !== 1 || typeof data.learned !== 'object' || typeof data.notes !== 'object') throw new Error('Choose a version 1 handbook progress export.');
-      const incoming = validate(data);
-      state = { theme: incoming.theme, learned: { ...state.learned, ...incoming.learned }, bookmarks: { ...state.bookmarks, ...incoming.bookmarks }, notes: { ...state.notes, ...incoming.notes } };
-      save(); syncControls(); search(); message.textContent = storageOK ? 'Progress imported and merged with this browser.' : 'Imported for this session. Browser storage is unavailable; keep your export.';
-    } catch (err) { message.textContent = `Import failed: ${err.message}`; }
+      if (file.size > 20000000) throw new Error('File is too large (20 MB maximum).');
+      await store.import(JSON.parse(await file.text()));
+      state = store.snapshot; syncControls(); search();
+      message.textContent = store.status.warning || 'Progress imported and merged with this browser.';
+    } catch (error) { message.textContent = `Import failed: ${error.message}`; }
     event.target.value = '';
-  });
-  window.addEventListener('storage', event => {
-    if (event.key !== KEY || !event.newValue) return;
-    try { state = validate(JSON.parse(event.newValue)); syncControls(); search(); } catch { /* Ignore external changes. */ }
   });
 })();

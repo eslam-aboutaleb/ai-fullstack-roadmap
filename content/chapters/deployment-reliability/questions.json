@@ -5,7 +5,58 @@
     "Why": "Move authoritative tasks, sessions, rate accounting, and operation identity into deliberately shared stores where required. Test concurrent replicas instead of extrapolating from one process.",
     "Risk": "Adding replicas can multiply quotas, repeat model calls, and split conversational state. A load balancer does not make local state shared.",
     "Trade": "Shared services improve continuity and introduce network dependencies. One process with honest limitations can be a simpler initial deployment.",
-    "Try": "Test retries routed to another replica, session continuation, worker claiming, and global quota behavior during Redis failure."
+    "Try": "Test retries routed to another replica, session continuation, worker claiming, and global quota behavior during Redis failure.",
+    "spoken": "Health checks let orchestrators know whether an instance can serve traffic. Rollouts gradually shift users to a new version while monitoring error rates. Disaster recovery drills practice restoring from backups and failing over to a secondary region. Each reduces blast radius when something goes wrong.",
+    "domain": "operations",
+    "subdomain": "reliability",
+    "difficulty": "foundations",
+    "misconception_target": "A green deploy means the system is healthy",
+    "definitions": [
+      {
+        "term": "Health check",
+        "definition": "Endpoint that reports whether an instance can serve traffic"
+      },
+      {
+        "term": "Rollout",
+        "definition": "Gradual deployment to users with error-rate monitoring"
+      },
+      {
+        "term": "Disaster recovery drill",
+        "definition": "Practiced procedure for restoring service after failure"
+      }
+    ],
+    "execution_timeline": "Deploy new version -> Health checks pass -> Gradual traffic shift -> Monitor error rates -> Full rollout or rollback",
+    "example": {
+      "code": "if health_check() == unhealthy:\n    remove_from_load_balancer(instance)\n    alert_oncall()",
+      "explanation": "Unhealthy instances are removed from traffic and on-call is alerted.",
+      "output": "Instance drained, alert sent"
+    },
+    "production_case": "A payment service that deploys new versions with canary rollouts and automatic rollback on error spikes.",
+    "alternatives": [
+      "Big bang deployment",
+      "Blue-green deployment"
+    ],
+    "pitfalls": [
+      "Health checks pass but business logic broken",
+      "Rollback too slow during incident",
+      "No disaster recovery practice"
+    ],
+    "complexity": "Health check is O(1); rollout is O(users shifted)",
+    "follow_ups": [
+      {
+        "Q": "What should a health check verify?",
+        "A": "That the instance can reach its dependencies and serve representative requests."
+      }
+    ],
+    "citations": [
+      "https://sre.google/sre-book/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Should migrations run on every application startup?",
@@ -13,7 +64,60 @@
     "Why": "Give one deployment step ownership of reviewed migrations and deploy compatible application versions. Define upgrade failure and rollback behavior before enabling multiple startup processes.",
     "Risk": "Concurrent DDL, long locks, and destructive changes can affect all replicas. A schema change can also prevent rollback to the prior image.",
     "Trade": "Self-initializing services reduce manual steps; dedicated migration stages improve sequencing. Either requires tested failure behavior and appropriate database privileges.",
-    "Try": "Design a rolling deployment with one migrator, compatible schema, application rollout, verification, and delayed cleanup."
+    "Try": "Design a rolling deployment with one migrator, compatible schema, application rollout, verification, and delayed cleanup.",
+    "spoken": "Run health checks to verify instances can serve traffic. Use gradual rollouts with error-rate monitoring. Practice disaster recovery drills regularly. Each practice reduces blast radius when something goes wrong in production.",
+    "domain": "operations",
+    "subdomain": "reliability",
+    "module": "deployment-reliability",
+    "concept": "health checks, rollouts, disaster recovery",
+    "difficulty": "implementation",
+    "misconception_target": "A successful deploy means the system is healthy",
+    "definitions": [
+      {
+        "term": "Health check",
+        "definition": "Endpoint that reports whether an instance can serve traffic"
+      },
+      {
+        "term": "Rollout",
+        "definition": "Gradual deployment to users with error-rate monitoring"
+      },
+      {
+        "term": "Disaster recovery drill",
+        "definition": "Practiced procedure for restoring service after failure"
+      }
+    ],
+    "execution_timeline": "Deploy new version -> Health checks pass -> Gradual traffic shift -> Monitor error rates -> Full rollout or rollback",
+    "example": {
+      "code": "if health_check() == unhealthy:\n    remove_from_load_balancer(instance)\n    alert_oncall()",
+      "explanation": "Unhealthy instances are removed from traffic and on-call is alerted.",
+      "output": "Instance drained, alert sent"
+    },
+    "production_case": "A payment service that deploys new versions with canary rollouts and automatic rollback on error spikes.",
+    "alternatives": [
+      "Big bang deployment",
+      "Blue-green deployment"
+    ],
+    "pitfalls": [
+      "Health checks pass but business logic broken",
+      "Rollback too slow during incident",
+      "No disaster recovery practice"
+    ],
+    "complexity": "Health check is O(1); rollout is O(users shifted)",
+    "follow_ups": [
+      {
+        "Q": "What should a health check verify?",
+        "A": "That the instance can reach its dependencies and serve representative requests."
+      }
+    ],
+    "citations": [
+      "https://sre.google/sre-book/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Why does startup ingestion need separate operational treatment?",

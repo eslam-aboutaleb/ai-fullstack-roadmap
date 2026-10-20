@@ -5,7 +5,60 @@
     "Why": "Build around the evidence contract: the API obtains authorized evidence, then a host generator produces an answer, while the UI can open source spans and show status. This keeps source verification useful even without generation.",
     "Risk": "Assuming the library owns users or migrations can leave critical responsibilities unimplemented. A polished chat screen does not compensate for missing tenant isolation or recovery behavior.",
     "Trade": "Explicit host ownership requires more work but fits an existing backend. A monolithic demo can be quicker and should be labeled according to its actual guarantees.",
-    "Try": "Draw your target application with browser, API, workers, identity provider, source system, vector store, snapshot store, and model provider. Mark every trust boundary."
+    "Try": "Draw your target application with browser, API, workers, identity provider, source system, vector store, snapshot store, and model provider. Mark every trust boundary.",
+    "spoken": "Integrate retrieval, agents, and streaming into one application. The frontend streams results as they arrive, the backend coordinates retrieval and agent execution, and each layer has independent error handling. End-to-end tests verify the complete flow.",
+    "domain": "system-design",
+    "subdomain": "fullstack",
+    "module": "fullstack",
+    "concept": "full-stack AI application integration",
+    "difficulty": "implementation",
+    "misconception_target": "Each layer can be developed independently without integration testing",
+    "definitions": [
+      {
+        "term": "End-to-end test",
+        "definition": "Test that verifies the complete user flow from frontend to backend"
+      },
+      {
+        "term": "Independent error handling",
+        "definition": "Each layer handles its own errors without cascading failures"
+      },
+      {
+        "term": "Streaming integration",
+        "definition": "Frontend displays results as backend produces them"
+      }
+    ],
+    "execution_timeline": "User submits -> Frontend sends request -> Backend orchestrates retrieval and agents -> Streams results -> Frontend renders with citations",
+    "example": {
+      "code": "app.post(\"/ask\", async (req, res) => {\\n  const stream = await backend.orchestrate(req.question);\\n  res.setHeader(\"Content-Type\", \"text/event-stream\");\\n  for await (const chunk of stream) res.write(`data: ${chunk}\\\\n\\\\n`);\\n});",
+      "explanation": "Backend orchestrates and streams results to frontend.",
+      "output": "Streamed response with citations"
+    },
+    "production_case": "A complete RAG chat application with frontend, backend, and streaming.",
+    "alternatives": [
+      "Monolithic single-service",
+      "Separate frontend/backend without streaming"
+    ],
+    "pitfalls": [
+      "No end-to-end tests",
+      "Error cascading between layers",
+      "No streaming integration"
+    ],
+    "complexity": "O(steps in orchestration)",
+    "follow_ups": [
+      {
+        "Q": "Why independent error handling per layer?",
+        "A": "Prevents failures in one layer from cascading and crashing the entire application."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How would you design the search and chat API contracts?",

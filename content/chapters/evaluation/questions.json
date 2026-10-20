@@ -5,7 +5,60 @@
     "Why": "An evaluation runner evaluates an injected retrieval function against labeled chunk IDs and records latency and errors. Always inspect denominator and short-result handling in the implementation before comparing scores with another tool.",
     "Risk": "Labels can be incomplete, and chunk IDs can change after reindexing. A correct passage may be marked wrong if labels are tied to obsolete physical chunks.",
     "Trade": "Retrieval metrics are cheap and diagnostic but do not evaluate final answer faithfulness. Use them alongside source-span or document labels and answer-level evaluation.",
-    "Try": "For relevant IDs A and B and ranking C,A,D,B, calculate metrics at K=3. Then compare with the harness's exact conventions."
+    "Try": "For relevant IDs A and B and ranking C,A,D,B, calculate metrics at K=3. Then compare with the harness's exact conventions.",
+    "spoken": "Recall@K measures what fraction of relevant items appear in the top K results. Precision@K measures what fraction of the top K results are relevant. MRR rewards the first relevant result appearing early. Build an evaluation dataset with known relevant items per query, then calculate these metrics offline.",
+    "domain": "ai-rag",
+    "subdomain": "evaluation",
+    "module": "evaluation",
+    "concept": "retrieval metrics Recall@K, Precision@K, MRR",
+    "difficulty": "implementation",
+    "misconception_target": "High Recall@K means high Precision@K",
+    "definitions": [
+      {
+        "term": "Recall@K",
+        "definition": "Fraction of relevant items found in top K results"
+      },
+      {
+        "term": "Precision@K",
+        "definition": "Fraction of top K results that are relevant"
+      },
+      {
+        "term": "MRR",
+        "definition": "Mean Reciprocal Rank: average of 1/rank of first relevant result"
+      }
+    ],
+    "execution_timeline": "Build evaluation dataset → Run retrieval per query → Compare results to relevant set → Calculate Recall@K, Precision@K, MRR",
+    "example": {
+      "code": "def recall_at_k(retrieved, relevant, k):\n    return len(set(retrieved[:k]) & set(relevant)) / len(relevant)\n\ndef precision_at_k(retrieved, relevant, k):\n    return len(set(retrieved[:k]) & set(relevant)) / k",
+      "explanation": "Compute Recall@K and Precision@K for one query.",
+      "output": "Metric values between 0 and 1"
+    },
+    "production_case": "Evaluating a document search system where each query has known relevant documents.",
+    "alternatives": [
+      "nDCG for graded relevance",
+      "MAP for multiple relevant items"
+    ],
+    "pitfalls": [
+      "Using the same data for training and evaluation",
+      "No known relevant items per query",
+      "Ignoring position in ranking"
+    ],
+    "complexity": "O(K) per query for each metric",
+    "follow_ups": [
+      {
+        "Q": "What does MRR reward that Recall@K does not?",
+        "A": "MRR rewards having the first relevant result appear early in the ranking."
+      }
+    ],
+    "citations": [
+      "https://nlp.stanford.edu/IR-book/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How should I create a useful evaluation dataset?",

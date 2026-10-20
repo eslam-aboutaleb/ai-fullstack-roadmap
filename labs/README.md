@@ -2,6 +2,24 @@
 
 These files are educational and use synthetic data. They are not production applications.
 
+## Browser-based JavaScript labs
+
+The following labs run directly in a browser console (paste the contents) or with
+Node.js. No installation, provider keys, or network access are needed.
+
+- `labs/retrieval_ranking.js` — Reciprocal Rank Fusion: combine dense and lexical search results into one ranked list.
+- `labs/agent_state_machine.js` — Controlled agent loop with stop conditions, tool policy, and failure injection.
+- `labs/rate_limiter.js` — Token bucket rate limiter: burst capacity and refill for API/tool calls.
+
+Run a lab with `node labs/<file>.js`, or open the file in a browser and paste its
+contents into the console. Each lab includes embedded assertions and "try it yourself"
+prompts to explore failure modes.
+
+## Python labs (downloadable scripts)
+
+The following labs run locally with Python 3.10+ and the standard library only.
+Save the file and run `python labs/<file>.py`.
+
 ## Source and generated copies
 
 Contributors edit this `labs/` folder. From the repository root, the source
@@ -51,3 +69,66 @@ check those worked examples and reject invalid vector comparisons.
 Change the learning rate, ranking, or owner and predict the result before running.
 SQLite is used only to make the SQL exercise self-contained; use the separate
 PostgreSQL labs for roles, row security, query planning, and concurrency semantics.
+
+## Reviewed pilot labs
+
+- `reservation_race.py`: Python 3.10+, standard library. Two separate SQLite
+  connections contend for one primary key in a temporary database; both outcomes
+  and the committed row count are asserted. This is not a PostgreSQL isolation test.
+- `effect_oracle.py`: Python 3.10+, standard library. Checks authorized fixture
+  events, approval/eligibility before write, and exact final state; includes negative
+  cases. A real integration needs a trusted complete ledger.
+- `request_lifecycle.py`: optional FastAPI/Pydantic and httpx packages, pinned in
+  `requirements-dev.txt`. Run the script for TestClient checks or serve
+  `uvicorn labs.request_lifecycle:app` locally. It demonstrates validation and a
+  synthetic 202 response, without persisting or scheduling jobs.
+
+The JavaScript source files remain downloadable console/Node exercises. The site
+also includes an in-page Worker-backed coding workbench and optional self-hosted
+Pyodide runtime. Source assertions throw on failure and run in ordinary content CI.
+
+## Executable foundational pilots and connected projects
+
+- `async_job_engine.py` (Python 3.11+, standard library): bounded producer/worker
+  flow, job exceptions, timeouts, cancellation propagation and cleanup.
+- `model_training.py` (standard library): 2→4→1 network, independent finite-difference
+  checks for all 17 parameters, fixed training/validation/test splits and measured
+  loss. Its tiny synthetic accuracy is not a real-world model-quality claim.
+- `attention_math.py` (standard library): numerical attention, prefix K/V reuse,
+  byte-token roundtrips and an int8 error-bound fixture.
+- `rag_evaluation.py` (standard library): scoped retrieval, independent relevance
+  labels, abstention and a deliberately broken index that the metrics reject.
+- `durable_agent.py` (standard library): approval before dispatch, independently
+  committed provider fixture, lost acknowledgment and stable effect identity.
+- `transaction_api.py` (optional local PostgreSQL/FastAPI): server-established
+  owners, guarded transactions, concurrent idempotency, payload conflicts and outbox.
+- `fullstack_demo.py`: connects the task API, bounded analysis, scoped retrieval
+  and durable fixture effects with a local form UI. No LLM provider is involved.
+- `numpy_torch_bridge.py` (optional Python 3.14+, requirements-models.txt): batched
+  NumPy arrays, PyTorch gradients compared with the scalar implementation, numerical
+  gradcheck, CPU training and held-out fixture evaluation.
+
+All referenced files and sibling imports are included in the generated
+`examples/local-projects.zip`, with license and dependency instructions.
+
+For the connected app, use an isolated environment and a new disposable PostgreSQL
+database. Install `requirements-labs.txt`. Configure `DATABASE_URL`, two distinct
+random local tokens `DEMO_TOKEN_A`/`DEMO_TOKEN_B` of at least 16 characters, and a
+local `DEMO_LEDGER_PATH`, then run:
+
+```sh
+uvicorn labs.fullstack_demo:app --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000/` and enter the local token. The browser keeps the token
+only in the form, and repeats a question submission with the same operation key
+until the question is edited. Confirmation requires an explicit authorized POST.
+The provider is a SQLite fixture, not a payment processor or external connector.
+
+From a full repository checkout, `python scripts/test_postgres_pilot.py` performs
+the complete disposable-cluster integration test. macOS/Linux need local PostgreSQL
+tools on PATH (the harness also detects common Linux package paths). On Windows,
+add PostgreSQL’s bin directory to PATH and use `py -3.11 scripts/test_postgres_pilot.py`.
+The harness omits Unix sockets on Windows; this platform path has not been executed
+in the current macOS verification environment.
+Run the tensor bridge from a checkout with `python -m labs.numpy_torch_bridge`.

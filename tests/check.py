@@ -2,12 +2,23 @@
 from pathlib import Path
 from html.parser import HTMLParser
 from urllib.parse import urlsplit, unquote
-import ast, json, subprocess, sys
+import ast, json, os, subprocess, sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
 from examples import EXAMPLES
-assert sys.version_info >= (3,10), 'Use Python 3.10+ to exercise examples'
+assert sys.version_info >= (3,11), 'Use Python 3.11+ to exercise examples'
 ROOT=Path(__file__).resolve().parent.parent
 SITE=ROOT/'_site'
+
+# Verify the site is base-path safe under the GitHub Pages repository path.
+env = dict(os.environ, PAGES_BASE_PATH='/ai-fullstack-roadmap/')
+subprocess.run([sys.executable,'-B','scripts/build.py'], cwd=ROOT, check=True, env=env)
+subprocess.run([sys.executable,'-B','scripts/package.py'], cwd=ROOT, check=True, env=env)
+sys.path.insert(0, str(ROOT / 'tests'))
+from check_base_path import check as check_base_path
+check_base_path()
+# Rebuild without a base path for the default local and remaining checks.
+subprocess.run([sys.executable,'-B','scripts/build.py'], cwd=ROOT, check=True, env=dict(os.environ, PAGES_BASE_PATH=''))
+subprocess.run([sys.executable,'-B','scripts/package.py'], cwd=ROOT, check=True)
 class Page(HTMLParser):
     def __init__(self,text):
         super().__init__();self.ids=set();self.refs=[];self.questions=[]
@@ -23,7 +34,7 @@ class Page(HTMLParser):
 pages={p:Page(p.read_text()) for p in SITE.rglob('*.html')}
 links=0;question_ids=[]
 for path,page in pages.items():
-    if path.parent==SITE:question_ids+=page.questions
+    if path.parent==SITE and path.stem in [slug for stage in __import__('course_data').STAGES for slug in stage[3]]:question_ids+=page.questions
     for ref in page.refs:
         parsed=urlsplit(ref)
         if parsed.scheme or parsed.netloc:continue
@@ -42,6 +53,9 @@ assert len(set(manifest['chapter_topics'].values()))>1, 'Chapter depth must not 
 assert sum(len(page.ids & {'walkthrough'}) for path,page in pages.items() if path.parent==SITE)==manifest['chapters']
 for path in SITE.rglob('*'):
     if not path.is_file():continue
+    if path.suffix in {'.wasm', '.zip'}:
+        assert 'runtime' in path.parts or path.name == 'local-projects.zip', ('unexpected binary', path)
+        continue
     text=path.read_text()
     for marker in ('Ragnor','OmniCare','/Users/','insurance-claims-rag-assistant','e57f646','70084f7','eslam-aboutaleb/ragnor'):
         assert marker not in text,(path.name,marker)
@@ -69,4 +83,59 @@ from check_structure import check as check_structure
 check_structure()
 from check_question_examples import check as check_question_examples
 check_question_examples()
-print(json.dumps(dict(pages=len(pages),internal_links=links,questions=len(question_ids),python_examples_syntax_checked=syntax,standard_library_examples_executed=executed,injected_voice_lab='pass',public_source_snapshots=0,print_controls=0),indent=2))
+from check_curriculum import check as check_curriculum
+check_curriculum()
+# Performance budgets: static asset size limits for Pages delivery.
+for asset,limit in (('style.css',50*1024),('app.js',100*1024),('course.js',100*1024),('highlight.js',20*1024)):
+    p=SITE/asset
+    if p.exists():
+        size=p.stat().st_size
+        assert size<=limit,(asset,size,limit)
+print(json.dumps(dict(pages=len(pages),internal_links=links,questions=len(question_ids),python_examples_syntax_checked=syntax,standard_library_examples_executed=executed,injected_voice_lab='pass',public_source_snapshots=0,print_controls=0,curriculum_tracks=7,curriculum_chapters=48,curriculum_dag_acyclic=True,performance_budget='pass'),indent=2))
+from check_quote_fidelity import check as check_quote_fidelity
+check_quote_fidelity()
+from check_editorial_qa import check as check_editorial_qa
+check_editorial_qa()
+
+from check_review_regressions import check as check_review_regressions
+check_review_regressions()
+
+for page_path in SITE.glob('*.html'):
+    text = page_path.read_text()
+    import re
+    assert not re.search(r'<script[^>]+src=["\']https?://', text), page_path
+
+subprocess.run(['node', str(ROOT/'tests/check_study.cjs')], check=True)
+from check_question_bank import check as check_question_bank
+check_question_bank()
+
+for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py'):
+    result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/lab_name)], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, (lab_name, result.stderr)
+print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
+
+expected = json.loads((ROOT/'content/simulations.json').read_text())
+actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
+assert actual == expected, 'Simulation transition fixtures drifted'
+assert actual[1]['normal']['final']['invariant'] is True and actual[1]['failure']['final']['invariant'] is False
+assert actual[3]['failure']['final']['calls'] == 2 and actual[3]['failure']['final']['effects'] == 1
+print('Four deterministic simulation transition fixtures: pass')
+
+assert not any(path.suffix in {'.pyc','.db','.sqlite','.key','.pem'} or path.name.startswith('.env') for path in SITE.rglob('*')), 'Private local runtime files leaked into the artifact'
+import zipfile
+with zipfile.ZipFile(SITE/'examples/local-projects.zip') as archive:
+    assert {'labs/async_job_engine.py','labs/transaction_api.py','labs/fullstack_demo.py','requirements-models.txt','LICENSE'} <= set(archive.namelist())
+    assert not any(name.startswith('/') or '..' in Path(name).parts or '__pycache__' in name for name in archive.namelist())
+from course_pages import load as load_courses
+course_units = [unit for course in load_courses() for unit in course['units']]
+assert len({unit['study_id'] for unit in course_units}) == len(course_units)
+print('Course schemas/DAG/IDs, project ZIP and private-artifact exclusions: pass')
+from editorial import content_digest, validate_review
+review_fixture={'Q':'Attestation fixture','A':'Original answer','reviewer_status':{'status':'reviewed','reviewer':'Fixture reviewer','reviewed_at':'2026-10-20'}}
+proof={'fixture':{'sha256':content_digest(review_fixture),'reviewer':'Fixture reviewer','reviewed_at':'2026-10-20','review_notes':'Synthetic test only'}}
+validate_review(review_fixture,'fixture',proof)
+for candidate, attestations in ((review_fixture,{}),({**review_fixture,'A':'Changed after review'},proof)):
+    try:validate_review(candidate,'fixture',attestations)
+    except ValueError:pass
+    else:raise AssertionError('Missing or stale editorial attestation accepted')
+print('Missing/stale editorial attestation regressions: pass')
