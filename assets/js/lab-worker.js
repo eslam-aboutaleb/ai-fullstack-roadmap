@@ -50,9 +50,14 @@ if not callable(namespace.get('solve')):
       };
     } else {
       reply({ticket, type:'ready'});
+      // Intentional teaching isolation: a disposable Worker runs learner code with no network,
+      // no importScripts, and a redirected console. This is not a hardened sandbox.
       const blocked = () => { throw new Error('Network access is not part of this local lab'); };
       self.fetch = blocked; self.XMLHttpRequest = blocked; self.WebSocket = blocked; self.importScripts = blocked;
       const console = Object.freeze({log:emit, warn:emit, error:emit, info:emit});
+      // codeql:disable:javascript/unsafe-dynamic-code-execution
+      // The learner's source is executed here by design: this Worker exists to run untrusted
+      // teaching-lab JavaScript in an isolated, network-free context.
       solve = new Function('console', '"use strict";\n'+code+'\n;return typeof solve === "function" ? solve : undefined;')(console);
       if (typeof solve !== 'function') throw new Error('Define a solve(data) function');
     }
