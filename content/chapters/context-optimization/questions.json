@@ -5,7 +5,60 @@
     "Why": "Compute remaining input allowance from the model limit and output reservation, then apply per-section caps. Multimodal inputs and hidden protocol overhead may require separate estimates.",
     "Risk": "A character-based guess can exceed the limit or remove important content unpredictably.",
     "Trade": "Large reservations reduce available evidence but improve completion reliability.",
-    "Try": "Calculate budgets for two models with different context windows and output limits."
+    "Try": "Calculate budgets for two models with different context windows and output limits.",
+    "spoken": "Context optimization decides what to keep within the token budget. Truncation drops the least relevant items. Compression summarizes or extracts key sentences. The choice depends on whether exact wording matters (truncation) or meaning matters more (compression).",
+    "domain": "ai-rag",
+    "subdomain": "context-optimization",
+    "module": "context-optimization",
+    "concept": "context budget management",
+    "difficulty": "implementation",
+    "misconception_target": "Truncation and compression are interchangeable",
+    "definitions": [
+      {
+        "term": "Context budget",
+        "definition": "Maximum tokens available for prompt context"
+      },
+      {
+        "term": "Truncation",
+        "definition": "Dropping least relevant items to fit budget"
+      },
+      {
+        "term": "Compression",
+        "definition": "Summarizing content to fit more meaning in budget"
+      }
+    ],
+    "execution_timeline": "Calculate token count → If over budget → Rank items by relevance → Truncate lowest priority → Or compress via summarization → Send to model",
+    "example": {
+      "code": "if token_count(prompt) > budget:\n    evidence = evidence[:budget_items]  # truncate\n    evidence = summarize(evidence, target_tokens=budget)  # compress",
+      "explanation": "Choose truncation or compression based on whether exact wording matters.",
+      "output": "Prompt within token budget"
+    },
+    "production_case": "A long-document QA system where source documents exceed the model context window.",
+    "alternatives": [
+      "Map-reduce over chunks",
+      "Hierarchical context"
+    ],
+    "pitfalls": [
+      "Truncating key evidence",
+      "Compression losing critical details",
+      "No budget monitoring"
+    ],
+    "complexity": "O(n) for token counting and ranking",
+    "follow_ups": [
+      {
+        "Q": "When to use compression over truncation?",
+        "A": "When meaning matters more than exact wording and you need to fit more content."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/2305.14818"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How should evidence be selected under a token budget?",

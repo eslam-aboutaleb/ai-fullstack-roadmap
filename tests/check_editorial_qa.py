@@ -1,0 +1,88 @@
+"""Editorial QA: duplicate and near-duplicate question detection."""
+from pathlib import Path
+import json, sys, re, difflib
+
+ROOT = Path(__file__).resolve().parent.parent
+CONTENT = ROOT / 'content'
+
+def normalize(text):
+    return re.sub(r'\s+', ' ', text.lower().strip())
+
+
+def check():
+    course = json.loads((CONTENT / 'course.json').read_text())
+    STAGES = [tuple(stage) for stage in course['stages']]
+
+    all_questions = []
+    for number, (_, _, _, slugs) in enumerate(STAGES, 1):
+        for slug in slugs:
+            q_path = CONTENT / 'chapters' / slug / 'questions.json'
+            if not q_path.exists():
+                continue
+            questions = json.loads(q_path.read_text())
+            for shard in sorted(q_path.parent.glob('questions-*.json')):
+                questions.extend(json.loads(shard.read_text()))
+            for q in questions:
+                qid = q.get('id', normalize(q['Q'])[:20])
+                all_questions.append((slug, qid, q['Q']))
+
+    # Exact duplicate detection
+    seen = {}
+    exact_dups = []
+    for slug, qid, qtext in all_questions:
+        norm = normalize(qtext)
+        if norm in seen:
+            exact_dups.append((seen[norm], (slug, qid, qtext)))
+        else:
+            seen[norm] = (slug, qid, qtext)
+
+    # Near-duplicate detection (>90% similarity)
+    near_dups = []
+    texts = [(slug, qid, normalize(qtext)) for slug, qid, qtext in all_questions]
+    for i in range(len(texts)):
+        for j in range(i + 1, len(texts)):
+            sim = difflib.SequenceMatcher(None, texts[i][2], texts[j][2]).ratio()
+            if sim > 0.90:
+                near_dups.append((texts[i], texts[j], round(sim, 2)))
+
+    errors = []
+    if exact_dups:
+        errors.append(f'Exact duplicate questions: {len(exact_dups)}')
+        for (s1, q1, t1), (s2, q2, t2) in exact_dups[:5]:
+            errors.append(f'  {s1}#{q1} ~ {s2}#{q2}: {t1[:60]}...')
+    if near_dups:
+        errors.append(f'Near-duplicate questions (>90%): {len(near_dups)}')
+        for (s1, q1, t1), (s2, q2, t2), sim in near_dups[:5]:
+            errors.append(f'  {s1}#{q1} ~ {s2}#{q2} ({sim}): {t1[:60]}...')
+
+    assert not errors, ('Duplicate detection failed', errors[:10])
+
+    # Glossary/prerequisite link verification
+    references = json.loads((CONTENT / 'shared/references.json').read_text())
+    link_errors = []
+    for number, (_, _, _, slugs) in enumerate(STAGES, 1):
+        for slug in slugs:
+            review_path = CONTENT / 'chapters' / slug / 'review.json'
+            if not review_path.exists():
+                continue
+            review = json.loads(review_path.read_text())
+            for key in review.get('links', '').split(','):
+                key = key.strip()
+                if key and key not in references:
+                    link_errors.append(f'{slug}: broken reference link "{key}"')
+
+    assert not link_errors, ('Broken reference links', link_errors[:10])
+
+    print(json.dumps({
+        'issue': 20,
+        'total_questions': len(all_questions),
+        'exact_duplicates': len(exact_dups),
+        'near_duplicates': len(near_dups),
+        'broken_links': len(link_errors),
+        'scope': 'Lexical question similarity and local reference-key integrity; not external URL freshness or semantic fact checking',
+        'editorial_qa': 'pass'
+    }, indent=2))
+
+
+if __name__ == '__main__':
+    check()

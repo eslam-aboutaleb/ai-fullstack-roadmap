@@ -5,7 +5,58 @@
     "Why": "A hybrid retriever coerces legacy calls into this form and validates supported constraints before delegating to a store or strategy. Effective filters and required metadata help preserve scope checks across the execution path.",
     "Risk": "A well-typed request can still contain an unauthorized scope if the host trusts the user's input. Authentication must establish which scope the caller is allowed to request.",
     "Trade": "A richer request object improves composability and inspection but requires a stable public contract and deliberate defaults. A small positional API is easier for toy usage.",
-    "Try": "Construct one request for tenant A with a larger candidate pool and a smaller final result set. Explain every field that affects authorization, ranking, or visibility."
+    "Try": "Construct one request for tenant A with a larger candidate pool and a smaller final result set. Explain every field that affects authorization, ranking, or visibility.",
+    "spoken": "Dense retrieval converts text into vectors and searches by similarity. BM25 uses term frequency and inverse document frequency for keyword matching. Hybrid retrieval combines both, often with Reciprocal Rank Fusion, to get the strengths of semantic and lexical search together.",
+    "domain": "ai-rag",
+    "subdomain": "retrieval",
+    "difficulty": "foundations",
+    "misconception_target": "Dense retrieval always beats keyword search",
+    "definitions": [
+      {
+        "term": "Dense retrieval",
+        "definition": "Vector similarity search over embedded text passages"
+      },
+      {
+        "term": "BM25",
+        "definition": "Keyword ranking based on term frequency and inverse document frequency"
+      },
+      {
+        "term": "Hybrid retrieval",
+        "definition": "Combining dense and lexical search results"
+      }
+    ],
+    "execution_timeline": "Query -> Dense embedder creates vector -> ANN index searches -> BM25 ranks keywords -> RRF fuses results -> Ranked passages returned",
+    "example": {
+      "code": "dense_results = vector_index.search(query_vector, k=10)\nkeyword_results = bm25.search(query, k=10)\nfused = reciprocal_rank_fusion([dense_results, keyword_results])",
+      "explanation": "Run both retrievers, then fuse results using Reciprocal Rank Fusion.",
+      "output": "Combined ranked list of 10 passages"
+    },
+    "production_case": "A document search system that must find both conceptually related and exact keyword matches.",
+    "alternatives": [
+      "Dense-only retrieval",
+      "Lexical-only retrieval"
+    ],
+    "pitfalls": [
+      "Dense misses exact terms",
+      "Keyword misses semantic matches",
+      "RRF parameter tuning"
+    ],
+    "complexity": "ANN search is sublinear; BM25 is O(terms * documents)",
+    "follow_ups": [
+      {
+        "Q": "What is Reciprocal Rank Fusion?",
+        "A": "A formula that combines rankings from multiple retrievers by summing 1/(k + rank) for each document."
+      }
+    ],
+    "citations": [
+      "https://www.pinecone.io/learn/series/rag/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Why separate candidate_k from final_k?",
@@ -13,7 +64,59 @@
     "Why": "The strategy API carries both counts through retrieval and applies final slicing after optional reranking and scope validation. Evidence budgeting is yet another limit and should not be confused with either count.",
     "Risk": "Very large candidate pools increase backend work, reranker cost, and exposure of material to external services. Candidates sent to a reranker must already respect applicable permissions.",
     "Trade": "More candidates can improve recall with diminishing returns. Tune using recall, final ranking quality, and latency rather than assuming larger is always better.",
-    "Try": "Compare candidate pools of 10, 30, and 100 while holding final_k at five. Track whether missing answers were absent from the pool or simply ranked too low."
+    "Try": "Compare candidate pools of 10, 30, and 100 while holding final_k at five. Track whether missing answers were absent from the pool or simply ranked too low.",
+    "spoken": "Reciprocal Rank Fusion combines rankings from multiple retrievers without needing to normalize scores. For each document, sum 1/(k + rank) across all retrievers where k is a constant (usually 60). Documents ranked highly by any retriever get boosted, and consensus across retrievers ranks highest.",
+    "domain": "ai-rag",
+    "subdomain": "retrieval",
+    "module": "retrieval",
+    "concept": "Reciprocal Rank Fusion",
+    "difficulty": "implementation",
+    "misconception_target": "RRF requires normalizing scores from different retrievers",
+    "definitions": [
+      {
+        "term": "Reciprocal Rank Fusion",
+        "definition": "Score fusion method that combines rankings using reciprocal ranks"
+      },
+      {
+        "term": "Rank",
+        "definition": "Position of a document in a result list (1-based)"
+      },
+      {
+        "term": "Fusion",
+        "definition": "Combining results from multiple retrieval systems"
+      }
+    ],
+    "execution_timeline": "Run retriever A → Get ranking → Run retriever B → Get ranking → For each doc, sum 1/(k+rank) → Sort by combined score",
+    "example": {
+      "code": "def rrf(rankings, k=60):\n    scores = {}\n    for ranking in rankings:\n        for i, doc in enumerate(ranking):\n            scores[doc] = scores.get(doc, 0) + 1 / (k + i + 1)\n    return sorted(scores, key=scores.get, reverse=True)",
+      "explanation": "Sum reciprocal ranks across all retrievers for each document.",
+      "output": "Documents sorted by fused score"
+    },
+    "production_case": "A document search that combines dense vector results with BM25 keyword results.",
+    "alternatives": [
+      "Weighted score combination",
+      "Learned ranking models"
+    ],
+    "pitfalls": [
+      "Choosing k too small (over-weights top ranks)",
+      "Ignoring retriever quality differences"
+    ],
+    "complexity": "O(total results across all retrievers)",
+    "follow_ups": [
+      {
+        "Q": "What does k control in RRF?",
+        "A": "How quickly rank influence decays; higher k makes top ranks less dominant."
+      }
+    ],
+    "citations": [
+      "https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How does Reciprocal Rank Fusion work here?",

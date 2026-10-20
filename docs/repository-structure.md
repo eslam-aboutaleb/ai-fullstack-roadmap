@@ -27,6 +27,13 @@
 └── _site/                        # Ignored allowlisted public deployment artifact
 ```
 
+## Static architecture
+
+The site is a **GitHub Pages-only static application** (`docs/architecture.md`). The builder
+honors `PAGES_BASE_PATH` so all internal asset and navigation URLs work both at the local
+preview root and under `/ai-fullstack-roadmap/` on GitHub Pages. The generated artifact
+includes `.nojekyll` to disable Jekyll processing.
+
 ## Data flow
 
 `content/ + assets/ + labs/ + LICENSE` → `scripts/build.py` → `_build/`

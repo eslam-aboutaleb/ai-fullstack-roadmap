@@ -5,7 +5,60 @@
     "Why": "Preserve the original artifact and attach page, region, and extraction provenance to text and fields.",
     "Risk": "Correct characters in the wrong reading order can still yield an incorrect conclusion.",
     "Trade": "Rich structure improves downstream retrieval and costs more processing.",
-    "Try": "Compare plain OCR text with a layout-aware extraction of a two-column document."
+    "Try": "Compare plain OCR text with a layout-aware extraction of a two-column document.",
+    "spoken": "OCR extracts text from scanned documents with page and bounding-box metadata. Validate OCR confidence scores before using extracted fields. Low confidence on key fields (dates, amounts, names) should trigger human review rather than automated processing.",
+    "domain": "ai-rag",
+    "subdomain": "document-ai",
+    "module": "ocr-document-ai",
+    "concept": "OCR extraction with confidence validation",
+    "difficulty": "implementation",
+    "misconception_target": "OCR output is always accurate enough for automation",
+    "definitions": [
+      {
+        "term": "OCR",
+        "definition": "Optical Character Recognition: extracting text from images"
+      },
+      {
+        "term": "Confidence score",
+        "definition": "Model estimate of extraction accuracy per field or word"
+      },
+      {
+        "term": "Bounding box",
+        "definition": "Coordinates locating text within the document image"
+      }
+    ],
+    "execution_timeline": "Scan/document image → OCR engine → Text with bounding boxes → Confidence scoring → Field extraction → Validation or human review",
+    "example": {
+      "code": "result = ocr.process(document)\nfor field in critical_fields:\n    if result.confidence[field] < 0.9:\n        flag_for_review(field, result)",
+      "explanation": "Flag low-confidence fields for human review before automation.",
+      "output": "Extracted fields with review flags"
+    },
+    "production_case": "An invoice processing system that extracts dates, amounts, and vendor names with confidence validation.",
+    "alternatives": [
+      "Manual data entry",
+      "Template-based extraction"
+    ],
+    "pitfalls": [
+      "Trusting low-confidence OCR",
+      "Ignoring bounding box context",
+      "No human review path"
+    ],
+    "complexity": "O(document pages * words per page)",
+    "follow_ups": [
+      {
+        "Q": "What confidence threshold triggers review?",
+        "A": "Depends on field criticality; financial amounts typically need >0.95 confidence."
+      }
+    ],
+    "citations": [
+      "https://tesseract-ocr.github.io/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How should scanned files enter an ingestion pipeline?",

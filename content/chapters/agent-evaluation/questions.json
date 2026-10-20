@@ -6,7 +6,53 @@
     "Risk": "A model judge can reward a statement that a service request was submitted even when no claim exists. Conversely, a safely rejected operation may sound less helpful while being the correct outcome.",
     "Trade": "Multi-layer evaluation needs more fixtures and gives actionable diagnosis. One aggregate answer score is easier to display and weaker as a release gate.",
     "Try": "Create three cases with identical final text but different underlying tool and database histories. Define which pass and why.",
-    "reference": "https://adk.dev/evaluate/"
+    "reference": "https://adk.dev/evaluate/",
+    "spoken": "Check the actual path the agent took, not just its final words. Inspect tool calls, arguments, results, durable writes, ordering, approvals, and duplicate effects. Fluent final text does not erase an unauthorized read performed earlier in the trajectory.",
+    "domain": "agents",
+    "subdomain": "evaluation",
+    "difficulty": "foundations",
+    "misconception_target": "A correct final answer means the agent behaved correctly",
+    "definitions": [
+      {
+        "term": "Trajectory",
+        "definition": "The complete sequence of tool calls, arguments, results, and writes during an agent run"
+      },
+      {
+        "term": "Oracle",
+        "definition": "Independent specification of correct behavior used for evaluation"
+      }
+    ],
+    "execution_timeline": "Agent starts -> Tool calls recorded -> Effect ledger built -> Final state compared -> Invariants checked -> Pass/fail determined",
+    "example": {
+      "code": "effects = [call for call in agent.trace]\nassert len(duplicate_writes(effects)) == 0",
+      "explanation": "Record every tool call and assert no duplicate durable writes.",
+      "output": "Assertion passes if no duplicates"
+    },
+    "production_case": "An agent that prepares support requests must verify eligibility before writing, with one corrected request and no superseded requests.",
+    "alternatives": [
+      "Answer-only evaluation (faster but misses side effects)",
+      "Human review (slower but captures nuance)"
+    ],
+    "pitfalls": [
+      "Final answer is fluent but trace contains unauthorized reads",
+      "Tool succeeds without business effect"
+    ],
+    "complexity": "O(n) where n is number of tool calls in trajectory",
+    "follow_ups": [
+      {
+        "Q": "What is an evaluation oracle for an agent task?",
+        "A": "An independent specification of correct behavior: expected database state, permitted source spans, or required review transitions."
+      }
+    ],
+    "citations": [
+      "https://langchain-ai.github.io/langgraph/tutorials/introduction/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How do reference trajectories and invariant-based trajectories differ?",
@@ -15,7 +61,60 @@
     "Risk": "Exact sequence tests can fail harmless reordering; very loose rubrics can miss a missing critical step. Tool names alone also ignore whether arguments or results were correct.",
     "Trade": "Reference paths are easy to inspect and brittle under valid variation. Invariants need careful definition and better express safety and business requirements.",
     "Try": "Evaluate a mixed coverage/status request with two valid call orders, then reject both if the service request lookup lacks the correct owner context.",
-    "reference": "https://github.com/google/adk-docs/blob/main/docs/evaluate/criteria.md"
+    "reference": "https://github.com/google/adk-docs/blob/main/docs/evaluate/criteria.md",
+    "spoken": "Specify required conditions and partial ordering instead of one exact trace when several routes are valid. Keep hard constraints for resource scope, review before write, and duplicate effects. Add adversarial transitions such as corrections, expired sessions, tool failures, and reconnects. Score task success only after examining the entire interaction.",
+    "domain": "agents",
+    "subdomain": "evaluation",
+    "module": "agent-evaluation",
+    "concept": "flexible path evaluation with hard constraints",
+    "difficulty": "implementation",
+    "misconception_target": "Agent trajectories must match exactly to pass",
+    "definitions": [
+      {
+        "term": "Partial ordering",
+        "definition": "Required sequence constraints that allow valid variations"
+      },
+      {
+        "term": "Hard constraint",
+        "definition": "Rule that must never be violated, such as review before write"
+      },
+      {
+        "term": "Adversarial transition",
+        "definition": "Intentional failure scenario to test agent recovery"
+      }
+    ],
+    "execution_timeline": "Define invariants -> Specify partial order -> Add adversarial cases -> Run agent -> Check invariants after full interaction",
+    "example": {
+      "code": "def evaluate(trajectory):\n    assert eligibility_checked(trajectory)  # hard constraint\n    assert review_before_write(trajectory)  # hard constraint\n    assert no_duplicate_writes(trajectory)  # hard constraint\n    return task_success(trajectory)",
+      "explanation": "Check hard constraints regardless of tool sequence variation.",
+      "output": "Pass/fail with constraint details"
+    },
+    "production_case": "Evaluating a support agent where multiple valid tool sequences exist but eligibility must always be checked before writing.",
+    "alternatives": [
+      "Exact trace matching (too brittle)",
+      "Answer-only evaluation (misses side effects)"
+    ],
+    "pitfalls": [
+      "Requiring exact tool order",
+      "Missing hard constraints",
+      "Not testing failure recovery"
+    ],
+    "complexity": "O(trajectory length) for invariant checks",
+    "follow_ups": [
+      {
+        "Q": "Why use partial ordering instead of exact matching?",
+        "A": "Multiple valid tool sequences can achieve the same goal; exact matching rejects valid variations."
+      }
+    ],
+    "citations": [
+      "https://langchain-ai.github.io/langgraph/tutorials/introduction/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "What do retrieval-only, context, and end-to-end evaluations measure?",

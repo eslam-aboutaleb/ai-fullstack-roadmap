@@ -5,7 +5,60 @@
     "Why": "Define a stable event schema and stream the safe projection of run state. SSE is a transport for events, not a durable task engine.",
     "Risk": "An open connection does not prove that work is persisted or authorized.",
     "Trade": "SSE fits HTTP infrastructure and offers only one-way messaging on that connection.",
-    "Try": "Compare a chat answer stream with a collaborative voice interaction."
+    "Try": "Compare a chat answer stream with a collaborative voice interaction.",
+    "spoken": "SSE provides a one-way streaming connection from server to client. Implement reconnection with Last-Event-ID to resume from where the connection dropped. Handle backpressure by pausing sends when the client buffer is full.",
+    "domain": "frontend",
+    "subdomain": "sse",
+    "module": "sse-streaming",
+    "concept": "SSE reconnection and backpressure",
+    "difficulty": "implementation",
+    "misconception_target": "SSE connections never drop and need no recovery",
+    "definitions": [
+      {
+        "term": "SSE",
+        "definition": "Server-Sent Events: one-way streaming from server to client"
+      },
+      {
+        "term": "Last-Event-ID",
+        "definition": "Header clients send to resume from a specific event"
+      },
+      {
+        "term": "Backpressure",
+        "definition": "Signaling the server to slow down when client cannot keep up"
+      }
+    ],
+    "execution_timeline": "Client connects -> Server streams events -> Connection drops -> Client reconnects with Last-Event-ID -> Server resumes",
+    "example": {
+      "code": "const es = new EventSource(\"/events\");\\nes.onmessage = e => append(e.data);\\nes.onerror = () => { es.close(); setTimeout(reconnect, 1000); };",
+      "explanation": "Connect to SSE stream, handle messages, reconnect on error.",
+      "output": "Events streamed to client with reconnection"
+    },
+    "production_case": "A live dashboard that streams AI agent progress updates to the browser.",
+    "alternatives": [
+      "WebSocket for bidirectional streaming",
+      "Polling for updates"
+    ],
+    "pitfalls": [
+      "No reconnection logic",
+      "Ignoring Last-Event-ID",
+      "No backpressure handling"
+    ],
+    "complexity": "O(1) per event",
+    "follow_ups": [
+      {
+        "Q": "How does Last-Event-ID enable resumption?",
+        "A": "The server uses it to skip already-delivered events and resume from the next one."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/EventSource"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How is an SSE message framed?",

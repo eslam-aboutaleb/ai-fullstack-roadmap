@@ -2,5 +2,57 @@
   "review": "The portfolio guidance needs staged deliverables, a reproducibility handoff, and an honest distinction between course completion and operational experience.",
   "build": "Deliver the same capstone in increments: local deterministic slice, persistent authenticated workflow, evaluated retrieval/generation, and a deployed release with recovery evidence. Keep the existing chapter experiments as supporting artifacts.",
   "verify": "Provide setup commands, synthetic fixtures, passing checks, an evaluation report, architecture decisions, a failure demo, and a list of implemented versus proposed features. Ask a second person to run it from a clean environment.",
-  "links": "git-book,mdn-core"
+  "links": "git-book,mdn-core",
+  "capstone": {
+    "title": "Document Assistant Capstone",
+    "description": "Build a complete document-question answering application: ingest documents, retrieve evidence, generate cited answers, and recover from failures.",
+    "phases": [
+      {
+        "name": "Phase 1 — Local deterministic slice",
+        "steps": [
+          "Ingest three synthetic documents with page and revision metadata",
+          "Build keyword + vector retrieval with RRF fusion",
+          "Generate answers using only supplied evidence with citations",
+          "Refuse to answer when evidence is missing",
+          "Run assertions: exact answer for known question, refusal for unknown"
+        ],
+        "verify": "All assertions pass with synthetic fixtures; no model provider or network needed"
+      },
+      {
+        "name": "Phase 2 — Persistent authenticated workflow",
+        "steps": [
+          "Add user identity and ownership checks on documents",
+          "Persist ingestion state to SQLite with revision tracking",
+          "Add idempotent ingestion with unique operation keys",
+          "Log every tool call to an effect ledger",
+          "Verify: second person can run from clean environment"
+        ],
+        "verify": "Effect ledger contains all tool calls; ownership prevents cross-user access"
+      },
+      {
+        "name": "Phase 3 — Evaluated retrieval/generation",
+        "steps": [
+          "Build evaluation dataset with 10 questions and expected answers",
+          "Calculate Recall@K, Precision@K, MRR",
+          "Run claim-to-evidence check on every generated answer",
+          "Produce evaluation report with pass/fail per question",
+          "Verify: evaluation report shows which answers lack evidence support"
+        ],
+        "verify": "Evaluation report generated; every answer tied to evidence or marked refused"
+      },
+      {
+        "name": "Phase 4 — Release with recovery evidence",
+        "steps": [
+          "Write architecture decision records for retriever, generator, and store",
+          "Demonstrate failure: corrupted document, failed provider, restart recovery",
+          "Show recovery: task resumes after restart with no duplicate effects",
+          "Document implemented vs proposed features honestly",
+          "Verify: second person reproduces failure and recovery"
+        ],
+        "verify": "Failure demo and recovery documented; ADRs committed with code"
+      }
+    ],
+    "artifacts": ["setup commands", "synthetic fixtures", "passing checks", "evaluation report", "ADRs", "failure demo", "implemented vs proposed list"],
+    "prerequisite_chapters": ["retrieval", "evidence", "agent-harness", "agent-evaluation", "deployment-reliability", "fullstack"]
+  }
 }

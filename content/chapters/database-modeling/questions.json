@@ -5,7 +5,60 @@
     "Why": "Keep authoritative ownership, state transitions, and relationships in constrained transactional records. Use vector indexes as derived search projections that can be rebuilt, not as the only source of business truth.",
     "Risk": "Treating the vector record as the sole source of truth makes exact authorization, status transitions, and recovery dependent on a derived index. Search ranking cannot decide whether a service request exists or who owns it.",
     "Trade": "Relational plus search modeling creates projection maintenance work but supports exact operations and flexible discovery. A text-only prototype is smaller and insufficient for authoritative workflows.",
-    "Try": "Mark every Claim column as identity, business fact, authority constraint, lifecycle metadata, or derived search data. Explain which can be rebuilt."
+    "Try": "Mark every Claim column as identity, business fact, authority constraint, lifecycle metadata, or derived search data. Explain which can be rebuilt.",
+    "spoken": "Model entities as tables, relationships as foreign keys, and business rules as constraints. Start with the questions your application will ask, then design tables to answer them efficiently. Normalize to avoid redundancy, but denormalize only when read performance demands it.",
+    "domain": "backend",
+    "subdomain": "database-modeling",
+    "module": "database-modeling",
+    "concept": "schema design and normalization",
+    "difficulty": "foundations",
+    "misconception_target": "More tables always means better design",
+    "definitions": [
+      {
+        "term": "Normalization",
+        "definition": "Organizing tables to reduce redundancy and dependency"
+      },
+      {
+        "term": "Foreign key",
+        "definition": "Column that references a primary key in another table"
+      },
+      {
+        "term": "Constraint",
+        "definition": "Rule enforced by the database on column values"
+      }
+    ],
+    "execution_timeline": "Identify entities → Define attributes → Choose primary keys → Map relationships → Add constraints → Review normal forms",
+    "example": {
+      "code": "CREATE TABLE documents (\n  id UUID PRIMARY KEY,\n  owner_id UUID NOT NULL REFERENCES users(id),\n  revision INT NOT NULL DEFAULT 1,\n  content TEXT NOT NULL,\n  UNIQUE(owner_id, revision)\n);",
+      "explanation": "Document table with owner reference, revision tracking, and uniqueness constraint.",
+      "output": "Table created successfully"
+    },
+    "production_case": "A document management system where each user can have multiple revisions of the same document.",
+    "alternatives": [
+      "Denormalized design for read-heavy workloads",
+      "Document store for unstructured content"
+    ],
+    "pitfalls": [
+      "Missing foreign key constraints",
+      "Storing derived data redundantly",
+      "Over-normalizing for simple read patterns"
+    ],
+    "complexity": "Schema design is O(entities); queries are O(log n) with proper indexes",
+    "follow_ups": [
+      {
+        "Q": "When should you denormalize?",
+        "A": "When read performance requires joining many tables and write volume is low."
+      }
+    ],
+    "citations": [
+      "https://www.postgresql.org/docs/current/ddl-constraints.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Why have both a UUID primary key and a human-readable request ID?",

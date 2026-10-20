@@ -5,7 +5,60 @@
     "Why": "Validate signature, allowed algorithm, issuer, audience, expiry, and required claims under the token profile. Resolve the trusted principal and enforce resource ownership in services, not model arguments.",
     "Risk": "A valid token may remain usable after access should be revoked unless the product checks revocation or session versions. Choose lifetime and refresh behavior from the threat model.",
     "Trade": "Stateless token checks scale well, while immediate revocation needs additional state or shorter-lived credentials. Database user lookup already provides one current-state validation point.",
-    "Try": "Test expired, malformed, deleted-user, wrong-signature, and valid tokens. Verify that a known request ID still requires owner authorization."
+    "Try": "Test expired, malformed, deleted-user, wrong-signature, and valid tokens. Verify that a known request ID still requires owner authorization.",
+    "spoken": "Validate identity at every API boundary. Enforce ownership by checking that the authenticated user owns the resource they are accessing. Never store secrets in code; use environment variables or a secrets manager. Validate all input before it reaches business logic.",
+    "domain": "backend",
+    "subdomain": "api-security",
+    "module": "api-security",
+    "concept": "authentication, authorization, and secrets",
+    "difficulty": "foundations",
+    "misconception_target": "HTTPS alone secures an API",
+    "definitions": [
+      {
+        "term": "Authentication",
+        "definition": "Verifying who the caller is"
+      },
+      {
+        "term": "Authorization",
+        "definition": "Checking what the caller is allowed to do"
+      },
+      {
+        "term": "Least privilege",
+        "definition": "Granting only the minimum access needed"
+      }
+    ],
+    "execution_timeline": "Request received → Extract credentials → Verify identity → Check ownership → Validate input → Execute business logic → Return response",
+    "example": {
+      "code": "user = get_current_user(token)\nif not owns_resource(user, doc_id):\n    raise HTTPException(403)\nresult = service.process(doc_id, user)",
+      "explanation": "Check ownership before executing any business logic.",
+      "output": "Processed result or 403 Forbidden"
+    },
+    "production_case": "A multi-tenant API where users can only access their own documents.",
+    "alternatives": [
+      "Role-based access control (RBAC)",
+      "Attribute-based access control (ABAC)"
+    ],
+    "pitfalls": [
+      "Missing ownership check",
+      "Secrets in source code",
+      "Input not validated before use"
+    ],
+    "complexity": "O(1) per request for authz checks",
+    "follow_ups": [
+      {
+        "Q": "Where should secrets be stored?",
+        "A": "Environment variables or a secrets manager, never in source code."
+      }
+    ],
+    "citations": [
+      "https://owasp.org/www-project-top-ten/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Why are HttpOnly, Secure, SameSite, CORS, and CSRF different controls?",

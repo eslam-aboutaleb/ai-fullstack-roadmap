@@ -5,7 +5,60 @@
     "Why": "Connector records carry discovery and load status, while a source-document record carries content and source metadata into the pipeline. A PDF extraction failure is therefore different from an empty bucket or an embedding provider outage.",
     "Risk": "Flattening every failure into an empty list can cause a later reconciliation to delete healthy knowledge. The connector contract represents errors and whether a result is authoritative; the pipeline refuses non-authoritative a typed scan result mutation.",
     "Trade": "Rich status handling takes more code than returning strings. It supports safe retries, deletion decisions, and actionable diagnostics.",
-    "Try": "Trace a PDF in an object bucket through all four stages. Specify the returned status when each stage fails and which stages can be retried independently."
+    "Try": "Trace a PDF in an object bucket through all four stages. Specify the returned status when each stage fails and which stages can be retried independently.",
+    "spoken": "Build ingestion connectors that read from source systems, checkpoint progress, and handle pagination. Protect against SSRF by validating target URLs before fetching. Use idempotent operations so re-running ingestion after a failure does not duplicate data.",
+    "domain": "backend",
+    "subdomain": "ingestion",
+    "module": "sources",
+    "concept": "incremental ingestion with checkpoints",
+    "difficulty": "implementation",
+    "misconception_target": "Re-running ingestion safely duplicates data",
+    "definitions": [
+      {
+        "term": "Checkpoint",
+        "definition": "Saved position in a data source for resumable ingestion"
+      },
+      {
+        "term": "SSRF",
+        "definition": "Server-Side Request Forgery: forcing a server to make unintended requests"
+      },
+      {
+        "term": "Idempotent",
+        "definition": "An operation that produces the same result when applied multiple times"
+      }
+    ],
+    "execution_timeline": "Discover source → Validate URL → Fetch page → Save checkpoint → Process records → Repeat until done",
+    "example": {
+      "code": "checkpoint = load_checkpoint(source_id)\nfor page in paginate(source, checkpoint):\n    for record in page.records:\n        upsert(record)\n    save_checkpoint(source_id, page.cursor)",
+      "explanation": "Load checkpoint, paginate through source, save checkpoint after each page.",
+      "output": "All records ingested with no duplicates"
+    },
+    "production_case": "A daily ingestion job that pulls new support tickets from an external API.",
+    "alternatives": [
+      "Push-based webhooks",
+      "Polling with fixed intervals"
+    ],
+    "pitfalls": [
+      "SSRF through unvalidated URLs",
+      "Lost checkpoints causing reprocessing",
+      "No rate-limit handling"
+    ],
+    "complexity": "O(pages * records_per_page) API calls",
+    "follow_ups": [
+      {
+        "Q": "What happens if ingestion fails mid-page?",
+        "A": "The checkpoint from the last completed page lets you resume without reprocessing."
+      }
+    ],
+    "citations": [
+      "https://owasp.org/www-community/attacks/Server_Side_Request_Forgery"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "What makes a source scan authoritative?",

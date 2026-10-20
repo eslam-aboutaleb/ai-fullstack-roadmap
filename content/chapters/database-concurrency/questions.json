@@ -6,7 +6,53 @@
     "Risk": "An internal commit would release the lock before the pending row changes, enabling duplicate creation. A request timeout or double click is expected behavior to test, not evidence that the client will never retry.",
     "Trade": "Pessimistic locking simplifies this contested transition but makes lock duration important. Keep remote model work out of the locked transaction.",
     "Try": "Start two confirmations simultaneously in separate database sessions. Assert one logical claim and one consumed submission, then inspect the losing request's result.",
-    "reference": "https://www.postgresql.org/docs/current/explicit-locking.html"
+    "reference": "https://www.postgresql.org/docs/current/explicit-locking.html",
+    "spoken": "A check-then-write race happens when two callers both read the same pending state before either writes. Each caller then believes it may proceed, leading to conflicting actions like duplicate reservations. The bug lives in the gap between checking the condition and enforcing it under a lock or transaction, not in whether your code uses async.",
+    "domain": "backend",
+    "subdomain": "concurrency",
+    "difficulty": "foundations",
+    "misconception_target": "Async/await prevents races by itself",
+    "definitions": [
+      {
+        "term": "Race condition",
+        "definition": "A bug where correctness depends on timing of uncontrollable events"
+      },
+      {
+        "term": "Check-then-write",
+        "definition": "Reading a condition then acting on it without holding a lock across both steps"
+      }
+    ],
+    "execution_timeline": "Caller A reads pending -> Caller B reads pending -> A writes -> B writes -> Both believe they succeeded",
+    "example": {
+      "code": "barrier.wait()\ntry:\n    insert(slot, owner)\nexcept IntegrityError:\n    handle_conflict()",
+      "explanation": "Barrier synchronizes both callers, then only one insert succeeds due to unique constraint.",
+      "output": "One caller gets 'ok', the other gets 'conflict'"
+    },
+    "production_case": "A reservation service where two agents book the same slot simultaneously.",
+    "alternatives": [
+      "Optimistic concurrency with version checks",
+      "Pessimistic locking with SELECT FOR UPDATE"
+    ],
+    "pitfalls": [
+      "Random sleep tests miss races",
+      "Application locks do not coordinate across replicas"
+    ],
+    "complexity": "Database unique constraint check is O(1); serialization reduces throughput under contention",
+    "follow_ups": [
+      {
+        "Q": "How do you test a race deliberately?",
+        "A": "Use barriers or test hooks to synchronize callers at a precise point, then assert durable state."
+      }
+    ],
+    "citations": [
+      "https://sqlite.org/lang_transaction.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "What is the difference between flush, commit, and rollback?",

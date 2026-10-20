@@ -20,7 +20,7 @@ def check():
     assert set(EXAMPLES) == {chapter['slug'] for chapter in chapters}
     for chapter in chapters:
         folder = ROOT / 'content/chapters' / chapter['slug']
-        assert {path.name for path in folder.iterdir() if path.is_file()} == {
+        assert {path.name for path in folder.iterdir() if path.is_file() and not re.fullmatch(r'questions-[a-zA-Z0-9_-]+\.json', path.name)} == {
             'chapter.json', 'lessons.json', 'questions.json', 'review.json', 'code-notes.json'}
         notes = json.loads((folder / 'code-notes.json').read_text())
         assert notes and all(isinstance(note, str) and note for note in notes)

@@ -5,7 +5,58 @@
     "Why": "The retrieval service's store contracts combine or separate writing, vector search, lexical search, fetch, and deletion. Backend capability declarations describe which operations and constraints the adapter actually supports.",
     "Risk": "An index that returns similar vectors but cannot enforce a required tenant filter is unsuitable for that request. Capability validation rejects unsupported mandatory constraints instead of silently ignoring them.",
     "Trade": "A general-purpose database can unify transactional metadata and vectors; a specialist engine can offer different scaling and operational features. Compare the adapter's concrete guarantees rather than category labels.",
-    "Try": "Create a decision matrix for persistence, filters, lexical search, transactions, generation visibility, and deletion latency for two candidate backends."
+    "Try": "Create a decision matrix for persistence, filters, lexical search, transactions, generation visibility, and deletion latency for two candidate backends.",
+    "spoken": "Vector storage stores embeddings with metadata and supports approximate nearest neighbor search. Keyword storage indexes exact terms for BM25-style search. Document storage keeps full documents with structured fields. Use vector for semantic similarity, keyword for exact terms, and document for full records with metadata filters.",
+    "domain": "ai-rag",
+    "subdomain": "storage",
+    "difficulty": "foundations",
+    "misconception_target": "One storage backend handles all retrieval needs",
+    "definitions": [
+      {
+        "term": "Vector storage",
+        "definition": "Stores embeddings and supports ANN similarity search"
+      },
+      {
+        "term": "Keyword storage",
+        "definition": "Indexes exact terms for lexical search"
+      },
+      {
+        "term": "Document storage",
+        "definition": "Keeps full documents with structured fields and filters"
+      }
+    ],
+    "execution_timeline": "Ingest document -> Extract embeddings and keywords -> Store in appropriate backends -> Query routes to correct backend -> Merge and rank results",
+    "example": {
+      "code": "vector_store.add(embeddings, metadata)\nkeyword_index.add(texts, doc_ids)\nresults = hybrid_query(query, vector_store, keyword_index)",
+      "explanation": "Store in both backends, query both, merge results.",
+      "output": "Merged ranked results from both backends"
+    },
+    "production_case": "An e-commerce search that finds products by semantic description and exact brand name.",
+    "alternatives": [
+      "Single backend with hybrid support",
+      "Separate specialized backends"
+    ],
+    "pitfalls": [
+      "Vector-only misses exact SKUs",
+      "Keyword-only misses synonyms",
+      "Inconsistent metadata across backends"
+    ],
+    "complexity": "Vector ANN is sublinear; keyword index is O(1) per term lookup",
+    "follow_ups": [
+      {
+        "Q": "How do you keep vector and keyword storage in sync?",
+        "A": "Write to both in the same ingestion transaction; use outbox pattern for durability."
+      }
+    ],
+    "citations": [
+      "https://redis.io/docs/latest/develop/search/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "Why use PostgreSQL with pgvector and full-text search?",
@@ -13,7 +64,60 @@
     "Why": "The PostgreSQL vector adapter builds table-agnostic SQL from validated identifiers and uses database-specific search operations. The host supplies schema and sessions; the adapter does not turn every database into PostgreSQL or own every application migration.",
     "Risk": "Database extension setup, indexes, pool sizing, and query plans still need operational care. The presence of pgvector does not prove that an approximate index is configured or used for a particular query.",
     "Trade": "One database reduces cross-system coordination but couples workloads and capacity. A separate vector service isolates scaling while introducing another consistency and authorization boundary.",
-    "Try": "Explain what an EXPLAIN plan would need to show before you claim a vector query uses an ANN index. Keep that distinct from the Python adapter's API."
+    "Try": "Explain what an EXPLAIN plan would need to show before you claim a vector query uses an ANN index. Keep that distinct from the Python adapter's API.",
+    "spoken": "Vector storage stores embeddings with metadata and supports approximate nearest neighbor search. Keyword storage indexes exact terms for BM25-style search. Document storage keeps full documents with structured fields. Use vector for semantic similarity, keyword for exact terms, and document for full records with metadata filters.",
+    "domain": "ai-rag",
+    "subdomain": "storage",
+    "module": "storage",
+    "concept": "vector vs keyword vs document storage",
+    "difficulty": "foundations",
+    "misconception_target": "One storage backend handles all retrieval needs",
+    "definitions": [
+      {
+        "term": "Vector storage",
+        "definition": "Stores embeddings and supports ANN similarity search"
+      },
+      {
+        "term": "Keyword storage",
+        "definition": "Indexes exact terms for lexical search"
+      },
+      {
+        "term": "Document storage",
+        "definition": "Keeps full documents with structured fields and filters"
+      }
+    ],
+    "execution_timeline": "Ingest document -> Extract embeddings and keywords -> Store in appropriate backends -> Query routes to correct backend -> Merge and rank results",
+    "example": {
+      "code": "vector_store.add(embeddings, metadata)\nkeyword_index.add(texts, doc_ids)\nresults = hybrid_query(query, vector_store, keyword_index)",
+      "explanation": "Store in both backends, query both, merge results.",
+      "output": "Merged ranked results from both backends"
+    },
+    "production_case": "An e-commerce search that finds products by semantic description and exact brand name.",
+    "alternatives": [
+      "Single backend with hybrid support",
+      "Separate specialized backends"
+    ],
+    "pitfalls": [
+      "Vector-only misses exact SKUs",
+      "Keyword-only misses synonyms",
+      "Inconsistent metadata across backends"
+    ],
+    "complexity": "Vector ANN is sublinear; keyword index is O(1) per term lookup",
+    "follow_ups": [
+      {
+        "Q": "How do you keep vector and keyword storage in sync?",
+        "A": "Write to both in the same ingestion transaction; use outbox pattern for durability."
+      }
+    ],
+    "citations": [
+      "https://redis.io/docs/latest/develop/search/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "What is ANN, and how is it different from exact nearest-neighbor search?",

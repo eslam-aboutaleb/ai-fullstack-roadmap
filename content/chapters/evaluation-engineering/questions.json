@@ -5,7 +5,60 @@
     "Why": "Define task success and forbidden effects before implementation. Combine deterministic assertions, human review, and calibrated model judging where appropriate.",
     "Risk": "A style-only score can reward unsafe behavior.",
     "Trade": "Broad evaluation costs effort and prevents expensive hidden failures.",
-    "Try": "Create a fluent answer paired with a duplicate write and ensure it fails the suite."
+    "Try": "Create a fluent answer paired with a duplicate write and ensure it fails the suite.",
+    "spoken": "Evaluation engineering partitions datasets into train/validation/test, calibrates LLM judges against human ratings, and reports both quality and performance metrics. Use separate datasets for development and final evaluation to avoid overfitting to the test set.",
+    "domain": "operations",
+    "subdomain": "evaluation-engineering",
+    "module": "evaluation-engineering",
+    "concept": "dataset partitioning and judge calibration",
+    "difficulty": "implementation",
+    "misconception_target": "One dataset serves all evaluation purposes",
+    "definitions": [
+      {
+        "term": "Train/validation/test split",
+        "definition": "Separate datasets for development, tuning, and final evaluation"
+      },
+      {
+        "term": "Judge calibration",
+        "definition": "Aligning LLM judges with human ratings"
+      },
+      {
+        "term": "Overfitting to test set",
+        "definition": "Tuning hyperparameters based on test set performance"
+      }
+    ],
+    "execution_timeline": "Collect data -> Split into train/validation/test -> Develop on validation -> Calibrate judges -> Final evaluation on test set",
+    "example": {
+      "code": "train, val, test = split_dataset(data, [0.7, 0.15, 0.15])\ncalibrated_judge = calibrate_judge(llm_judge, human_ratings, val)\nresults = calibrated_judge.evaluate(test)",
+      "explanation": "Split data, calibrate judge on validation, evaluate on test.",
+      "output": "Evaluation results on held-out test set"
+    },
+    "production_case": "A production RAG system where LLM judges are calibrated to match human evaluators before deployment.",
+    "alternatives": [
+      "Single dataset for all purposes",
+      "No judge calibration"
+    ],
+    "pitfalls": [
+      "No train/validation/test split",
+      "Uncalibrated LLM judges",
+      "Evaluating on training data"
+    ],
+    "complexity": "O(dataset size) for evaluation",
+    "follow_ups": [
+      {
+        "Q": "Why separate validation from test?",
+        "A": "Validation is for tuning; test is for unbiased final evaluation."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/2303.16634"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How should evaluation datasets be partitioned?",

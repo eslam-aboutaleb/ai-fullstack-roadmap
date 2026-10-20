@@ -1,0 +1,380 @@
+{
+  "id": "math-models",
+  "title": "Mathematics, machine learning and transformers",
+  "description": "Numerical foundations through analytic backpropagation, a trained classifier, attention, decoding and efficient adaptation.",
+  "units": [
+    {
+      "id": "vectors-probability",
+      "title": "Vectors, probability and statistical reasoning",
+      "outcomes": [
+        "Track dimensions before multiplying",
+        "Separate conditional probability from causation"
+      ],
+      "terms": [
+        {
+          "term": "Vector",
+          "definition": "An ordered set of components interpreted in a specified coordinate space."
+        },
+        {
+          "term": "Dot product",
+          "definition": "The sum of products of corresponding components."
+        },
+        {
+          "term": "Conditional probability",
+          "definition": "The probability of an event under a stated condition, written P(A|B)."
+        }
+      ],
+      "narrative": [
+        "A vector has values, dimension and a meaning for each coordinate. Matching dimension alone does not establish that two embeddings share a compatible space. For vectors a=(1,2) and b=(3,4), the dot product is 1×3+2×4=11. Their norms are sqrt(5) and 5; cosine similarity is 11/(5 sqrt(5)), about 0.98387. A zero vector has no defined cosine denominator and must be handled explicitly. A matrix can represent a batch or a linear map; name which axis means samples, features or outputs before multiplying.",
+        "Probability describes uncertainty under a model, not a guarantee for an individual case. P(A|B)=P(A and B)/P(B) when P(B)>0. A medical-test style example shows why base rates matter: if a condition occurs in 1% of a population, a 90%-sensitive test with 5% false positives yields about 90 true positives and 495 false positives per 10,000 people. The positive predictive value is 90/585, about 15.4%, under those assumptions. Sensitivity alone does not answer the posterior question.",
+        "A distribution describes possible observations and their probabilities. A sample mean estimates a population mean; its uncertainty depends on sampling, dependence and variability. A narrow confidence interval from biased samples can still support the wrong conclusion. Distinguish the uncertainty of an estimator from the spread of individual observations. For model evaluation, group dependence such as multiple rows from one customer can make an ordinary random split misleading.",
+        "The attention lab combines vectors and normalized weights, but attention weights are not automatically calibrated probabilities of factual correctness or faithful explanations of model decisions. They are coefficients in a specific computation. Keep mathematical normalization separate from the meaning assigned to the result."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Calculate a dot product, norm and cosine by hand, then verify with Python.",
+        "Construct two datasets with equal means but different variance.",
+        "Explain how a change in base rate changes a posterior probability without changing test sensitivity."
+      ],
+      "debugging": "Unexpected similarity values often come from incompatible spaces, unnormalized vectors, or zero denominators. A confident metric from dependent or biased samples requires a better dataset, not more decimal places.",
+      "tradeoffs": "Geometric simplifications build intuition but can hide high-dimensional behavior; statistical estimates need assumptions, uncertainty and a defined sampling population.",
+      "references": [
+        "https://www.statlearning.com/"
+      ],
+      "assessment": null,
+      "prerequisites": [],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 811
+    },
+    {
+      "id": "gradients-optimization",
+      "title": "Gradients and optimization from a numerical update",
+      "outcomes": [
+        "Derive and verify a gradient",
+        "Explain the learning-rate trade-off"
+      ],
+      "terms": [
+        {
+          "term": "Derivative",
+          "definition": "The local rate of change of a scalar function with respect to one variable."
+        },
+        {
+          "term": "Gradient",
+          "definition": "The vector of partial derivatives with respect to all parameters."
+        },
+        {
+          "term": "Learning rate",
+          "definition": "The step-size multiplier used in a parameter update."
+        }
+      ],
+      "narrative": [
+        "Take one input x=2, target y=3 and model prediction y_hat=w x. With w=1, prediction is 2 and squared loss L=(y_hat-y)^2 is 1. The derivative dL/dw=2(w x-y)x is -4. A gradient step with learning rate eta=0.1 gives w_new=1-0.1(-4)=1.4. The new prediction is 2.8 and loss is 0.04. The sign tells the update direction; the learning rate determines how far it moves. A rate of 1 would overshoot to w=5 and increase loss to 49.",
+        "For many parameters, compute one partial derivative per parameter. The chain rule connects local derivatives: if a parameter changes a hidden activation, which changes a logit, which changes loss, multiply the derivatives along that path and add contributions from all paths. Backpropagation organizes that calculation efficiently; it is not a separate kind of optimization. An optimizer uses the resulting gradients to choose updates.",
+        "Finite differences provide an independent numerical check. For parameter theta_i, approximate its derivative with [L(theta_i+epsilon)-L(theta_i-epsilon)]/(2 epsilon), holding other coordinates fixed. Too large an epsilon gives truncation error; too small causes floating-point cancellation. The training capstone checks all 17 analytic derivatives at initialization using epsilon=1e-5 and a tight error tolerance before training. This tests a mechanism, not merely whether a training curve eventually decreases.",
+        "Full-batch gradient descent averages all training examples per update. Stochastic or mini-batch updates change the noise, throughput and memory trade-off. Momentum and adaptive methods maintain additional optimizer state, so resuming training requires that state as well as model parameters and random-generator state. A reproducible seed does not guarantee bit-identical results across every accelerator and numerical library."
+      ],
+      "lab": "model_training.py",
+      "practice": [
+        "Verify the scalar update and the overshooting rate by hand.",
+        "Change one gradient sign in the capstone and demonstrate that finite differences reject it.",
+        "Compare 100, 300 and 600 updates without tuning against the held-out test set."
+      ],
+      "debugging": "If loss is NaN, inspect input scale, overflow and learning rate. If loss decreases but gradient checks fail, do not trust convergence as proof that backpropagation is implemented correctly.",
+      "tradeoffs": "Larger batches reduce gradient noise but use more memory; smaller steps may be stable but slow. Choose optimization settings using validation evidence and measured compute.",
+      "references": [
+        "https://www.deeplearningbook.org/contents/numerical.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "vectors-probability"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 812
+    },
+    {
+      "id": "ml-splits-models",
+      "title": "Learning tasks, baselines and leakage",
+      "outcomes": [
+        "Choose metrics for an actual decision",
+        "Protect held-out evaluation"
+      ],
+      "terms": [
+        {
+          "term": "Supervised learning",
+          "definition": "Learning from examples that include a target output."
+        },
+        {
+          "term": "Bias–variance trade-off",
+          "definition": "The balance between systematic model error and sensitivity to the particular training sample."
+        },
+        {
+          "term": "Leakage",
+          "definition": "Information influencing fitting or selection that would not be available for the intended prediction."
+        }
+      ],
+      "narrative": [
+        "Regression predicts a numeric target; classification predicts a category or probability; clustering groups examples without supplied class targets. Define the decision and cost of errors before choosing the method. An always-majority classifier can have high accuracy on an imbalanced dataset while missing every rare event. Establish a simple baseline, then evaluate whether a more complex model improves the outcome you actually need.",
+        "Linear models make an explicit weighted combination of features. Trees split the feature space into decision regions; ensembles combine trees to reduce particular errors, but add size and operational cost. Clustering methods depend on distance, scale and assumptions about cluster shape. A cluster label is not automatically a ground-truth business category. Feature engineering and preprocessing are part of fitting and must respect the same split boundaries as model parameters.",
+        "Use training data to fit, validation data to select settings, and a held-out test set for the final declared evaluation. If you repeatedly pick changes because they improve test accuracy, that set has become a validation set. Time-dependent tasks need chronological splits, and related entities may need group splits. Fit scalers, vocabularies and feature selectors only on training observations, then apply the fitted transformation to held-out rows.",
+        "The training capstone uses explicit non-overlapping synthetic splits and a fixed architecture, seed, step count and learning rate. Its perfect tiny-fixture accuracy establishes only that the implementation solves this separated toy problem. It says nothing about generalization to real customer data. The retrieval capstone separately measures relevance recovery and abstention, showing why model loss, retrieval quality and generated-answer faithfulness must not be collapsed into one score."
+      ],
+      "lab": "model_training.py",
+      "practice": [
+        "Compare accuracy with precision and recall on a rare-event fixture.",
+        "Add a duplicate entity across the split and explain the leakage.",
+        "Create an uninformative majority baseline before increasing model complexity."
+      ],
+      "debugging": "Unexpectedly perfect results call for a split and feature-provenance audit. A train/test gap can result from leakage, distribution shift, insufficient data, overfitting or an unsuitable task definition.",
+      "tradeoffs": "Flexible models can reduce training error while increasing variance; simpler baselines are easier to debug and deploy, but may miss real structure.",
+      "references": [
+        "https://scikit-learn.org/stable/common_pitfalls.html"
+      ],
+      "assessment": "leakage-holdout",
+      "prerequisites": [
+        "gradients-optimization"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 813
+    },
+    {
+      "id": "neural-backprop",
+      "title": "A neural network and backpropagation you can inspect",
+      "outcomes": [
+        "Track every parameter dimension",
+        "Match analytic and numerical derivatives"
+      ],
+      "terms": [
+        {
+          "term": "Activation",
+          "definition": "A nonlinear function applied to an intermediate computation."
+        },
+        {
+          "term": "Logit",
+          "definition": "An unnormalized model score before a probability transformation."
+        },
+        {
+          "term": "Binary cross-entropy",
+          "definition": "A loss for binary targets that penalizes incorrect confident probabilities."
+        }
+      ],
+      "narrative": [
+        "The capstone maps a two-component input x to four hidden activations h and one output logit z. W1 has 4×2 weights, b1 has four values, W2 has four weights and b2 has one value: 8+4+4+1=17 trainable parameters. For hidden unit j, h_j=tanh(W1_j dot x+b1_j). The output logit is z=sum_j W2_j h_j+b2, and p=sigmoid(z)=1/(1+exp(-z)). Nonlinearity matters: composing linear maps without activations still produces a linear map.",
+        "For target y in {0,1}, binary cross-entropy can be computed stably from the logit as max(z,0)-z y+log(1+exp(-abs(z))). This avoids taking log(0) after a saturated sigmoid. Its derivative with respect to z is p-y. Therefore dL/dW2_j=(p-y)h_j, dL/db2=p-y, and the hidden pre-activation derivative is (p-y)W2_j(1-h_j^2). Multiplying that by each input component gives the two W1 gradients for hidden unit j. Average each gradient across the batch before updating.",
+        "An autograd engine records operations and applies equivalent local chain rules in reverse. In PyTorch, tensors carry shapes and optional gradient tracking; a training step typically clears old gradients, computes predictions and loss, calls backward, then steps an optimizer. Gradients accumulate unless cleared deliberately. Evaluation mode and disabled gradient recording are different controls: modules such as dropout change behavior with train/eval mode, while no_grad reduces graph recording. Neither automatically moves tensors between CPU and GPU.",
+        "The standard-library implementation exposes the math so you can inspect and finite-difference every parameter. Larger production models should use tested tensor libraries, proper initialization, batch handling, accelerator-aware kernels and reproducibility controls. Loss falling is necessary evidence here, but the independent gradient check is what catches many superficially plausible backward-pass errors."
+      ],
+      "lab": "model_training.py",
+      "practice": [
+        "Draw the computational graph with all dimensions.",
+        "Derive one W1 partial derivative for one training row.",
+        "Change tanh to another activation and update its derivative before rerunning checks."
+      ],
+      "debugging": "If training steps use gradients from a previous batch, inspect accumulation and zeroing. If gradients vanish, inspect activation saturation, scale and the chain of multiplications.",
+      "tradeoffs": "Handwritten gradients teach the mechanism but are fragile; autograd improves implementation reliability while still requiring correct loss, shapes, modes and data splits.",
+      "references": [
+        "https://pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "ml-splits-models"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 814
+    },
+    {
+      "id": "numpy-autograd-bridge",
+      "title": "From scalar derivatives to NumPy and PyTorch",
+      "outcomes": [
+        "Match tensor shapes and scalar gradients",
+        "Verify autograd before training",
+        "Run CPU training and a held-out evaluation"
+      ],
+      "terms": [
+        {
+          "term": "Tensor",
+          "definition": "A multi-dimensional array with a shape, numeric dtype and device."
+        },
+        {
+          "term": "Leaf parameter",
+          "definition": "A user-created trainable tensor whose gradient an optimizer can update."
+        },
+        {
+          "term": "Autograd graph",
+          "definition": "Recorded differentiable operations used to propagate derivatives backward."
+        }
+      ],
+      "narrative": [
+        "The scalar network exposes every derivative. The NumPy/PyTorch bridge computes the same function with batched arrays, so its first obligation is agreement, not a faster training curve. NumPy builds an 8-by-2 feature matrix and an eight-element target array using float64 values. torch.from_numpy shares CPU storage with that array; a later NumPy mutation can therefore affect the tensor. Copy deliberately when ownership requires isolation.",
+        "A 17-element leaf tensor holds exactly the scalar implementation’s parameters. Slicing and reshaping form W1=(4,2), b1=(4,), W2=(4,) and b2=scalar. With features X=(8,2), X@W1.T+b1 produces eight rows and four hidden values. tanh preserves the shape; multiplying by W2 returns one logit per row. Binary cross-entropy with logits computes the same mean objective as the stable scalar formula.",
+        "Before training, the bridge compares the loss and every autograd derivative against the independently written scalar implementation. It also runs torch.autograd.gradcheck, which uses numerical perturbations. These are separate checks: a shared wrong objective can pass an implementation comparison, while a correct gradient of the wrong task still does not solve the intended problem. Preserve explicit targets and held-out evaluation.",
+        "The training loop clears gradients, computes the current objective, calls backward and steps SGD. Omitting zero_grad accumulates previous gradients and changes the optimization algorithm. Evaluation is wrapped in no_grad because no backward pass is needed. This functional fixture has no dropout or batch normalization; if such modules are added, model.eval changes their mode separately from gradient recording. The script uses one CPU thread, a fixed initial parameter sequence and small synthetic splits. Its result is a reproducibility check under the tested package versions, not a performance or generalization claim."
+      ],
+      "lab": "numpy_torch_bridge.py",
+      "dependencies": "Optional Python 3.14+, NumPy 2.5.4 and PyTorch 2.14.1 CPU environment; run python -m labs.numpy_torch_bridge from a checkout.",
+      "practice": [
+        "Replace the scalar initialization and prove both paths still agree.",
+        "Intentionally omit zero_grad and explain the changed update.",
+        "Add a new held-out slice without tuning on its final score."
+      ],
+      "debugging": "A mismatch often comes from batch averaging, transposed weights, dtype, gradient accumulation or a changed activation derivative. Inspect shapes before adjusting tolerances.",
+      "tradeoffs": "Tensor libraries provide efficient kernels and autograd, but device transfers, memory ownership and numerical precision remain explicit engineering choices.",
+      "references": [
+        "https://docs.pytorch.org/docs/stable/autograd.html",
+        "https://numpy.org/doc/stable/user/absolute_beginners.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "neural-backprop"
+      ],
+      "estimated_minutes": 25,
+      "path": "elective",
+      "study_id": 815
+    },
+    {
+      "id": "tokenization-attention",
+      "title": "Tokenization, attention and tensor dimensions",
+      "outcomes": [
+        "Explain tokens as model-specific IDs",
+        "Compute stable scaled dot-product attention"
+      ],
+      "terms": [
+        {
+          "term": "Tokenization",
+          "definition": "Mapping input data to a sequence of vocabulary IDs according to a particular tokenizer."
+        },
+        {
+          "term": "Query, key and value",
+          "definition": "Learned projections used to compute compatibility scores and weighted output representations."
+        },
+        {
+          "term": "Softmax",
+          "definition": "A normalized exponential transformation applied along a specified axis."
+        }
+      ],
+      "narrative": [
+        "A token is not necessarily a word or character. Byte-level vocabularies can represent any UTF-8 input, while learned merges combine common byte sequences into larger units. The attention lab implements one illustrative byte-pair merge and verifies exact roundtrips for accented text and an emoji. It does not train BPE or reproduce a production tokenizer. Real tokenizer assets, normalization, special tokens and chat formatting must match the selected model; changing them can change both cost and behavior.",
+        "For one attention head, Q has shape (number of queries, d), K has shape (number of keys, d), and V has shape (number of keys, value width). QK-transpose produces a score for every query/key pair. Dividing by sqrt(d) moderates score scale; row-wise softmax turns each query’s scores into weights. Multiplying those weights by V returns one weighted value vector per query. The weights’ row sums are one; their interpretation still depends on the learned projections and masking.",
+        "In the one-dimensional worked case, q=1, keys=[1,0], values=[2,4]. Scores are [1,0], weights are approximately [0.731059,0.268941], and output is 0.731059×2+0.268941×4=2.537883. Subtracting the maximum score before exponentiation leaves softmax unchanged and avoids overflow. The browser exercise includes a very large-logit fixture to make this numerical boundary observable.",
+        "Causal attention masks future positions so training and autoregressive generation obey the intended dependency order. Position information is supplied through an architecture-specific mechanism, such as positional embeddings or rotary transformations; attention alone does not encode arbitrary token order. Multi-head attention repeats learned projections and combines their outputs. Residual paths, normalization and feed-forward sublayers complete a transformer block; a diagram of only Q/K/V is not a full transformer."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Calculate the two-key worked example by hand.",
+        "Derive the output shape for Q=(3,4), K=(5,4), V=(5,2).",
+        "Remove stable-softmax subtraction and reproduce overflow with a large logit.",
+        "Describe why one learned byte merge is not a complete production tokenizer."
+      ],
+      "debugging": "Shape errors often swap key length and feature width. Softmax over the wrong axis can produce valid-looking numbers with the wrong meaning.",
+      "tradeoffs": "Dense attention has quadratic score count in sequence length; efficient kernels change memory traffic and constants, while sparse or linear alternatives change assumptions or computations.",
+      "references": [
+        "https://arxiv.org/abs/1706.03762"
+      ],
+      "assessment": "attention-dimensions",
+      "prerequisites": [
+        "numpy-autograd-bridge"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 816
+    },
+    {
+      "id": "transformer-inference",
+      "title": "Training objectives, decoding and cached inference",
+      "outcomes": [
+        "Distinguish pretraining from generation",
+        "Explain cached state and context costs"
+      ],
+      "terms": [
+        {
+          "term": "Autoregressive objective",
+          "definition": "Predicting a next token using only the allowed prefix."
+        },
+        {
+          "term": "KV cache",
+          "definition": "Stored key/value representations for already processed tokens during generation."
+        },
+        {
+          "term": "Temperature",
+          "definition": "A scaling of logits before sampling; lower values concentrate the distribution."
+        }
+      ],
+      "narrative": [
+        "A decoder language model is commonly pretrained to predict the next token from its prefix. The training objective compares model predictions with known next tokens; generation instead repeatedly chooses a token, appends it, and evaluates the next step. Teacher-forced training can process many positions together under a causal mask. Decoding choices such as greedy selection, temperature scaling and top-p sampling change which sequence is produced, not the learned weights.",
+        "Greedy decoding picks the largest score at each step and can still produce an incorrect answer. Temperature scales logits before probabilities are sampled; it does not provide a calibrated factual confidence score. Top-p chooses a probability-mass nucleus according to the implementation’s exact ordering and boundary rules. A fixed seed helps repeat sampling under a fixed environment, but changing kernels, batching or library versions can still affect results. Define which reproducibility guarantee an evaluation requires.",
+        "During autoregressive decoding, previous tokens’ keys and values can be reused rather than recomputed from scratch. The attention lab checks prefix K/V reuse against equivalent full-prefix attention for a small fixed single-layer case. In a real transformer, every relevant layer and head has cached tensors, so cache memory grows with batch size and context length as well as head dimensions and storage precision. Prefill and decode have different compute and bandwidth profiles.",
+        "The context window is a computational limit, not evidence that every included fact will be used correctly. Context packing needs relevance, ordering, provenance and sufficient space for output. Multimodal systems introduce modality-specific encoders or token representations, alignment and additional privacy considerations; more modalities do not remove the need for grounded evaluation. Benchmark a representative workload across latency, memory, accuracy and unsafe failure cases rather than treating a context-length number as overall quality."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Explain the distinction between prefill and one-token decode.",
+        "Estimate cache element count from layers, sequence length, batch and head dimensions.",
+        "Compare greedy and sampled outputs under an explicitly fixed configuration."
+      ],
+      "debugging": "If incremental output differs from full-prefix computation, inspect masking, cache positions, model mode and projection reuse before assuming numerical noise.",
+      "tradeoffs": "Caching trades memory for saved computation; batching can improve throughput while increasing per-request waiting and retained cache demand.",
+      "references": [
+        "https://huggingface.co/docs/transformers/kv_cache"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "tokenization-attention"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 817
+    },
+    {
+      "id": "adaptation-quantization",
+      "title": "Quantization, LoRA, distillation and model evaluation",
+      "outcomes": [
+        "Estimate parameter and quantization costs",
+        "Choose an adaptation method from evidence"
+      ],
+      "terms": [
+        {
+          "term": "Quantization",
+          "definition": "Representing numeric values with a lower-precision format and a defined mapping back to approximate values."
+        },
+        {
+          "term": "Low-rank adaptation",
+          "definition": "Learning a low-rank update to selected weight matrices instead of updating every original parameter."
+        },
+        {
+          "term": "Distillation",
+          "definition": "Training a student model using behavior or targets from a teacher, evaluated against the intended task."
+        }
+      ],
+      "narrative": [
+        "For a simple symmetric int8 quantizer, choose scale=max(abs(weight))/127, round each weight divided by scale to an integer, and reconstruct by multiplying by scale. For values within the represented range, nearest rounding introduces at most roughly half a scale unit of absolute error, subject to floating-point details. The lab verifies this bound on a fixture. The all-zero case needs an explicit scale convention. Real quantization can use per-channel scales, different zero points, calibration and specialized kernels; lower bit width alone does not prove faster inference.",
+        "If a weight matrix W has output width m and input width n, a low-rank update can be written delta_W=B A, where A has shape (r,n) and B has shape (m,r). The update uses r(n+m) parameters rather than mn when r is small. Apply the update as B(Ax), with any declared scaling, and keep the base weights fixed according to the chosen method. LoRA still needs representative training data, optimizer state, compatible target modules and evaluation; a small adapter is not automatically a small total serving footprint.",
+        "Fine-tuning changes model parameters or adapters; retrieval changes the supplied evidence; prompting changes the input instruction. Choose the cheapest method that solves the measured failure and respects data requirements. Distillation can reduce serving cost, but a student may inherit teacher errors or lose rare capabilities. Evaluate it against independent labels and safety constraints rather than only agreement with its teacher.",
+        "Keep model and tokenizer versions, decoding configuration, dataset provenance and metric definitions with the report. Measure quality slices, false refusals, unsupported claims, privacy leakage, robustness and latency/cost. The tiny training capstone’s perfect synthetic accuracy is a reproducible implementation check, not a deployment benchmark. A release decision requires a representative held-out dataset and a documented threshold for both acceptable outcomes and unacceptable side effects."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Add an all-zero quantization fixture with a defined scale convention.",
+        "Compare full-matrix and rank-r parameter counts for m=n=1024 and r=8.",
+        "Write an evaluation plan that could reject a distilled model even when teacher agreement is high."
+      ],
+      "debugging": "An adapter loaded into the wrong model revision can silently invalidate results. A quantized model that is smaller but slower may be using unsuitable kernels or suffering from transfer overhead.",
+      "tradeoffs": "Parameter-efficient training reduces update storage and some optimizer cost; it does not eliminate base-model memory, data governance or validation.",
+      "references": [
+        "https://arxiv.org/abs/2106.09685"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "transformer-inference"
+      ],
+      "estimated_minutes": 25,
+      "path": "elective",
+      "study_id": 818
+    }
+  ],
+  "review_status": "technical review pending",
+  "version": "1.0.0",
+  "updated": "2026-10-20"
+}

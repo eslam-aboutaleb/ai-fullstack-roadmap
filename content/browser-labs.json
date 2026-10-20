@@ -1,0 +1,332 @@
+{
+  "version": 1,
+  "labs": [
+    {
+      "id": "rrf-ranking",
+      "language": "javascript",
+      "topic": 63,
+      "chapter": "retrieval",
+      "title": "Fuse ranked candidate lists",
+      "objective": "rrf.ranking",
+      "instructions": "Implement solve(rankings). Add 1/(60 + one-based rank) for each unique document in each ranking. Return every unique ID ordered by descending score, breaking score ties by ascending ID. Inputs contain no repeated ID within one list.",
+      "starter": "function solve(rankings) {\n  // Return the fused document IDs.\n  return [];\n}",
+      "solution": "function solve(rankings) {\n  const scores = new Map();\n  for (const ranking of rankings) {\n    ranking.forEach((id, index) => scores.set(id, (scores.get(id) || 0) + 1 / (60 + index + 1)));\n  }\n  return [...scores].sort((a,b) => b[1]-a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([id]) => id);\n}",
+      "cases": [
+        {
+          "name": "overlapping lists",
+          "input": [
+            [
+              "A",
+              "B"
+            ],
+            [
+              "B",
+              "C"
+            ]
+          ],
+          "expected": [
+            "B",
+            "A",
+            "C"
+          ]
+        },
+        {
+          "name": "empty retrieval",
+          "input": [],
+          "expected": []
+        },
+        {
+          "name": "one retriever",
+          "input": [
+            [
+              "C",
+              "B",
+              "A"
+            ]
+          ],
+          "expected": [
+            "C",
+            "B",
+            "A"
+          ]
+        },
+        {
+          "name": "IDs are data",
+          "input": [
+            [
+              "__proto__"
+            ],
+            [
+              "constructor"
+            ]
+          ],
+          "expected": [
+            "__proto__",
+            "constructor"
+          ]
+        }
+      ],
+      "hints": [
+        "Use a Map, not object-property lookups.",
+        "A document can contribute once per input ranking; use the union of IDs."
+      ],
+      "references": [
+        "https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf"
+      ],
+      "revision": 1
+    },
+    {
+      "id": "authorized-confirmation",
+      "language": "javascript",
+      "topic": 181,
+      "chapter": "api-security",
+      "title": "Guard a confirmation decision",
+      "objective": "authorized.confirmation",
+      "instructions": "Implement solve(request). Return true only when actor === owner, scopes includes \"requests:confirm\", and status is \"pending\". Assume strings and an array of scopes. This pure fixture teaches a policy check; a real server must enforce it atomically with the effect.",
+      "starter": "function solve(request) {\n  return false;\n}",
+      "solution": "function solve(request) {\n  return request.actor === request.owner && request.scopes.includes(\"requests:confirm\") && request.status === \"pending\";\n}",
+      "cases": [
+        {
+          "name": "authorized pending request",
+          "input": {
+            "actor": "A",
+            "owner": "A",
+            "scopes": [
+              "requests:confirm"
+            ],
+            "status": "pending"
+          },
+          "expected": true
+        },
+        {
+          "name": "other owner",
+          "input": {
+            "actor": "B",
+            "owner": "A",
+            "scopes": [
+              "requests:confirm"
+            ],
+            "status": "pending"
+          },
+          "expected": false
+        },
+        {
+          "name": "scope missing",
+          "input": {
+            "actor": "A",
+            "owner": "A",
+            "scopes": [],
+            "status": "pending"
+          },
+          "expected": false
+        },
+        {
+          "name": "already confirmed",
+          "input": {
+            "actor": "A",
+            "owner": "A",
+            "scopes": [
+              "requests:confirm"
+            ],
+            "status": "confirmed"
+          },
+          "expected": false
+        }
+      ],
+      "hints": [
+        "All three predicates must hold.",
+        "Use the authenticated actor; never trust an owner supplied by the caller."
+      ],
+      "references": [
+        "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/"
+      ],
+      "revision": 1
+    },
+    {
+      "id": "retrieval-metrics",
+      "language": "python",
+      "topic": 111,
+      "chapter": "evaluation",
+      "title": "Measure retrieval precision and recall",
+      "objective": "retrieval.metrics",
+      "instructions": "Implement solve(data) returning {\"precision\": number, \"recall\": number}. data has ranking, relevant, and k. Evaluate ranking[:k]; relevant IDs form a set. Empty retrieved results give precision 0; empty relevance gives recall 0. Fixtures have unique ranked IDs and nonnegative k.",
+      "starter": "def solve(data):\n    return {\"precision\": 0, \"recall\": 0}\n",
+      "solution": "def solve(data):\n    top = data[\"ranking\"][:data[\"k\"]]\n    relevant = set(data[\"relevant\"])\n    hits = len(set(top) & relevant)\n    return {\"precision\": hits / len(top) if top else 0,\n            \"recall\": hits / len(relevant) if relevant else 0}\n",
+      "cases": [
+        {
+          "name": "partial coverage",
+          "input": {
+            "ranking": [
+              "A",
+              "X"
+            ],
+            "relevant": [
+              "A",
+              "B"
+            ],
+            "k": 2
+          },
+          "expected": {
+            "precision": 0.5,
+            "recall": 0.5
+          }
+        },
+        {
+          "name": "empty retrieval",
+          "input": {
+            "ranking": [],
+            "relevant": [
+              "A"
+            ],
+            "k": 3
+          },
+          "expected": {
+            "precision": 0,
+            "recall": 0
+          }
+        },
+        {
+          "name": "empty relevance",
+          "input": {
+            "ranking": [
+              "A"
+            ],
+            "relevant": [],
+            "k": 1
+          },
+          "expected": {
+            "precision": 0,
+            "recall": 0
+          }
+        },
+        {
+          "name": "truncate at k",
+          "input": {
+            "ranking": [
+              "X",
+              "A"
+            ],
+            "relevant": [
+              "A"
+            ],
+            "k": 1
+          },
+          "expected": {
+            "precision": 0,
+            "recall": 0
+          }
+        }
+      ],
+      "hints": [
+        "Count the intersection of the returned IDs and relevant IDs.",
+        "Precision and recall use different denominators."
+      ],
+      "references": [
+        "https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-ranked-retrieval-results-1.html"
+      ],
+      "revision": 1
+    },
+    {
+      "id": "attention-weights",
+      "language": "python",
+      "topic": 122,
+      "chapter": "models",
+      "title": "Calculate stable attention weights",
+      "objective": "attention.weights",
+      "instructions": "Implement solve(data) for one query. data contains query and keys, equal nonzero vector dimensions. Compute dot(query,key)/sqrt(d), apply numerically stable softmax by subtracting the maximum score, and return weights rounded to 6 decimals. Use only the math standard-library module.",
+      "starter": "def solve(data):\n    return []\n",
+      "solution": "import math\n\ndef solve(data):\n    query, keys = data[\"query\"], data[\"keys\"]\n    scores = [sum(a*b for a,b in zip(query,key))/math.sqrt(len(query)) for key in keys]\n    largest = max(scores)\n    exps = [math.exp(score-largest) for score in scores]\n    total = sum(exps)\n    return [round(value/total, 6) for value in exps]\n",
+      "cases": [
+        {
+          "name": "one-dimensional query",
+          "input": {
+            "query": [
+              1
+            ],
+            "keys": [
+              [
+                1
+              ],
+              [
+                0
+              ]
+            ]
+          },
+          "expected": [
+            0.731059,
+            0.268941
+          ]
+        },
+        {
+          "name": "equal scores",
+          "input": {
+            "query": [
+              0,
+              0
+            ],
+            "keys": [
+              [
+                1,
+                0
+              ],
+              [
+                0,
+                1
+              ]
+            ]
+          },
+          "expected": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "name": "large logits stay finite",
+          "input": {
+            "query": [
+              1000
+            ],
+            "keys": [
+              [
+                1000
+              ],
+              [
+                999
+              ]
+            ]
+          },
+          "expected": [
+            1.0,
+            0.0
+          ]
+        },
+        {
+          "name": "single key",
+          "input": {
+            "query": [
+              2,
+              3
+            ],
+            "keys": [
+              [
+                5,
+                7
+              ]
+            ]
+          },
+          "expected": [
+            1.0
+          ]
+        }
+      ],
+      "hints": [
+        "The attention scale uses the key/query dimension d.",
+        "exp(large) can overflow. Subtracting the maximum leaves softmax probabilities unchanged."
+      ],
+      "references": [
+        "https://arxiv.org/abs/1706.03762"
+      ],
+      "revision": 1
+    }
+  ]
+}

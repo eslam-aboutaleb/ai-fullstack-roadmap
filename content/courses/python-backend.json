@@ -1,0 +1,331 @@
+{
+  "id": "python-backend",
+  "title": "Python, concurrency and backend engineering",
+  "description": "Mechanism-first foundations through a bounded async engine and an authorized PostgreSQL-backed API.",
+  "units": [
+    {
+      "id": "python-values",
+      "title": "Values, identity and the data model",
+      "outcomes": [
+        "Predict mutation through two references",
+        "Choose immutable keys and explicit ownership"
+      ],
+      "terms": [
+        {
+          "term": "Object identity",
+          "definition": "Which single object a reference denotes; equality instead asks whether values compare equal."
+        },
+        {
+          "term": "Mutability",
+          "definition": "Whether an object can change after construction."
+        },
+        {
+          "term": "Protocol",
+          "definition": "An agreed set of operations such as iteration or context management."
+        }
+      ],
+      "narrative": [
+        "A Python name binds to an object; it is not a box that contains a copied value. After a = [1] and b = a, appending through b changes the list observed through a. Rebinding b to a new list does not rebind a. The same reasoning applies when passing arguments: a function receives references to objects, so it can mutate a supplied list, but assigning a new local parameter does not replace the caller’s binding. Draw references before predicting a program.",
+        "Equality and identity answer different questions. Two separately constructed lists can compare equal without being the same object. Use is for identity sentinels such as None, and == for ordinary value comparisons. Hash-based collections need stable hash/equality behavior while a key is present. A tuple is not automatically hashable: a tuple containing a list is still unhashable. Use immutable record keys for operation identity and keep mutable workflow state in values.",
+        "The data model makes syntax dispatch to protocols: iteration requests an iterator, a with statement enters and exits a context manager, and attribute access can invoke descriptors. Do not assume an operation is a cheap field read simply because it is short syntax. Properties can do work; custom equality can be expensive. A dataclass can describe a value record, but its generated methods do not validate business invariants automatically.",
+        "In the durable-agent lab, the operation key is a stable text value and the operation payload has a separately stored hash. A mutable dictionary is not treated as an identity. Reusing the key with changed content raises a conflict; changing a local object after submission must not retroactively redefine the accepted operation. This connects Python ownership to durable API semantics."
+      ],
+      "lab": "durable_agent.py",
+      "practice": [
+        "Draw the object graph for a list shared by two functions, then verify mutation and rebinding separately.",
+        "Implement a frozen dataclass operation key; reject a mutable or missing owner.",
+        "Change the payload after initial preparation and demonstrate the conflict."
+      ],
+      "debugging": "If an unrelated request sees another request’s list changes, inspect shared defaults, global containers and shallow copies before adding locks.",
+      "tradeoffs": "Copying can isolate mutation but costs time and memory; immutability simplifies ownership but does not by itself make external effects safe.",
+      "references": [
+        "https://docs.python.org/3/reference/datamodel.html"
+      ],
+      "assessment": null,
+      "prerequisites": [],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 819
+    },
+    {
+      "id": "python-iteration-types",
+      "title": "Iteration, resource lifetimes and types",
+      "outcomes": [
+        "Trace lazy execution and cleanup",
+        "Separate type hints from runtime validation"
+      ],
+      "terms": [
+        {
+          "term": "Iterator",
+          "definition": "An object that produces the next item and eventually signals exhaustion."
+        },
+        {
+          "term": "Generator",
+          "definition": "A suspended function that creates an iterator and resumes at each yield."
+        },
+        {
+          "term": "Context manager",
+          "definition": "An object that defines entry and guaranteed exit behavior around a block."
+        }
+      ],
+      "narrative": [
+        "A list comprehension computes and stores its results immediately. A generator computes only when the consumer requests the next value. This can bound memory for a large ingestion stream, but it also delays exceptions and moves resource lifetime into the consumer’s execution. Creating a generator that opens a file does not mean the file has already been opened; stopping consumption early can leave cleanup dependent on how the generator is closed. Prefer an explicit with block around a resource boundary.",
+        "A context manager separates acquiring a resource from releasing it. Its exit path must run on ordinary return and exceptions. Transaction contexts and connection contexts are not interchangeable across libraries. In sqlite3, using a connection as a context manager manages a transaction; it does not close the connection. The reservation lab deliberately uses contextlib.closing so the file can be deleted reliably on Windows as well as macOS and Linux. Read a library’s ownership contract rather than inferring it from syntax.",
+        "Decorators wrap functions and can change when work runs, what exceptions escape, and what metadata callers see. Preserve metadata with functools.wraps where appropriate. A retry decorator around a function that commits remote effects is a semantic change, not merely code cleanup. The correct retry boundary depends on operation identity and what can safely be repeated.",
+        "Type hints communicate assumptions to tools and reviewers; they do not validate an incoming JSON document at runtime. A TypedDict does not reject an untrusted payload. The request-lifecycle pilot uses Pydantic constraints to perform that boundary validation. Keep transport validation, business authorization and persistence invariants separate so a type-correct request cannot bypass an ownership rule."
+      ],
+      "lab": "reservation_race.py",
+      "practice": [
+        "Replace a transaction context with explicit closing and verify cleanup after an exception.",
+        "Write a generator that yields three records and records cleanup; stop after one item and close it.",
+        "Annotate a request type, then show that only runtime validation rejects malformed input."
+      ],
+      "debugging": "If an example prints no output, check whether its generator was consumed. If a temporary database cannot be deleted, check connection lifetime rather than transaction commit alone.",
+      "tradeoffs": "Lazy iteration reduces peak storage but complicates exception timing; annotations improve tooling but must be paired with runtime checks at untrusted boundaries.",
+      "references": [
+        "https://docs.python.org/3/library/contextlib.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "python-values"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 820
+    },
+    {
+      "id": "complexity-os-network",
+      "title": "Complexity, processes and the network boundary",
+      "outcomes": [
+        "Explain throughput limits using work and waiting",
+        "Trace DNS, TCP, TLS and HTTP responsibilities"
+      ],
+      "terms": [
+        {
+          "term": "Time complexity",
+          "definition": "How operation count grows with input size, distinct from measured elapsed time."
+        },
+        {
+          "term": "Backpressure",
+          "definition": "A mechanism that makes an upstream producer wait or reject work when downstream capacity is exhausted."
+        },
+        {
+          "term": "Process",
+          "definition": "An operating-system execution context with its own address space."
+        }
+      ],
+      "narrative": [
+        "A linear scan over n records performs work proportional to n; comparing every pair grows quadratically. Hash tables offer expected constant-time lookup under suitable hashing assumptions, but allocation, collision behavior and input size still matter. Profile an actual workload before changing algorithms, and measure both peak memory and elapsed time. A fast inner loop does not help when every iteration waits on a slow remote service.",
+        "Threads in one process share memory; processes ordinarily do not. Sharing a Python dictionary between request handlers creates an in-process coordination problem and still provides no durability after restart. Traditional GIL-enabled CPython limits simultaneous execution of Python bytecode in a process, while I/O releases and extension behavior complicate blanket claims about throughput. Some builds support free-threaded execution. Choose and measure the interpreter and libraries actually deployed rather than treating the GIL as a universal property of all Python runtimes.",
+        "An HTTPS request crosses several boundaries. DNS resolves a name to an address; TCP provides a reliable ordered byte stream; TLS authenticates the peer and protects traffic; HTTP describes application messages and status semantics. A timeout can happen before the server sees a request, during execution, or after a database commit. The client cannot determine which merely from the exception type. Keep an operation identity and provide a way to query authoritative state.",
+        "The async job engine overlaps waiting, not arbitrary CPU computation. A CPU-heavy parser called synchronously inside a coroutine still blocks its event loop. Depending on the library, move blocking I/O to a bounded thread pool and CPU work to a suitable worker process, or use an implementation that yields. A queue limit matters as much as worker count: unlimited admitted work can exhaust memory even when only a few jobs are active."
+      ],
+      "lab": "async_job_engine.py",
+      "practice": [
+        "Compare a dictionary lookup with a pairwise duplicate scan on increasing fixture sizes.",
+        "Draw where a timeout could occur relative to request commit and response delivery.",
+        "Add an admission limit and explain whether callers wait, retry or receive rejection."
+      ],
+      "debugging": "If unrelated coroutines freeze together, inspect synchronous CPU work and blocking calls on the event-loop thread. A larger timeout can hide rather than repair queue growth.",
+      "tradeoffs": "Processes isolate memory but add serialization and startup cost; threads can overlap waiting but need shared-state discipline; asynchronous code requires cooperative boundaries.",
+      "references": [
+        "https://docs.python.org/3/library/asyncio-dev.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "python-iteration-types"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 821
+    },
+    {
+      "id": "asyncio-lifecycle",
+      "title": "Structured asyncio, cancellation and deadlines",
+      "outcomes": [
+        "Build bounded concurrent work",
+        "Prove cleanup after caller cancellation"
+      ],
+      "terms": [
+        {
+          "term": "Task",
+          "definition": "A scheduled coroutine with a lifecycle and result or exception."
+        },
+        {
+          "term": "TaskGroup",
+          "definition": "A structured scope that waits for child tasks and handles failure propagation."
+        },
+        {
+          "term": "Cancellation",
+          "definition": "A request for a task to stop at a cancellation point, allowing finally blocks to release resources."
+        }
+      ],
+      "narrative": [
+        "Calling an async function creates a coroutine; scheduling or awaiting it drives execution. A task runs until it returns, raises, or reaches an await that actually suspends. Merely writing await does not guarantee another task gets a turn: an already-completed awaitable may return immediately. The scheduling unit is cooperative work between suspension points, so place resource and fairness boundaries deliberately.",
+        "In run_jobs, the producer awaits queue.put. Once capacity is reached, it suspends until a consumer removes an item. Each consumer awaits queue.get, calls the supplied handler under an asyncio.timeout scope, and calls task_done in finally. That finally covers successful jobs, failed jobs, deadline expiry and sentinel shutdown. Matching every get with task_done prevents queue.join from waiting forever on an accounting error.",
+        "TaskGroup owns the producer and all workers. Returning from its scope means those children are finished; cancelling the caller cancels the group rather than leaving orphan work. The worker catches ordinary job exceptions so one invalid fixture does not end the batch. It deliberately does not catch BaseException: CancelledError must propagate after cleanup. The verification routine waits for a started event before cancellation, so it tests a known lifecycle point instead of guessing with a random sleep.",
+        "A timeout bounds the awaited operation, but it cannot undo effects that already committed or make a blocking CPU loop cooperative. Cancellation is not business rollback. Record an operation key before dispatching work that can outlive a client connection, and reconcile an ambiguous result rather than blindly repeating the effect. The pilot’s queue and result dictionary are process-local teaching state, not durable production scheduling."
+      ],
+      "lab": "async_job_engine.py",
+      "practice": [
+        "Run the pilot and identify which checks use events rather than timing luck.",
+        "Add a per-owner admission policy without making the queue unbounded.",
+        "Move a blocking parser out of the loop and measure responsiveness.",
+        "Explain the difference between job failure, deadline expiry and caller cancellation."
+      ],
+      "debugging": "A hanging join usually means missing task_done or workers that exited before draining required items. Swallowed cancellation can leave the caller waiting while effects continue.",
+      "tradeoffs": "Fail-fast groups are useful for coupled tasks; independent jobs may need isolated failures. Bound retry count and total deadline as well as concurrent worker count.",
+      "references": [
+        "https://docs.python.org/3/library/asyncio-task.html#task-groups"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "complexity-os-network"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 822
+    },
+    {
+      "id": "fastapi-request-boundary",
+      "title": "FastAPI parsing, validation and authorization",
+      "outcomes": [
+        "Locate request rejection boundaries",
+        "Distinguish 401, 404, 409, 422 and 202 outcomes"
+      ],
+      "terms": [
+        {
+          "term": "Parsing",
+          "definition": "Converting a message representation into data structures."
+        },
+        {
+          "term": "Validation",
+          "definition": "Checking that data satisfies a defined input contract."
+        },
+        {
+          "term": "Authorization",
+          "definition": "Deciding whether the authenticated actor may perform this operation on this resource."
+        }
+      ],
+      "narrative": [
+        "The server receives bytes, parses an HTTP message and JSON body, resolves dependencies, validates declared fields, invokes the route and serializes a response. Framework execution order depends on dependencies and body parsing; do not claim that every deployment authenticates before all parsing. The guarantee your application must establish is that unauthorized business work and effects do not run. Reject oversized bodies at an appropriate ingress boundary as well as constraining individual fields.",
+        "The validation pilot limits question length, rejects blank strings and verifies malformed JSON and wrong-type input through TestClient. A successful response is 202 Accepted, not 201 Accepted: 201 is Created. Its synthetic response does not schedule a job. The transaction API adds a real database operation and separate identity checks, so its acceptance is backed by durable state rather than a constant task identifier.",
+        "For a local demonstration, distinct high-entropy bearer tokens map to two server-established owners. The caller never supplies the trusted owner in a payload. Reads and mutations include that owner in the database predicate, so requesting another owner’s identifier returns not found. These fixture tokens are not a login system or signed JWT service. A production JWT integration must also verify issuer, audience, signature algorithm, key selection and expiry according to its actual identity provider contract.",
+        "A well-typed message can still request an unauthorized operation. Likewise, successful authentication does not imply permission for every object. The tests deliberately send owner A’s token to owner B’s resource path and check both read and confirmation boundaries. CORS and cookie attributes solve different browser concerns; none replaces server-side object authorization. Explain which boundary rejects a request and prove that no outbox effect was created."
+      ],
+      "lab": "transaction_api.py",
+      "practice": [
+        "Run the transaction pilot in a disposable PostgreSQL cluster.",
+        "Add a malformed or missing idempotency key test.",
+        "Test another owner’s read and mutation without exposing whether private content exists."
+      ],
+      "debugging": "If malformed input reaches the business service, inspect validation configuration. If a different owner can access a known ID, inspect the authoritative query and trusted identity source.",
+      "tradeoffs": "Returning consistent 404 responses reduces object enumeration; operational diagnostics must still record enough authorized context to investigate failures.",
+      "references": [
+        "https://fastapi.tiangolo.com/tutorial/dependencies/"
+      ],
+      "assessment": "cross-tenant-read",
+      "prerequisites": [
+        "asyncio-lifecycle"
+      ],
+      "estimated_minutes": 35,
+      "path": "core",
+      "study_id": 823
+    },
+    {
+      "id": "sql-transactions-outbox",
+      "title": "Relational invariants, idempotency and the outbox",
+      "outcomes": [
+        "Prevent concurrent duplicate acceptance",
+        "Show rollback and committed intent separately"
+      ],
+      "terms": [
+        {
+          "term": "Transaction",
+          "definition": "A unit of database work that commits together or rolls back."
+        },
+        {
+          "term": "Unique constraint",
+          "definition": "A database rule that rejects duplicate key values across all competing writers."
+        },
+        {
+          "term": "Outbox",
+          "definition": "Durable intent written in the same transaction as business state, to be dispatched separately."
+        }
+      ],
+      "narrative": [
+        "A relational schema should express the identities and invariants the application needs. The transaction pilot has one task identity, a trusted owner, an operation key, a payload hash and a constrained status. A unique constraint on owner plus operation key resolves concurrent acceptance attempts. Indexes accelerate particular access paths but add write and storage cost; examine query plans with representative data rather than assuming every index helps.",
+        "PostgreSQL Read Committed gives each statement a view of committed data as that statement begins. A plain read followed by a write is not one atomic guard. The pilot locks the owned task row with SELECT FOR UPDATE before confirming it. A second confirmer waits, then observes the committed confirmed state and creates no new outbox row. The outbox task key is unique as an additional authoritative invariant. A lock in one Python process would not coordinate another process.",
+        "The fault-injection path raises after updating task state and inserting an outbox row but before the transaction commits. The connection context rolls both changes back; a subsequent status read still says pending. Contrast that with the durable-agent pilot, where a provider fixture commits independently before a crash. A database rollback cannot undo that provider effect. Retried dispatch therefore needs a stable effect key and a deduplicating receiver or a reconciliation protocol.",
+        "Idempotency also binds a key to content. Reusing the same key and body returns the same task identity; changing the body returns a conflict instead of silently executing a different operation. Scope keys to an actor and operation type, choose canonical payload hashing rules, and define retention. A key expiring does not erase the possibility of an old external effect. Queue delivery, Redis caching and outbox dispatch are implementation choices around this invariant, not substitutes for it."
+      ],
+      "lab": "transaction_api.py",
+      "practice": [
+        "Use two callers and a barrier to reproduce acceptance of the same operation.",
+        "Trigger the pre-commit failure and inspect both task and outbox state.",
+        "Document receiver deduplication and what happens when an acknowledgment is lost."
+      ],
+      "debugging": "Deadlocks and serialization failures require bounded retries of the whole transaction with fresh reads. Do not retry a transaction containing an unprotected remote effect.",
+      "tradeoffs": "Pessimistic locks serialize contention; optimistic predicates may avoid waits but require conflict handling. At-least-once dispatch is practical, while exactly-once business effects require an explicitly scoped protocol.",
+      "references": [
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "assessment": "reservation-race",
+      "prerequisites": [
+        "fastapi-request-boundary"
+      ],
+      "estimated_minutes": 35,
+      "path": "core",
+      "study_id": 824
+    },
+    {
+      "id": "testing-delivery",
+      "title": "Testing, profiling and reliable delivery",
+      "outcomes": [
+        "Choose a test oracle independent of the implementation",
+        "Package a reproducible local handoff"
+      ],
+      "terms": [
+        {
+          "term": "Oracle",
+          "definition": "An independent specification of expected behavior."
+        },
+        {
+          "term": "Fault injection",
+          "definition": "A controlled failure at a known point in execution."
+        },
+        {
+          "term": "SLO",
+          "definition": "A measured service-level objective over a defined population and time window."
+        }
+      ],
+      "narrative": [
+        "A test should distinguish correct behavior from a plausible wrong implementation. Checking that a method was called often mirrors the implementation without establishing the user outcome. For the transaction pilot, two accepted HTTP responses must resolve to one durable task, an unauthorized caller must receive no private state, and concurrent confirmation must create one effect intent. Those assertions survive substantial internal refactoring.",
+        "Arrange difficult states explicitly. Barriers coordinate competing callers. Events place cancellation after work actually started. Failure hooks interrupt a transaction before commit or a provider call before acknowledgment. A negative fixture is especially valuable: demonstrate that missing approval, a wrong owner, a duplicate effect or a dropped relevant document makes the test fail. A green baseline alone may mean that the test never exercised its claimed boundary.",
+        "Measure latency as a distribution, not just an average. Separate queue waiting, database time, model inference and response transport. Capacity estimates need arrival rate, service time, concurrency and retained-state limits. Profiling can reveal a hot loop, while tracing explains a request across components. Use synthetic identifiers and avoid logging tokens, personal data or full documents merely to make a trace convenient.",
+        "A handoff includes interpreter and dependency versions, commands, expected artifacts, test evidence, known limitations and a rollback plan. CI validates the static site and local fixtures; it does not operate a hosted API. Keep secrets in the local runtime environment and use a disposable database for integration tests. The capstones end with a small acceptance report and failure demonstration, not an unsupported claim of production readiness."
+      ],
+      "lab": "effect_oracle.py",
+      "practice": [
+        "Replace an unconditional True oracle check with an observed invariant.",
+        "Create one intentional regression and prove a relevant test fails.",
+        "Write a handoff containing a clean-start command, expected result and known limits."
+      ],
+      "debugging": "A flaky concurrency test often depends on timing rather than an arranged interleaving. A passing example with console.assert may still exit successfully after failed assertions; throwing or explicit exit status is required.",
+      "tradeoffs": "End-to-end checks verify boundaries but cost more to run. Keep a fast deterministic core and add integration checks for the database, browser and protocol behaviors that substitutes cannot prove.",
+      "references": [
+        "https://docs.python.org/3/library/unittest.html"
+      ],
+      "assessment": "agent-approval-order",
+      "prerequisites": [
+        "sql-transactions-outbox"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 825
+    }
+  ],
+  "review_status": "technical review pending",
+  "version": "1.0.0",
+  "updated": "2026-10-20"
+}

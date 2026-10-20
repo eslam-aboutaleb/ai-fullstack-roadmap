@@ -5,7 +5,60 @@
     "Why": "An evidence assembler coerces supported hit shapes, deduplicates, merges eligible spans, balances source diversity, selects items, and renders stable citation labels. This deterministic layer can be tested independently of an unpredictable generator.",
     "Risk": "Assuming all retrieved text is safe prompt instruction invites source-driven manipulation. The bundle treats text as evidence and escapes selected delimiters, while host prompt policy and tool permissions remain necessary.",
     "Trade": "An extra layer adds types and decisions but centralizes budgeting and attribution. Ad hoc prompt concatenation is shorter and easier to get subtly wrong.",
-    "Try": "Feed duplicate and overlapping hits from two sources into the assembler. Inspect both selected text and the counters explaining what was removed or merged."
+    "Try": "Feed duplicate and overlapping hits from two sources into the assembler. Inspect both selected text and the counters explaining what was removed or merged.",
+    "spoken": "Evidence assembly selects relevant passages under a token budget, orders them by relevance, and attaches citations. The model answers using only the assembled evidence. If evidence is insufficient, the system abstains rather than guessing.",
+    "domain": "ai-rag",
+    "subdomain": "evidence",
+    "module": "evidence",
+    "concept": "evidence assembly with citations",
+    "difficulty": "implementation",
+    "misconception_target": "More evidence always means better answers",
+    "definitions": [
+      {
+        "term": "Evidence packet",
+        "definition": "Bounded set of passages with citations sent to the model"
+      },
+      {
+        "term": "Citation fidelity",
+        "definition": "How accurately each answer claim maps to its cited source"
+      },
+      {
+        "term": "Abstention",
+        "definition": "Declining to answer when evidence is insufficient"
+      }
+    ],
+    "execution_timeline": "Retrieve passages → Score relevance → Sort by relevance → Fill token budget → Attach citations → Send to model",
+    "example": {
+      "code": "evidence = []\nfor passage in ranked[:budget]:\n    evidence.append({\"text\": passage.text, \"citation\": passage.id})\nresponse = model.generate(question, evidence=evidence)",
+      "explanation": "Select top passages within budget, attach citations, send to model.",
+      "output": "Answer with source citations"
+    },
+    "production_case": "A customer support assistant that answers using only indexed policy documents with citations.",
+    "alternatives": [
+      "Full-context approach (no budget)",
+      "Summary-based evidence compression"
+    ],
+    "pitfalls": [
+      "Exceeding token budget",
+      "Missing citations on claims",
+      "Answering without sufficient evidence"
+    ],
+    "complexity": "O(passages) for selection and budget check",
+    "follow_ups": [
+      {
+        "Q": "When should the system abstain?",
+        "A": "When no retrieved passage supports the answer or evidence quality is too low."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/2005.11401"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How is the context budget calculated?",

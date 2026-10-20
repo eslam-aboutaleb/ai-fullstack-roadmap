@@ -5,7 +5,60 @@
     "Why": "Inject a service with a narrow interface and derive the principal from request authentication. Reuse the same application service from HTTP and MCP adapters.",
     "Risk": "Duplicated business logic can enforce different permissions through different protocols.",
     "Trade": "Layering adds interfaces while keeping behavior consistent.",
-    "Try": "Implement one search service behind both an HTTP route and an MCP tool."
+    "Try": "Implement one search service behind both an HTTP route and an MCP tool.",
+    "spoken": "Layer MCP servers with input validation, structured error responses, and human confirmation for destructive operations. Validate every tool parameter against a schema. Return errors that help the agent recover, not raw exceptions. Require explicit human approval before writes.",
+    "domain": "agents",
+    "subdomain": "mcp",
+    "module": "mcp-server-engineering",
+    "concept": "MCP server validation and safety layers",
+    "difficulty": "implementation",
+    "misconception_target": "MCP servers pass parameters through without validation",
+    "definitions": [
+      {
+        "term": "Input validation",
+        "definition": "Checking tool parameters against a schema before execution"
+      },
+      {
+        "term": "Human confirmation",
+        "definition": "Explicit approval required before destructive operations"
+      },
+      {
+        "term": "Structured error",
+        "definition": "Error response that helps the agent recover"
+      }
+    ],
+    "execution_timeline": "Tool invocation received -> Validate parameters -> Check authorization -> Human confirmation if destructive -> Execute -> Return result or structured error",
+    "example": {
+      "code": "async def handle_delete(tool_call):\n    schema.validate(tool_call.arguments)\n    if not await check_auth(tool_call):\n        return error(403)\n    if tool_call.destructive:\n        return await request_human_approval(tool_call)\n    return await execute(tool_call)",
+      "explanation": "Validate, authorize, confirm, then execute.",
+      "output": "Tool result or structured error"
+    },
+    "production_case": "An MCP server for a calendar tool that requires human approval before deleting events.",
+    "alternatives": [
+      "No validation (unsafe)",
+      "Client-side validation only"
+    ],
+    "pitfalls": [
+      "Missing parameter validation",
+      "No authorization check",
+      "Raw exception exposure"
+    ],
+    "complexity": "O(parameter count) for validation",
+    "follow_ups": [
+      {
+        "Q": "Why require human confirmation for destructive operations?",
+        "A": "Prevents accidental or malicious data loss through agent error."
+      }
+    ],
+    "citations": [
+      "https://modelcontextprotocol.io/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How do you create a minimal Python MCP tool?",

@@ -1,0 +1,461 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "retrieval-empty",
+      "chapter": "foundations",
+      "topic": 1,
+      "title": "An empty search is not evidence",
+      "kind": "quiz",
+      "objective": "rag.evidence.abstention",
+      "difficulty": "foundation",
+      "scenario": "Retrieval succeeded but returned no passages for a refund question. What can the assistant safely conclude?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The customer is ineligible.",
+          "feedback": "No passages says nothing about eligibility."
+        },
+        {
+          "id": "2",
+          "text": "There is insufficient supporting evidence.",
+          "feedback": "Correct: distinguish lack of evidence from evidence of denial."
+        },
+        {
+          "id": "3",
+          "text": "The retrieval service is down.",
+          "feedback": "The fixture explicitly says the search succeeded."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A successful empty search establishes only that this query and index produced no supporting passage. Ask for useful missing details, try an appropriate alternative retrieval strategy, or explain the evidence limit. Do not invent a policy.",
+      "hints": [
+        "Separate the retrieval outcome from the business decision."
+      ],
+      "references": [
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10"
+      ],
+      "independent": false
+    },
+    {
+      "id": "cross-tenant-read",
+      "chapter": "api-security",
+      "topic": 181,
+      "title": "Find the ownership leak",
+      "kind": "debugging",
+      "objective": "backend.authorization.ownership",
+      "difficulty": "applied",
+      "scenario": "Trace: JWT signature verified → GET /requests/B-17 → database SELECT by request_id only → response contains owner B. Caller is owner A. Which repair belongs at the read boundary?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Hide the record in the frontend.",
+          "feedback": "The unauthorized response has already left the API."
+        },
+        {
+          "id": "2",
+          "text": "Add owner_id = authenticated_owner to the authoritative query.",
+          "feedback": "Correct: scope the read to the trusted caller identity."
+        },
+        {
+          "id": "3",
+          "text": "Accept an owner_id query parameter.",
+          "feedback": "A caller-controlled owner is not an authorization decision."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Token validity proves an identity claim, not access to every object. Scope database access using the server-established identity and handle missing/out-of-scope rows consistently. Add a negative fixture where A requests B’s ID.",
+      "hints": [
+        "Find the first point at which another owner’s data becomes accessible."
+      ],
+      "references": [
+        "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "reservation-race",
+      "chapter": "database-concurrency",
+      "topic": 161,
+      "title": "Diagnose duplicate confirmation",
+      "kind": "debugging",
+      "objective": "backend.concurrency.atomic-write",
+      "difficulty": "applied",
+      "scenario": "Both callers read status=pending. Each creates a confirmation, then sets status=confirmed. Which invariant actually prevents two confirmations?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Check the status twice in application code.",
+          "feedback": "Both callers can still pass before either commits."
+        },
+        {
+          "id": "2",
+          "text": "Sleep randomly before writing.",
+          "feedback": "Timing does not enforce a database invariant."
+        },
+        {
+          "id": "3",
+          "text": "Use a guarded transaction and a unique operation identity.",
+          "feedback": "Correct: enforce the invariant at the authoritative write boundary."
+        }
+      ],
+      "correct": "3",
+      "explanation": "A transaction must connect the guard to its write: row locking or a conditional update can choose one winner, while a unique operation identity rejects duplicate effects. A process-local lock cannot coordinate other replicas.",
+      "hints": [
+        "The read and write must form one authoritative decision."
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/explicit-locking.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "commit-vs-response",
+      "chapter": "application-architecture",
+      "topic": 141,
+      "title": "A lost response does not undo a commit",
+      "kind": "debugging",
+      "objective": "backend.idempotency.ambiguous-result",
+      "difficulty": "applied",
+      "scenario": "The database committed a task, but the connection dropped before the client received 202. The client retries. What should the server do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Always create a new task.",
+          "feedback": "The first task may already exist; the retry can duplicate effects."
+        },
+        {
+          "id": "2",
+          "text": "Resolve the same idempotency key to the original task.",
+          "feedback": "Correct: retries should recover one stable operation identity."
+        },
+        {
+          "id": "3",
+          "text": "Assume the first transaction rolled back.",
+          "feedback": "A transport failure cannot prove rollback."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Persist a request identity and its result together with the accepted operation. On retry return that result, or a conflict if the same key is reused with different content. Do not infer database state from a missing HTTP response.",
+      "hints": [
+        "Separate transport delivery from durable state."
+      ],
+      "references": [
+        "https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods"
+      ],
+      "independent": true
+    },
+    {
+      "id": "recall-denominator",
+      "chapter": "evaluation",
+      "topic": 111,
+      "title": "Compute recall before tuning",
+      "kind": "quiz",
+      "objective": "rag.metrics.recall",
+      "difficulty": "foundation",
+      "scenario": "Relevant IDs: {A, B, C, D}. Top 3 retrieved IDs: [A, X, B]. What are precision@3 and recall@3?",
+      "options": [
+        {
+          "id": "1",
+          "text": "2/3 and 1/2.",
+          "feedback": "Correct: two hits, three retrieved, four relevant."
+        },
+        {
+          "id": "2",
+          "text": "1/2 and 2/3.",
+          "feedback": "You have swapped the retrieved and relevant denominators."
+        },
+        {
+          "id": "3",
+          "text": "2/3 and 2/3.",
+          "feedback": "Recall uses the total number of relevant IDs, not k."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Precision asks what fraction of the returned results are relevant: 2/3. Recall asks what fraction of all relevant results were recovered: 2/4. Neither metric measures whether a generated answer is faithful.",
+      "hints": [
+        "Write both denominators explicitly."
+      ],
+      "references": [
+        "https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-ranked-retrieval-results-1.html"
+      ],
+      "independent": false
+    },
+    {
+      "id": "rrf-union",
+      "chapter": "retrieval",
+      "topic": 63,
+      "title": "Rank fusion preserves the union",
+      "kind": "quiz",
+      "objective": "rag.ranking.rrf",
+      "difficulty": "foundation",
+      "scenario": "Retriever 1 returns [A, B], retriever 2 returns [B, C]. With RRF and k=60, which document wins?",
+      "options": [
+        {
+          "id": "1",
+          "text": "A, because it is first in one list.",
+          "feedback": "B has contributions from both lists."
+        },
+        {
+          "id": "2",
+          "text": "B, because 1/62 + 1/61 beats a single contribution.",
+          "feedback": "Correct: RRF sums reciprocal rank contributions."
+        },
+        {
+          "id": "3",
+          "text": "C, because the second retriever is newer.",
+          "feedback": "Retriever age is not part of this scoring rule."
+        }
+      ],
+      "correct": "2",
+      "explanation": "For every unique ID, sum 1/(k+rank), where rank is one-based within each list. B receives two contributions; A and C receive one each. The fused candidate set is the union, not one retriever’s result length.",
+      "hints": [
+        "Compute one score per document, then sum across lists."
+      ],
+      "references": [
+        "https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf"
+      ],
+      "independent": false
+    },
+    {
+      "id": "agent-approval-order",
+      "chapter": "agent-evaluation",
+      "topic": 231,
+      "title": "A fluent answer hides a policy violation",
+      "kind": "debugging",
+      "objective": "agents.effects.approval-order",
+      "difficulty": "applied",
+      "scenario": "Ledger: read(authorized) → write(refund) → approve(refund). Final answer is correct and exactly one refund exists. Should the oracle pass?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes: final state is correct.",
+          "feedback": "The approval happened after the irreversible effect."
+        },
+        {
+          "id": "2",
+          "text": "No: required approval must precede the write.",
+          "feedback": "Correct: a valid final state does not excuse an invalid trajectory."
+        },
+        {
+          "id": "3",
+          "text": "Ask the agent to grade itself.",
+          "feedback": "Self-report is not independent evidence."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Check both state invariants and allowed event order. A refund might be correct in value but unauthorized at the time it occurred. Evaluate the complete trusted trace, including reads and failed attempts, rather than the final sentence alone.",
+      "hints": [
+        "Look at the order, not just the set of event names."
+      ],
+      "references": [
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10"
+      ],
+      "independent": true
+    },
+    {
+      "id": "checkpoint-after-write",
+      "chapter": "coordination",
+      "topic": 91,
+      "title": "Recover the skipped ingestion page",
+      "kind": "debugging",
+      "objective": "data.ingestion.checkpoint-order",
+      "difficulty": "applied",
+      "scenario": "Log: checkpoint saved at cursor=20 → process crashes → records 11–20 were never upserted. Restart begins at 21. What should change?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Save the checkpoint after the page effects commit.",
+          "feedback": "Correct: progress must not advance ahead of durable effects."
+        },
+        {
+          "id": "2",
+          "text": "Increase the page size.",
+          "feedback": "That can increase the amount skipped without changing the ordering bug."
+        },
+        {
+          "id": "3",
+          "text": "Ignore missing records until the next model update.",
+          "feedback": "An eventual model update does not repair an ingestion checkpoint."
+        }
+      ],
+      "correct": "1",
+      "explanation": "A checkpoint asserts that all required effects before its cursor are durable. Advance it only after successful writes, ideally in the same transaction. If writes and checkpoint are separate, retries must be idempotent to tolerate a crash after writing but before advancing.",
+      "hints": [
+        "What fact does a checkpoint claim?"
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/tutorial-transactions.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "leakage-holdout",
+      "chapter": "models",
+      "topic": 121,
+      "title": "Find the leaked evaluation split",
+      "kind": "debugging",
+      "objective": "ml.evaluation.data-leakage",
+      "difficulty": "applied",
+      "scenario": "A scaler was fitted on all rows before the training/test split. Test accuracy improves. Is this reliable evidence?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes: preprocessing cannot leak labels.",
+          "feedback": "Even label-free statistics can expose the test distribution."
+        },
+        {
+          "id": "2",
+          "text": "No: fit preprocessing only on training data.",
+          "feedback": "Correct: held-out observations must not influence fitting."
+        },
+        {
+          "id": "3",
+          "text": "Only if the test set is small.",
+          "feedback": "The separation rule is independent of set size."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Training includes fitting preprocessing statistics, vocabulary or feature selection. Split first; fit those operations using only training data; apply the fitted transformation to validation and test. Repeatedly selecting against test scores also turns the test into a validation set.",
+      "hints": [
+        "Consider which data influenced the mean and variance."
+      ],
+      "references": [
+        "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage"
+      ],
+      "independent": true
+    },
+    {
+      "id": "attention-dimensions",
+      "chapter": "models",
+      "topic": 122,
+      "title": "Check attention dimensions",
+      "kind": "quiz",
+      "objective": "transformers.attention.shapes",
+      "difficulty": "foundation",
+      "scenario": "One head has Q shape (3, 4), K shape (5, 4), and V shape (5, 2). What is the output shape of softmax(QKᵀ / √4)V?",
+      "options": [
+        {
+          "id": "1",
+          "text": "(3, 2).",
+          "feedback": "Correct: scores are (3,5); weights times (5,2) gives (3,2)."
+        },
+        {
+          "id": "2",
+          "text": "(5, 4).",
+          "feedback": "That is K’s shape, not the result for each query."
+        },
+        {
+          "id": "3",
+          "text": "(3, 5).",
+          "feedback": "That is the attention score/weight matrix before multiplying by V."
+        }
+      ],
+      "correct": "1",
+      "explanation": "QKᵀ pairs every query with every key, producing three rows and five columns. Row-wise softmax preserves that shape. Each query then forms a weighted sum of five value vectors, each with two components. The result contains three two-component output vectors.",
+      "hints": [
+        "Track the inner dimensions of both matrix multiplications."
+      ],
+      "references": [
+        "https://arxiv.org/abs/1706.03762"
+      ],
+      "independent": false
+    },
+    {
+      "id": "retry-external-effect",
+      "chapter": "coordination",
+      "topic": 93,
+      "title": "A retry repeats an external charge",
+      "kind": "debugging",
+      "objective": "systems.retries.side-effects",
+      "difficulty": "applied",
+      "scenario": "A SQL serialization error occurs after an external charge call inside a retried transaction. Retrying charges the card again. Which repair addresses the effect?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Catch the SQL error and retry forever.",
+          "feedback": "That repeats an external effect without a stable identity."
+        },
+        {
+          "id": "2",
+          "text": "Give the effect a stable idempotency key and coordinate dispatch with durable state.",
+          "feedback": "Correct: database rollback does not undo a remote charge."
+        },
+        {
+          "id": "3",
+          "text": "Use a longer SQL timeout.",
+          "feedback": "Timeout tuning cannot make a remote side effect transactional."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Bound the retry unit, reread state, and give each external effect a persistent operation identity. An outbox can link committed intent to dispatch; the receiver must still deduplicate or reconcile ambiguous outcomes. Never assume rollback covers another system.",
+      "hints": [
+        "Which operations does the database transaction actually control?"
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "context-irrelevant",
+      "chapter": "foundations",
+      "topic": 3,
+      "title": "Retrieved does not mean applicable",
+      "kind": "quiz",
+      "objective": "rag.evidence.applicability",
+      "difficulty": "foundation",
+      "scenario": "The user asks about refunds. The highest-scoring passage describes shipping speed. Which next action is supported?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Answer the refund question from the shipping passage.",
+          "feedback": "Similarity alone does not establish policy applicability."
+        },
+        {
+          "id": "2",
+          "text": "Look for applicable evidence or explain that this passage is insufficient.",
+          "feedback": "Correct: verify that evidence actually supports the requested claim."
+        },
+        {
+          "id": "3",
+          "text": "Always treat the top score as confidence in the answer.",
+          "feedback": "Retrieval scores are not calibrated answer correctness probabilities."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Retrieval ranks candidates. The application must still decide whether those candidates cover the requested entity, policy version, conditions and exception. A plausible passage can be irrelevant or superseded. Do not turn ranking position into an unsupported business conclusion.",
+      "hints": [
+        "Ask which claim the passage can support."
+      ],
+      "references": [
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10"
+      ],
+      "independent": false
+    },
+    {
+      "id": "defend-idempotent-api",
+      "chapter": "application-architecture",
+      "topic": 141,
+      "title": "Defend an idempotent task API",
+      "kind": "self-review",
+      "objective": "backend.design.idempotent-task",
+      "difficulty": "design",
+      "scenario": "Design a task-acceptance endpoint for clients that may retry after disconnects. Include concurrent requests with the same key and a key reused with a different body.",
+      "rubric": [
+        "Persist operation identity with accepted state.",
+        "Reject mismatched bodies for the same key.",
+        "Resolve concurrent submissions to one durable result.",
+        "Explain retention and authorization boundaries."
+      ],
+      "model_answer": "Authenticate before resolving an operation; scope keys to a trusted actor and operation type. Persist a canonical payload hash and task ID atomically under a uniqueness constraint. Return the existing result for a matching retry; reject changed content. Explain expiration, replay after expiry, and an ambiguous downstream side effect. A database row alone does not make a remote system idempotent.",
+      "references": [
+        "https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods"
+      ],
+      "hints": [
+        "Draw the commit and lost-response boundaries."
+      ],
+      "independent": false
+    }
+  ]
+}

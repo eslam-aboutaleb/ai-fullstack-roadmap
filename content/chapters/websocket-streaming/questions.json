@@ -5,7 +5,60 @@
     "Why": "Compare required message direction, infrastructure, binary data needs, reconnect behavior, and authentication.",
     "Risk": "Choosing WebSockets does not automatically improve application latency.",
     "Trade": "Duplex sessions add lifecycle and routing complexity.",
-    "Try": "Specify the messages that genuinely require a persistent bidirectional channel."
+    "Try": "Specify the messages that genuinely require a persistent bidirectional channel.",
+    "spoken": "WebSocket provides bidirectional streaming. Authenticate on the first frame, then use message envelopes with type and sequence numbers. Implement flow control so fast producers do not overwhelm slow consumers.",
+    "domain": "frontend",
+    "subdomain": "websocket",
+    "module": "websocket-streaming",
+    "concept": "WebSocket auth, envelopes, flow control",
+    "difficulty": "implementation",
+    "misconception_target": "WebSocket connections are secure by default",
+    "definitions": [
+      {
+        "term": "WebSocket envelope",
+        "definition": "Message wrapper with type, sequence, and payload"
+      },
+      {
+        "term": "Flow control",
+        "definition": "Regulating message rate between producer and consumer"
+      },
+      {
+        "term": "Envelope authentication",
+        "definition": "Verifying identity on the first WebSocket frame"
+      }
+    ],
+    "execution_timeline": "Client connects -> Send auth token as first frame -> Server validates -> Exchange envelopes -> Apply flow control -> Close cleanly",
+    "example": {
+      "code": "ws.onopen = () => ws.send(JSON.stringify({type: \"auth\", token}));\\nws.onmessage = e => { const env = JSON.parse(e.data); handle(env); };",
+      "explanation": "Send auth on open, parse envelopes on message.",
+      "output": "Authenticated bidirectional stream"
+    },
+    "production_case": "A realtime AI chat with bidirectional streaming and flow control.",
+    "alternatives": [
+      "SSE for server-to-client only",
+      "HTTP long-polling"
+    ],
+    "pitfalls": [
+      "No authentication",
+      "No message envelopes",
+      "No flow control"
+    ],
+    "complexity": "O(1) per message",
+    "follow_ups": [
+      {
+        "Q": "Why sequence numbers in envelopes?",
+        "A": "To detect and handle out-of-order or missing messages."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
   },
   {
     "Q": "How should WebSocket authentication work?",
