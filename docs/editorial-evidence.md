@@ -32,3 +32,26 @@ third-party licenses, or semantic duplicates.
 New requirements do not silently rewrite historical study identities, progress,
 or the existing single detailed-answer reader. This is an incremental QA factory,
 not a declaration that all existing content already meets its final standard.
+
+## Release acceptance correction — 22 October 2026
+
+The revised-content check now compares the complete source record, including
+Why, Risk, Trade, Try, worked cases, review metadata and companion-course units.
+It uses the stable registry ID across question renames and shard moves, validates
+new source records regardless of the historical numeric baseline, and checks
+all answered follow-ups. Length checks are a structural minimum, not proof of
+teaching quality or source correctness.
+
+Drafts may be built for PR review, but publication of authored or materially
+revised learning records now requires independent, content-digest-matched review.
+The main-branch editorial job runs `--require-review` against the pinned push
+base, and the deployment quality gate depends on it. An absent release base
+fails closed. Manual publishing must provide a valid event base rather than
+silently bypass review. Existing unmodified legacy records are inventoried
+honestly; they do not acquire approval from this change.
+
+A reviewed companion unit uses the identity `course/<course-id>/<unit-id>` in
+`content/reviews.json`; its digest covers the entire narrative, interviews,
+examples, outcomes, exercises and rubrics. No reviewer or sign-off is generated.
+The preceding paragraph that allowed unreviewed drafts to publish is historical
+and superseded by this release policy.
