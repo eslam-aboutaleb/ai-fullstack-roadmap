@@ -100,7 +100,7 @@ def build(out, write, chapters, curriculum, url):
     payload = inventory(chapters, curriculum)
     target=out/'questions/competency-blueprint.json'
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(payload, ensure_ascii=False,indent=2)+'\\n')
+    target.write_text(json.dumps(payload, ensure_ascii=False,indent=2)+'\n')
     row_html=''.join(
         '<tr><th scope="row">'+E(c['title'])+'</th><td>'+E(c['competency'])+'</td>'
         '<td>'+str(len(c['foundation_lessons']))+'/'+str(len(c['interview_questions']))+'</td>'
