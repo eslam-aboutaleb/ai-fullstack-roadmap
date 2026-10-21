@@ -24,12 +24,21 @@ repository ruleset.
 
 The aggregate shared Node/browser workflows target Node applications with required
 lint/typecheck/build scripts and a local JavaScript Playwright dependency. This
-repository uses Python build/browser scripts and npm only for axe-core, so the
-project-check contract preserves the existing test tools. Docker publication,
-PyPI publication, provider evaluations and Redis integration have no matching
-artifact or runtime here.
+repository uses Python build/browser scripts, root npm dependencies for axe-core,
+and a separate optional React/TypeScript learner project. The project-check
+contract preserves the static-site tools; repository-specific jobs compile and
+exercise the learner project. Container smoke checks are now present for the local learner project, while
+Docker publication, PyPI publication, paid provider evaluations and Redis
+integration have no matching publishing requirement here.
 
 `make ci-install` and `make ci-quality` reproduce the inherited project contract
 locally. Browser dependencies and the optional CPU model environment have their
 own pinned requirement files. The current acceptance report distinguishes checks
 executed locally from any observed GitHub Actions run.
+
+The engineering-practicum extension adds an `advanced-check` job for pinned
+scikit-learn, Beam and official MCP/A2A clients, a checksum-pinned disposable
+native Kafka recovery test, and a non-root container HTTP smoke test. The browser
+job builds strict TypeScript/React and runs real API/Chromium acceptance. All new
+jobs are required by the existing final gate. New hosted execution remains
+unobserved until a branch is pushed and CI runs.

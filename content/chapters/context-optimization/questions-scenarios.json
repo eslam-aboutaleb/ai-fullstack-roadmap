@@ -1,0 +1,22 @@
+[
+  {
+    "Q": "How do you compact a long-running agent without forgetting constraints or trusting a poisoned summary?",
+    "A": "**Separate durable task state from the model transcript.** Store the user objective, permissions, approved actions, unresolved questions, artifact identifiers and verified results as typed application state. A compressed transcript is a navigation aid; it is not an authority record. Preserve evidence references and versions so the agent can reopen the original source when needed.\n\n**Compact at a measured boundary.** Before the next request, count the full context and predict the maximum next tool result. Keep recent exchanges needed for the immediate decision, replace older exploration with a bounded progress summary, and save bulky artifacts externally. Summaries should distinguish observations, hypotheses and failed attempts. Mark instructions found inside documents as untrusted data rather than promoting them into system instructions.\n\n**Keep effects outside the summary.** A statement such as 'the refund probably succeeded' cannot decide whether to retry. Reconcile the operation identifier with the authoritative service. Preserve pending approval scope and expiration separately; a summary must not widen it. Record the compaction version and which original messages it covers, allowing an audit to reconstruct a decision.\n\n**Test information survival.** Seed a long run with an early constraint, a later correction, a failed action and a malicious document. After repeated compactions, test whether the next action respects the correction and whether the system can recover the original evidence. Track task success and incorrect actions, not just the compression ratio. Use an explicit escalation when reconstruction fails.",
+    "Why": "At turn 80, a travel assistant must remember a corrected spending limit of 600 rather than the original 900. The typed budget is 600; neither a stale summary nor a retrieved hotel advertisement can override it.",
+    "worked_case": "At turn 80, a travel assistant must remember a corrected spending limit of 600 rather than the original 900. The typed budget is 600; neither a stale summary nor a retrieved hotel advertisement can override it.",
+    "Risk": "Summarizing repeatedly can amplify an early mistake and erase provenance.",
+    "Trade": "Retain immutable artifacts for recoverability while limiting sensitive transcript retention according to the application policy.",
+    "Try": "Build a compaction fixture with a corrected limit and a pending side effect. Demonstrate that replay neither restores the old limit nor repeats the effect.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "context-optimization",
+    "citations": [
+      "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

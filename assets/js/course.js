@@ -70,6 +70,14 @@
     if (new URLSearchParams(location.search).get('mode') === 'practice') return;
     target.querySelectorAll('details.answer').forEach(element => { element.open = true; });
   }
+  // A same-fragment link does not emit hashchange; it must still reopen a closed answer.
+  document.querySelectorAll('.finder-results a').forEach(link => link.addEventListener('click', () => {
+    const target = document.getElementById(link.hash.slice(1));
+    if (new URLSearchParams(location.search).get('mode') !== 'practice') {
+      target?.querySelector('details.answer')?.setAttribute('open', '');
+    }
+  }));
+  window.addEventListener('guide:ready', revealTarget);
   window.addEventListener('hashchange', revealTarget); revealTarget();
   try {
     const slug = document.body.dataset.page;

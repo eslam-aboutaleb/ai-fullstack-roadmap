@@ -45,7 +45,35 @@
       "prerequisites": [],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 811
+      "study_id": 811,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A condition has 1% prevalence; a test has 90% sensitivity and a 5% false-positive rate.",
+          "steps": [
+            "Among 10,000 people, about 100 have the condition and 90 test positive.",
+            "Of 9,900 without it, about 495 test positive.",
+            "Positive predictive value is 90/(90+495), approximately 15.4%."
+          ],
+          "result": "A strong sensitivity number alone does not imply a high probability after a positive result."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why do base rates matter when interpreting a classifier?",
+          "spoken": "The probability of the condition after a prediction depends on prevalence as well as sensitivity and false positives. Confusing these conditional directions leads to misleading conclusions.",
+          "deep": "State the population assumptions and denominator. Measure calibration and relevant slices instead of treating a score as a universal probability. Distribution shift can invalidate the assumed base rate and operating point.",
+          "follow_up": {
+            "question": "Does cosine similarity behave like a calibrated probability?",
+            "answer": "No. It is a geometric score under a representation, not automatically a probability of truth or relevance."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "gradients-optimization",
@@ -91,7 +119,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 812
+      "study_id": 812,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "For x=2, target y=3 and prediction wx, use squared loss (wx-y)^2 with w=1.",
+          "steps": [
+            "Prediction is 2 and loss is 1.",
+            "The derivative with respect to w is 2x(wx-y)=-4.",
+            "At learning rate 0.1, update w to 1.4; prediction becomes 2.8 and loss 0.04."
+          ],
+          "result": "The sign and scale of the derivative explain the update; an excessive step can increase loss."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What does a gradient tell you, and what does it not prove?",
+          "spoken": "It describes local loss change with respect to parameters. It does not guarantee that a finite step improves the objective or that the model generalizes.",
+          "deep": "Define every variable and tensor shape, account for averaging/scaling in the loss and compare analytical derivatives with finite differences at suitable inputs. Learning rate, curvature and numerical precision affect the actual step.",
+          "follow_up": {
+            "question": "Why can finite-difference checks be misleading?",
+            "answer": "Steps that are too small suffer rounding error; large steps are poor local approximations. Nondifferentiable points and stochastic layers need special handling."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "ml-splits-models",
@@ -137,7 +193,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 813
+      "study_id": 813,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A preprocessing scaler is fitted before the dataset is split.",
+          "steps": [
+            "Identify statistics computed from held-out examples.",
+            "Fit the scaler only on training data inside the evaluation pipeline.",
+            "Repeat selection using a validation split, reserving an untouched final test."
+          ],
+          "result": "The corrected score measures a cleaner generalization question rather than information leakage."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do you choose a valid train/test split?",
+          "spoken": "Match the split to deployment: group related entities, respect time when predicting the future, and fit preprocessing only on training data.",
+          "deep": "Random row splitting can leak customers, document families or future information. Use an inexpensive baseline, select on validation data and report held-out uncertainty and error slices. A final test reused for tuning ceases to be independent.",
+          "follow_up": {
+            "question": "Can near-duplicate documents cross split boundaries?",
+            "answer": "They can leak nearly identical evidence. Detect and group them where appropriate before splitting."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "neural-backprop",
@@ -183,7 +267,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 814
+      "study_id": 814,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A tiny network fits its training rows but the held-out loss increases.",
+          "steps": [
+            "Verify loss/gradient shapes and a numerical derivative check.",
+            "Compare train and validation curves under fixed data splits.",
+            "Evaluate regularization, early stopping or simpler baselines without tuning on the final test."
+          ],
+          "result": "A correct backpropagation implementation can still overfit."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do you distinguish a training implementation bug from overfitting?",
+          "spoken": "Check numerical derivatives and controlled tiny cases first, then inspect train/validation behavior with a fixed evaluation design.",
+          "deep": "A gradient check can catch a wrong chain rule but cannot establish label quality or split independence. A tiny synthetic dataset is useful for deterministic behavior and should not be presented as production generalization evidence.",
+          "follow_up": {
+            "question": "Does lower training loss justify deployment?",
+            "answer": "No. Validate task quality, critical failure slices, resource cost and authorization/effect behavior independently."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "numpy-autograd-bridge",
@@ -232,7 +344,35 @@
       ],
       "estimated_minutes": 25,
       "path": "elective",
-      "study_id": 815
+      "study_id": 815,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "Manual derivatives and autograd disagree by a large factor for the same batch.",
+          "steps": [
+            "Fix inputs, parameter values, dtype and loss reduction.",
+            "Compare every parameter gradient before an optimizer update.",
+            "Check mean versus sum reduction, broadcasting and detached computation paths."
+          ],
+          "result": "A controlled cross-implementation comparison localizes the mismatch before long training runs."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why compare a manual implementation with autograd?",
+          "spoken": "It makes tensor shapes, reductions and chain-rule dependencies explicit and provides an independent check on a small controlled model.",
+          "deep": "Autograd differentiates the computation you actually expressed, even when that computation is the wrong objective. Match data, parameters and dtype, run a numerical gradcheck where appropriate and separate gradient correctness from model quality.",
+          "follow_up": {
+            "question": "Can an accidental broadcast yield valid-looking gradients?",
+            "answer": "Yes. Check intermediate shapes and the intended objective, not only whether the code runs."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "tokenization-attention",
@@ -271,7 +411,9 @@
       "debugging": "Shape errors often swap key length and feature width. Softmax over the wrong axis can produce valid-looking numbers with the wrong meaning.",
       "tradeoffs": "Dense attention has quadratic score count in sequence length; efficient kernels change memory traffic and constants, while sparse or linear alternatives change assumptions or computations.",
       "references": [
-        "https://arxiv.org/abs/1706.03762"
+        "https://arxiv.org/abs/1706.03762",
+        "https://arxiv.org/abs/1508.07909",
+        "https://arxiv.org/abs/1808.06226"
       ],
       "assessment": "attention-dimensions",
       "prerequisites": [
@@ -279,7 +421,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 816
+      "study_id": 816,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A two-position attention row has logits [1,0] and values [2,4].",
+          "steps": [
+            "Subtract the maximum logit before exponentiation.",
+            "Softmax weights are approximately [0.731059,0.268941].",
+            "The weighted value is 0.731059×2+0.268941×4=2.537883."
+          ],
+          "result": "The output follows a normalized weighted combination, with dimensions and numerical stability visible."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why scale dot-product attention and apply a mask?",
+          "spoken": "Scaling controls logit magnitude relative to key dimension; a mask excludes disallowed positions such as future tokens in causal decoding.",
+          "deep": "Define query/key/value shapes and the softmax axis. Use numerically stable softmax and test all-masked or extreme-value behavior. Tokenization determines the input units but is a separate mechanism from attention.",
+          "follow_up": {
+            "question": "Does a tokenizer’s round trip prove equal token counts across languages?",
+            "answer": "No. Segmentation and token counts vary by vocabulary, normalization, language and model."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "transformer-inference",
@@ -325,7 +495,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 817
+      "study_id": 817,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "An autoregressive decoder has already computed a prefix and generates one more token.",
+          "steps": [
+            "Retain compatible prefix key/value tensors under the same model and positional convention.",
+            "Compute the new token’s query/key/value work.",
+            "Attend over cached prefix plus the new position without treating another user’s cache as interchangeable."
+          ],
+          "result": "KV reuse avoids recomputing compatible prefix K/V work but consumes growing memory."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What is the latency/memory trade-off of a KV cache?",
+          "spoken": "It saves repeated prefix computation during decoding while retaining per-layer key/value state that grows with sequence length and active requests.",
+          "deep": "Estimate cache bytes from layer count, KV heads, head dimension, sequence length and storage dtype, then account for batching and implementation overhead. A model/provider/version change can invalidate cache assumptions.",
+          "follow_up": {
+            "question": "Can cache keys ignore tenant or authorization state?",
+            "answer": "No. Reuse must preserve data-isolation and compatibility boundaries, not only matching visible text."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "adaptation-quantization",
@@ -371,10 +569,38 @@
       ],
       "estimated_minutes": 25,
       "path": "elective",
-      "study_id": 818
+      "study_id": 818,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A smaller numerical representation reduces model weight storage but measured latency gets worse.",
+          "steps": [
+            "Confirm the quantization format, kernels and hardware actually used.",
+            "Measure end-to-end latency, memory and quality on the same tasks.",
+            "Compare with a nonquantized baseline and inspect conversion overhead."
+          ],
+          "result": "Memory reduction does not imply a universal inference speedup."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do LoRA, quantization and distillation differ?",
+          "spoken": "LoRA changes a limited parameter adaptation path, quantization changes numerical representation, and distillation trains a student from another model’s signals. Each needs its own quality and resource evaluation.",
+          "deep": "State the objective, data, hardware and serving constraints. Parameter efficiency is different from total training/inference memory, and a smaller model can fail critical tasks despite an improved average metric.",
+          "follow_up": {
+            "question": "Would you approve a smaller model based on accuracy alone?",
+            "answer": "No. Compare failure slices, calibration where relevant, latency/memory/cost and application safety invariants under the intended workload."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     }
   ],
   "review_status": "technical review pending",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "updated": "2026-10-20"
 }

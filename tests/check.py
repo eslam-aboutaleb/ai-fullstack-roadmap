@@ -54,7 +54,7 @@ assert sum(len(page.ids & {'walkthrough'}) for path,page in pages.items() if pat
 for path in SITE.rglob('*'):
     if not path.is_file():continue
     if path.suffix in {'.wasm', '.zip'}:
-        assert 'runtime' in path.parts or path.name == 'local-projects.zip', ('unexpected binary', path)
+        assert 'runtime' in path.parts or path.name == 'local-projects.zip' or (path.parent == SITE/'examples/projects' and path.name in {row['id']+'.zip' for row in json.loads((ROOT/'content/projects.json').read_text())}), ('unexpected binary', path)
         continue
     text=path.read_text()
     for marker in ('Ragnor','OmniCare','/Users/','insurance-claims-rag-assistant','e57f646','70084f7','eslam-aboutaleb/ragnor'):
@@ -91,7 +91,9 @@ for asset,limit in (('style.css',50*1024),('app.js',100*1024),('course.js',100*1
     if p.exists():
         size=p.stat().st_size
         assert size<=limit,(asset,size,limit)
-print(json.dumps(dict(pages=len(pages),internal_links=links,questions=len(question_ids),python_examples_syntax_checked=syntax,standard_library_examples_executed=executed,injected_voice_lab='pass',public_source_snapshots=0,print_controls=0,curriculum_tracks=7,curriculum_chapters=48,curriculum_dag_acyclic=True,performance_budget='pass'),indent=2))
+print(json.dumps(dict(pages=len(pages),internal_links=links,questions=len(question_ids),python_examples_syntax_checked=syntax,standard_library_examples_executed=executed,injected_voice_lab='pass',public_source_snapshots=0,print_controls=0,curriculum_tracks=len(json.loads((ROOT/'content/curriculum.json').read_text())['tracks']),curriculum_chapters=manifest['chapters'],curriculum_dag_acyclic=True,performance_budget='pass'),indent=2))
+from check_answer_format import check as check_answer_format
+check_answer_format()
 from check_quote_fidelity import check as check_quote_fidelity
 check_quote_fidelity()
 from check_editorial_qa import check as check_editorial_qa
@@ -109,7 +111,8 @@ subprocess.run(['node', str(ROOT/'tests/check_study.cjs')], check=True)
 from check_question_bank import check as check_question_bank
 check_question_bank()
 
-for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py'):
+for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py',
+                 'data_contract_pipeline.py', 'llm_contracts.py', 'retrieval_scorecard.py', 'production_scorecard.py', 'restore_drill.py'):
     result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/lab_name)], capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
@@ -124,12 +127,25 @@ print('Four deterministic simulation transition fixtures: pass')
 assert not any(path.suffix in {'.pyc','.db','.sqlite','.key','.pem'} or path.name.startswith('.env') for path in SITE.rglob('*')), 'Private local runtime files leaked into the artifact'
 import zipfile
 with zipfile.ZipFile(SITE/'examples/local-projects.zip') as archive:
+    assert len(archive.namelist()) == len(set(archive.namelist())), 'Duplicate ZIP members'
     assert {'labs/async_job_engine.py','labs/transaction_api.py','labs/fullstack_demo.py','requirements-models.txt','LICENSE'} <= set(archive.namelist())
     assert not any(name.startswith('/') or '..' in Path(name).parts or '__pycache__' in name for name in archive.namelist())
 from course_pages import load as load_courses
 course_units = [unit for course in load_courses() for unit in course['units']]
 assert len({unit['study_id'] for unit in course_units}) == len(course_units)
 print('Course schemas/DAG/IDs, project ZIP and private-artifact exclusions: pass')
+search_manifest=json.loads((SITE/'search/manifest.json').read_text())
+search_entries=[row for shard in search_manifest['shards'] for row in json.loads((SITE/shard['url']).read_text())]
+assert {unit['study_id'] for unit in course_units} <= {row['id'] for row in search_entries}, 'Course units absent from global search'
+for unit in course_units:
+    text=(SITE/('course-'+unit['id']+'.html')).read_text()
+    assert 'Technical interview and design defense' in text and unit['worked_examples'][0]['title'] in text
+    from html import escape
+    assert escape((ROOT/'labs'/unit['lab']).read_text(),quote=True) in text, 'Course lab source was altered or omitted'
+    if unit.get('source_context'):assert 'How the references inform this unit' in text
+    if unit.get('project'):assert 'project-'+unit['project']+'.html' in text
+with zipfile.ZipFile(SITE/'examples/local-projects.zip') as archive:
+    assert 'labs/streaming_reader.html' in archive.namelist()
 from editorial import content_digest, validate_review
 review_fixture={'Q':'Attestation fixture','A':'Original answer','reviewer_status':{'status':'reviewed','reviewer':'Fixture reviewer','reviewed_at':'2026-10-20'}}
 proof={'fixture':{'sha256':content_digest(review_fixture),'reviewer':'Fixture reviewer','reviewed_at':'2026-10-20','review_notes':'Synthetic test only'}}
@@ -139,3 +155,13 @@ for candidate, attestations in ((review_fixture,{}),({**review_fixture,'A':'Chan
     except ValueError:pass
     else:raise AssertionError('Missing or stale editorial attestation accepted')
 print('Missing/stale editorial attestation regressions: pass')
+
+for project in ('evidence-workbench','review-packet'):
+    assert (SITE/('project-'+project+'.html')).is_file()
+    with zipfile.ZipFile(SITE/('examples/projects/'+project+'.zip')) as archive:
+        names=archive.namelist()
+        assert len(names)==len(set(names)) and 'projects/'+project+'/README.md' in names
+        assert not any(set(Path(name).parts) & {'node_modules','dist','__pycache__','.git'} for name in names)
+        if project=='evidence-workbench':
+            assert {'projects/evidence-workbench/package-lock.json','projects/evidence-workbench/src/App.tsx','projects/evidence-workbench/server.py'} <= set(names)
+print('Cumulative project downloads and dependency/build exclusions: pass')

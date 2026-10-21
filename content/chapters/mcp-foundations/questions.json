@@ -6,7 +6,7 @@
     "Risk": "Interoperability does not imply trust or authorization.",
     "Trade": "A common protocol helps reuse while adding transport and lifecycle responsibilities.",
     "Try": "Map a document-search integration into host, client, server, and underlying service.",
-    "spoken": "MCP is the Model Context Protocol. It defines how applications expose tools, resources, and prompts to AI assistants. A client discovers server capabilities, then invokes tools or reads resources through a standardized transport. Authorization controls what the assistant can access.",
+    "spoken": "MCP standardizes how clients discover and use server tools, resources and prompts through compatible local or remote transports. It improves interface interoperability, while identity, authorization, consent and business validation still need explicit implementation.",
     "domain": "agents",
     "subdomain": "mcp",
     "difficulty": "foundations",
@@ -31,7 +31,7 @@
       "explanation": "Discover what the server offers, then invoke a tool.",
       "output": "Tool result data"
     },
-    "production_case": "A desktop assistant that reads local files and runs database queries through MCP servers.",
+    "production_case": "A remote HTTP MCP server advertises a document search tool. The client verifies compatibility and credentials; the server scopes every search and document read to trusted caller permissions.",
     "alternatives": [
       "Custom API integration per tool",
       "OpenAPI-based tool definitions"
@@ -41,11 +41,11 @@
       "No authorization boundary",
       "Transport security gaps"
     ],
-    "complexity": "Capability discovery is O(1); tool invocation depends on server implementation",
+    "complexity": "Discovery can require multiple paginated network requests and authorization checks. Schema/context size affects model cost; tool execution has its own bounded resource and effect contract.",
     "follow_ups": [
       {
-        "Q": "How does MCP differ from REST APIs?",
-        "A": "MCP is designed for AI assistant discovery and invocation, with standardized capability descriptions."
+        "Q": "Does discovering a tool authorize its use?",
+        "A": "No. Discovery describes capabilities. Scopes, caller policy, argument validation and current business state determine permitted execution."
       }
     ],
     "citations": [
@@ -56,7 +56,8 @@
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "What is MCP and which problem does it solve"
   },
   {
     "Q": "How do tools, resources, and prompts differ?",
@@ -65,11 +66,11 @@
     "Risk": "A resource URI can reveal private data if access checks are omitted.",
     "Trade": "Rich capability modeling improves clarity while increasing implementation work.",
     "Try": "Classify a search function, document URI, and review template using these three concepts.",
-    "spoken": "MCP is the Model Context Protocol. It defines how applications expose tools, resources, and prompts to AI assistants. A client discovers server capabilities, then invokes tools or reads resources through a standardized transport. Authorization controls what the assistant can access.",
+    "spoken": "Tools expose callable operations with defined schemas. Resources expose addressable context/data, and prompts expose reusable prompt templates/workflows. Their discovery and use differ, but all require appropriate trust and access controls. Tool metadata is not proof that an effect is safe.",
     "domain": "agents",
     "subdomain": "mcp",
     "module": "mcp-foundations",
-    "concept": "MCP architecture and capability discovery",
+    "concept": "How do tools, resources, and prompts differ",
     "difficulty": "foundations",
     "misconception_target": "MCP is only for connecting to LLMs",
     "definitions": [
@@ -92,7 +93,7 @@
       "explanation": "Discover what the server offers, then invoke a tool.",
       "output": "Tool result data"
     },
-    "production_case": "A desktop assistant that reads local files and runs database queries through MCP servers.",
+    "production_case": "A service offers a read-only policy resource, a draft-response prompt and a confirm-refund tool. The write tool needs a separate operation and authorization contract even if the other two are permitted.",
     "alternatives": [
       "Custom API integration per tool",
       "OpenAPI-based tool definitions"
@@ -102,11 +103,11 @@
       "No authorization boundary",
       "Transport security gaps"
     ],
-    "complexity": "Capability discovery is O(1); tool invocation depends on server",
+    "complexity": "Discovery can require multiple paginated network requests and authorization checks. Schema/context size affects model cost; tool execution has its own bounded resource and effect contract.",
     "follow_ups": [
       {
-        "Q": "How does MCP differ from REST APIs?",
-        "A": "MCP is designed for AI assistant discovery and invocation with standardized capability descriptions."
+        "Q": "Can a read-only annotation replace backend permissions?",
+        "A": "No. Validate actual behavior and scope at the authoritative boundary; metadata supplied by a server is not a security guarantee."
       }
     ],
     "citations": [

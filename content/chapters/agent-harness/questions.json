@@ -6,7 +6,7 @@
     "Risk": "A powerful model in an unconstrained harness can amplify errors through its tools.",
     "Trade": "Strong runtime controls take engineering effort and improve predictability.",
     "Try": "Draw the harness around a model and identify every external effect it can initiate.",
-    "spoken": "A harness runs the agent loop: it calls the model, executes proposed tools, feeds results back, and repeats until a stop condition. Stop conditions include max steps, final answer detected, or tool error. Human approval gates can pause execution before side-effecting tools run.",
+    "spoken": "An agent harness owns the execution loop around the model: validated state, model calls, tool policy, dispatch, feedback, budgets, cancellation and durable recovery. The model proposes work; the harness and domain services enforce what can actually execute.",
     "domain": "agents",
     "subdomain": "harness",
     "difficulty": "foundations",
@@ -31,7 +31,7 @@
       "explanation": "Loop until final answer or max steps exceeded.",
       "output": "Final answer or stop reason"
     },
-    "production_case": "A support agent with a 5-step max and human approval before sending emails.",
+    "production_case": "A model repeatedly proposes an unavailable tool. The harness must bound attempts, return actionable feedback, preserve the operation trace and stop without inventing success.",
     "alternatives": [
       "Fixed pipeline (no agent loop)",
       "Unbounded agent loop (risk of runaway)"
@@ -41,11 +41,11 @@
       "No approval gate for destructive tools",
       "Infinite loops"
     ],
-    "complexity": "O(max_steps) model invocations",
+    "complexity": "Bound model/tool attempts, elapsed time, tokens and retained state separately. A max-step limit bounds loop iterations but does not bound an individual tool wait or the cost of one large-context model call.",
     "follow_ups": [
       {
-        "Q": "How do you bound agent memory?",
-        "A": "Summarize old turns, use sliding windows, or compress context between steps."
+        "Q": "Does a harness replace domain authorization?",
+        "A": "No. It can restrict dispatch, but the authoritative domain service must also enforce ownership, state and effect invariants."
       }
     ],
     "citations": [
@@ -56,7 +56,8 @@
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "What is an agent harness"
   },
   {
     "Q": "How should stop conditions be designed?",
@@ -65,11 +66,11 @@
     "Risk": "Natural-language declarations of done can precede actual persistence.",
     "Trade": "Conservative stopping reduces runaway work and may interrupt recoverable tasks.",
     "Try": "Trigger each terminal state in a synthetic run and inspect its user-facing explanation.",
-    "spoken": "A harness runs the agent loop by calling the model, executing proposed tools, feeding results back, and repeating until a stop condition. Stop conditions include max steps, a final answer, or a tool error. Human approval gates can pause execution before side-effecting tools run.",
+    "spoken": "Stop conditions should include task completion, deadline, token/spend limits, step and loop bounds, cancellation and unrecoverable policy or tool failures. Define the terminal state and cleanup for each reason; a recoverable tool error need not end every workflow.",
     "domain": "agents",
     "subdomain": "harness",
     "module": "agent-harness",
-    "concept": "agent harness loop and stop conditions",
+    "concept": "How should stop conditions be designed",
     "difficulty": "foundations",
     "misconception_target": "The model decides when to stop by itself",
     "definitions": [
@@ -92,7 +93,7 @@
       "explanation": "Loop until final answer or max steps exceeded.",
       "output": "Final answer or stop reason"
     },
-    "production_case": "A support agent with a 5-step max and human approval before sending emails.",
+    "production_case": "A tool alternates two equivalent arguments while making no progress. Detect repeated state, stop under a finite budget and report an incomplete task with its durable operation identity.",
     "alternatives": [
       "Fixed pipeline (no agent loop)",
       "Unbounded agent loop (risk of runaway)"
@@ -102,11 +103,11 @@
       "No approval gate for destructive tools",
       "Infinite loops"
     ],
-    "complexity": "O(max_steps) model invocations",
+    "complexity": "Bound model/tool attempts, elapsed time, tokens and retained state separately. A max-step limit bounds loop iterations but does not bound an individual tool wait or the cost of one large-context model call.",
     "follow_ups": [
       {
-        "Q": "How do you bound agent memory?",
-        "A": "Summarize old turns, use sliding windows, or compress context between steps."
+        "Q": "What should cancellation promise?",
+        "A": "That the caller stopped waiting and requested cooperative cancellation; it cannot promise to undo an effect already committed elsewhere."
       }
     ],
     "citations": [

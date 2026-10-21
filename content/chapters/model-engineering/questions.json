@@ -6,34 +6,34 @@
     "Risk": "A number can look authoritative while measuring the wrong event. Similarity is not truth probability, and judge agreement is not calibrated decision confidence.",
     "Trade": "API skills enable quick prototypes; foundations improve diagnosis. Alternate practical exercises with theory.",
     "Try": "Compute normalized similarity by hand and estimate uncertainty in a small benchmark. Explain what each number establishes.",
-    "spoken": "Model engineering distinguishes model quality from inference reliability. Record lineage: data, hyperparameters, code version, and training metrics. Quantization trades precision for speed and memory. Use evaluation to compare models on the same tasks before deploying.",
+    "spoken": "Begin with vectors/matrices and shapes, probability and conditional reasoning, derivatives/chain rule, optimization, loss functions and data-split/evaluation design. Use small verified calculations before relying on library training loops. These foundations explain representation, uncertainty and failure modes in model systems.",
     "domain": "operations",
     "subdomain": "model-engineering",
     "module": "model-engineering",
-    "concept": "model lineage and quantization",
+    "concept": "What mathematical foundations should an AI full-stack engineer learn first",
     "difficulty": "implementation",
-    "misconception_target": "Higher model quality always means better production performance",
+    "misconception_target": "Treating a library training run as a substitute for probability, gradients and valid evaluation",
     "definitions": [
       {
-        "term": "Model lineage",
-        "definition": "Record of data, hyperparameters, code, and metrics used to produce a model"
+        "term": "Gradient",
+        "definition": "A vector of local derivatives of an objective with respect to parameters."
       },
       {
-        "term": "Quantization",
-        "definition": "Reducing numerical precision to save memory and increase speed"
+        "term": "Conditional probability",
+        "definition": "A probability defined under additional information and explicit population assumptions."
       },
       {
-        "term": "Inference reliability",
-        "definition": "Consistently producing correct outputs in production"
+        "term": "Data leakage",
+        "definition": "Evaluation gains caused by information unavailable under the intended deployment boundary."
       }
     ],
-    "execution_timeline": "Train model -> Record lineage -> Evaluate on benchmarks -> Quantize if needed -> Deploy -> Monitor reliability",
+    "execution_timeline": "Define variables/shapes -> calculate loss -> derive gradient -> test derivative -> optimize -> evaluate on independent data",
     "example": {
-      "code": "lineage = {\n  \"data_version\": \"v1.2\",\n  \"hyperparameters\": {\"lr\": 0.001, \"epochs\": 3},\n  \"code_commit\": \"abc123\",\n  \"metrics\": {\"accuracy\": 0.95}\n}",
-      "explanation": "Record complete model lineage for reproducibility.",
-      "output": "Lineage record object"
+      "code": "x, y, w, learning_rate = 2.0, 3.0, 1.0, 0.1\ngradient = 2 * x * (w*x-y)\nw -= learning_rate * gradient\nprint(round((w*x-y)**2, 2))",
+      "explanation": "A single-parameter example makes the derivative and update visible before using an autodiff library.",
+      "output": "0.04"
     },
-    "production_case": "Deploying a quantized model for inference on edge devices with limited memory.",
+    "production_case": "A classifier reports excellent held-out accuracy because preprocessing fitted on the entire dataset. Rebuild the pipeline with training-only fitting and compare grouped/time-aware validation before changing the model.",
     "alternatives": [
       "Full precision model",
       "Knowledge distillation"
@@ -43,15 +43,16 @@
       "Quantization without evaluation",
       "Deploying without reliability testing"
     ],
-    "complexity": "Lineage recording is O(1)",
+    "complexity": "The scalar example is constant-size; real training cost depends on tensor shapes, architecture, data and hardware. Gradient correctness is separate from generalization.",
     "follow_ups": [
       {
-        "Q": "What does quantization trade?",
-        "A": "Precision for memory and speed; may reduce model quality."
+        "Q": "What does a gradient check establish?",
+        "A": "It compares an implemented derivative to a numerical approximation near chosen inputs; it does not prove the dataset, optimization process or model generalization is correct."
       }
     ],
     "citations": [
-      "https://huggingface.co/docs/transformers/quantization"
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://scikit-learn.org/stable/common_pitfalls.html"
     ],
     "reviewer_status": {
       "reviewer": "independent technical review pending",

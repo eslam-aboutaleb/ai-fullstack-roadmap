@@ -1,0 +1,402 @@
+[
+  {
+    "Q": "Why can appending to one Python list change another variable?",
+    "spoken": "Assignment binds names to objects; it does not recursively copy them. If a and b refer to the same list, appending through either name changes that shared object. A shallow copy makes a new outer list while nested mutable elements can still be shared. Choose ownership explicitly instead of copying every object indiscriminately.",
+    "A": "Assignment binds names to objects; it does not recursively copy them. If a and b refer to the same list, appending through either name changes that shared object. A shallow copy makes a new outer list while nested mutable elements can still be shared. Choose ownership explicitly instead of copying every object indiscriminately.\n\nEngineering case: A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.\n\nReasoning under a changed assumption: No. A tuple can contain a mutable list. Tuple immutability prevents replacing its element references, not mutation of a referenced object.",
+    "Why": "Assignment binds names to objects; it does not recursively copy them. If a and b refer to the same list, appending through either name changes that shared object. A shallow copy makes a new outer list while nested mutable elements can still be shared. Choose ownership explicitly instead of copying every object indiscriminately.",
+    "Risk": "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.",
+    "Trade": "No. A tuple can contain a mutable list. Tuple immutability prevents replacing its element references, not mutation of a referenced object.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "Why can appending to one Python list change another variable?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated reference aliasing boundary: A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.",
+    "definitions": [
+      {
+        "term": "Reference aliasing",
+        "definition": "Assignment binds names to objects; it does not recursively copy them."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.\",\n  \"decision\": \"Assignment binds names to objects; it does not recursively copy them\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.",
+    "alternatives": [
+      "No. A tuple can contain a mutable list. Tuple immutability prevents replacing its element references, not mutation of a referenced object."
+    ],
+    "pitfalls": [
+      "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does an immutable tuple guarantee recursively immutable data?",
+        "A": "No. A tuple can contain a mutable list. Tuple immutability prevents replacing its element references, not mutation of a referenced object."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What goes wrong with a mutable default argument in Python?",
+    "spoken": "Default argument expressions are evaluated when the function is defined. A default list can therefore retain additions across calls. Use None as the sentinel and create a new list inside the function when a fresh collection is intended. Sometimes persistent shared state is deliberate, but it should be explicit and synchronized if accessed concurrently.",
+    "A": "Default argument expressions are evaluated when the function is defined. A default list can therefore retain additions across calls. Use None as the sentinel and create a new list inside the function when a fresh collection is intended. Sometimes persistent shared state is deliberate, but it should be explicit and synchronized if accessed concurrently.\n\nEngineering case: A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.\n\nReasoning under a changed assumption: Only if the function treats it as immutable input and builds the required output separately. The correct fix follows the ownership and mutation contract, not a mechanical syntax replacement.",
+    "Why": "Default argument expressions are evaluated when the function is defined. A default list can therefore retain additions across calls. Use None as the sentinel and create a new list inside the function when a fresh collection is intended. Sometimes persistent shared state is deliberate, but it should be explicit and synchronized if accessed concurrently.",
+    "Risk": "A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.",
+    "Trade": "Only if the function treats it as immutable input and builds the required output separately. The correct fix follows the ownership and mutation contract, not a mechanical syntax replacement.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "What goes wrong with a mutable default argument in Python?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated mutable default argument boundary: A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.",
+    "definitions": [
+      {
+        "term": "Mutable default argument",
+        "definition": "Default argument expressions are evaluated when the function is defined."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.\",\n  \"decision\": \"Default argument expressions are evaluated when the function is defined\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.",
+    "alternatives": [
+      "Only if the function treats it as immutable input and builds the required output separately. The correct fix follows the ownership and mutation contract, not a mechanical syntax replacement."
+    ],
+    "pitfalls": [
+      "A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Is using an empty tuple as the default always a complete fix?",
+        "A": "Only if the function treats it as immutable input and builds the required output separately. The correct fix follows the ownership and mutation contract, not a mechanical syntax replacement."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do Python return values, exceptions and None describe different outcomes?",
+    "spoken": "A return value communicates a normal result; an exception communicates a failure outside that normal contract. None can be a valid absence value only if callers know how to distinguish it from failure. Do not catch every exception and return None, because that erases whether a record is absent, malformed or unavailable.",
+    "A": "A return value communicates a normal result; an exception communicates a failure outside that normal contract. None can be a valid absence value only if callers know how to distinguish it from failure. Do not catch every exception and return None, because that erases whether a record is absent, malformed or unavailable.\n\nEngineering case: A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.\n\nReasoning under a changed assumption: Translate it when crossing a boundary with a clearer public contract. Preserve the original cause for diagnosis and avoid exposing sensitive raw payloads in the public error.",
+    "Why": "A return value communicates a normal result; an exception communicates a failure outside that normal contract. None can be a valid absence value only if callers know how to distinguish it from failure. Do not catch every exception and return None, because that erases whether a record is absent, malformed or unavailable.",
+    "Risk": "A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.",
+    "Trade": "Translate it when crossing a boundary with a clearer public contract. Preserve the original cause for diagnosis and avoid exposing sensitive raw payloads in the public error.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "How do Python return values, exceptions and None describe different outcomes?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated error contract boundary: A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.",
+    "definitions": [
+      {
+        "term": "Error contract",
+        "definition": "A return value communicates a normal result; an exception communicates a failure outside that normal contract."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.\",\n  \"decision\": \"A return value communicates a normal result; an exception communicates a failure outside that normal contract\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.",
+    "alternatives": [
+      "Translate it when crossing a boundary with a clearer public contract. Preserve the original cause for diagnosis and avoid exposing sensitive raw payloads in the public error."
+    ],
+    "pitfalls": [
+      "A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "When should a lower-level exception be translated?",
+        "A": "Translate it when crossing a boundary with a clearer public contract. Preserve the original cause for diagnosis and avoid exposing sensitive raw payloads in the public error."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "When should a Python interface use an iterator instead of constructing a list?",
+    "spoken": "An iterator yields values as they are requested and can avoid retaining the entire result. It may be single-use and can defer errors until iteration. A list supports repeated traversal and indexed access but retains its elements. Streaming is useful only when downstream consumers do not immediately materialize the whole iterator.",
+    "A": "An iterator yields values as they are requested and can avoid retaining the entire result. It may be single-use and can defer errors until iteration. A list supports repeated traversal and indexed access but retains its elements. Streaming is useful only when downstream consumers do not immediately materialize the whole iterator.\n\nEngineering case: A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.\n\nReasoning under a changed assumption: Yes. If its lifecycle owns an open resource, partial iteration can delay cleanup. Make resource ownership explicit with context managers or a caller-owned file handle.",
+    "Why": "An iterator yields values as they are requested and can avoid retaining the entire result. It may be single-use and can defer errors until iteration. A list supports repeated traversal and indexed access but retains its elements. Streaming is useful only when downstream consumers do not immediately materialize the whole iterator.",
+    "Risk": "A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.",
+    "Trade": "Yes. If its lifecycle owns an open resource, partial iteration can delay cleanup. Make resource ownership explicit with context managers or a caller-owned file handle.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "When should a Python interface use an iterator instead of constructing a list?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated iterator lifecycle boundary: A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.",
+    "definitions": [
+      {
+        "term": "Iterator lifecycle",
+        "definition": "An iterator yields values as they are requested and can avoid retaining the entire result."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.\",\n  \"decision\": \"An iterator yields values as they are requested and can avoid retaining the entire result\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.",
+    "alternatives": [
+      "Yes. If its lifecycle owns an open resource, partial iteration can delay cleanup. Make resource ownership explicit with context managers or a caller-owned file handle."
+    ],
+    "pitfalls": [
+      "A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can a generator silently keep a file open?",
+        "A": "Yes. If its lifecycle owns an open resource, partial iteration can delay cleanup. Make resource ownership explicit with context managers or a caller-owned file handle."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What does a Python type annotation guarantee at runtime?",
+    "spoken": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called. Validate untrusted data at input boundaries and use internal types to express the checked representation. Avoid repeated conversions throughout the program that make the authoritative representation unclear.",
+    "A": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called. Validate untrusted data at input boundaries and use internal types to express the checked representation. Avoid repeated conversions throughout the program that make the authoritative representation unclear.\n\nEngineering case: A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.\n\nReasoning under a changed assumption: Usually validate at trust boundaries and keep a clear checked internal representation. Revalidate when data crosses a new independent boundary or its invariants may have changed.",
+    "Why": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called. Validate untrusted data at input boundaries and use internal types to express the checked representation. Avoid repeated conversions throughout the program that make the authoritative representation unclear.",
+    "Risk": "A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.",
+    "Trade": "Usually validate at trust boundaries and keep a clear checked internal representation. Revalidate when data crosses a new independent boundary or its invariants may have changed.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "What does a Python type annotation guarantee at runtime?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated runtime type checking boundary: A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.",
+    "definitions": [
+      {
+        "term": "Runtime type checking",
+        "definition": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A function annotated amount: int receives the string \\\"10\\\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.\",\n  \"decision\": \"An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.",
+    "alternatives": [
+      "Usually validate at trust boundaries and keep a clear checked internal representation. Revalidate when data crosses a new independent boundary or its invariants may have changed."
+    ],
+    "pitfalls": [
+      "A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Should every internal operation repeat JSON validation?",
+        "A": "Usually validate at trust boundaries and keep a clear checked internal representation. Revalidate when data crosses a new independent boundary or its invariants may have changed."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do you write a regression test that actually detects the reported Python defect?",
+    "spoken": "Start with a minimal input reproducing the user-visible failure and assert the observable contract. Demonstrate that the test fails on the broken implementation and passes with the repair. Avoid asserting private helper calls or duplicating the same calculation as the implementation, because both can preserve the same error.",
+    "A": "Start with a minimal input reproducing the user-visible failure and assert the observable contract. Demonstrate that the test fails on the broken implementation and passes with the repair. Avoid asserting private helper calls or duplicating the same calculation as the implementation, because both can preserve the same error.\n\nEngineering case: A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.\n\nReasoning under a changed assumption: No. Coverage records execution. A useful assertion must distinguish correct from incorrect behavior under the relevant boundary conditions.",
+    "Why": "Start with a minimal input reproducing the user-visible failure and assert the observable contract. Demonstrate that the test fails on the broken implementation and passes with the repair. Avoid asserting private helper calls or duplicating the same calculation as the implementation, because both can preserve the same error.",
+    "Risk": "A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.",
+    "Trade": "No. Coverage records execution. A useful assertion must distinguish correct from incorrect behavior under the relevant boundary conditions.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "How do you write a regression test that actually detects the reported Python defect?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated behavioral regression boundary: A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.",
+    "definitions": [
+      {
+        "term": "Behavioral regression",
+        "definition": "Start with a minimal input reproducing the user-visible failure and assert the observable contract."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.\",\n  \"decision\": \"Start with a minimal input reproducing the user-visible failure and assert the observable contract\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.",
+    "alternatives": [
+      "No. Coverage records execution. A useful assertion must distinguish correct from incorrect behavior under the relevant boundary conditions."
+    ],
+    "pitfalls": [
+      "A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Is full line coverage evidence that the regression is useful?",
+        "A": "No. Coverage records execution. A useful assertion must distinguish correct from incorrect behavior under the relevant boundary conditions."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How should Git and dependency locks support a reproducible learning project?",
+    "spoken": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command. A lockfile identifies resolved dependencies but does not capture the entire operating system, toolchain or external dataset. Record those inputs when they affect the result and inspect the diff before committing.",
+    "A": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command. A lockfile identifies resolved dependencies but does not capture the entire operating system, toolchain or external dataset. Record those inputs when they affect the result and inspect the diff before committing.\n\nEngineering case: A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.\n\nReasoning under a changed assumption: No. Record immutable data/model artifacts and declared external versions or provide a deterministic local fixture. Source identity is only one part of reproducibility.",
+    "Why": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command. A lockfile identifies resolved dependencies but does not capture the entire operating system, toolchain or external dataset. Record those inputs when they affect the result and inspect the diff before committing.",
+    "Risk": "A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.",
+    "Trade": "No. Record immutable data/model artifacts and declared external versions or provide a deterministic local fixture. Source identity is only one part of reproducibility.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "How should Git and dependency locks support a reproducible learning project?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated reproducible source state boundary: A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.",
+    "definitions": [
+      {
+        "term": "Reproducible source state",
+        "definition": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.\",\n  \"decision\": \"Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.",
+    "alternatives": [
+      "No. Record immutable data/model artifacts and declared external versions or provide a deterministic local fixture. Source identity is only one part of reproducibility."
+    ],
+    "pitfalls": [
+      "A classmate can build the source but gets another model score because the dataset revision and random split were never recorded."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does checking out a commit reproduce every remote service?",
+        "A": "No. Record immutable data/model artifacts and declared external versions or provide a deterministic local fixture. Source identity is only one part of reproducibility."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "When is a Python class useful compared with a function and a dictionary?",
+    "spoken": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object’s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.",
+    "A": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object’s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.\n\nEngineering case: A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.\n\nReasoning under a changed assumption: No. Plain dictionaries, typed records or dataclasses may fit. Introduce behavior and lifecycle boundaries because they protect a concrete invariant, not because the project might grow.",
+    "Why": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object’s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.",
+    "Risk": "A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.",
+    "Trade": "No. Plain dictionaries, typed records or dataclasses may fit. Introduce behavior and lifecycle boundaries because they protect a concrete invariant, not because the project might grow.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "foundations",
+    "subdomain": "programming-foundations",
+    "module": "programming-foundations",
+    "concept": "When is a Python class useful compared with a function and a dictionary?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated object lifecycle boundary: A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.",
+    "definitions": [
+      {
+        "term": "Object lifecycle",
+        "definition": "A function is often sufficient for an independent transformation."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.\",\n  \"decision\": \"A function is often sufficient for an independent transformation\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.",
+    "alternatives": [
+      "No. Plain dictionaries, typed records or dataclasses may fit. Introduce behavior and lifecycle boundaries because they protect a concrete invariant, not because the project might grow."
+    ],
+    "pitfalls": [
+      "A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Should every data record become a class?",
+        "A": "No. Plain dictionaries, typed records or dataclasses may fit. Introduce behavior and lifecycle boundaries because they protect a concrete invariant, not because the project might grow."
+      }
+    ],
+    "citations": [
+      "https://docs.python.org/3/tutorial/",
+      "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

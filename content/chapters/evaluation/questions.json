@@ -6,11 +6,11 @@
     "Risk": "Labels can be incomplete, and chunk IDs can change after reindexing. A correct passage may be marked wrong if labels are tied to obsolete physical chunks.",
     "Trade": "Retrieval metrics are cheap and diagnostic but do not evaluate final answer faithfulness. Use them alongside source-span or document labels and answer-level evaluation.",
     "Try": "For relevant IDs A and B and ranking C,A,D,B, calculate metrics at K=3. Then compare with the harness's exact conventions.",
-    "spoken": "Recall@K measures what fraction of relevant items appear in the top K results. Precision@K measures what fraction of the top K results are relevant. MRR rewards the first relevant result appearing early. Build an evaluation dataset with known relevant items per query, then calculate these metrics offline.",
+    "spoken": "Recall@k is recovered relevant items divided by all relevant items; Precision@k measures relevance among returned top-k items under a declared denominator convention. Reciprocal rank is the inverse rank of the first relevant hit; MRR averages it over queries. Specify units, duplicates, ties and empty-gold behavior.",
     "domain": "ai-rag",
     "subdomain": "evaluation",
     "module": "evaluation",
-    "concept": "retrieval metrics Recall@K, Precision@K, MRR",
+    "concept": "How are Recall@K, Precision@K, and MRR calculated",
     "difficulty": "implementation",
     "misconception_target": "High Recall@K means high Precision@K",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Compute Recall@K and Precision@K for one query.",
       "output": "Metric values between 0 and 1"
     },
-    "production_case": "Evaluating a document search system where each query has known relevant documents.",
+    "production_case": "With gold {A,B} and top two [X,A], Recall@2 is 1/2, Precision@2 is 1/2 and reciprocal rank is 1/2. Score unanswerable queries through a separate abstention contract.",
     "alternatives": [
       "nDCG for graded relevance",
       "MAP for multiple relevant items"
@@ -43,11 +43,11 @@
       "No known relevant items per query",
       "Ignoring position in ranking"
     ],
-    "complexity": "O(K) per query for each metric",
+    "complexity": "For a deduplicated top-k ranking with constant-time relevance membership, basic metric accumulation is O(k); preparing gold sets, sorting ranks and evaluating semantic support are separate costs.",
     "follow_ups": [
       {
-        "Q": "What does MRR reward that Recall@K does not?",
-        "A": "MRR rewards having the first relevant result appear early in the ranking."
+        "Q": "How do you avoid inflated retrieval metrics?",
+        "A": "Deduplicate ranked identities, keep labels independent, freeze query splits and report the evaluation unit and empty-result conventions."
       }
     ],
     "citations": [

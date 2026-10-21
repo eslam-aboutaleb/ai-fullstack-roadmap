@@ -10,6 +10,7 @@ E = lambda value: html.escape(str(value), quote=True)
 
 def load_practice(chapters):
     topics = {q['id']: c['slug'] for c in chapters for q in c['lessons'] + c['questions']}
+    topics.update({unit['study_id']:'course-'+unit['id'] for course in load_courses() for unit in course['units']})
     assessments = json.loads((ROOT/'content/assessments.json').read_text())['items']
     labs = json.loads((ROOT/'content/browser-labs.json').read_text())['labs']
     seen = set()

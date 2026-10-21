@@ -94,13 +94,6 @@
     if (el.checked) scheduleReview(id);
     save();
   }));
-  document.querySelectorAll('[data-review]').forEach(el => el.addEventListener('click', () => {
-    const id = el.dataset.review;
-    if (window.GuideStudyModel.mastery(state,id).stage === 'Not started') { el.textContent = 'Try a self-check or assessment first'; return; }
-    scheduleReview(id);
-    save();
-    el.textContent = 'Review scheduled';
-  }));
   document.querySelector('#reset-progress')?.addEventListener('click', async () => {
     if (!window.confirm('Clear this browser’s notes, bookmarks, confidence, and review history? Export a backup first.')) return;
     await store.clear();
@@ -127,17 +120,19 @@
     }
   }));
 
-  let practicing = new URLSearchParams(location.search).get('mode') === 'practice';
+  let practicing = true;
   function practice(on) {
     practicing = on;
     document.body.classList.toggle('practice', on);
     document.querySelectorAll('.answer').forEach(el => { el.open = !on; });
     const button = document.querySelector('#practice');
-    if (button) { button.textContent = on ? 'Reading mode: reveal answers' : 'Practice: hide answers'; button.setAttribute('aria-pressed', String(on)); }
+    for (const control of [button, document.querySelector('#expand')]) {
+      if (control) { control.textContent = on ? 'View all answers' : 'Hide all answers'; control.setAttribute('aria-pressed', String(!on)); }
+    }
   }
   if (practicing) practice(true);
   document.querySelector('#practice')?.addEventListener('click', () => practice(!practicing));
-  document.querySelector('#expand')?.addEventListener('click', () => practice(false));
+  document.querySelector('#expand')?.addEventListener('click', () => practice(!practicing));
 
   document.querySelectorAll('pre code').forEach(block => {
     if (block.id !== 'rag-packet' && !block.closest('.example-output')) window.GuideCode.highlight(block);
@@ -192,7 +187,11 @@
     const pending = all.filter(q => !state.learned[q.id]);
     const pool = pending.length ? pending : all;
     const q = pool[Math.floor(Math.random() * pool.length)];
-    if (q) location.href = new URL(`${q.slug}.html?mode=practice#q${q.id}`, SITE_ROOT).href;
+    if (q) {
+      const destination = new URL(q.href || `${q.slug}.html#q${q.id}`, SITE_ROOT);
+      destination.searchParams.set('mode','practice');
+      location.href = destination.href;
+    }
   });
 
   document.querySelector('#term-search')?.addEventListener('input', event => {
@@ -395,7 +394,32 @@
     for (const item of items) item.hidden = !item.dataset.bankText.includes(term);
     document.querySelector('#bank-filter-status').textContent = `${items.filter(item => !item.hidden).length} questions on this page`;
   });
+  // Filter only the chapter directory: the complete lesson remains available.
+  const finder = document.querySelector('.question-finder');
+  if (finder) {
+    const query = finder.querySelector('#chapter-question-query');
+    const kind = finder.querySelector('#chapter-question-kind');
+    const items = [...finder.querySelectorAll('[data-finder-text]')];
+    finder.querySelector('.finder-controls').hidden = false;
+    const filterQuestions = () => {
+      const words = query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+      let count = 0;
+      for (const item of items) {
+        item.hidden = !(words.every(word => item.dataset.finderText.includes(word)) &&
+          (!kind.value || item.dataset.finderKind === kind.value));
+        if (!item.hidden) count++;
+      }
+      finder.querySelector('#chapter-question-count').textContent = `${count} of ${items.length} questions`;
+      finder.querySelector('#chapter-question-empty').hidden = count !== 0;
+    };
+    query.addEventListener('input', filterQuestions);
+    kind.addEventListener('change', filterQuestions);
+    finder.querySelector('#chapter-question-reset').addEventListener('click', () => {
+      query.value = ''; kind.value = ''; filterQuestions(); query.focus();
+    });
+  }
   window.GuideAppReady = true;
+  window.dispatchEvent(new Event('guide:ready'));
   document.querySelector('#import')?.addEventListener('change', async event => {
     const file = event.target.files[0]; if (!file) return;
     const message = document.querySelector('#storage-status');

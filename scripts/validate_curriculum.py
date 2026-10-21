@@ -86,6 +86,18 @@ def validate(course=None, curriculum=None):
         if color[slug] == WHITE:
             visit(slug, [])
 
+    # The published path must be a topological order, not merely an acyclic graph.
+    ordered=[slug for _,_,_,slugs in course['stages'] for slug in slugs]
+    if len(ordered)!=len(set(ordered)):raise ValueError('Repeated chapter in learning journey')
+    positions={slug:index for index,slug in enumerate(ordered)}
+    for slug,deps in prereq.items():
+        if any(positions[dep]>=positions[slug] for dep in deps):
+            raise ValueError('Prerequisite appears after its dependent chapter: '+slug)
+    if ordered[0]!='programming-foundations':raise ValueError('Learning journey must begin with programming foundations')
+    for track in tracks:
+        if track['chapters']!=sorted(track['chapters'],key=positions.get):raise ValueError('Track order disagrees with learning journey')
+        if track['entry_point']!=track['chapters'][0]:raise ValueError('Track entry point must be its first prerequisite-ordered chapter')
+
     # Track entry points must exist.
     for track in tracks:
         if track['entry_point'] not in chapters:

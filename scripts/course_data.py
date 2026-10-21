@@ -107,6 +107,12 @@ def load(assign_ids=False):
                 for field in legacy_fields:
                     if not isinstance(question.get(field), str) or not question[field].strip():
                         raise ValueError(f'{slug}/{group}: missing text field {field}')
+                if question.get('answer_format') == 'conceptual':
+                    conceptual_schema = json.loads((CONTENT/'shared/conceptual-question-schema.json').read_text())
+                    _check_schema(question, conceptual_schema, group, slug)
+                    from urllib.parse import urlsplit
+                    if any(urlsplit(ref).scheme not in ('http','https') or not urlsplit(ref).netloc for ref in question['citations']):
+                        raise ValueError(f'{slug}: conceptual citations must be HTTP(S) URLs')
                 if question.get('added') or marker in question:
                     _check_schema(question, schema, group, slug)
                     from editorial import validate_review

@@ -1,0 +1,52 @@
+[
+  {
+    "Q": "What must an SSE parser preserve when an event is split across network chunks?",
+    "spoken": "Decode UTF-8 incrementally and apply the SSE field and blank-line grammar independently of fetch chunks. Preserve declared event identity and replay semantics, bound buffers and require application completion evidence where the task needs it. A transport reconnection is not permission to repeat a business effect.",
+    "A": "Decode UTF-8 incrementally and apply the SSE field and blank-line grammar independently of fetch chunks. Preserve declared event identity and replay semantics, bound buffers and require application completion evidence where the task needs it. A transport reconnection is not permission to repeat a business effect.\n\nConcrete engineering case: A multibyte character and an event boundary are split across two reads. Parsing each read independently corrupts the text or loses the event.\n\nBoundary defense: No. Bound admitted work, retained history and slow-consumer buffers under an explicit server/client policy.",
+    "Why": "Decode UTF-8 incrementally and apply the SSE field and blank-line grammar independently of fetch chunks. Preserve declared event identity and replay semantics, bound buffers and require application completion evidence where the task needs it. A transport reconnection is not permission to repeat a business effect.",
+    "Risk": "A multibyte character and an event boundary are split across two reads. Parsing each read independently corrupts the text or loses the event.",
+    "Trade": "No. Bound admitted work, retained history and slow-consumer buffers under an explicit server/client policy.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "domain": "frontend",
+    "subdomain": "sse-streaming",
+    "module": "sse-streaming",
+    "concept": "What must an SSE parser preserve when an event is split across network chunks?",
+    "difficulty": "scenario",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A multibyte character and an event boundary are split across two reads. Parsing each read independently corrupts the text or loses the event.",
+    "definitions": [
+      {
+        "term": "Boundary: sse streaming",
+        "definition": "Decode UTF-8 incrementally and apply the SSE field and blank-line grammar independently of fetch chunks."
+      }
+    ],
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "example": {
+      "code": "{\n  \"scenario\": \"A multibyte character and an event boundary are split across two reads. Parsing each read independently corrupts the text or loses the event.\",\n  \"required_decision\": \"Decode UTF-8 incrementally and apply the SSE field and blank-line grammar independently of fetch chunks\"\n}",
+      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
+      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+    },
+    "production_case": "A multibyte character and an event boundary are split across two reads. Parsing each read independently corrupts the text or loses the event.",
+    "alternatives": [
+      "No. Bound admitted work, retained history and slow-consumer buffers under an explicit server/client policy."
+    ],
+    "pitfalls": [
+      "A multibyte character and an event boundary are split across two reads. Parsing each read independently corrupts the text or loses the event."
+    ],
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "follow_ups": [
+      {
+        "Q": "Does SSE automatically give the application backpressure?",
+        "A": "No. Bound admitted work, retained history and slow-consumer buffers under an explicit server/client policy."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

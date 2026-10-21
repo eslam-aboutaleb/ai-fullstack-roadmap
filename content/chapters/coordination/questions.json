@@ -6,11 +6,11 @@
     "Risk": "The coordinator's logic depends on durable adapters implementing atomic fencing and batch compare-and-swap. The provided in-memory implementations demonstrate semantics within a process, not a production multi-process coordination service.",
     "Trade": "The richer protocol improves recoverability while adding state and adapter obligations. Small single-process applications may reasonably use the simpler pipeline.",
     "Try": "Compare the state required to replace one file with the state required to sync a million-object collection across two workers and intermittent source failures.",
-    "spoken": "Use leases to prevent multiple workers from processing the same task. Use fencing tokens to reject stale writers. Use an outbox pattern to reliably publish events after database commits. Use SKIP LOCKED to let workers claim available rows without blocking each other.",
+    "spoken": "Multi-worker synchronization needs durable ownership, bounded admission, idempotent revision handling and crash recovery beyond a sequential ingestion loop. Leases can expire while work continues; fencing is useful only if the storage/effect receiver rejects stale tokens. An outbox and row claiming solve different boundaries.",
     "domain": "backend",
     "subdomain": "coordination",
     "module": "coordination",
-    "concept": "distributed coordination patterns",
+    "concept": "Why does sync need more than the basic ingestion pipeline",
     "difficulty": "implementation",
     "misconception_target": "A database lock coordinates across all services",
     "definitions": [
@@ -37,7 +37,7 @@
       "explanation": "Claim an available task row without waiting for locks held by other workers.",
       "output": "One task row claimed by this worker"
     },
-    "production_case": "A background job system where multiple workers process tasks from a shared queue.",
+    "production_case": "Worker A pauses until its lease expires; B acquires the job and writes revision 8. A resumes with an older fencing token. The authoritative receiver must reject A rather than trusting its expired local lease.",
     "alternatives": [
       "Distributed lock service (Redis, etcd)",
       "Message queue with competing consumers"
@@ -47,11 +47,11 @@
       "Fencing token not checked on write",
       "Outbox events not published atomically"
     ],
-    "complexity": "O(1) per task claim with proper indexes",
+    "complexity": "Claim latency depends on the eligible queue range, index plan, skipped locked rows and contention. Leases/fencing/outbox add durable reads and writes; none implies constant-time or exactly-once execution.",
     "follow_ups": [
       {
-        "Q": "What happens if a lease expires mid-task?",
-        "A": "Another worker may claim the task; fencing tokens prevent stale writes from corrupting state."
+        "Q": "Does a lease by itself prevent stale writes?",
+        "A": "No. A paused worker can continue after expiry. Enforce fencing or version predicates where the write actually commits."
       }
     ],
     "citations": [
