@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def check(page, base):
     page.goto(base + '/design-scenarios.html')
+    scenario_count = page.locator('main .map-card li a').count()
     link = page.locator('main a').filter(has_text='100 GB file with a server').first
     link.click()
     page.wait_for_function('window.GuideAppReady === true')
@@ -39,4 +40,28 @@ def check(page, base):
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
         page.screenshot(path=f'/tmp/roadmap-design-navigation-{width}.png')
     page.set_viewport_size({'width': 1280, 'height': 720})
-    print(json.dumps({'learning_navigation':'pass','scenario_questions':15,'mobile_overflow':False}))
+    page.goto(base + '/design-scenarios.html')
+    page.get_by_role('link', name='How do you reject a stale worker result after its job has been reclaimed?', exact=True).click()
+    page.wait_for_function('window.GuideAppReady === true')
+    answer = page.locator(page.evaluate('location.hash'))
+    assert answer.locator('details.answer').get_attribute('open') is not None
+    assert 'attempt' in answer.locator('pre code').first.inner_text()
+    assert answer.locator('.answer-diagram').count() == 1
+    page.goto(base + '/design-scenarios.html')
+    page.get_by_role('link', name='How do you bind encrypted records to the correct tenant, record and schema while detecting tampering?', exact=True).click()
+    page.wait_for_function('window.GuideAppReady === true')
+    encryption = page.locator(page.evaluate('location.hash'))
+    assert encryption.locator('details.answer').get_attribute('open') is not None
+    assert 'cryptography dependency required' in encryption.locator('.question-code').inner_text()
+    assert 'AESGCM' in encryption.locator('pre code').first.inner_text()
+    assert encryption.locator('.answer-diagram').count() == 1
+    page.goto(base + '/classification.html')
+    page.wait_for_function('window.GuideAppReady === true')
+    assert page.locator('article[data-question]').count() == 18
+    page.get_by_role('link', name='Download text_grouping_lab.py', exact=True).wait_for()
+    assert page.get_by_role('link', name='Download text_grouping_lab.py', exact=True).get_attribute('href').endswith('examples/labs/text_grouping_lab.py')
+    page.goto(base + '/clustering.html')
+    page.wait_for_function('window.GuideAppReady === true')
+    assert page.locator('article[data-question]').count() == 18
+    assert page.locator('.answer-diagram').count() == 16
+    print(json.dumps({'learning_navigation':'pass','scenario_questions':scenario_count,'mobile_overflow':False}))

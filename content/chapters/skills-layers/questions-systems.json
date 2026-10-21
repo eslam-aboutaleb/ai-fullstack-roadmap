@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How should an agent pin a procedure version when instructions change during a long-running task?",
+    "A": "**Record the version used to make each decision.** A task should capture an immutable procedure version, publication digest and relevant business-rule version. Re-fetching a mutable current alias at every turn can combine the first half of one procedure with the second half of another. That hybrid may never have been reviewed.\n\n**Define update classes.** A cosmetic clarification may allow an existing run to continue on its pinned version. A corrected safety rule, revoked authorization or newly forbidden action can require a stop or revalidation even for an older run. Pinning prevents accidental drift; it does not grant permission to ignore current authorization. Keep mandatory revocations and emergency stops in a control path that can interrupt pinned tasks.\n\n**Migrate durable task state explicitly.** If a new version changes step identifiers or required approvals, supply a migration map with validation. Re-evaluate pending effects and approvals against the new requirements. Do not reinterpret an old completed-step number as a different new action. A task that cannot be migrated safely should pause for review or restart from a declared safe boundary.\n\n**Preserve reproducibility without executing old hazards.** Store the old version for audit and explanation, while marking whether new execution is permitted. An audit can reconstruct why an earlier action occurred even when that version is no longer runnable. The example separates a pinned reference from a revocation list and proves that revocation wins before execution.",
+    "Why": "A task pinned to runbook v3 waits for approval overnight. Version v4 fixes a missing mandatory verification. The system must revalidate or stop the pending action rather than silently continuing v3 or splicing in step numbers from v4.",
+    "worked_case": "A task pinned to runbook v3 waits for approval overnight. Version v4 fixes a missing mandatory verification. The system must revalidate or stop the pending action rather than silently continuing v3 or splicing in step numbers from v4.",
+    "Risk": "Pinning alone can perpetuate a revoked process; automatically upgrading alone can corrupt durable progress.",
+    "Trade": "Explicit version migration requires operational work but makes long-running behavior reviewable.",
+    "Try": "Design upgrade rules for cosmetic edits, new approvals, removed tools and emergency revocation. Show the task state before and after migration.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "skills-layers",
+    "citations": [
+      "https://www.postgresql.org/docs/current/transaction-iso.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should the model decide whether an update is cosmetic?",
+        "A": "Use the controlled publication process and explicit compatibility metadata. A model may assist reviewers, but migration policy should not depend on an improvised guess at runtime."
+      },
+      {
+        "Q": "Can completed actions simply be replayed under the new version?",
+        "A": "No. Reconcile their actual effects and preserve operation identities. Migration must distinguish completed effects from steps that still need execution."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

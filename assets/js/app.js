@@ -20,12 +20,6 @@
     return Promise.all(changes.map(args => store.set(...args)));
   }
 
-  function scheduleReview(id) {
-    const now = Date.now();
-    const r = state.reviews[id] || { interval: 0, reps: 0, nextReview: 0 };
-    state.reviews[id] = window.GuideStudyModel.schedule(r, true, now);
-  }
-
   function dueForReview() {
     const now = Date.now();
     return Object.entries(state.reviews).filter(([id, r]) => r.nextReview <= now).map(([id]) => Number(id));
@@ -58,22 +52,12 @@
       themeBtn.title = 'Switch reading theme (Light → Warm Sepia → Dark)';
     }
 
-    document.querySelectorAll('[data-learned]').forEach(el => { el.checked = !!state.learned[el.dataset.learned]; });
     document.querySelectorAll('[data-bookmark]').forEach(el => {
       const on = !!state.bookmarks[el.dataset.bookmark];
       el.setAttribute('aria-pressed', String(on));
       el.textContent = on ? 'Bookmarked' : 'Bookmark';
     });
     document.querySelectorAll('[data-note]').forEach(el => { if (document.activeElement !== el || state.notes[el.dataset.note] === undefined) el.value = state.notes[el.dataset.note] || ''; });
-    document.querySelectorAll('[data-rating]').forEach(el => {
-      const id = Number(el.closest('[data-question]').dataset.question);
-      const selected = Number(el.dataset.rating) === (state.confidence[id] || 0);
-      el.classList.toggle('active', selected); el.setAttribute('aria-pressed', String(selected));
-    });
-    document.querySelectorAll('[data-mastery]').forEach(el => {
-      const evidence = window.GuideStudyModel.mastery(state, el.dataset.mastery);
-      el.textContent = `${evidence.stage} · ${evidence.passes} passed / ${evidence.attempts} attempts`;
-    });
     updateProgress();
   }
 
@@ -88,14 +72,8 @@
     syncControls();
   });
 
-  document.querySelectorAll('[data-learned]').forEach(el => el.addEventListener('change', () => {
-    const id = el.dataset.learned;
-    state.learned[id] = el.checked;
-    if (el.checked) scheduleReview(id);
-    save();
-  }));
   document.querySelector('#reset-progress')?.addEventListener('click', async () => {
-    if (!window.confirm('Clear this browser’s notes, bookmarks, confidence, and review history? Export a backup first.')) return;
+    if (!window.confirm('Clear this browser’s notes, bookmarks, and practice history? Export a backup first.')) return;
     await store.clear();
     state = store.snapshot; syncControls(); search();
   });
@@ -373,14 +351,6 @@
     document.body.classList.toggle('distraction-free', state.distractionFree);
     save(); syncControls();
   });
-
-  document.querySelectorAll('[data-rating]').forEach(el => el.addEventListener('click', function() {
-    const id = Number(this.closest('[data-question]').dataset.question);
-    const rating = Number(this.dataset.rating);
-    state.confidence[id] = rating;
-    syncControls();
-    save();
-  }));
 
   document.querySelector('#export')?.addEventListener('click', async () => {
     await store.flush();

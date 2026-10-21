@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you prevent a deterministic evaluation proxy from being reported as live agent quality?",
+    "A": "**Label what produced the evaluated answer.** Retrieval-only scoring, a deterministic answer stub, a context-only generator and a full agent trajectory measure different systems. Store the execution mode and answer source in every result alongside dataset version, configuration, code revision and tool access. A familiar metric name does not make these modes interchangeable.\n\n**Gate only claims the run can support.** A retrieval fixture can verify whether required evidence was surfaced. It cannot establish that a live agent cites it correctly, uses tools safely or stops under uncertainty. A deterministic refusal stub can test evaluator wiring without proving that the deployed model refuses the same inputs. Live runs need explicit provider/model identities and independent checks on actual outputs and effects.\n\n**Protect evaluation against accidental shortcuts.** Keep ground-truth answers and expected labels outside the model input. Pin the dataset split and distinguish tuning data from a held-out release set. A gate should reject a mode mismatch rather than silently accept whichever artifact happens to have a high score. Missing provenance is a failed validation, not a default live mode.\n\n**Report comparable results.** Compare runs with compatible datasets, budgets, tool environments and scoring rules. Track stochastic variation over repeated live runs and preserve failed trajectories. A fast offline proxy remains useful for development feedback, but its report must state its narrower scope. The executable check below rejects a high proxy score when the release gate requires live-agent evidence.",
+    "Why": "A deterministic context proxy scores 0.98 and a live agent scores 0.84. Reporting the proxy as the deployed assistant's quality hides tool selection, provider failures and unsupported claims that only the live run can expose.",
+    "worked_case": "A deterministic context proxy scores 0.98 and a live agent scores 0.84. Reporting the proxy as the deployed assistant's quality hides tool selection, provider failures and unsupported claims that only the live run can expose.",
+    "Risk": "An excellent score from the wrong execution mode can approve a release without testing the product behavior.",
+    "Trade": "Offline fixtures are cheap and reproducible; live evaluation adds realism, cost and variance. Use both with distinct gates.",
+    "Try": "Create a report with a deliberately mislabeled answer source and verify that the release gate rejects it even when every numeric score passes.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "evaluation-engineering",
+    "citations": [
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a live label alone prove the run was live?",
+        "A": "No. Preserve execution records and enforce mode selection in the runner. A metadata validator checks consistency, while trusted run provenance establishes where the artifact came from."
+      },
+      {
+        "Q": "Should the live gate replace deterministic tests?",
+        "A": "No. Deterministic checks catch contracts cheaply; live checks address model and integration behavior. A useful pipeline keeps their evidence and failure meanings distinct."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

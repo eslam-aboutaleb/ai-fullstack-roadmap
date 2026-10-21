@@ -65,3 +65,9 @@ See the [interview-led chapter review](docs/interview-led-chapters.md) for same-
 The [answer formatting review](docs/answer-format-review.md) documents the single detailed answer layout, diagrams, code and duplicate suppression.
 
 The [learning experience and design review](docs/learning-experience-design-review.md) covers chapter question finding and advanced scenarios for context limits, huge uploads, metadata and agent architecture choices.
+
+The [advanced systems interview additions](docs/advanced-systems-interviews.md) cover atomic index publication, worker recovery, distributed idempotency, procedure completeness, durable streaming, evaluation validity, hybrid-search semantics and notification delivery.
+
+The [data integrity interview additions](docs/data-integrity-interviews.md) cover entity resolution, Unicode, private-data encryption, migration and serialization contracts, uncertain labels and domain invariants. Two optional cryptography examples have a separate pinned execution check.
+
+Dedicated [classification and clustering chapters](docs/classification-clustering-chapters.md) compare classical algorithms, real neural embeddings and LLM-assisted decisions. Their optional CPU lab uses a pinned sentence encoder and records reproducible fixture results.

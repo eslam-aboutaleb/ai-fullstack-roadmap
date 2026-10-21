@@ -47,6 +47,7 @@ def check(base_path=''):
             cards=page.locator('.chapter-card').evaluate_all('(items)=>items.map(item=>item.getAttribute("href"))')
             assert cards[:4] == ['programming-foundations.html','computer-science-foundations.html','web-foundations.html','frontend-foundations.html']
             assert cards.index('foundations.html') > cards.index('deep-learning-foundations.html')
+            assert cards.index('prompt-techniques.html') < cards.index('classification.html') < cards.index('clustering.html') < cards.index('foundations.html')
             from check_learning_navigation import check as check_navigation
             check_navigation(page, base)
             page.goto(base+'/index.html')
@@ -73,11 +74,30 @@ def check(base_path=''):
             saved = page.evaluate('window.GuideStudy.store.snapshot')
             for field in ('learned', 'bookmarks', 'reviews', 'confidence'):
                 assert saved[field] == seed[field], (field, saved[field])
-            # Active rating state must update at the clicked article, not a missing selector.
-            rating = page.locator('[data-rating="5"]').first
-            rating_id = rating.evaluate("el => el.closest('[data-question]').dataset.question")
-            rating.click()
-            assert 'active' in rating.get_attribute('class')
+            assert page.locator('[data-rating], [data-mastery], [data-learned]').count() == 0
+            # Bookmarks sit beside both foundation and deeper question headings.
+            cards = page.locator('article[data-question]')
+            assert page.locator('article[data-question] .question-heading [data-bookmark]').count() == cards.count()
+            bookmark = page.locator('#q2 .question-heading [data-bookmark]')
+            assert bookmark.get_attribute('aria-pressed') == 'true'
+            bookmark.click()
+            assert bookmark.get_attribute('aria-pressed') == 'false'
+            bookmark.focus(); page.keyboard.press('Space')
+            assert bookmark.get_attribute('aria-pressed') == 'true'
+            page.evaluate('window.GuideStudy.store.flush()')
+            page.reload(); page.wait_for_function('window.GuideAppReady === true')
+            assert bookmark.get_attribute('aria-pressed') == 'true'
+            page.locator('#practice').click()
+            for width in (390, 1440):
+                page.set_viewport_size({'width':width,'height':900})
+                for selector in ('.lesson', '.interview-question'):
+                    heading = page.locator(selector + ' .question-heading').first
+                    title = heading.locator('h2, h3').bounding_box()
+                    button = heading.locator('[data-bookmark]').bounding_box()
+                    assert button['x'] >= title['x'] + title['width'] - 1
+                    assert abs(button['y'] - title['y']) < 2
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+            page.set_viewport_size({'width':1280,'height':720})
             # Compare source before and after executing the actual JS tokenizer in a real DOM.
             for fixture in SOURCE_FIXTURES:
                 actual = page.evaluate('''source => {
@@ -128,7 +148,7 @@ def check(base_path=''):
             exported = json.loads(Path(download.value.path()).read_text())
             exported_snapshot = page.evaluate('events => window.GuideStudyModel.reduce(events)', exported['events'])
             assert exported_snapshot['reviews'] == seed['reviews']
-            assert exported_snapshot['confidence'][rating_id] == 5
+            assert exported_snapshot['confidence'] == seed['confidence']
             page.locator('#import').set_input_files({'name': 'progress.json', 'mimeType': 'application/json', 'buffer': json.dumps(exported).encode()})
             page.wait_for_function("document.querySelector('#storage-status').textContent.includes('imported')")
             imported = page.evaluate('window.GuideStudy.store.snapshot')

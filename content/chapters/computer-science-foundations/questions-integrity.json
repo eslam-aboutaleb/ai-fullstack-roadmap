@@ -1,0 +1,33 @@
+[
+  {
+    "Q": "How do you implement domain ordering without producing contradictory comparisons or hiding invalid input?",
+    "A": "**Define what order means in the domain.** Some states have a useful linear order, while others are incomparable. A severity scale may be ordered, but workflow states with branches often form a graph rather than a ranked list. Assigning an integer to every state can falsely imply that one branch is universally greater than another.\n\n**Implement comparison semantics consistently.** For a genuinely ordered value, compare validated ranks and return NotImplemented for unsupported operand types. That lets Python try the other operand's reflected operation or raise the appropriate error. Defining greater-than as simply not less-than-or-equal can manufacture a true result for an incomparable or unsupported value.\n\n**Keep validation separate from ranking.** Negative years, malformed numbers or unknown enum values should not silently map to the lowest category. If an ordinal is inferred from a heuristic, preserve that provenance rather than presenting it as a validated competency fact. Where two values are incomparable, expose that through a domain method or explicit result instead of forcing a boolean ordering.\n\n**Test algebraic properties and boundaries.** Check equality consistency, transitivity for the intended ordered set and behavior against unsupported types. Include the smallest and largest valid inputs and invalid negative values. The example uses a small ranked value with total_ordering for a genuinely linear domain and verifies that comparison with an unrelated integer is rejected rather than guessed.",
+    "Why": "A custom class defines greater-than as the negation of less-than-or-equal. Comparing with an unsupported type can produce misleading behavior instead of a clear TypeError. Returning NotImplemented preserves Python's comparison protocol.",
+    "worked_case": "A custom class defines greater-than as the negation of less-than-or-equal. Comparing with an unsupported type can produce misleading behavior instead of a clear TypeError. Returning NotImplemented preserves Python's comparison protocol.",
+    "Risk": "An arbitrary total order can turn unrelated workflow states or inferred labels into misleading thresholds used by later decisions.",
+    "Trade": "A total order simplifies sorting only when the domain really supports it; explicit partial-order methods require callers to handle incomparability.",
+    "Try": "Test ordering laws for valid values, reject negative input and compare with an unrelated type. Then identify a workflow whose branches should not be forced into the same rank scale.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "computer-science-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/enum.html",
+      "https://docs.python.org/3/library/dataclasses.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should enum declaration order define business ordering?",
+        "A": "Only if that policy is explicit and stable. Reordering source declarations should not silently change important business comparisons; use reviewed rank metadata or a domain-specific relation."
+      },
+      {
+        "Q": "What is a useful test beyond several example comparisons?",
+        "A": "Check ordering properties over all values when the domain is small, or use property-based tests for larger domains. Also test unsupported types and values outside the valid range."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

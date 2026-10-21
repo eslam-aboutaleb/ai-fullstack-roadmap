@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you guarantee a retrieved procedure contains every required step before an agent follows it?",
+    "A": "**Procedure discovery and procedure execution need different completeness contracts.** Semantic search can help identify which approved procedure matches a task. Once selected, load that exact immutable version using its manifest and ordered step identifiers. A top-k result set is ranked evidence, not an enumeration of every required instruction.\n\n**Validate structure, not only the number of hits.** A manifest can specify version, expected step identifiers, order, content digests and mandatory branches. Verify all required steps are present exactly once, from the same version, with matching digests. A matching count can still hide one duplicate and one missing step. If procedures form a graph, validate required nodes and edges rather than assuming a linear sequence is sufficient.\n\n**Treat truncation as an execution boundary.** If the complete approved procedure cannot fit the request, use a typed workflow state machine that loads the next permitted step and preserves durable progress. Do not let the model freely skip unseen steps. Missing prerequisites, unreadable content or unknown versions should block actions that depend on those steps, with an explicit escalation or an approved alternative.\n\n**Keep facts and procedure authority separate.** A runbook describes how to gather evidence and make decisions; current limits or product facts come from their authoritative sources. Retrieved text must not grant tool permissions. Procedures need controlled publication, review and rollback just like code. The executable manifest validator below rejects a missing middle step even when the remaining steps look plausible.",
+    "Why": "A retrieval query returns steps 1, 2 and 4 of a four-step access-review runbook. Step 3 contains mandatory approval. The agent must not proceed because the text reads smoothly without it.",
+    "worked_case": "A retrieval query returns steps 1, 2 and 4 of a four-step access-review runbook. Step 3 contains mandatory approval. The agent must not proceed because the text reads smoothly without it.",
+    "Risk": "Logging a truncation warning while returning a runnable-looking partial procedure leaves the safety decision to the model.",
+    "Trade": "Exact versioned loading improves completeness; controlled stepwise execution supports larger procedures with more application state.",
+    "Try": "Create a procedure with a mandatory branch, then remove a step, duplicate a step and mix versions. Verify that each invalid load blocks execution.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "application-architecture",
+    "citations": [
+      "https://www.postgresql.org/docs/current/transaction-iso.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a count equal to the retrieval limit prove truncation?",
+        "A": "No. It signals that truncation is possible, not certain. Compare against an authoritative manifest or exhaust an exact bounded enumeration to prove completeness."
+      },
+      {
+        "Q": "Is a retrieved procedure trusted because it is in the index?",
+        "A": "Index membership does not confer execution authority. Validate its publication provenance, approval and version, and keep application tool policy outside the document."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

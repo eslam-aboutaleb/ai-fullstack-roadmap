@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you prevent duplicate notifications when delivery succeeds but acknowledgment is lost?",
+    "A": "**Expect an ambiguous delivery window.** A worker can send successfully and crash before marking its outbox event delivered. Recovery then retries. The outbox guarantees recoverable intent, not exactly-once external delivery. Acknowledging before sending instead risks permanent loss, so merely swapping those two operations does not solve the problem.\n\n**Deduplicate at the destination where possible.** An in-application feed can use a unique event identifier and insert the feed item transactionally. A duplicate delivery becomes a no-op and can still be acknowledged. For an external provider, send a stable provider-supported idempotency key and reconcile an unknown outcome using that key. Verify the provider's retention and conflict semantics; do not assume every channel supports deduplication.\n\n**Separate unsupported channels from successful delivery.** A worker without an implemented delivery adapter should fail explicitly and preserve retry or dead-letter status. Silently returning success loses the event. Classify permanent validation errors separately from transient network failures, cap retries and retain enough safe diagnostic detail for repair.\n\n**Design operations for uncertainty.** Track delivery attempts, provider references, next retry time and terminal disposition. Replaying a dead-letter event must retain the original logical event identity unless the operator intentionally creates a new event. Set expectations for channels that can still deliver duplicates, and ensure the message does not claim an effect that never committed. The local feed example uses a real unique constraint to make redelivery idempotent; it does not model email-provider guarantees.",
+    "Why": "A feed insertion commits, but the worker dies before acknowledging the outbox event. The next worker retries the same event ID. The feed retains one row and the worker can safely mark the intent delivered.",
+    "worked_case": "A feed insertion commits, but the worker dies before acknowledging the outbox event. The next worker retries the same event ID. The feed retains one row and the worker can safely mark the intent delivered.",
+    "Risk": "Changing the event ID on every retry defeats destination deduplication. An unsupported channel reported as successful silently drops notifications.",
+    "Trade": "At-least-once delivery with destination deduplication is practical; channels without it require explicit duplicate tolerance or reconciliation.",
+    "Try": "Inject a crash after destination commit and before acknowledgment. Retry the same event, then test a deliberately unsupported channel.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "deployment-reliability",
+    "citations": [
+      "https://www.sqlite.org/lang_transaction.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What if a retry uses the same ID with different content?",
+        "A": "Validate a payload fingerprint or store immutable event data before delivery. An idempotency key should not silently accept a different logical message."
+      },
+      {
+        "Q": "Is an operator replay always safe?",
+        "A": "Only under the same delivery and authorization contract. Recheck recipient eligibility and preserve event identity when retrying the original notification."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]
