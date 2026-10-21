@@ -99,6 +99,11 @@ check_quote_fidelity()
 from check_editorial_qa import check as check_editorial_qa
 check_editorial_qa()
 
+from check_interview_contract import check_fixtures as check_interview_contract_fixtures
+check_interview_contract_fixtures()
+from interview_contract import check as check_interview_contract
+print('Interview contract current content:', check_interview_contract())
+
 from check_review_regressions import check as check_review_regressions
 check_review_regressions()
 
