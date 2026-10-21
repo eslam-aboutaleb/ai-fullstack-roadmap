@@ -35,4 +35,4 @@ Recorded execution in `labs/text_grouping_result.json` reports lexical macro-F1 
 
 The pinned environment is NumPy 2.0.2, scikit-learn 1.9.1, PyTorch 2.14.1, Sentence Transformers 6.2.0 and Transformers 5.20.2. Optional checks execute the complete lab and estimator snippet. Core checks execute the standard-library miniatures, validate all declared identities and preserve downloadable source exactly. Independent technical review remains pending.
 
-Validation passed: `make check` (58 chapters, 207 pages, 23,956 internal links, 1,171 chapter topics), final formatter/source/example checks, the pinned real-embedding lab and estimator example, root Chromium ordering/navigation/download checks and 33 automated accessibility checks.
+Validation passed: `make check` (58 chapters, 207 pages, 23,954 internal links, 1,171 chapter topics), final formatter/source/example checks, the pinned real-embedding lab and estimator example, root Chromium ordering/navigation/download checks and 33 automated accessibility checks.
