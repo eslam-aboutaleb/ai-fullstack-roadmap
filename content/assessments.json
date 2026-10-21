@@ -1742,6 +1742,78 @@
         "https://docs.langchain.com/oss/python/langgraph/overview"
       ],
       "independent": true
+    },
+    {
+      "id": "serving-ttft-queue-regression",
+      "chapter": "model-engineering",
+      "topic": 296,
+      "title": "Batching raises throughput but breaks TTFT",
+      "kind": "debugging",
+      "objective": "inference.scheduling.tail-latency",
+      "difficulty": "applied",
+      "scenario": "A deployment increases its maximum concurrent decode sequences; generated tokens per second improves 22%, but p99 time-to-first-token rises from 0.7 s to 2.2 s with the same request-length mix. Which conclusion is supported?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The serving change is universally better because tokens/s increased.",
+          "feedback": "It violates or worsens latency for tail requests; throughput alone does not establish product improvement."
+        },
+        {
+          "id": "2",
+          "text": "Compare queueing and prefill/decode per request class, check SLA, then tune memory/admission.",
+          "feedback": "Correct: inspect queue time, TTFT, KV capacity and length-specific fairness with a paired workload."
+        },
+        {
+          "id": "3",
+          "text": "KV memory is independent of live context tokens, so ignore VRAM.",
+          "feedback": "KV memory scales with layers, heads, head width, live tokens, dtype and concurrent sequences."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Serving changes trade throughput and tail latency. Calculate 2×L×H_kv×d×T×bytes×sequences for KV memory, trace queue and prefill, report TTFT/TPOT and p99 alongside real GPU high-water marks. A deterministic simulation is not a measured vLLM/TGI benchmark.",
+      "hints": [
+        "The acceptance goal includes tail latency, not solely throughput."
+      ],
+      "references": [
+        "https://docs.vllm.ai/en/latest/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "safety-critical-slice-release",
+      "chapter": "security",
+      "topic": 106,
+      "title": "A safety slice regresses under a better average",
+      "kind": "debugging",
+      "objective": "safety.fairness.critical-slice",
+      "difficulty": "applied",
+      "scenario": "A new moderation configuration improves aggregate accuracy but misses all labeled harmful prompts in a small language-specific sample while older behavior caught them. The policy requires no regression on critical-harm slices. What is the defensible release decision?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Release; overall accuracy improved.",
+          "feedback": "A critical per-slice harm gate cannot be overridden by a larger aggregate."
+        },
+        {
+          "id": "2",
+          "text": "Block, examine adjudicated slice size and failure reasons, gather representative labels and rerun the sealed test set.",
+          "feedback": "Correct: respect the harm gate and state uncertainty from a small sample."
+        },
+        {
+          "id": "3",
+          "text": "Silently remove the language slice from evaluation.",
+          "feedback": "This hides a safety regression and biases the evaluation set."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Compute TP/FN and false-positive rates for each represented slice with known denominators. A tiny synthetic test is insufficient to certify fairness but can reveal an unacceptable regression; investigate representative independently adjudicated data without moving thresholds merely to pass CI.",
+      "hints": [
+        "Look for the critical-slice gate and why sample size matters."
+      ],
+      "references": [
+        "https://www.nist.gov/itl/ai-risk-management-framework"
+      ],
+      "independent": true
     }
   ]
 }
