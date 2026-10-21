@@ -9,6 +9,8 @@ import validate_curriculum
 
 def check():
     validate_curriculum.validate()
+    from check_learning_blueprint import check as check_learning_blueprint
+    check_learning_blueprint()
     from copy import deepcopy
     course,curriculum=validate_curriculum.load()
     invalid=deepcopy(course)
