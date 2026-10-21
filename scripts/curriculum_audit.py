@@ -44,6 +44,10 @@ def build(out,write,chapters,curriculum,url):
             'limitations':['Independent technical review pending', 'External reference freshness is not exhaustively checked', 'Near-duplicate matching is lexical, not a semantic correctness proof'],
             'review_policy':'Reviewed/approved question labels require a matching reviewer, date, notes and SHA-256 content attestation. Drafts remain visibly marked.'}
     (out/'questions/editorial-report.json').write_text(json.dumps(report,indent=2)+'\n')
+    # Public, reproducible evidence report; publishing draft source never implies SME approval.
+    from editorial_evidence import evidence_report
+    (out/'questions/editorial-evidence.json').write_text(
+        json.dumps(evidence_report(chapters), ensure_ascii=False, indent=2)+'\n')
     write('editorial-report.html','Editorial evidence and review state',
           '<h1>Editorial evidence and review state</h1><p>Counts below come from source records. A draft label identifies material awaiting independent technical review.</p><ul>'+
           ''.join('<li>'+E(state)+': '+str(count)+'</li>' for state,count in sorted(states.items()))+
