@@ -23,3 +23,39 @@ Seven-engine practical adapter checklist:
 Each optional adapter needs pinned dependencies, actual server or cloud
 access, negative owner/deletion tests, identical gold recall queries and
 documented resources/cost/cleanup. Never label a mocked client as verified.
+
+## Actual local SDK contract execution
+
+Install `requirements-vector-engines.txt` in a fresh Python 3.12 environment:
+
+```sh
+python3.12 -m venv .venv-vector
+.venv-vector/bin/python -m pip install -r requirements-vector-engines.txt
+.venv-vector/bin/python labs/vector_engines.py --output vector-results.json
+```
+
+The same original five-record, two-dimensional vector corpus now runs through
+actual Qdrant local, persistent Chroma, FAISS and LanceDB APIs. Positive checks
+assert the independently specified eligible ID. Negative checks place a more
+similar other-owner record, an obsolete embedding profile and a tombstoned
+record ahead of the eligible result. Missing-owner reads return nothing; an
+owner-A delete cannot remove owner B's record. Repeated upsert, profile change,
+old-profile exclusion, repeated delete and post-delete query are executed.
+
+FAISS is an index library: the wrapper selects the eligible owner/profile rows
+before constructing its native exact index, rather than post-filtering a global
+top-k. It does not claim native server ACLs. Qdrant's local SDK mode does not
+exercise a distributed Qdrant server or HNSW graph. No adapter here provides an
+HTTP authentication service or proves secure multi-tenant deployment by itself.
+LanceDB and Chroma receive their actual prefilter predicates in their own APIs.
+
+`docs/evidence/vector-engines.json` records observed SDK versions, raw build
+and ten-query timings and the successful contract checks. Five vectors and ten
+warm samples are not a representative p99, index-memory or ANN quality benchmark.
+No embedding model is downloaded. Each profile uses a disposable local directory;
+no existing database or production collection is touched.
+
+Pinecone, Weaviate and PostgreSQL/pgvector service paths remain explicitly
+unexecuted here. This increment replaces four fictional adapters with actual
+SDK tests, while retaining the separate requirement for the remaining engines,
+engine-specific HNSW/hybrid experiments and a complete migration assessment.
