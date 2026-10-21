@@ -87,6 +87,8 @@ def check():
                  'follow_ups': [], 'reviewer_status': {'status': 'draft'}}
     problems = inspect_new_question(synthetic)
     assert len(problems) >= 3 and inspect_new_question({'id': 1}) == []
+    from revised_content_gate import check_fixtures as revised_check_fixtures
+    revised_check_fixtures()
     print('Editorial evidence report: source counts, published artifact, and negative gates pass')
 
     print(json.dumps({
