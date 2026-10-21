@@ -79,9 +79,9 @@ def load_manifest(manifest,*,base_sha,tokenizer_sha,template_sha):
 
 def check():
     sample=response_labels([10,11],[20,21],7)
-    assert sample["input_ids"]==[0,10,11,20,21,1,2]
-    assert sample["labels"]==[-100,-100,-100,20,21,1,-100]
-    assert sample["attention_mask"]==[1,1,1,1,1,1,0]
+    assert sample["input_ids"]==[0,10,11,20,21,2,2]
+    assert sample["labels"]==[-100,-100,20,21,1,-100,-100]
+    assert sample["attention_mask"]==[1,1,1,1,1,0,0]
     assert effective_updates(103,3,8,4)=={"effective_batch":32,"microsteps":39,"optimizer_steps":10}
     W=[[1.,0.],[0.,1.]]
     results=optimize_lora(W,[1.,0.],[1.,2.])
