@@ -136,23 +136,6 @@ def build(out, write, chapters, curriculum, url):
     target=out/'questions/competency-blueprint.json'
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, ensure_ascii=False,indent=2)+'\n')
-    row_html=''.join(
-        '<tr><th scope="row">'+E(c['title'])+'</th><td>'+E(c['competency'])+'</td>'
-        '<td>'+str(len(c['foundation_lessons']))+'/'+str(len(c['interview_questions']))+'</td>'
-        '<td>'+str(c['linked_practice_count'])+'</td>'
-        '<td>'+E(c['independent_technical_review'])+'</td></tr>'
-        for c in payload['chapters'])
-    backlog=''.join('<li><a href="https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/'+str(m['issue'])+'">'
-                    +E(m['title'])+'</a> — '+E(m['status'])+'; '+E(m['intro_problem'])+'</li>'
-                    for m in payload['planned_modules'])
-    write('competency-blueprint.html','Competency blueprint and remaining curriculum work',
-          '<h1>What is taught, practiced and still only planned?</h1>'
-          '<p>Every chapter begins with an introduction and then foundation/deeper interview questions. '
-          'This matrix links every study ID, its evidence and its course-unit/assessment coverage in a machine-readable file. '
-          'Neither source counts nor passing authoring tests independently approve technical correctness or learner competency.</p>'
-          '<div class="table-scroll"><table><caption>Source-derived competency inventory; no mastery certification.</caption>'
-          '<thead><tr><th>Chapter</th><th>Competency</th><th>Guided/deeper topics</th><th>Linked practice</th><th>Independent review</th></tr></thead>'
-          '<tbody>'+row_html+'</tbody></table></div>'
-          '<h2>Planned deep-dive workstreams</h2><ul>'+backlog+'</ul>'
-          '<p><a href="'+url('questions/competency-blueprint.json')+'">Download full chapter/question/unit/assessment blueprint</a></p>')
+    # The existing curriculum-map reader is the sole coverage destination.
+    # Export structured facts, but do not recreate duplicate navigational hubs.
     return payload

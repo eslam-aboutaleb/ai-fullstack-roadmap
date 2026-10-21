@@ -37,7 +37,8 @@ def check():
     assert sum(len(ch['foundation_lessons'])+len(ch['interview_questions'])
                for ch in report['chapters']) == curriculum['coverage_manifest']['total_questions']
     assert {m['issue'] for m in plan['modules']} >= set(range(38,50))
-    assert (ROOT/'_site/competency-blueprint.html').is_file()
+    assert not (ROOT/'_site/competency-blueprint.html').exists()
+    assert 'questions/competency-blueprint.json' in (ROOT/'_site/curriculum-map.html').read_text()
     assert json.loads((ROOT/'_site/questions/competency-blueprint.json').read_text())==report
     for broken in ('dangling', 'false-approval', 'missing-question'):
         candidate=deepcopy(plan)

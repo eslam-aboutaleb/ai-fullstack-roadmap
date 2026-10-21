@@ -21,10 +21,10 @@ def check(base_path=''):
     try:
         with sync_playwright() as playwright:
             browser=playwright.chromium.launch();page=browser.new_page()
-            paths=['index.html','foundations.html','assessments.html','coding-labs.html','study.html','simulations.html','questions-foundations-1.html','tracks/backend.html','course-gradients-optimization.html','capstone-transaction-api.html','curriculum-map.html','design-system.html']
+            paths=['index.html','foundations.html','assessments.html','coding-labs.html','study.html','database-concurrency.html','retrieval.html','tracks/backend.html','course-gradients-optimization.html','capstone-transaction-api.html','curriculum-map.html','design-system.html']
             paths+=['course-web-semantics-accessibility.html','course-data-contracts-modeling.html','course-llm-provider-contracts.html','course-recovery-governance-release.html','examples/labs/streaming_reader.html']
             paths+=['course-sdk-protocol-interoperability.html','project-evidence-workbench.html','project-review-packet.html','engineering-projects.html']
-            paths+=['classification.html','clustering.html','security.html','design-scenarios.html','ingestion.html','programming-foundations.html','machine-learning-foundations.html','topic-coverage.html']
+            paths+=['classification.html','clustering.html','security.html','design-scenarios.html','ingestion.html','programming-foundations.html','machine-learning-foundations.html']
             for path in paths:
                 page.goto(base+'/'+path)
                 if path == 'ingestion.html':
