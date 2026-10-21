@@ -38,7 +38,16 @@
     "Why": "Resolve usage and pricing independently, retaining unknown and estimated values explicitly. Compare total cost per completed task, including retries and failed runs, with a known pricing source.",
     "Risk": "A zero-cost metric can hide a new provider or unsupported model price. Retries, embedding, and reranking may also be omitted from a narrow generation-only dashboard.",
     "Trade": "Detailed accounting adds metadata and improves budget control. Provider invoices remain a reconciliation source rather than assuming local estimates are exact bills.",
-    "Try": "Send a synthetic unknown-model usage record and verify it is reported as unpriced, not confidently free. Attribute all calls in one successful task."
+    "Try": "Send a synthetic unknown-model usage record and verify it is reported as unpriced, not confidently free. Attribute all calls in one successful task.",
+    "citations": [
+      "https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens when an invoice shows a charged retry but the application has no token-usage response?",
+        "A": "Keep the attempt unresolved in a reserved or reconciliation state and associate the provider request identifier, model and effective price revision. Never silently record zero cost; reconcile the authoritative provider invoice before releasing reserved funds and preserve retries as separate attempts."
+      }
+    ]
   },
   {
     "Q": "Why are in-process metrics different from fleet-wide monitoring?",
@@ -71,7 +80,16 @@
     "Why": "Define SLOs around useful outcomes, response delay, evidence freshness, and recovery. Alert on sustained user impact and preserve a path from aggregate metrics to safe trace identifiers.",
     "Risk": "Alerting only on average HTTP latency misses stuck jobs and quality failures. Sampling can also miss rare severe authorization incidents, which need deterministic denial monitoring and tests.",
     "Trade": "More nuanced SLOs require definitions and ownership. A small set linked to concrete user impact is more maintainable than dozens of disconnected thresholds.",
-    "Try": "Define a stream-success SLO and an indexing-lag SLO, including numerator, denominator, window, and corrective action."
+    "Try": "Define a stream-success SLO and an indexing-lag SLO, including numerator, denominator, window, and corrective action.",
+    "citations": [
+      "https://sre.google/workbook/alerting-on-slos/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Would a successful HTTP response justify counting a task as a successful user outcome?",
+        "A": "No. HTTP 200 measures an API transport outcome, not citation accuracy, authorization, refusal appropriateness or successful side effects. Attribute task-level status from independently evaluated outcomes, then monitor latency/error-budget and quality slices with a known denominator."
+      }
+    ]
   },
   {
     "Q": "How should observability produce better evaluation cases?",
