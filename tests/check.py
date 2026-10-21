@@ -111,6 +111,11 @@ subprocess.run(['node', str(ROOT/'tests/check_study.cjs')], check=True)
 from check_question_bank import check as check_question_bank
 check_question_bank()
 
+memory_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/agent_memory_lifecycle.py')],
+                             capture_output=True,text=True,timeout=10)
+assert memory_result.returncode==0,(memory_result.stdout,memory_result.stderr)
+assert 'PASS' in memory_result.stdout
+
 for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py',
                  'data_contract_pipeline.py', 'llm_contracts.py', 'retrieval_scorecard.py', 'production_scorecard.py', 'restore_drill.py'):
     result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/lab_name)], capture_output=True, text=True, timeout=20)
