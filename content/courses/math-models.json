@@ -339,6 +339,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Derive backpropagation through a two-layer ReLU network and explain what changes at the zero activation boundary.",
+          "spoken": "Apply the chain rule from the scalar loss through output weights, the ReLU activation, and input weights; state the chosen subgradient convention at zero.",
+          "deep": "**Prerequisites and model.** Let the input be x∈R², first-layer weights W₁∈R²ˣ², biases b₁∈R², preactivation z=W₁x+b₁, hidden activation h=ReLU(z), output ŷ=w₂ᵀh+b₂, and loss L=(ŷ−y)²/2. Every matrix multiplication has a specific shape. ReLU is max(0,z); its local derivative is 1 for z>0, 0 for z<0, and a chosen subgradient at z=0. Many autodiff libraries use zero exactly at the kink. This convention affects a boundary test but does not make the model differentiable everywhere.\n\n**Forward worked calculation.** Take x=(1,2), W₁=identity, b₁=(−2,0), w₂=(1,−1), b₂=0 and y=0. Then z=(−1,2), h=(0,2), ŷ=−2, and L=2. The output loss derivative is δ_out=ŷ−y=−2. Therefore ∂L/∂w₂=δ_out·h=(0,−4) and ∂L/∂b₂=−2. The hidden gradient before ReLU is w₂δ_out=(−2,+2); after the ReLU mask (0,1), δ_hidden=(0,+2). Thus ∂L/∂W₁=outer(δ_hidden,x) has rows (0,0) and (2,4), and ∂L/∂b₁=(0,2). A small descent step subtracts η times these gradients.\n\n**Debugging oracle.** Compare an analytic gradient against a central finite difference away from nondifferentiable points; test W₁ entries that activate and deactivate units separately. Beware an incorrect transpose, implicit broadcasting, using a mean reduction where a sum is intended, or masking the *post-output* gradient instead of the preactivation derivative. A gradient check near z=0 is not conclusive because finite differences cross the kink.\n\n**Production failure.** A deep ReLU network whose initial biases are strongly negative can create dead units with zero local gradients; training loss plateaus although the optimizer executes. Diagnose activation distributions, gradient norms, initialization and learning rate before claiming that more data solves the problem. Compare to smooth activation variants, normalization and residual paths under the same evaluation data.\n\n**Practice.** Hand-compute this example, alter b₁ so the first unit is positive and explain the new nonzero first-row gradient. Then inspect numerical derivatives with the repository's existing NumPy–autograd comparison exercise.",
+          "follow_up": {
+            "question": "How do gradient checkpointing and mixed precision change this derivative?",
+            "answer": "Checkpointing recomputes selected forward activations during backward to trade computation for memory; it should not change the analytical derivative. Mixed precision may alter numerical gradients through rounding or underflow, so test tolerances and loss scaling where appropriate."
+          },
+          "rubric": [
+            "Derives or measures a concrete mechanism with correct assumptions and shapes",
+            "Differentiates code correctness from held-out production effectiveness",
+            "Explains failure modes, alternatives and an answered changed-condition follow-up"
+          ]
         }
       ]
     },
@@ -415,6 +429,20 @@
             "Defines assumptions and key terms",
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Why does a numerically correct PyTorch training step still fail to update its parameters?",
+          "spoken": "Autograd records a differentiable graph, but the optimizer updates only registered leaf parameters with non-None gradients; graph detachments, no_grad scopes and missing optimizer membership can break training.",
+          "deep": "**Mechanism.** PyTorch tracks tensor operations when tensors require gradients. A scalar loss calls backward() to accumulate derivatives into leaf parameters. The optimizer owns an explicit set of parameter objects: its step updates only that set using available gradients. The common sequence is optimizer.zero_grad(set_to_none=True), loss.backward(), inspect grads and optimizer.step(). Calling backward without step computes gradients but does not train. Calling step without refreshing gradients may reuse stale accumulated values.\n\n**Typical silent mistakes.** Converting a tensor to Python with item() and reconstructing it with torch.tensor(value) severs the original gradient path. Invoking detach() or torch.no_grad() during forward disables or breaks required derivatives. Replacing a module weight object after constructing the optimizer may mean the optimizer holds an obsolete parameter. Performing an accidental in-place mutation can invalidate autograd's saved tensors and should surface a version-counter error. A tensor created from a parameter's numeric data may be a disconnected new leaf rather than a view on the trainable parameter.\n\n**Minimal debugging procedure.** Fix a deterministic input/label and record the loss and a clone of each expected trainable parameter before and after a single step. Assert that expected parameters have gradients of the correct shape, their gradients are finite, the intended parameter's bytes changed, frozen parameters did not change and the loss improves for a small enough learning rate. Compare the analytic manual implementation and autograd value for one small case; this proves local derivatives, not generalization.\n\n**Error categories.** Training loss can fall despite label leakage, biased sampling or a broken test split. Conversely, a model can be implemented correctly and fail to generalize because it is overparameterized or data is unrepresentative. Isolate graph correctness, optimizer wiring, train data quality and held-out evaluation as different hypotheses. Include restart/checkpoint checks before claiming reproducibility.\n\n**Changed assumption.** If gradient accumulation spans four microbatches, zero the gradients once per *optimizer* accumulation window rather than before every microbatch. Divide or normalize the loss consistently with your intended effective batch, handle the last partial window explicitly, and verify optimizer step count.",
+          "follow_up": {
+            "question": "A parameter has a nonzero gradient but remains unchanged after optimizer.step(). How do you investigate?",
+            "answer": "Check the exact parameter object belongs to a live optimizer group, the group learning rate and update rule, zero-weight-decay behavior, gradient scaling/overflow skips and whether an old or detached parameter is being inspected. A nonzero grad alone does not guarantee a visible step."
+          },
+          "rubric": [
+            "Derives or measures a concrete mechanism with correct assumptions and shapes",
+            "Differentiates code correctness from held-out production effectiveness",
+            "Explains failure modes, alternatives and an answered changed-condition follow-up"
           ]
         }
       ]
@@ -670,6 +698,20 @@
             "Defines assumptions and key terms",
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "How do you decide among RAG, LoRA, quantization and distillation for a production language model?",
+          "spoken": "First classify the error as missing information, unstable task behavior or resource pressure; then pick retrieval, adapter training, numerical compression or teacher-to-student training and validate on separate held-out cases.",
+          "deep": "**Different objectives.** Retrieval-augmented generation (RAG) retrieves current, authorized evidence and supplies it to the model at answer time; it does not modify the underlying model weights. LoRA adapts behavior by training a low-rank ΔW=(α/r)BA with the base W frozen. Quantization encodes existing weights or activations with reduced precision to trade compute/memory/latency against numerical error; it does not automatically teach the model a new ability. Distillation trains a student model on teacher predictions or representations, potentially changing architecture and requiring substantial labels/compute.\n\n**Worked diagnosis.** A support assistant gives an old refund policy. If the policy source changed yesterday, a retriever/index freshness failure is the primary hypothesis; fine-tuning the model on yesterday's policy hardcodes stale knowledge. If current evidence is available but answers violate a stable JSON response contract, evaluate structured decoding/prompt changes before an adapter. If latency is high because the base weights cannot fit GPU memory, benchmark compatible 8/4-bit kernels under the same model and workload; do not infer faster serving simply from a smaller checkpoint. If a small model is needed on a constrained device, a measured teacher/student distillation experiment may be warranted.\n\n**Quantitative adapter example.** A W matrix with 4096 input and 4096 output channels has 16,777,216 base scalars. With LoRA rank 16, A contains 16×4096 and B contains 4096×16, totaling 131,072 trainable scalars; that is about 0.78% of the base matrix parameter count before gradients/optimizers/activations. A 4-bit base weight representation may reduce parameter storage compared with FP16, but quantization scales, runtime buffers, KV cache and implementation kernels contribute to total memory.\n\n**Evaluation and safety.** Establish an immutable baseline and sealed held-out task set. Compare answer support/refusals, resource use, p95/p99 latency, cost, retention/forgetting and safety slices after each change. Check model/tokenizer/template compatibility when reloading a LoRA adapter; don't claim a QLoRA run from a toy rank-one matrix lab. Record artifact licenses and source lineage.\n\n**Follow-up.** If RAG improves factuality but context token spending triples, measure relevant-evidence recall, source support and cost per *correct* answer. Tune retrieval and passage selection before replacing the model architecture; document quality versus latency trade-offs.",
+          "follow_up": {
+            "question": "Could weight quantization invalidate a merged LoRA adapter even with matching shapes?",
+            "answer": "Yes. Quantization changes numerical representation and kernel behavior; an adapter merge calibrated for another base precision/version can shift outputs. Pin base/tokenizer and benchmark merged/unmerged outputs with real tolerances before deployment."
+          },
+          "rubric": [
+            "Derives or measures a concrete mechanism with correct assumptions and shapes",
+            "Differentiates code correctness from held-out production effectiveness",
+            "Explains failure modes, alternatives and an answered changed-condition follow-up"
           ]
         }
       ]
