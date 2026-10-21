@@ -37,3 +37,13 @@ the chapter in a browser at root and the Pages subpath.
 Do **not** raise the baseline or add empty padding to satisfy a length rule.
 Instead review older unverified answers incrementally, preserving all IDs. Human
 technical review and learner research remain outstanding until independently done.
+
+## Review states for conceptual answers
+
+Conceptual answers support draft, reviewed and approved states. Every claimed
+reviewed/approved state is checked against a content-digest-specific attestation,
+including conceptual records without the legacy `spoken` field. Changing the
+schema enum alone must never grant approval. Record the actual reviewer and
+review method; an AI review must say so and must not be represented as an
+independent human SME review. The maintainer has delegated technical acceptance
+to Codex in this implementation session; that does not invent GPU/vendor results.
