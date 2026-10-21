@@ -51,6 +51,17 @@ def check_fixtures():
     old['questions'][0]={'id':BASELINE_ID, 'Q':'Existing question', 'A':'Historical short answer'}
     old['lessons'][0]={'id':BASELINE_ID-1, 'Q':'Existing foundation'}
     assert not inspect([old]), 'Legacy learning identities must remain compatible'
+    # Real published new study identities (not only generated fixtures).
+    from course_data import load
+    chapters = load()
+    identities = {q['id']:q for c in chapters for q in c['questions']}
+    for number in (1212,1213,1214):
+        assert number in identities, 'Missing registered new interview topic'
+        record=identities[number]
+        assert record['answer_format']=='conceptual'
+        assert len(record['A'])>=350 and record['citations']
+        assert record['follow_ups'][0]['A']
+    assert check(chapters)['new_chapter_topics'] >= 3
     print('Interview-first authoring contract: positive, negative and legacy cases pass')
 
 
