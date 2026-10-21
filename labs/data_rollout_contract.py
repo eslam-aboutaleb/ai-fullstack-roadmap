@@ -61,7 +61,7 @@ class Projection:
         return True
     def visible(self,owner):
         return list(self.db.execute("SELECT document,payload FROM documents WHERE owner=? AND deleted=0",
-                                    (owner,)).fetchall()))
+                                    (owner,)).fetchall())
 
 def release_gate(*, image_digest, schema_compatible, rollout_error_rate,
                  max_error_rate, recovery_drill_passed):
