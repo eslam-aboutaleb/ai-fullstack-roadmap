@@ -166,7 +166,16 @@
     "Why": "Global top-k then authorization filtering can silently drop eligible evidence and leak unauthorized IDs.",
     "Risk": "A backend that ignores a filter can still leak data. Defense in depth detects some invalid results, but tests must also ensure a reranker or external processor does not receive unauthorized candidates before that final check.",
     "Trade": "Filter-aware search can affect query plans and approximate recall. Security requirements take precedence; tune backend indexes rather than dropping constraints for speed.",
-    "Try": "Run the exact reference fixture with different owners, an unindexed revision and a deletion; specify the real provider integration test needed next."
+    "Try": "Run the exact reference fixture with different owners, an unindexed revision and a deletion; specify the real provider integration test needed next.",
+    "citations": [
+      "https://qdrant.tech/documentation/guides/optimize/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why can top-k post-filtering harm recall even if it removes every unauthorized result?",
+        "A": "Unscoped candidates can fill all top-k slots with forbidden neighbors and displace lower-ranked eligible evidence. Apply the trusted ACL in the engine's candidate selection or separate index namespaces, then verify an owner-scoped Recall@k oracle and a revoked-document negative case."
+      }
+    ]
   },
   {
     "Q": "How should I interpret distance thresholds and relevance scores?",
