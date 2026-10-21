@@ -6,6 +6,7 @@ import json
 import zipfile
 from urllib.parse import urlsplit
 from course_data import _check_schema
+from answer_format import prose as answer_prose
 from engineering_projects import load as load_projects, files as project_files, build as build_projects
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -89,7 +90,7 @@ def build(out,write,url,controls=lambda q:""):
             if unit.get('interviews'):
                 body+='<h2>Technical interview and design defense</h2>'
                 for interview in unit['interviews']:
-                    body+='<details><summary>'+E(interview['question'])+'</summary><h3>Interview response</h3><p>'+E(interview['spoken'])+'</p><h3>Detailed reasoning</h3><p>'+E(interview['deep'])+'</p><h3>Follow-up</h3><p><strong>'+E(interview['follow_up']['question'])+'</strong></p><p>'+E(interview['follow_up']['answer'])+'</p><h3>What a strong answer demonstrates</h3><ul>'+''.join('<li>'+E(item)+'</li>' for item in interview['rubric'])+'</ul></details>'
+                    body+='<details><summary>'+E(interview['question'])+'</summary><h3>Complete interview answer</h3>'+answer_prose(interview['deep'])+'<h3>Follow-up</h3><p><strong>'+E(interview['follow_up']['question'])+'</strong></p><p>'+E(interview['follow_up']['answer'])+'</p><h3>What a strong answer demonstrates</h3><ul>'+''.join('<li>'+E(item)+'</li>' for item in interview['rubric'])+'</ul></details>'
             if unit.get('source_context'):
                 body+='<h2>How the references inform this unit</h2><ul>'+''.join('<li><a href="'+E(references[context['reference_id']][1])+'">'+E(references[context['reference_id']][0])+'</a>: '+E(context['explanation'])+' <strong>Limit:</strong> '+E(context['boundary'])+' Checked '+E(context['accessed_at'])+'.</li>' for context in unit['source_context'])+'</ul>'
             body+='<h2>Primary references</h2><ul>'+''.join('<li><a href="'+E(ref)+'">'+E(ref)+'</a></li>' for ref in unit['references'])+'</ul></section>'

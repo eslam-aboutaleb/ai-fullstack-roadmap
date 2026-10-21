@@ -130,6 +130,14 @@ with zipfile.ZipFile(SITE/'examples/local-projects.zip') as archive:
     assert len(archive.namelist()) == len(set(archive.namelist())), 'Duplicate ZIP members'
     assert {'labs/async_job_engine.py','labs/transaction_api.py','labs/fullstack_demo.py','requirements-models.txt','LICENSE'} <= set(archive.namelist())
     assert not any(name.startswith('/') or '..' in Path(name).parts or '__pycache__' in name for name in archive.namelist())
+async_backend_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/async_backend_failure.py')],
+                                  capture_output=True,text=True,timeout=20)
+assert async_backend_result.returncode==0,(async_backend_result.stdout,async_backend_result.stderr)
+assert 'PASS' in async_backend_result.stdout
+async_course_html=(SITE/'course-asyncio-lifecycle.html').read_text()
+assert 'Complete interview answer' in async_course_html
+assert 'Idempotent' in async_course_html or 'idempotent' in async_course_html
+
 from course_pages import load as load_courses
 course_units = [unit for course in load_courses() for unit in course['units']]
 assert len({unit['study_id'] for unit in course_units}) == len(course_units)
