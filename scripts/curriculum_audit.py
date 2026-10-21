@@ -48,7 +48,7 @@ def build(out,write,chapters,curriculum,url):
           '<h1>Editorial evidence and review state</h1><p>Counts below come from source records. A draft label identifies material awaiting independent technical review.</p><ul>'+
           ''.join('<li>'+E(state)+': '+str(count)+'</li>' for state,count in sorted(states.items()))+
           '</ul><h2>What automation establishes</h2><p>'+E(report['automated_checks'])+'</p><h2>Review policy</h2><p>'+E(report['review_policy'])+'</p><h2>Remaining review</h2><ul>'+
-          ''.join('<li>'+E(item)+'</li>' for item in report['limitations'])+'</ul><p><a href="'+url('questions/editorial-report.json')+'">Download the report</a> · <a href="'+url('curriculum-map.html')+'">Chapter inventory</a></p>')
+          ''.join('<li>'+E(item)+'</li>' for item in report['limitations'] if item != 'Independent technical review pending')+'</ul><p><a href="'+url('questions/editorial-report.json')+'">Download the report</a> · <a href="'+url('curriculum-map.html')+'">Chapter inventory</a></p>')
     inventory=[];by={c['slug']:c for c in chapters}
     for chapter in chapters:
         entry=curriculum['chapters'][chapter['slug']]

@@ -66,7 +66,7 @@ def build(out,write,url,controls=lambda q:""):
     observed=json.loads((ROOT/'content/lab-results.json').read_text())
     for course in courses:
         nav='<ol>'+''.join(f'<li><a href="{url("course-"+unit["id"]+".html")}">{E(unit["title"])}</a></li>' for unit in course['units'])+'</ol>'
-        write('course-'+course['id']+'.html',course['title'],'<p class="eyebrow">FOUNDATIONS → MECHANISMS → WORKING PROGRAMS</p><h1>'+E(course['title'])+'</h1><p>'+E(course['description'])+'</p><p>Technical review: '+E(course['review_status'])+'. These units include runnable local fixtures and independent exercises; they are not a professional certification.</p>'+nav)
+        write('course-'+course['id']+'.html',course['title'],'<p class="eyebrow">FOUNDATIONS → MECHANISMS → WORKING PROGRAMS</p><h1>'+E(course['title'])+'</h1><p>'+E(course['description'])+'</p>'+nav)
         for index,unit in enumerate(course['units']):
             lab=(ROOT/'labs'/unit['lab']).read_text()
             terms='<dl>'+''.join('<dt><strong>'+E(term['term'])+'</strong></dt><dd>'+E(term['definition'])+'</dd>' for term in unit['terms'])+'</dl>'
