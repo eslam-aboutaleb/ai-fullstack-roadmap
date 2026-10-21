@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you canonicalize URLs and cap generated keys without discarding identity-bearing information?",
+    "A": "**URL components have different semantics.** The host is case-insensitive in ordinary domain-name use, but a path can be case-sensitive. Query parameters can include a stable resource identifier, pagination, language or a signature, not just tracking. Fragments may identify a document section even when they do not change the server request. Define whether you are identifying a resource, a fetched representation or a cited passage.\n\n**Normalize by source contract.** Parse the URL and apply a narrow, reviewed policy for that source. Drop only known tracking fields where doing so preserves the desired identity. Preserve duplicate parameter values and distinguish a canonical comparison key from the actual fetch URL. Rewriting a signed URL can invalidate it, and canonicalization is not authorization to fetch an arbitrary host.\n\n**Make key limits account for disambiguation.** If a storage column permits 40 characters and a suffix consumes 13, reserve those characters before truncating the readable prefix. Hash the full normalized basis, not only the already-truncated prefix. A digest suffix is probabilistic collision reduction, so retain source identity and enforce a conflict policy. Do not claim that a short digest guarantees global uniqueness.\n\n**Test counterexamples before broad cleanup.** Compare URLs differing only in tracking, URLs with different identity parameters, paths differing by case and repeated query keys. Check maximum key length and deterministic output for multilingual and long input. The example deliberately uses a tiny allowlist and preserves a meaningful identifier and path case; it is not a universal URL canonicalizer.",
+    "Why": "Two URLs differ only in a campaign parameter and can share one comparison key. A third URL has a different document ID and must remain distinct; lowercasing the entire URL would also risk conflating different path resources.",
+    "worked_case": "Two URLs differ only in a campaign parameter and can share one comparison key. A third URL has a different document ID and must remain distinct; lowercasing the entire URL would also risk conflating different path resources.",
+    "Risk": "Aggressive URL cleanup can merge distinct resources or corrupt signed requests; a hash suffix appended after a full-length prefix can exceed the database limit.",
+    "Trade": "Source-specific rules require maintenance but are more defensible than one destructive global regular expression.",
+    "Try": "Test tracking removal, duplicate query values, signed URLs, path case and the final maximum key length. Explain which URLs remain distinct.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "sources",
+    "citations": [
+      "https://docs.python.org/3/library/json.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should query parameters always be sorted?",
+        "A": "Only if the source contract treats their order as irrelevant. Some services or signatures distinguish order; preserve the original fetch reference independently of the comparison key."
+      },
+      {
+        "Q": "Does a canonical URL prove two fetched documents are identical?",
+        "A": "No. Content can vary by time, authorization, headers or language. Store representation metadata and content versions when reproducibility matters."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

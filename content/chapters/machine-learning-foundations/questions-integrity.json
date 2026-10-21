@@ -1,0 +1,33 @@
+[
+  {
+    "Q": "Why do substring classifiers fail on short skill names, and how should a rule baseline abstain?",
+    "A": "**A substring rule is a matching policy with predictable counterexamples.** Testing whether a short token occurs anywhere in text can classify an unrelated word as a programming skill. A title containing a seniority keyword can trigger a proficiency label even when the sentence says the person is not senior. These failures are properties of the rule, not evidence that every such task requires a large language model.\n\n**Start with a bounded vocabulary and explicit matching semantics.** Normalize known phrases, use exact or token-aware matching where appropriate, and maintain reviewed aliases for punctuation-sensitive labels such as C++ or C#. Word-boundary regular expressions are not automatically correct for every language, tokenization rule or symbol-containing term. Preserve the original phrase for review.\n\n**Make unknown a legitimate output.** If no rule applies or multiple rules conflict, return unknown or review-required rather than a default confident category. Hints supplied by a user can help, but they should not silently override verified evidence or turn arbitrary text into an authoritative label. Record which rule fired and which dictionary version it used.\n\n**Evaluate against the actual alternative.** Compare a simple rule baseline, a statistical model and any model-assisted enrichment using the same held-out labels. Include short tokens, negation, mixed languages, misspellings and ambiguous phrases. Report coverage as well as precision among accepted cases. The example deliberately uses a tiny exact vocabulary to avoid substring false positives and abstains on unsupported phrases.",
+    "Why": "A substring check for the language Go matches the word ongoing. An exact vocabulary leaves ongoing unknown while recognizing an explicitly listed Go value; broader natural-language phrases require a separate policy.",
+    "worked_case": "A substring check for the language Go matches the word ongoing. An exact vocabulary leaves ongoing unknown while recognizing an explicitly listed Go value; broader natural-language phrases require a separate policy.",
+    "Risk": "A default category can conceal unsupported classification and contaminate downstream recommendations.",
+    "Trade": "Exact matching has lower recall but a clearer error surface; richer matching needs evaluated disambiguation rules.",
+    "Try": "Build negative examples containing short labels inside unrelated words. Compare false positives and abstention coverage before adding fuzzy matching.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "machine-learning-foundations",
+    "citations": [
+      "https://scikit-learn.org/stable/modules/model_evaluation.html",
+      "https://docs.python.org/3/library/unicodedata.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Would adding word boundaries solve every case?",
+        "A": "No. Symbols, compounds, languages without spaces and contextual negation still require task-specific handling. Evaluate the rule on representative data instead of assuming a regular expression establishes semantics."
+      },
+      {
+        "Q": "When should a model replace this baseline?",
+        "A": "When measured task value and held-out error reduction justify its latency, cost and maintenance. Keep the baseline as a comparison and retain an uncertainty path."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

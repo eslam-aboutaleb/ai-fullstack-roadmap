@@ -1,0 +1,123 @@
+[
+  {
+    "Q": "How do you distinguish duplicate records from different entities that happen to share the same name?",
+    "A": "**Separate source identity, entity identity and search normalization.** A source identifier names a record in one system. An entity identifier names the real-world object your application believes several records describe. A normalized name is merely a matching feature. Making the normalized name the primary key can permanently merge distinct entities before you have enough evidence.\n\n**Define the unit being deduplicated.** Two advertisements may describe one opening, two openings with the same title, or successive versions of one opening. Similar questions arise for products, people and organizations. Include stable source references, location, dates and other domain-specific evidence when generating candidate matches. Preserve every original source record and its provenance so a merge can be reviewed or reversed.\n\n**Use staged resolution.** Exact trusted identifiers can support deterministic links. Weaker signals generate candidates for a scored decision with an explicit match, nonmatch or review outcome. A useful system can abstain. Do not automatically merge an entire connected component simply because A resembles B and B resembles C; pairwise similarity is not necessarily transitive entity identity.\n\n**Evaluate the mistakes that matter.** Measure false merges and false splits separately on labeled pairs and entity clusters. Stratify by language, source, missing fields and common names. A false merge can leak one person's information into another profile or contaminate evidence, while a false split can inflate counts. The local example keeps two identical names under different source identities and demonstrates why the display name alone cannot arbitrate a merge.",
+    "Why": "Two records share the display name North Star but have different verified registration identifiers. A name-based key collapses them; an identity model keeps both and can still index the shared name for search.",
+    "worked_case": "Two records share the display name North Star but have different verified registration identifiers. A name-based key collapses them; an identity model keeps both and can still index the shared name for search.",
+    "Risk": "Overwriting source records during deduplication makes an incorrect merge hard to investigate or undo.",
+    "Trade": "Conservative matching creates more review work and some false splits, but preserves evidence needed to correct false merges.",
+    "Try": "Build a fixture containing identical names, changed names and duplicated source records. Label which pairs should merge and explain which evidence authorizes that decision.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "data-engineering-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/json.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Does a high embedding similarity prove two records are duplicates?",
+        "A": "No. Embeddings capture aspects of semantic similarity, not authoritative identity. Use them to propose candidates and combine independent evidence under a reviewed decision policy."
+      },
+      {
+        "Q": "How do you undo a false merge?",
+        "A": "Preserve immutable source records and versioned link decisions. Reverse the link, rebuild affected aggregates and invalidate derived search or answer artifacts using lineage."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you change canonicalization or alias rules without breaking existing record identities?",
+    "A": "**Version the rule set independently of the entity.** A new alias dictionary or suffix rule can change a computed key even when the source record did not change. Persist the normalization version and the features used for a decision. Keep the application's stable entity identifier independent of recomputed labels wherever possible.\n\n**Treat aliases as scoped assertions.** An acquisition, a product brand and a legal subsidiary are different relationships. Collapsing all of them into one organization can be wrong for the task. Store the relationship type, scope and validity period where relevant. Reject cycles and ambiguous mappings instead of silently following an arbitrary chain. A malformed configuration should be visible to operators rather than quietly changing identity behavior.\n\n**Migrate with a collision report.** Compute new keys alongside old ones on a representative snapshot. Identify many-old-to-one-new merges and one-old-to-many-new splits before writes. Retain an old-key lookup or explicit redirect for external references. Promote the mapping through a reviewed migration, and define rollback for links and derived artifacts. Avoid mass-renaming primary keys based only on a string transformation.\n\n**Do not confuse determinism with uniqueness.** A short hash suffix reduces some accidental collisions but cannot make a finite key mathematically unique for unlimited inputs. Include the suffix in the total length budget, preserve the full identity basis for collision checks, and use a uniqueness constraint with explicit conflict handling. The example exposes a collision caused by a rule change without merging either stored entity.",
+    "Why": "Old rules keep North Star Labs and North Star separate. A new suffix-stripping rule maps both to north-star. The migration should report a collision for review rather than choosing whichever row is processed last.",
+    "worked_case": "Old rules keep North Star Labs and North Star separate. A new suffix-stripping rule maps both to north-star. The migration should report a collision for review rather than choosing whichever row is processed last.",
+    "Risk": "A silent alias change can alter deduplication, foreign references, cached answers and historical counts in one deployment.",
+    "Trade": "Dual-key compatibility costs storage and transition logic but makes migration and rollback controlled.",
+    "Try": "Create an alias cycle, a many-to-one rule change and two long labels sharing a truncated prefix. Define migration outcomes before updating any primary key.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "data-engineering-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/json.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should every subsidiary share its parent company identity?",
+        "A": "Only when the task explicitly uses that grouping. Keep legal entity, parent relationship and brand as separate concepts so one alias rule does not erase distinctions needed elsewhere."
+      },
+      {
+        "Q": "Can a random identifier replace all normalization?",
+        "A": "It solves stable storage identity but not cross-source matching. Keep normalization and evidence-based linking as separate operations."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you migrate legacy data when the new schema requires information the old schema never stored?",
+    "A": "**A migration must not invent missing facts.** New required fields may have no truthful value in old records. Separate the structural conversion from the policy deciding which migrated records can be used. A fabricated default can make validation pass while corrupting later decisions or model training.\n\n**Represent uncertainty explicitly.** Depending on the domain, use a supported unknown state, retain a legacy-only representation, quarantine the record for review, or request user clarification. Distinguish absent, explicitly declined, not applicable and invalid where those states have different meanings. A migration note should record the original value, conversion rule, rule version and any unresolved fields without copying unnecessary sensitive data.\n\n**Validate at the new boundary.** A constructor accepting a dictionary does not prove every nested object satisfies the new contract. Validate nested records, required discriminators and cross-field invariants before marking the record migrated. Preserve rejected inputs for a controlled repair path rather than repeatedly crashing an entire batch.\n\n**Make conversion restartable and observable.** Give each source record and migration version a durable identity, count successes and review-required outcomes, and define behavior on a second run. Do not overwrite a user correction that arrived after the migration read. The example marks a missing proficiency field as unknown instead of guessing a level from an unrelated fact; it separates the reportable issue from the converted record.",
+    "Why": "An old record stores a language name but no proficiency. The new model requires proficiency. Setting fluent would assert knowledge the system does not have; a reviewable unknown state preserves the original evidence.",
+    "worked_case": "An old record stores a language name but no proficiency. The new model requires proficiency. Setting fluent would assert knowledge the system does not have; a reviewable unknown state preserves the original evidence.",
+    "Risk": "Validation-friendly fabricated values can silently become trusted features in downstream matching or generated claims.",
+    "Trade": "Allowing unknown states adds downstream handling, while quarantine reduces usable coverage until missing data is repaired.",
+    "Try": "Migrate fixtures with missing, invalid, explicitly unknown and valid values. Show which records remain usable and which need review.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "data-engineering-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/json.html",
+      "https://docs.python.org/3/library/dataclasses.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What if the new schema forbids unknown?",
+        "A": "Keep the record outside the active target dataset until it can be repaired, or approve a schema change that represents uncertainty. Do not silently forge a value just to satisfy a constructor."
+      },
+      {
+        "Q": "Should a migration infer missing data with an LLM?",
+        "A": "Only under an explicit enrichment policy that preserves inferred status, evidence and review requirements. A generated guess must not be relabeled as an observed source fact."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you preserve extracted, inferred and user-confirmed facts without turning guesses into ground truth?",
+    "A": "**Store epistemic status as part of the data contract.** A directly observed field, a model inference and a user confirmation have different evidential weight. Keep the proposed value, source span or record, extraction/model version, timestamp and review status. Do not hide all of them behind one canonical value with no history.\n\n**Define promotion and supersession rules.** An extracted candidate may become confirmed after user review. A later model run should not overwrite that confirmed value just because it produced a higher self-reported confidence. Conflicting observations need an explicit resolution path, and a user's correction should preserve the fact that an earlier derived value was superseded. Keep the current projection separate from immutable evidence where auditability matters.\n\n**Use confidence carefully.** A score is meaningful only relative to a calibrated task and population. A model's verbal confidence or a heuristic label is not a measured probability. Preserve abstention and unknown states, and route consequential ambiguity to confirmation rather than converting it into a definitive feature.\n\n**Control downstream propagation.** Generated answers, recommendations and analytics should know which facts are confirmed, inferred or stale. A human-readable completeness percentage measures filled fields, not truth or suitability. If an upstream source is corrected or deleted, use lineage to invalidate or rebuild affected outputs. The example prevents a new low-authority inference from replacing a confirmed value and preserves unknown information rather than filling it with a guess.",
+    "Why": "A model infers that a user is an expert from a title string, but the user has explicitly marked their proficiency as intermediate. The inferred update must not silently overwrite the confirmed field.",
+    "worked_case": "A model infers that a user is an expert from a title string, but the user has explicitly marked their proficiency as intermediate. The inferred update must not silently overwrite the confirmed field.",
+    "Risk": "Canonicalizing inferred labels as source truth can amplify errors through retrieval, ranking and generated text.",
+    "Trade": "Keeping provenance and review state costs storage and UI complexity but makes corrections and explanation possible.",
+    "Try": "Create observed, inferred, confirmed and corrected versions of one fact. Show which is displayed and which derived artifacts must be invalidated after correction.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "data-engineering-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/json.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can user-confirmed data ever be wrong?",
+        "A": "Yes. Confirmation is provenance and workflow evidence, not an infallible truth guarantee. Support correction and distinguish user assertions from independently verified facts where the task requires it."
+      },
+      {
+        "Q": "Does a complete profile imply high-quality data?",
+        "A": "No. Completeness measures presence under a chosen checklist. Correctness, freshness, provenance and task relevance need independent measures."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

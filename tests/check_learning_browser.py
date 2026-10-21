@@ -165,7 +165,9 @@ def check(base_path=''):
             page.wait_for_function("window.GuideStudy.store.snapshot.attempts.some(a=>a.assessment==='cdc-checkpoint-crash'&&a.passed)")
             page.evaluate('window.GuideStudy.store.flush()')
             visit(page,'course-cdc-checkpoints-idempotency.html')
-            assert page.locator('[data-mastery]').inner_text().startswith('Independent'), snapshot(page)
+            assert page.locator('[data-mastery], [data-rating], [data-learned]').count() == 0
+            topic = page.locator('section[data-question]').get_attribute('data-question')
+            assert page.evaluate('topic => window.GuideStudyModel.mastery(window.GuideStudy.store.snapshot, topic).stage', topic) == 'Independent', snapshot(page)
             assert page.get_by_role('heading',name='Production incident walkthrough').count()==1
             page.goto(base+'/examples/labs/streaming_reader.html')
             page.locator('#send').click()

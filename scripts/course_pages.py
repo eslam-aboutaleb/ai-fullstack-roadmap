@@ -96,7 +96,7 @@ def build(out,write,url,controls=lambda q:""):
             body+='<nav class="pager"><a href="'+url('course-'+course['id']+'.html')+'">Course contents</a>'
             if index+1<len(course['units']):body+='<a href="'+url('course-'+course['units'][index+1]['id']+'.html')+'">Next: '+E(course['units'][index+1]['title'])+'</a>'
             body+='</nav>'
-            body += '<section id="q'+str(unit['study_id'])+'" data-question="'+str(unit['study_id'])+'"><h2>My study record for this unit</h2>'+controls({'id':unit['study_id']})+'</section>'
+            body += '<section id="q'+str(unit['study_id'])+'" data-question="'+str(unit['study_id'])+'"><h2>My notes and bookmarks for this unit</h2>'+controls({'id':unit['study_id']})+'</section>'
             write('course-'+unit['id']+'.html',unit['title'],body,'course-'+unit['id'])
             outcomes.append({'unit':unit['id'],'study_id':unit['study_id'],'course':course['id'],'outcomes':[{'id':unit['id']+'.outcome-'+str(i+1),'text':text} for i,text in enumerate(unit['outcomes'])],'lab':unit['lab'],'assessment':unit.get('assessment'),'review':course['review_status'],'prerequisites':unit['prerequisites'],'path':unit['path']})
     projects=[
@@ -113,7 +113,7 @@ def build(out,write,url,controls=lambda q:""):
         if lab=='transaction_api.py':
             body+='<p>Requires PostgreSQL 16+, FastAPI, httpx and psycopg. From a repository checkout, run <code>python scripts/test_postgres_pilot.py</code>; it creates a new disposable loopback-only PostgreSQL cluster and removes it afterwards. See CONTRIBUTING for dependencies. This requires local PostgreSQL tools, not a cloud account.</p>'
         else:body+='<p>On macOS/Linux: <code>python3.11 '+E(lab)+'</code>. On Windows: <code>py -3.11 '+E(lab)+'</code>. Use an isolated Python environment; these three projects require only the standard library and small synthetic fixtures. No GPU or provider account is needed.</p>'
-        body+='<h2>Review rubric and deliverables</h2><ul><li>Correct happy path and observed durable state.</li><li>A reproduced failure with an independent assertion.</li><li>No unauthorized effects or duplicate operation identities.</li><li>Commands, environment, test output, architecture explanation and known limitations.</li></ul><p>A project passes review only when its behavior is demonstrated. Reading the reference or clicking Familiar is insufficient.</p>'
+        body+='<h2>Review rubric and deliverables</h2><ul><li>Correct happy path and observed durable state.</li><li>A reproduced failure with an independent assertion.</li><li>No unauthorized effects or duplicate operation identities.</li><li>Commands, environment, test output, architecture explanation and known limitations.</li></ul><p>A project passes review only when its behavior is demonstrated. Reading the reference alone is insufficient.</p>'
         write('capstone-'+identity+'.html',title,body)
         folder=out/'examples/capstones';folder.mkdir(exist_ok=True)
         interfaces = {

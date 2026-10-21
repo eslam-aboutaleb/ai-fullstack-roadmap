@@ -24,14 +24,14 @@ def check(base_path=''):
             paths=['index.html','foundations.html','assessments.html','coding-labs.html','study.html','simulations.html','questions-foundations-1.html','tracks/backend.html','course-gradients-optimization.html','capstone-transaction-api.html','curriculum-map.html','design-system.html']
             paths+=['course-web-semantics-accessibility.html','course-data-contracts-modeling.html','course-llm-provider-contracts.html','course-recovery-governance-release.html','examples/labs/streaming_reader.html']
             paths+=['course-sdk-protocol-interoperability.html','project-evidence-workbench.html','project-review-packet.html','engineering-projects.html']
-            paths+=['design-scenarios.html','ingestion.html','programming-foundations.html','machine-learning-foundations.html','topic-coverage.html']
+            paths+=['classification.html','clustering.html','security.html','design-scenarios.html','ingestion.html','programming-foundations.html','machine-learning-foundations.html','topic-coverage.html']
             for path in paths:
                 page.goto(base+'/'+path)
                 if path == 'ingestion.html':
                     page.locator('#question-finder').evaluate('(el) => el.open = true')
                 standalone=path.startswith('examples/')
                 if not standalone:page.wait_for_function('window.GuideAppReady === true')
-                if path in ('programming-foundations.html','foundations.html','machine-learning-foundations.html'):
+                if path in ('programming-foundations.html','foundations.html','machine-learning-foundations.html','security.html','classification.html','clustering.html'):
                     page.locator('.answer-diagram, .answer-table').evaluate_all("items=>items.forEach(item=>{const owner=item.closest('details.answer');if(owner)owner.open=true;})")
                 page.add_script_tag(path=str(axe))
                 for theme in ('light','dark','warm') if path in ('index.html','programming-foundations.html') else ('light',):

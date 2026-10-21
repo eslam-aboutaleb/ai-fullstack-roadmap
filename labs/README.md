@@ -232,3 +232,7 @@ CPU adaptation time and explicitly labels parameter bytes as excluding activatio
 optimizer state and allocator overhead. `--device cuda` requires real CUDA-capable
 hardware; it synchronizes timing and reports peak allocated tensor memory only
 when the device is available. No GPU result is fabricated on the CPU path.
+
+## Classification and clustering
+
+`text_grouping_lab.py` compares classical algorithms and optional real sentence embeddings. Install `requirements-text-models.txt` from the repository root. Run the lab normally for classical models or add `--embeddings` for the pinned public sentence encoder, downloaded on first use. `text_grouping_result.json` records the tiny fixture execution and its limitations. `tests/check_text_models.py --embeddings` validates the optional environment and example outputs. These results are not production benchmarks.

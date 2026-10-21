@@ -1,0 +1,62 @@
+[
+  {
+    "Q": "How do you represent hybrid-search results when a keyword-only hit has no vector distance?",
+    "A": "**Missing evidence is not a numeric score.** A keyword-only candidate has no observed vector distance for that retrieval path. Represent it as absent, such as a null field, while recording that the keyword channel retrieved it. A real distance of zero can mean an exact vector match and must not be converted to missing data through truthiness checks.\n\n**Keep channel semantics explicit.** Vector distance, cosine similarity, lexical scores and fused ranks have different directions and scales. Record the metric and channel where useful. Do not compare a raw lexical score directly with an arbitrary vector distance or insert zero for a missing distance merely to satisfy a sorting function. Use a fusion method with a documented interpretation, or calibrate scores on the actual task.\n\n**Maintain provenance through fusion.** A candidate can appear in both lists. Deduplicate by a stable document/chunk identity, retain each channel's rank and score, and compute a separate fused value. Reciprocal rank fusion, for example, combines ranks rather than pretending every score has one physical meaning. A missing channel contributes nothing under that formula; it is not treated as a perfect match.\n\n**Test the serialization boundary.** Check keyword-only hits, exact zero distances, negative similarities where valid, equal ranks and empty channels. APIs and UI badges should not label every result as a semantic match just because one query used embeddings. The example demonstrates explicit None checks and a tiny rank-fusion calculation using synthetic ranks.",
+    "Why": "A serializing expression 'distance or None' changes an exact distance of 0.0 into null. Replacing null with zero then makes a keyword-only hit look like an exact semantic match. Both errors destroy the meaning of the field.",
+    "worked_case": "A serializing expression 'distance or None' changes an exact distance of 0.0 into null. Replacing null with zero then makes a keyword-only hit look like an exact semantic match. Both errors destroy the meaning of the field.",
+    "Risk": "Invented default distances can corrupt ranking, quality diagnostics and user explanations.",
+    "Trade": "Rank fusion avoids cross-scale score assumptions but discards some score magnitude information; evaluate it against calibrated alternatives.",
+    "Try": "Serialize a zero-distance vector hit and a keyword-only hit, then verify both retain their distinct meaning after a round trip.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should missing distance sort last?",
+        "A": "Only within a UI or diagnostic view that explicitly sorts by observed distance. Production fusion should use its own declared missing-channel policy rather than accidentally inheriting null ordering."
+      },
+      {
+        "Q": "Can two zero-distance results still be different documents?",
+        "A": "Yes. Identical text or embeddings can belong to distinct sources or versions. Preserve provenance and choose deduplication semantics explicitly."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you build hybrid-search regression tests that survive legitimate ranking changes?",
+    "A": "**Test invariants separately from exact rankings.** Stable invariants include eligibility, preserved identifiers, finite vector values, missing-versus-zero semantics and the presence of answer-critical evidence within a measured retrieval budget. The exact order of two equally useful passages may legitimately change after an index or model upgrade.\n\n**Build a query matrix from failure classes.** Include exact identifiers, paraphrases, typos, rare terms, numerical constraints, empty metadata, cross-tenant nearest neighbors, no-hit queries and keyword-only evidence. Specify acceptable source sets and required exclusions. For a question requiring two supporting clauses, define evidence-set coverage rather than counting either clause as a complete success.\n\n**Compare against an appropriate oracle.** For small filtered fixtures, use exact eligible-set search or explicit labels to isolate approximate-retrieval losses. Report recall at k and mean reciprocal rank (MRR), including the chosen relevance rule and denominator. Aggregate scores need per-category slices so a rare-identifier regression cannot hide behind many easy paraphrases. Treat ties and nondeterministic index behavior explicitly.\n\n**Use release thresholds rather than one fragile golden list.** Pin model, corpus, tokenizer and filter configuration for a regression run. Permit reviewed ranking changes when evidence and operational constraints still pass, and keep the old baseline for comparison. The local example checks required evidence and forbidden candidates while allowing two valid orderings; it intentionally does not emulate a search engine.",
+    "Why": "An upgraded retriever swaps two equally relevant passages, so an exact-list test fails despite unchanged answer support. Meanwhile a tenant filter regression passes because the golden test never asserted forbidden identifiers.",
+    "worked_case": "An upgraded retriever swaps two equally relevant passages, so an exact-list test fails despite unchanged answer support. Meanwhile a tenant filter regression passes because the golden test never asserted forbidden identifiers.",
+    "Risk": "Overly exact rankings create noisy tests; only aggregate metrics can hide serious category failures.",
+    "Trade": "Invariant and category checks are more durable, while a few carefully chosen exact fixtures still help isolate deterministic serialization defects.",
+    "Try": "Build ten queries across five failure classes. Include one query requiring two sources and one with an unauthorized nearest neighbor.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can recall at k establish final answer correctness?",
+        "A": "No. It measures retrieval under a relevance definition. The generator may ignore, distort or incorrectly combine the retrieved evidence, requiring separate answer checks."
+      },
+      {
+        "Q": "Should a no-hit query automatically fail?",
+        "A": "Not if no eligible evidence exists. Label expected empty outcomes and distinguish them from retrieval misses on answerable questions."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

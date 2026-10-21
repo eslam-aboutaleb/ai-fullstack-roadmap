@@ -1,0 +1,63 @@
+[
+  {
+    "Q": "How do you make a data migration resumable, idempotent and safe against concurrent user edits?",
+    "A": "**Define the logical migration operation.** Bind each attempt to a record identifier, source revision and migration version. A second run should recognize an already converted record rather than apply the same destructive transformation again. Idempotence concerns the target meaning, not just whether a script can run twice without throwing an exception.\n\n**Use an explicit source and target contract.** Validate the incoming schema version, transform to a known target and reject unsupported future versions. Keep conversion functions narrow and deterministic where possible. External enrichment should be separately identified so retries do not silently call a changing provider and produce a different supposedly structural migration.\n\n**Guard the write using the revision read.** Update the target only if the record still has the expected data revision and schema version. If a user edited it meanwhile, discard the stale conversion and reload. Do not write an old whole-record snapshot over newer fields. Commit migration status and converted data together when they share a database.\n\n**Operate in bounded batches.** Record a durable cursor or per-record status, errors and migration version. Checkpoint after commit, expose review-required records and avoid logging entire private payloads. Test interruption, replay, invalid input and concurrent modification. The SQLite example executes a real conditional migration update, then verifies that both replay and a stale revision fail to overwrite the migrated record.",
+    "Why": "A migration reads a version-1 record at revision 4. Another operation updates it to revision 5. A write guarded only by record ID would lose that edit; the migration must compare its expected revision before committing.",
+    "worked_case": "A migration reads a version-1 record at revision 4. Another operation updates it to revision 5. A write guarded only by record ID would lose that edit; the migration must compare its expected revision before committing.",
+    "Risk": "A restartable script can still corrupt data if its repeated operations or stale snapshots overwrite newer facts.",
+    "Trade": "Conditional writes create retry work under contention but preserve edits and make conflicts visible.",
+    "Try": "Interrupt a migration after commit but before checkpoint, replay it, then inject a user edit between read and write. Verify target integrity in both cases.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "database-modeling",
+    "citations": [
+      "https://www.sqlite.org/lang_transaction.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Is a batch checkpoint enough to prove every record migrated?",
+        "A": "No. A cursor can skip failures unless their status is separately tracked. Reconcile expected source records with successful and review-required outcomes before declaring completion."
+      },
+      {
+        "Q": "Should rollback always restore the old schema?",
+        "A": "Only if it preserves all information created since migration. A backward transformation may be lossy; use explicit compatibility or repair procedures instead of promising automatic reversal."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "Why should schema version, record revision and source version be separate fields?",
+    "A": "**Each version answers a different question.** Schema version identifies how to interpret structure. Record revision identifies a particular persisted edit of one logical record. Source version identifies the upstream evidence or content from which the record was derived. A single counter cannot reliably answer all three.\n\n**Use record revision for lost-update protection.** A client reads revision 7, edits a field and submits a write conditional on revision 7. If another editor already committed revision 8, the write conflicts instead of overwriting it. Changing the record's ordinary content should not imply that its JSON schema changed. Likewise a schema conversion can preserve the source version while changing how its fields are represented.\n\n**Connect versions to derived artifacts.** A vector, generated explanation or cache entry should record which source and representation it describes. A newer profile revision may only change a notification preference, while a changed extracted paragraph may require another embedding. Define dependencies rather than invalidating everything indiscriminately or retaining stale outputs by accident.\n\n**Make the API contract explicit.** Return a revision token or an HTTP entity tag, define conflict handling and avoid treating a timestamp alone as a universal concurrency token. Explain which fields increment each version and whether revisions are monotonic within one record or across a stream. The SQLite example keeps the schema constant while a guarded edit increments the record revision and rejects a second stale edit.",
+    "Why": "Two editors both load a schema-2 record at revision 7. The first commits revision 8. The second must reload or merge its intent; changing schema_version to 3 would not resolve the lost-update conflict.",
+    "worked_case": "Two editors both load a schema-2 record at revision 7. The first commits revision 8. The second must reload or merge its intent; changing schema_version to 3 would not resolve the lost-update conflict.",
+    "Risk": "Overloading one version field can trigger unnecessary migrations and still fail to prevent stale writes.",
+    "Trade": "Separate counters and identifiers add metadata but make interpretation, concurrency and lineage independent and testable.",
+    "Try": "Trace an ordinary edit, a structural migration and an upstream document replacement. State exactly which versions change for each.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "database-modeling",
+    "citations": [
+      "https://www.sqlite.org/lang_transaction.html",
+      "https://docs.python.org/3/library/json.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can updated_at replace a revision counter?",
+        "A": "Only with a precise database and API contract that ensures sufficient uniqueness and atomic comparison. Timestamp precision, clock assumptions and multiple writes can make casual comparisons unreliable."
+      },
+      {
+        "Q": "Should a cache key include every version field?",
+        "A": "Include the versions and scope that determine that cached value. Unrelated edits need not invalidate an artifact, while an authorization or source change may require immediate revalidation."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

@@ -1,0 +1,95 @@
+[
+  {
+    "Q": "Why must a background worker commit ownership before releasing its row-selection locks?",
+    "A": "**Selection and ownership are separate operations unless the transaction joins them.** A query using row locks can select available jobs without waiting on rows another transaction holds. Those row locks disappear when the transaction ends. Returning selected rows to application code does not extend their database lock lifetime.\n\n**Choose a coherent claiming protocol.** One option selects eligible jobs and changes their state to processing in the same transaction, then commits before performing network work. Another uses conditional updates as the actual arbitration: multiple workers may discover the same candidate, but only an update whose eligibility predicate still matches acquires it. The worker must process only rows that its update actually returned. A local list of selected identifiers is not proof of ownership.\n\n**Include all eligibility conditions in the arbitration boundary.** A retry job may not be due yet, may have exhausted attempts or may have been canceled after discovery. Check those conditions atomically when claiming rather than trusting an earlier snapshot. Stamp an owner and attempt generation, and return that generation to the worker. Keep the transaction short; the provider call should happen after commit rather than while a database row lock remains held for minutes.\n\n**Account for fairness and recovery.** Skipping locked jobs improves competing-consumer throughput, but it is not a fairness or exactly-once guarantee. Track the oldest pending age, cap attempts and reclaim abandoned work through a defined lease protocol. The SQLite example demonstrates the compare-and-set predicate under a sequential competing-claim schedule; it does not implement PostgreSQL's skip-locked scheduling.",
+    "Why": "Workers A and B both discover job 7. A changes pending to processing and commits. B must observe zero rows affected and skip execution. If both process their original discovery lists, two provider calls occur.",
+    "worked_case": "Workers A and B both discover job 7. A changes pending to processing and commits. B must observe zero rows affected and skip execution. If both process their original discovery lists, two provider calls occur.",
+    "Risk": "Treating a released selection lock as durable ownership permits duplicate execution. Reclaiming a job also requires stale-completion protection.",
+    "Trade": "Atomic batch claiming reduces contention; small claims limit the amount of work stranded when one worker crashes.",
+    "Try": "Draw the select/commit/update interleaving for two workers, then identify exactly which statement decides ownership.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "coordination",
+    "citations": [
+      "https://www.postgresql.org/docs/current/sql-select.html",
+      "https://www.sqlite.org/lang_transaction.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should a claim transaction include the embedding call?",
+        "A": "Usually avoid that: network latency would extend lock duration and consume database connections. Commit a durable lease first and make the subsequent work replay-safe."
+      },
+      {
+        "Q": "What if claiming 100 jobs takes longer than one lease?",
+        "A": "Size batches by realistic processing capacity, use renewal where appropriate and limit prefetch. A large claimed backlog can expire before a worker even starts its later jobs."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you reject a stale worker result after its job has been reclaimed?",
+    "A": "**Lease expiration is permission to recover work, not evidence that the original process stopped.** A paused worker may wake after another worker has taken ownership. Both can still hold valid network connections. Checking the lease only before a slow operation leaves a time-of-check/time-of-use gap.\n\n**Issue a new attempt generation on each claim.** Store a monotonically increasing generation or another unambiguous attempt identifier with the owner. Completion, failure and renewal transitions must match the job identifier, current owner, current generation and expected processing state. A stale worker gets zero affected rows and must discard its result rather than overwrite the current status.\n\n**Fence every authoritative write.** Guarding the job table does not protect an external vector index if the stale worker has already overwritten a newer vector. Use generation-qualified vector identities and publish only the current generation, or enforce a conditional version rule at the destination. Where the destination cannot validate versions, isolate writes into immutable attempts and arbitrate visibility through an authoritative pointer.\n\n**Handle late failure as carefully as late success.** A timed-out worker must not mark a newly completed job failed or reset its retry schedule. Keep attempt-specific diagnostic events separately from the current job state. Use clock assumptions for lease expiry explicitly; generation checks provide write ordering without depending on the old worker's local clock. The example executes a real SQL completion predicate and proves that a previous generation cannot commit job completion.",
+    "Why": "Attempt 4 pauses during embedding. Attempt 5 reclaims the job and finishes. Attempt 4 later returns a vector and must not replace attempt 5 data or mark its completed job failed.",
+    "worked_case": "Attempt 4 pauses during embedding. Attempt 5 reclaims the job and finishes. Attempt 4 later returns a vector and must not replace attempt 5 data or mark its completed job failed.",
+    "Risk": "Owner names alone are insufficient when one process name can be reused across attempts. Unconditional completion updates undo recovery guarantees.",
+    "Trade": "Immutable attempt outputs simplify fencing across services but add cleanup work and transient storage.",
+    "Try": "Inject a pause after the old worker starts its provider call, reclaim the job and resume the old worker after the new one completes. Check destination data as well as job status.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "coordination",
+    "citations": [
+      "https://www.postgresql.org/docs/current/sql-select.html",
+      "https://www.sqlite.org/lang_transaction.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Are heartbeat timestamps enough?",
+        "A": "Heartbeats help detect likely abandonment, but a delayed writer can still return. Use timestamps for liveness decisions and a current attempt predicate for authoritative writes."
+      },
+      {
+        "Q": "Can the stale provider call be canceled reliably?",
+        "A": "Cancellation is best effort across process and network boundaries. Correctness must survive a late response even when cancellation fails."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you commit a business change and its notification intent atomically?",
+    "A": "**The invariant is about intent, not immediate delivery.** If a business transaction commits, the durable notification intent should exist; if it rolls back, neither the state change nor its intent should remain. Insert the outbox row using the caller's transaction rather than opening a separate session that commits independently.\n\n**Keep network delivery outside the business transaction.** Calling an email or push provider before commit can notify users about a change that later rolls back. Calling it after commit without a durable intent leaves a crash window where the change survives but no notification is ever sent. The outbox bridges that window by committing the change and intent together, then letting a worker deliver later.\n\n**Record enough stable context.** Include event identity, business-object identity, event type, payload schema version, recipient scope and occurrence time. Decide whether rendering uses a snapshot of event facts or queries current state. Querying current state for a historical event can accidentally announce a later status instead of the transition that occurred. Minimize sensitive payloads and enforce retention.\n\n**Define event identity at the transition.** Duplicate client requests or repeated state-machine execution should not create multiple logical notifications for one transition. Use an event identifier or a uniqueness constraint consistent with the business semantics; two different transitions on the same object may both need notifications. The SQLite example performs a real rollback and proves that the business update and outbox insertion disappear together.",
+    "Why": "A service changes a task from pending to approved and inserts its notification intent. A validation failure before commit must leave the task pending and the outbox empty, even though both SQL statements already ran.",
+    "worked_case": "A service changes a task from pending to approved and inserts its notification intent. A validation failure before commit must leave the task pending and the outbox empty, even though both SQL statements already ran.",
+    "Risk": "An outbox helper that commits its own session breaks atomicity with the business change.",
+    "Trade": "The outbox adds delivery lag and worker operations while preserving a recoverable record of what must be sent.",
+    "Try": "Crash before commit, after commit and during delivery. Identify the durable state and safe recovery action at each point.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "coordination",
+    "citations": [
+      "https://www.sqlite.org/lang_transaction.html",
+      "https://www.postgresql.org/docs/current/transaction-iso.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should an outbox row say delivered when it is inserted?",
+        "A": "No. It records pending intent. Delivery status changes only when the worker has sufficient evidence of the destination outcome."
+      },
+      {
+        "Q": "Can the outbox contain a pointer rather than the full payload?",
+        "A": "Yes, if the referenced event data is durable, versioned and available throughout retries. A pointer to mutable current state may lose the historical event facts."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

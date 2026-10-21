@@ -1,0 +1,63 @@
+[
+  {
+    "Q": "How do you publish a replacement retrieval index without exposing a partially built generation?",
+    "A": "**Separate building from serving.** Assign an immutable generation identifier to the replacement corpus. Write chunks and vectors to that inactive generation while readers continue using the current active generation. Record a manifest containing the expected source versions, chunk identities, embedding configuration and validation results. A successful batch write is not evidence that the whole generation is ready.\n\n**Validate before promotion.** Check for missing chunks, incompatible vector dimensions, duplicate identities, rejected records and source deletions. Run retrieval checks on the candidate generation, including authorization predicates. If some sources are allowed to fail, define that partial-publication policy explicitly and record the omissions. Otherwise leave the old generation active and report the failed build.\n\n**Make visibility one guarded change.** Update the active-generation pointer in a short transaction only if the previously active generation and source revision still match expectations. A second publisher that built from stale assumptions must reload or abandon its candidate. Readers capture the active generation once per logical request and use that identifier for retrieval, parent expansion and citation lookup; rereading the pointer halfway through can combine incompatible versions.\n\n**Match the guarantee to the storage boundary.** When chunks and the pointer share one transactional database, a transaction can publish them consistently. Across a vector service and a metadata database, do not imply that a database transaction covers both. Finish and verify the vector generation first, then publish its immutable reference. Retain the previous generation for rollback and in-flight readers, and garbage-collect it only after a defined retention boundary. The local example demonstrates transaction rollback of a pointer update; it does not simulate a distributed vector service.",
+    "Why": "A search request begins on generation g1 while g2 is being built. If g2 fails validation, requests continue on g1. After promotion, a request already pinned to g1 must still be able to resolve its cited chunks.",
+    "worked_case": "A search request begins on generation g1 while g2 is being built. If g2 fails validation, requests continue on g1. After promotion, a request already pinned to g1 must still be able to resolve its cited chunks.",
+    "Risk": "Publishing a pointer before all referenced data is durable creates missing citations and inconsistent answers. Deleting the old generation immediately can break in-flight requests.",
+    "Trade": "Generation retention costs storage but gives an explicit rollback point and avoids making a long embedding job one database transaction.",
+    "Try": "Inject failures during candidate writes, validation and pointer promotion. Assert that every visible pointer refers to a validated generation.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "ingestion",
+    "citations": [
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://www.sqlite.org/lang_transaction.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens if the pointer cache is stale?",
+        "A": "A stale pointer can serve the retained old generation consistently. Define acceptable freshness and cache invalidation, and never delete data while a permitted cached pointer can still reference it."
+      },
+      {
+        "Q": "Can rollback reuse the old pointer blindly?",
+        "A": "Revalidate authorization changes and deletion intents before restoring an older generation. Operational rollback must not resurrect data that became forbidden after the original build."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do ingestion fingerprints distinguish unchanged content from changed embedding or parsing behavior?",
+    "A": "**A source hash answers only whether the source bytes changed.** Retrieval output also depends on extraction, normalization, chunking, overlap, tokenizer behavior, embedding model revision and metadata schema. Store a versioned fingerprint of the complete representation contract. Otherwise an unchanged file can incorrectly skip rebuilding after a model or parser change.\n\n**Use stable serialization.** Construct a typed configuration record, serialize keys deterministically and hash the result. Include explicit defaults rather than relying on library defaults that may change. A mutable model alias is not an immutable model revision; record the actual resolved revision where the provider makes it available. Store the readable configuration alongside its digest so a mismatch is explainable.\n\n**Differentiate kinds of change.** An access-scope update may need a payload update and cache invalidation without re-embedding if that field never entered the embedding input. A heading added to the embedding text does change the representation. A physical index tuning change may require an index rebuild but not another provider embedding call. Maintain separate source, representation and serving-index fingerprints when those operations have different costs.\n\n**Protect historical semantics.** Do not relabel a changed chunker as an old version simply to avoid a migration. If a compatibility adapter really preserves historical output, prove that with golden fixtures covering headings, Unicode, tables and boundary conditions. On upgrade, compare candidate retrieval against a held-out query set and promote a new generation only after checks pass. The fingerprint is a decision aid, not proof that an implementation conforms to its claimed version.",
+    "Why": "A document is byte-identical, but its embedding model changes from revision A to B. A source-only hash skips the job incorrectly. A representation fingerprint changes and schedules a new compatible vector generation.",
+    "worked_case": "A document is byte-identical, but its embedding model changes from revision A to B. A source-only hash skips the job incorrectly. A representation fingerprint changes and schedules a new compatible vector generation.",
+    "Risk": "Unknown or unstable serialization can cause either unnecessary full rebuilds or silent stale vectors.",
+    "Trade": "Separate fingerprints avoid expensive embedding calls for metadata-only changes but require clear dependency rules.",
+    "Try": "List five configuration changes and classify each as payload update, re-chunk, re-embed or serving-index rebuild. Add a golden fixture for a claimed compatible parser upgrade.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "ingestion",
+    "citations": [
+      "https://www.postgresql.org/docs/current/transaction-iso.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Does matching vector dimension prove compatibility?",
+        "A": "No. Two models can emit equal-length vectors with unrelated geometry. Matching dimensions prevents one shape error; model and preprocessing identity determine whether similarity comparisons are meaningful."
+      },
+      {
+        "Q": "Should every application setting enter this digest?",
+        "A": "Include settings that affect the representation. An unrelated logging level should not trigger re-embedding. Maintain an explicit dependency list and version its interpretation."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

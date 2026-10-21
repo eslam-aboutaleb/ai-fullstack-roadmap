@@ -1,0 +1,178 @@
+[
+  {
+    "name": "atomic-index-promotion",
+    "filename": "atomic-index-promotion.py",
+    "language": "python",
+    "expect": "rollback: g1; validated promotion: g2",
+    "explain": "Use a real SQLite transaction to show that a failed publication cannot leave a changed active pointer. Candidate validation is represented by an injected exception; external vector durability is outside this fixture.",
+    "steps": "Roll back a pointer update after a validation failure. || Commit a guarded promotion and verify the active generation.",
+    "questions": [
+      1144
+    ]
+  },
+  {
+    "name": "ingestion-contract-fingerprint",
+    "filename": "ingestion-contract-fingerprint.py",
+    "language": "python",
+    "expect": "key order: stable; model change: rebuild",
+    "explain": "Compute a canonical configuration digest. The fixture checks key-order stability and a representation-changing model revision; it does not identify actual provider revisions.",
+    "steps": "Serialize the full representation contract deterministically. || Compare a key reorder and an actual model revision change.",
+    "questions": [
+      1145
+    ]
+  },
+  {
+    "name": "job-claim-arbitration",
+    "filename": "job-claim-arbitration.py",
+    "language": "python",
+    "expect": "A owns job; B must skip",
+    "explain": "Execute a real guarded SQL transition twice to isolate the ownership predicate. The local sequential schedule does not test database lock timing or PostgreSQL SKIP LOCKED.",
+    "steps": "Commit the first eligible ownership transition. || Reject the second claimant after its predicate no longer matches.",
+    "questions": [
+      1146
+    ]
+  },
+  {
+    "name": "fenced-job-completion",
+    "filename": "fenced-job-completion.py",
+    "language": "python",
+    "expect": "stale rejected; current completed; duplicate ignored",
+    "explain": "Validate current ownership and attempt generation in the same SQL write that marks completion. External effect fencing requires a corresponding destination design.",
+    "steps": "Reject the old owner and generation. || Accept the current attempt exactly once at the guarded transition.",
+    "questions": [
+      1147
+    ]
+  },
+  {
+    "name": "idempotency-publication-window",
+    "filename": "idempotency-publication-window.py",
+    "language": "python",
+    "expect": "release-first: duplicate window; publish-first: replay",
+    "explain": "Compare two explicitly ordered schedules to demonstrate a publication gap. This fixture makes no distributed atomicity or external-effect claim.",
+    "steps": "Release first and observe the second worker can start. || Publish first and observe retries can replay even after release.",
+    "questions": [
+      1148
+    ]
+  },
+  {
+    "name": "degraded-idempotency-admission",
+    "filename": "degraded-idempotency-admission.py",
+    "language": "python",
+    "expect": "reads proceed; unprotected writes defer; destination-dedup writes proceed",
+    "explain": "Exercise an explicit admission policy. Coordination alone still needs effect reconciliation; the example intentionally makes that requirement visible in its return value.",
+    "steps": "Classify reads separately from writes. || Admit degraded writes only with the declared durable protection.",
+    "questions": [
+      1149
+    ]
+  },
+  {
+    "name": "complete-procedure-manifest",
+    "filename": "complete-procedure-manifest.py",
+    "language": "python",
+    "expect": "complete accepted; missing, duplicate and reordered steps rejected",
+    "explain": "Validate exact step order and version. A production manifest should additionally verify content digests, authorization and graph edges where applicable.",
+    "steps": "Accept the full ordered version. || Reject missing, duplicated or reordered required steps.",
+    "questions": [
+      1150
+    ]
+  },
+  {
+    "name": "pinned-procedure-revocation",
+    "filename": "pinned-procedure-revocation.py",
+    "language": "python",
+    "expect": "pinned v3 retained for audit; execution blocked",
+    "explain": "Demonstrate version pinning with an independent revocation check. Approval migration and durable persistence require additional application rules.",
+    "steps": "Read the immutable task version. || Apply current revocation policy before resolving the next permitted action.",
+    "questions": [
+      1151
+    ]
+  },
+  {
+    "name": "stream-durability-terminal",
+    "filename": "stream-durability-terminal.py",
+    "language": "python",
+    "expect": "unsaved draft != durable answer; saved answer != successful effect",
+    "explain": "Model distinct outcome fields so a fluent answer cannot accidentally imply durable storage or business success. This is an application contract fixture, not a live SSE test.",
+    "steps": "Represent generated-but-unsaved output explicitly. || Preserve failed business outcome even when its explanatory message was saved.",
+    "questions": [
+      1152
+    ]
+  },
+  {
+    "name": "feedback-answer-identity",
+    "filename": "feedback-answer-identity.py",
+    "language": "python",
+    "expect": "one updated rating; foreign answer rejected",
+    "explain": "Illustrate owner checks and updating one current rating. A production endpoint needs transactional uniqueness, authentication and answer-revision provenance.",
+    "steps": "Validate target ownership before accepting feedback. || Update the current rating and reject a foreign-message attempt.",
+    "questions": [
+      1153
+    ]
+  },
+  {
+    "name": "evaluation-mode-provenance",
+    "filename": "evaluation-mode-provenance.py",
+    "language": "python",
+    "expect": "proxy rejected; compatible live evidence accepted",
+    "explain": "Require execution provenance before considering a synthetic score. The example validates report routing, not model accuracy.",
+    "steps": "Reject a high score produced by the wrong system. || Accept compatible live-mode provenance only after applying the score threshold.",
+    "questions": [
+      1154
+    ]
+  },
+  {
+    "name": "abstention-subset-denominators",
+    "filename": "abstention-subset-denominators.py",
+    "language": "python",
+    "expect": "correct abstention: 1.0; false refusal: 1.0; gate: fail",
+    "explain": "Compute explicit subset rates and show that always refusing fails the combined gate. The fixture does not judge natural-language refusals.",
+    "steps": "Separate answerable and unanswerable denominators. || Reject an always-refuse policy and mark empty populations unmeasured.",
+    "questions": [
+      1155
+    ]
+  },
+  {
+    "name": "hybrid-missing-distance",
+    "filename": "hybrid-missing-distance.py",
+    "language": "python",
+    "expect": "zero preserved; missing preserved; channel ranks fused separately",
+    "explain": "Preserve metric absence through JSON and keep synthetic rank fusion separate from raw distances. The ranks are fixtures, not a retrieval benchmark.",
+    "steps": "Round-trip zero and missing values without truthiness defaults. || Fuse per-channel ranks into a separate score.",
+    "questions": [
+      1156
+    ]
+  },
+  {
+    "name": "retrieval-invariant-regression",
+    "filename": "retrieval-invariant-regression.py",
+    "language": "python",
+    "expect": "valid rank swaps pass; missing or forbidden evidence fails",
+    "explain": "Check evidence-set coverage and exclusions without freezing harmless rank swaps. This is a labeled-fixture contract, not a provider search test.",
+    "steps": "Accept either valid ordering of both required sources. || Reject missing support or an ineligible candidate.",
+    "questions": [
+      1157
+    ]
+  },
+  {
+    "name": "transactional-notification-intent",
+    "filename": "transactional-notification-intent.py",
+    "language": "python",
+    "expect": "business change rolled back; notification intent rolled back",
+    "explain": "Execute and roll back two related database writes in one real transaction. Notification-provider delivery is deliberately outside this local fixture.",
+    "steps": "Write the business transition and outbox event together. || Inject failure and verify that neither survives rollback.",
+    "questions": [
+      1158
+    ]
+  },
+  {
+    "name": "notification-destination-dedup",
+    "filename": "notification-destination-dedup.py",
+    "language": "python",
+    "expect": "lost acknowledgment replay: one feed item",
+    "explain": "Use a real SQLite uniqueness constraint to absorb repeated delivery of one logical event. External channels require their own verified idempotency contracts.",
+    "steps": "Commit the first feed item under a stable event identity. || Replay after a lost acknowledgment and verify the destination remains singular.",
+    "questions": [
+      1159
+    ]
+  }
+]

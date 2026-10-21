@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you bind user feedback to the exact persisted answer and its evidence version?",
+    "A": "**Feedback needs an authoritative target.** Persist a distinct assistant-message identifier and return it after commit. Bind that message to its authenticated conversation owner, task or operation identifier, answer revision, model configuration and source/index generation. A client-generated display key can help render a draft but must not be mistaken for the database's answer identity.\n\n**Authorize the target on every submission.** The feedback endpoint should verify that the message exists, belongs to an accessible conversation and is an assistant answer eligible for feedback. A valid identifier alone is not authorization. Avoid revealing whether another user's private message exists through unnecessarily different errors. Validate rating bounds and treat free-text comments as untrusted input.\n\n**Choose duplicate and revision semantics.** A unique constraint such as principal plus message plus feedback kind can implement one current rating with explicit updates. Alternatively, preserve append-only revisions with an active pointer for analysis. Regenerating an answer should produce a new revision or message identity; otherwise old negative feedback may silently attach to new text.\n\n**Preserve evaluation provenance.** Analyze feedback by the actual answer and evidence version, not just the question text. Separate user satisfaction from factual correctness and avoid treating sparse voluntary ratings as an unbiased evaluation dataset. In an unsaved-stream state, disable durable feedback until a real message identity is reconciled. The example enforces ownership and idempotent current-rating updates in a small local store.",
+    "Why": "A user sees two regenerated answers to the same question and rates only the second. Separate answer identities let analysts attribute that rating to its model and evidence version instead of blaming the first answer.",
+    "worked_case": "A user sees two regenerated answers to the same question and rates only the second. Separate answer identities let analysts attribute that rating to its model and evidence version instead of blaming the first answer.",
+    "Risk": "Accepting arbitrary message IDs enables cross-user feedback manipulation. Reusing an ID after regeneration corrupts evaluation provenance.",
+    "Trade": "Append-only feedback gives a better audit trail but needs revision handling; one current rating is simpler for the UI.",
+    "Try": "Rate a saved answer, update its rating, attempt to rate another owner's message and try submitting feedback for an unsaved draft.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "product-delivery",
+    "citations": [
+      "https://www.sqlite.org/lang_transaction.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can negative ratings become training labels automatically?",
+        "A": "Not safely. Ratings can reflect latency, tone or an unwanted but correct refusal. Review provenance, sampling bias, privacy and label quality before using them for model updates."
+      },
+      {
+        "Q": "What if the client times out submitting feedback?",
+        "A": "Retry with a stable feedback operation identity or use an idempotent current-rating update. Avoid appending duplicate votes on every transport retry."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

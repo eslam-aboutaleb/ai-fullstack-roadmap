@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you evaluate abstention without rewarding an assistant that refuses every question?",
+    "A": "**Use at least two labeled populations.** Answerable cases test whether the assistant provides correct supported answers. Unanswerable cases test whether it avoids unsupported claims and takes the correct alternative action. Keep refusal, clarification and tool-unavailable outcomes distinct when the product requires different behavior; a generic refusal may be safe but still fail the task.\n\n**State each denominator.** For expected-unanswerable cases, measure correct abstentions divided by the number of such cases. For answerable cases, measure unnecessary abstentions divided by the number of answerable cases. An always-refuse system has perfect abstention on the first population and a 100% false-refusal rate on the second. Aggregate accuracy can conceal this when the dataset is imbalanced.\n\n**Evaluate the answer path as well.** Non-refusal is not success: score correctness, evidence support and unauthorized actions independently. Report coverage, meaning the fraction of requests answered, together with quality among answered requests. Plot a risk-coverage curve when tuning an abstention threshold; a higher threshold can reduce unsupported answers while declining more useful tasks.\n\n**Stratify and stress the gate.** Separate missing evidence, conflicting sources, expired documents, ambiguous user intent and tool outages. Set minimum sample sizes and report uncertainty. A category with no samples is unmeasured, not a perfect score. The example calculates both abstention and false-refusal rates and explicitly handles empty subsets rather than dividing by zero.",
+    "Why": "A release set contains 20 answerable and 80 unanswerable questions. An assistant that refuses all 100 looks strong under some aggregate scores, yet fails every opportunity to help on the 20 answerable questions.",
+    "worked_case": "A release set contains 20 answerable and 80 unanswerable questions. An assistant that refuses all 100 looks strong under some aggregate scores, yet fails every opportunity to help on the 20 answerable questions.",
+    "Risk": "Scoring only correct refusals creates a perverse incentive to avoid answering. Treating a zero-sized subset as perfect hides missing coverage.",
+    "Trade": "A stricter threshold can reduce unsupported answers but also reduce useful coverage; select it using actual task risk and measured tradeoffs.",
+    "Try": "Compare always-answer, always-refuse and a calibrated policy. Report subset denominators, supported-answer quality and behavior on an empty evaluation subset.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "agent-evaluation",
+    "citations": [
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a keyword detector establish correct refusal?",
+        "A": "Only for limited fixtures. A response can include refusal words and still make unsupported assertions. Evaluate meaning and downstream actions with independent checks and reviewed samples."
+      },
+      {
+        "Q": "Is clarification equivalent to refusal?",
+        "A": "No. If one missing user fact can make the request answerable, asking for it may be the correct action. Preserve this category in labels and scoring."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

@@ -1,0 +1,63 @@
+[
+  {
+    "Q": "How do you bind encrypted records to the correct tenant, record and schema while detecting tampering?",
+    "A": "**Encryption must protect both content and context.** An authenticated-encryption construction detects unauthorized ciphertext changes, but using no record context can still allow a valid encrypted blob to be moved to the wrong row. Additional authenticated data, or AAD, can bind a ciphertext to public context such as tenant identifier, record identifier, field purpose and schema version. AAD is authenticated rather than encrypted, so it must not contain values that need confidentiality.\n\n**Use an established AEAD implementation.** AEAD means authenticated encryption with associated data. AES-GCM is Advanced Encryption Standard in Galois/Counter Mode. Use a securely generated key and a nonce that is never reused with that key. Store the nonce, ciphertext and a validated envelope version. Encode the context deterministically and verify it against the current authorized record when decrypting. Merely storing a tenant label inside an untrusted envelope does not make that label authoritative.\n\n**Authenticate before parsing.** Decryption must verify the authentication tag before the application interprets plaintext. A wrong tenant, changed ciphertext, wrong key or wrong nonce should fail closed. Return a bounded error without placing plaintext or keys into logs. After successful decryption, apply schema and authorization checks; cryptographic integrity does not make an old or maliciously supplied business value valid.\n\n**Test misuse paths explicitly.** The executable example performs an actual AES-GCM round trip, then rejects both a modified ciphertext and a different record context. It uses an ephemeral random key and synthetic data. It does not model production key custody, access auditing or a deployed key-management service.",
+    "Why": "A database operator accidentally copies an encrypted field from tenant T1 record R1 into record R2. The ciphertext itself remains valid, but decryption with R2 context must fail rather than expose R1 data under the wrong record.",
+    "worked_case": "A database operator accidentally copies an encrypted field from tenant T1 record R1 into record R2. The ciphertext itself remains valid, but decryption with R2 context must fail rather than expose R1 data under the wrong record.",
+    "Risk": "Nonce reuse under one AES-GCM key compromises protection. AAD copied blindly from the ciphertext envelope cannot establish the current caller's authorized context.",
+    "Trade": "Binding schema and record identity strengthens context integrity but requires deliberate re-encryption when that authenticated context legitimately changes.",
+    "Try": "Run the example, alter the tenant and record identifiers, flip a ciphertext byte and test a wrong key. Confirm that no invalid case returns plaintext.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "security",
+    "citations": [
+      "https://cryptography.io/en/stable/hazmat/primitives/aead/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can AAD contain a secret access token?",
+        "A": "It should not: AAD is authenticated but not encrypted by this operation. Bind nonsecret context identifiers and keep secret material out of both envelope metadata and ordinary logs."
+      },
+      {
+        "Q": "Does field encryption replace access control?",
+        "A": "No. The application must authorize decryption and downstream disclosure. An authorized service can still leak plaintext through a model prompt, a cache or a log if those paths are not controlled."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you rotate encryption keys without losing old records or confusing rotation with compromise recovery?",
+    "A": "**Put a key identifier and envelope version in the format.** The decryptor needs to know which approved key can read an existing record. New writes use the active key, while old authorized records remain readable through a controlled key registry during migration. Validate the identifier against that registry rather than treating arbitrary metadata as a path to a key service.\n\n**Choose re-encryption or envelope rewrapping deliberately.** Directly encrypting each record with a master key requires decrypting and re-encrypting that record to change the data key. Envelope encryption instead uses a data-encryption key, or DEK, protected by a key-encryption key, or KEK. Rotating a KEK can rewrap DEKs when the key-management service supports that operation; rotating a DEK still changes the data ciphertext. HKDF, the HMAC-based Key Derivation Function, derives subkeys but is not itself a key vault, a password-hardening policy or an envelope-rewrapping service.\n\n**Migrate under concurrency control.** Read the record revision, decrypt with its declared key and context, encrypt under the active key with a fresh nonce, then replace only if the original revision still matches. A concurrent user edit must not be overwritten by a rotation job. Make the job resumable and verify coverage before retiring old keys, including retained snapshots and backups.\n\n**Distinguish routine rotation from compromise.** Re-encrypting future storage does not make previously stolen plaintext or compromised-key ciphertext secret again. Investigate the exposure, revoke affected access and apply retention and recovery procedures. The local example demonstrates real direct re-encryption and continuing readability; it does not simulate an external key service or concurrent database migration.",
+    "Why": "A background rotation reads revision 10, but a user saves revision 11 before the new ciphertext is written. The rotation must reject its stale update and retry, not restore the old plaintext over the user's newer value.",
+    "worked_case": "A background rotation reads revision 10, but a user saves revision 11 before the new ciphertext is written. The rotation must reject its stale update and retry, not restore the old plaintext over the user's newer value.",
+    "Risk": "Deleting an old key before verifying remaining references can make records or backups permanently unreadable.",
+    "Trade": "Dual-key reading supports gradual migration but extends the period during which older keys require secure custody.",
+    "Try": "Plan rotation checkpoints, concurrent edits, unknown key IDs and backup restore. Explain which keys must remain available and when retirement is safe.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "security",
+    "citations": [
+      "https://cryptography.io/en/stable/hazmat/primitives/aead/",
+      "https://cryptography.io/en/stable/hazmat/primitives/key-derivation-functions/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can HKDF turn an arbitrary 32-character password into a secure master key?",
+        "A": "Length alone does not establish entropy. Use high-entropy generated key material and an appropriate managed storage policy. Password-derived keys require a password-hardening design rather than assuming a fast subkey derivation supplies one."
+      },
+      {
+        "Q": "What must a backup restore do after rotation?",
+        "A": "Restore the required authorized key versions along with envelope metadata, apply current revocations and verify decryption. A data-only backup whose key versions were destroyed is not a usable recovery plan."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]
