@@ -6,7 +6,7 @@
     "Risk": "A well-typed request can still contain an unauthorized scope if the host trusts the user's input. Authentication must establish which scope the caller is allowed to request.",
     "Trade": "A richer request object improves composability and inspection but requires a stable public contract and deliberate defaults. A small positional API is easier for toy usage.",
     "Try": "Construct one request for tenant A with a larger candidate pool and a smaller final result set. Explain every field that affects authorization, ranking, or visibility.",
-    "spoken": "Dense retrieval converts text into vectors and searches by similarity. BM25 uses term frequency and inverse document frequency for keyword matching. Hybrid retrieval combines both, often with Reciprocal Rank Fusion, to get the strengths of semantic and lexical search together.",
+    "spoken": "Validate the typed request, trusted caller scope, query and ranking limits, then fetch/rank candidates with source/version metadata. Apply authorization before exposing candidates, optionally fuse and rerank, and return a bounded, diagnosable result contract rather than unrestricted documents.",
     "domain": "ai-rag",
     "subdomain": "retrieval",
     "difficulty": "foundations",
@@ -31,7 +31,7 @@
       "explanation": "Run both retrievers, then fuse results using Reciprocal Rank Fusion.",
       "output": "Combined ranked list of 10 passages"
     },
-    "production_case": "A document search system that must find both conceptually related and exact keyword matches.",
+    "production_case": "An approximate search returns mostly other-tenant neighbors. The system must not expose them or assume that post-filtering automatically yields enough permitted candidates; evaluate filtered retrieval recall.",
     "alternatives": [
       "Dense-only retrieval",
       "Lexical-only retrieval"
@@ -41,11 +41,11 @@
       "Keyword misses semantic matches",
       "RRF parameter tuning"
     ],
-    "complexity": "ANN search is sublinear; BM25 is O(terms * documents)",
+    "complexity": "Exact scoring, inverted-index postings, ANN candidates, fusion and model reranking have different costs. Describe corpus size, token lengths, filters and candidate/final limits before making a runtime claim.",
     "follow_ups": [
       {
-        "Q": "What is Reciprocal Rank Fusion?",
-        "A": "A formula that combines rankings from multiple retrievers by summing 1/(k + rank) for each document."
+        "Q": "What belongs in the response besides scores?",
+        "A": "Stable permitted source/revision identifiers, relevant spans and enough ranking metadata to explain behavior without disclosing unauthorized candidates."
       }
     ],
     "citations": [
@@ -56,7 +56,8 @@
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "What happens inside a typed retrieval request"
   },
   {
     "Q": "Why separate candidate_k from final_k?",
@@ -65,34 +66,34 @@
     "Risk": "Very large candidate pools increase backend work, reranker cost, and exposure of material to external services. Candidates sent to a reranker must already respect applicable permissions.",
     "Trade": "More candidates can improve recall with diminishing returns. Tune using recall, final ranking quality, and latency rather than assuming larger is always better.",
     "Try": "Compare candidate pools of 10, 30, and 100 while holding final_k at five. Track whether missing answers were absent from the pool or simply ranked too low.",
-    "spoken": "Reciprocal Rank Fusion combines rankings from multiple retrievers without needing to normalize scores. For each document, sum 1/(k + rank) across all retrievers where k is a constant (usually 60). Documents ranked highly by any retriever get boosted, and consensus across retrievers ranks highest.",
+    "spoken": "candidate_k controls the pool considered before expensive reranking or evidence selection; final_k controls the returned results. A larger candidate pool can recover relevant items but increases latency, compute and memory. Tune both under the same quality and scope constraints.",
     "domain": "ai-rag",
     "subdomain": "retrieval",
     "module": "retrieval",
-    "concept": "Reciprocal Rank Fusion",
+    "concept": "Why separate candidate_k from final_k",
     "difficulty": "implementation",
     "misconception_target": "RRF requires normalizing scores from different retrievers",
     "definitions": [
       {
-        "term": "Reciprocal Rank Fusion",
-        "definition": "Score fusion method that combines rankings using reciprocal ranks"
+        "term": "Candidate pool",
+        "definition": "The retrieved objects considered before reranking or final evidence selection."
       },
       {
-        "term": "Rank",
-        "definition": "Position of a document in a result list (1-based)"
+        "term": "final_k",
+        "definition": "The number of selected results exposed by the final retrieval stage."
       },
       {
-        "term": "Fusion",
-        "definition": "Combining results from multiple retrieval systems"
+        "term": "Candidate recall",
+        "definition": "Whether relevant evidence entered the pool that downstream selection can inspect."
       }
     ],
-    "execution_timeline": "Run retriever A → Get ranking → Run retriever B → Get ranking → For each doc, sum 1/(k+rank) → Sort by combined score",
+    "execution_timeline": "Authorize scope -> retrieve candidate_k -> rerank permitted candidates -> select final_k -> validate evidence",
     "example": {
-      "code": "def rrf(rankings, k=60):\n    scores = {}\n    for ranking in rankings:\n        for i, doc in enumerate(ranking):\n            scores[doc] = scores.get(doc, 0) + 1 / (k + i + 1)\n    return sorted(scores, key=scores.get, reverse=True)",
-      "explanation": "Sum reciprocal ranks across all retrievers for each document.",
-      "output": "Documents sorted by fused score"
+      "code": "candidates = [('doc-A', 0.2), ('doc-B', 0.9), ('doc-C', 0.5)]\nfinal_k = 2\nselected = sorted(candidates, key=lambda item: (-item[1], item[0]))[:final_k]\nprint([identity for identity, score in selected])",
+      "explanation": "The scores are fixed synthetic reranker outputs; the example illustrates pool selection rather than a real ranking benchmark.",
+      "output": "['doc-B', 'doc-C']"
     },
-    "production_case": "A document search that combines dense vector results with BM25 keyword results.",
+    "production_case": "A reranker can choose five results from fifty candidates instead of five initial neighbors. Evaluate whether the extra pool recovers difficult queries and whether the latency budget still holds.",
     "alternatives": [
       "Weighted score combination",
       "Learned ranking models"
@@ -101,15 +102,16 @@
       "Choosing k too small (over-weights top ranks)",
       "Ignoring retriever quality differences"
     ],
-    "complexity": "O(total results across all retrievers)",
+    "complexity": "Reranking cost generally grows with candidate count and pair lengths. A comparison sort may be O(n log n); model inference and retrieval can dominate the actual service cost.",
     "follow_ups": [
       {
-        "Q": "What does k control in RRF?",
-        "A": "How quickly rank influence decays; higher k makes top ranks less dominant."
+        "Q": "Can reranking recover a document absent from its candidate set?",
+        "A": "No. It can reorder what it receives; improve candidate recall upstream if the relevant evidence never enters the pool."
       }
     ],
     "citations": [
-      "https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf"
+      "https://arxiv.org/abs/2005.11401",
+      "https://arxiv.org/abs/1603.09320"
     ],
     "reviewer_status": {
       "reviewer": "independent technical review pending",

@@ -1,0 +1,162 @@
+[
+  {
+    "Q": "How do arrays, linked lists and hash tables trade access costs?",
+    "A": "An array-like sequence supports indexed access by position and efficient traversal, while inserting near its start may move many references. A linked list follows pointers, so finding an arbitrary position requires traversal but a known insertion point can be relinked. Hash tables use a hash to select candidate locations and equality to resolve collisions; expected constant-time lookup is not a worst-case universal guarantee. Include memory locality, allocation and actual workload when choosing a structure, rather than memorizing a single complexity label.",
+    "Why": "A queue that repeatedly removes the first item from a Python list can move the remaining references each time. A deque supports end operations more naturally, although it is not a substitute for indexed random access.",
+    "Risk": "An expected complexity bound can hide adversarial collisions or expensive key equality.",
+    "Trade": "Choose for the dominant operations and measure representative input sizes.",
+    "Try": "Compare repeated list front-removal with deque removal and explain the shape of growth.",
+    "worked_case": "A queue that repeatedly removes the first item from a Python list can move the remaining references each time. A deque supports end operations more naturally, although it is not a substitute for indexed random access.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/pages/lecture-notes/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  },
+  {
+    "Q": "How do stacks, queues and heaps support different scheduling policies?",
+    "A": "A collection's scheduling policy determines **which waiting item is served next**. These policies solve different problems.\n\n| Structure | Next item | Typical use | Failure to consider |\n| --- | --- | --- | --- |\n| Stack | Most recently pushed | Nested calls, depth-first work | Deep growth can exhaust memory or the call stack |\n| FIFO queue | Earliest enqueued | Arrival-ordered jobs | Unbounded backlog increases waiting and memory |\n| Priority heap | Extreme priority | Deadline or urgency selection | Equal priorities need tie-breaking; low priorities can starve |\n\nA heap is **not a fully sorted list**. It supports efficient selection of an extreme item, not arbitrary sorted traversal of its backing storage.\n\nBound admitted work and choose an overload policy: reject, slow the producer, drop explicitly permitted work, or persist under a different capacity contract. For an urgency queue, add a deterministic tie-breaker and consider aging or quotas when fairness matters. A faster lookup does not fix a system whose arrival rate continually exceeds processing capacity.",
+    "Why": "A support queue ordered by urgency needs a stable tie-breaker for equal priorities. A FIFO queue preserves arrival order but cannot alone represent urgency; a heap needs extra policy to prevent low-priority starvation.",
+    "Risk": "Priority scheduling can starve ordinary work without aging or quotas.",
+    "Trade": "FIFO favors predictable fairness; priorities favor explicit service classes.",
+    "Try": "Design a bounded priority queue with a deterministic tie-break and overload response.",
+    "worked_case": "A support queue ordered by urgency needs a stable tie-breaker for equal priorities. A FIFO queue preserves arrival order but cannot alone represent urgency; a heap needs extra policy to prevent low-priority starvation.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/pages/lecture-notes/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  },
+  {
+    "Q": "How do trees and graphs differ, and when are BFS and DFS useful?",
+    "A": "A tree has a hierarchical, cycle-free parent/child structure under its chosen definition. A graph represents more general connections and may contain cycles. Breadth-first search explores by distance in edges and finds shortest paths in an unweighted graph; depth-first search explores a branch before backtracking. Use a visited set or appropriate state marking to avoid repeated cycles. Recursive traversal also consumes call-stack space, so a deep input can need an explicit stack. Neither traversal alone solves weighted shortest paths.",
+    "Why": "A prerequisite map is a directed graph. Marking a node currently being explored separately from a completed node allows a depth-first traversal to detect a cycle instead of recursing indefinitely.",
+    "Risk": "Revisiting a shared dependency can repeat work even without an actual cycle.",
+    "Trade": "BFS can require a wide frontier; DFS can require a deep stack.",
+    "Try": "Traverse a graph with shared dependencies and an injected cycle, recording visited nodes.",
+    "worked_case": "A prerequisite map is a directed graph. Marking a node currently being explored separately from a completed node allows a depth-first traversal to detect a cycle instead of recursing indefinitely.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/pages/lecture-notes/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  },
+  {
+    "Q": "Why are amortized cost and worst-case latency different?",
+    "A": "Amortized analysis averages cost over a sequence of operations while accounting for occasional expensive steps. A growing dynamic array can make appends cheap amortized even though one append triggers allocation and copying. This statement does not bound the latency of every operation, nor does it assume a random input distribution. Interactive or realtime systems may care about the expensive individual operation, allocation pauses and resource contention. Use amortized reasoning for throughput and measure relevant tails for user-facing deadlines.",
+    "Why": "A buffer may append quickly thousands of times and pause when it grows. The average append benchmark can look excellent while that growth event violates an audio-processing deadline.",
+    "Risk": "Average cost can conceal a deadline-breaking individual step.",
+    "Trade": "Preallocation or bounded buffers trade memory and flexibility for more predictable work.",
+    "Try": "Explain how a doubling array achieves amortized append cost without promising constant per-append latency.",
+    "worked_case": "A buffer may append quickly thousands of times and pause when it grows. The average append benchmark can look excellent while that growth event violates an audio-processing deadline.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/pages/lecture-notes/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  },
+  {
+    "Q": "How do virtual memory, caches and memory leaks affect application behavior?",
+    "A": "Each process operates in a virtual address space mapped to physical memory and other backing. Hardware caches improve access locality; paging and allocation behavior can make equal operation counts run differently. In a managed language, a leak often means objects remain reachable through a cache, global collection or callback even though the application no longer needs them. Garbage collection cannot infer that reachable business state is obsolete. Measure resident memory, allocation patterns and ownership lifetimes rather than assuming garbage collection guarantees bounded memory.",
+    "Why": "A dictionary retaining every completed request grows indefinitely because each entry is still reachable. An expiry rule needs actual removal and a size bound, not merely a timestamp stored in each value.",
+    "Risk": "Unbounded caches can exhaust memory despite efficient lookup.",
+    "Trade": "Caching saves repeated work at the cost of retained data and invalidation complexity.",
+    "Try": "Identify the retaining owner of a growing collection and implement a bounded eviction policy.",
+    "worked_case": "A dictionary retaining every completed request grows indefinitely because each entry is still reachable. An expiry rule needs actual removal and a size bound, not merely a timestamp stored in each value.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://pages.cs.wisc.edu/~remzi/OSTEP/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  },
+  {
+    "Q": "How do deadlocks, starvation and race conditions differ?",
+    "A": "A race occurs when correctness depends on uncontrolled execution order. A deadlock leaves participants waiting for resources held by one another. Starvation lets the system continue while one participant repeatedly loses access. Preventing one does not prevent the others. Establish lock ordering, keep critical sections small, and design atomic state transitions instead of checking a condition separately from changing it. Timeouts can reveal a stuck operation, but retrying without changing resource policy may reproduce the same failure.",
+    "Why": "Two workers lock account A then B and B then A. A common lock order prevents that cycle, while a separate check-and-decrement race still needs an atomic inventory operation.",
+    "Risk": "Adding locks without an ordering policy can introduce deadlock.",
+    "Trade": "Coarse locks simplify invariants but reduce concurrency; finer locks demand stronger reasoning.",
+    "Try": "Draw a two-worker wait graph and redesign the acquisition order.",
+    "worked_case": "Two workers lock account A then B and B then A. A common lock order prevents that cycle, while a separate check-and-decrement race still needs an atomic inventory operation.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://pages.cs.wisc.edu/~remzi/OSTEP/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  },
+  {
+    "Q": "How do network partitions, timeouts and retries affect what a caller can know?",
+    "A": "A timeout says the caller did not observe a timely result; it does not prove the remote operation failed. The request or its response may have been delayed, and the server may already have committed. Retries therefore need an operation identity, bounded attempts and authoritative status lookup when effects matter. A network partition can make two healthy processes unable to communicate. Failure detection is based on observations and deadlines, not direct knowledge that the peer is permanently dead.",
+    "Why": "A client times out after an order is stored but before receiving its response. Retrying with a fresh identity can create a duplicate; retrying the same accepted identity should return the existing operation result.",
+    "Risk": "Retrying uncertain effects as new work can duplicate charges or writes.",
+    "Trade": "Fast failure detection improves responsiveness but can mistake slow peers for failed ones.",
+    "Try": "Enumerate the outcomes when a connection drops before send, after commit and during response delivery.",
+    "worked_case": "A client times out after an order is stored but before receiving its response. Retrying with a fresh identity can create a duplicate; retrying the same accepted identity should return the existing operation result.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://pages.cs.wisc.edu/~remzi/OSTEP/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  },
+  {
+    "Q": "How do throughput, latency, utilization and Little's law relate?",
+    "A": "Throughput is completed work per time, while latency measures time spent by one item under defined boundaries. Utilization describes how much capacity is occupied. Under stable conditions, Little's law relates average items in a system to average arrival rate multiplied by average time in the system. It is an average relationship, not a guarantee of tail latency or stability under overload. As arrival rate approaches service capacity, queues and waiting can dominate even when individual service work is unchanged.",
+    "Why": "At a stable 20 requests per second and average end-to-end time of 0.5 seconds, the average in-flight count is about 10. This does not establish that every request completes within half a second.",
+    "Risk": "Applying a stable-average relation to a continuously growing queue is misleading.",
+    "Trade": "Admission control can preserve latency by rejecting excess work rather than retaining it indefinitely.",
+    "Try": "State measurement boundaries and calculate average in-flight work for a stable workload.",
+    "worked_case": "At a stable 20 requests per second and average end-to-end time of 0.5 seconds, the average in-flight count is about 10. This does not establish that every request completes within half a second.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://pages.cs.wisc.edu/~remzi/OSTEP/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations"
+  }
+]

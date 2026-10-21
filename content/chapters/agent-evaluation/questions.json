@@ -7,7 +7,7 @@
     "Trade": "Multi-layer evaluation needs more fixtures and gives actionable diagnosis. One aggregate answer score is easier to display and weaker as a release gate.",
     "Try": "Create three cases with identical final text but different underlying tool and database histories. Define which pass and why.",
     "reference": "https://adk.dev/evaluate/",
-    "spoken": "Check the actual path the agent took, not just its final words. Inspect tool calls, arguments, results, durable writes, ordering, approvals, and duplicate effects. Fluent final text does not erase an unauthorized read performed earlier in the trajectory.",
+    "spoken": "Evaluate the trajectory and independently committed effects as well as the final answer. Check caller scope, argument validity, approval order, task success, duplicate effects and resource limits. A convincing final answer cannot compensate for an unauthorized intermediate read.",
     "domain": "agents",
     "subdomain": "evaluation",
     "difficulty": "foundations",
@@ -28,7 +28,7 @@
       "explanation": "Record every tool call and assert no duplicate durable writes.",
       "output": "Assertion passes if no duplicates"
     },
-    "production_case": "An agent that prepares support requests must verify eligibility before writing, with one corrected request and no superseded requests.",
+    "production_case": "An assistant produces the correct summary after reading an unauthorized customer record. The answer-quality score passes, but the authorization invariant must fail the run.",
     "alternatives": [
       "Answer-only evaluation (faster but misses side effects)",
       "Human review (slower but captures nuance)"
@@ -37,11 +37,11 @@
       "Final answer is fluent but trace contains unauthorized reads",
       "Tool succeeds without business effect"
     ],
-    "complexity": "O(n) where n is number of tool calls in trajectory",
+    "complexity": "Simple invariant scans can be linear in trace length with suitable indexed state, while semantic grading, effect queries and model-judge calls add independent cost. Keep the oracle separate from the candidate agent.",
     "follow_ups": [
       {
-        "Q": "What is an evaluation oracle for an agent task?",
-        "A": "An independent specification of correct behavior: expected database state, permitted source spans, or required review transitions."
+        "Q": "Can a final-answer metric compensate for a privacy violation?",
+        "A": "No. Keep critical invariant violations separate from aggregate quality and reject the trajectory regardless of fluent output."
       }
     ],
     "citations": [
@@ -52,7 +52,8 @@
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "Why is answer evaluation insufficient for an agent"
   },
   {
     "Q": "How do reference trajectories and invariant-based trajectories differ?",
@@ -62,11 +63,11 @@
     "Trade": "Reference paths are easy to inspect and brittle under valid variation. Invariants need careful definition and better express safety and business requirements.",
     "Try": "Evaluate a mixed coverage/status request with two valid call orders, then reject both if the service request lookup lacks the correct owner context.",
     "reference": "https://github.com/google/adk-docs/blob/main/docs/evaluate/criteria.md",
-    "spoken": "Specify required conditions and partial ordering instead of one exact trace when several routes are valid. Keep hard constraints for resource scope, review before write, and duplicate effects. Add adversarial transitions such as corrections, expired sessions, tool failures, and reconnects. Score task success only after examining the entire interaction.",
+    "spoken": "A reference trajectory describes one expected route. Invariant-based evaluation accepts several routes that preserve required conditions and partial ordering. Use exact sequences only when sequence itself is part of the contract; inspect actual effects and terminal state independently.",
     "domain": "agents",
     "subdomain": "evaluation",
     "module": "agent-evaluation",
-    "concept": "flexible path evaluation with hard constraints",
+    "concept": "How do reference trajectories and invariant-based trajectories differ",
     "difficulty": "implementation",
     "misconception_target": "Agent trajectories must match exactly to pass",
     "definitions": [
@@ -89,7 +90,7 @@
       "explanation": "Check hard constraints regardless of tool sequence variation.",
       "output": "Pass/fail with constraint details"
     },
-    "production_case": "Evaluating a support agent where multiple valid tool sequences exist but eligibility must always be checked before writing.",
+    "production_case": "Two agents retrieve evidence in different safe orders. Both should pass if they review before the same authorized write and produce one effect, while a third path that writes before approval must fail.",
     "alternatives": [
       "Exact trace matching (too brittle)",
       "Answer-only evaluation (misses side effects)"
@@ -99,11 +100,11 @@
       "Missing hard constraints",
       "Not testing failure recovery"
     ],
-    "complexity": "O(trajectory length) for invariant checks",
+    "complexity": "Simple invariant scans can be linear in trace length with suitable indexed state, while semantic grading, effect queries and model-judge calls add independent cost. Keep the oracle separate from the candidate agent.",
     "follow_ups": [
       {
-        "Q": "Why use partial ordering instead of exact matching?",
-        "A": "Multiple valid tool sequences can achieve the same goal; exact matching rejects valid variations."
+        "Q": "What belongs in a partial-order assertion?",
+        "A": "Required dependencies such as approval before dispatch and dispatch before confirmation, while independent read-only steps may vary."
       }
     ],
     "citations": [

@@ -6,11 +6,11 @@
     "Risk": "Assuming all retrieved text is safe prompt instruction invites source-driven manipulation. The bundle treats text as evidence and escapes selected delimiters, while host prompt policy and tool permissions remain necessary.",
     "Trade": "An extra layer adds types and decisions but centralizes budgeting and attribution. Ad hoc prompt concatenation is shorter and easier to get subtly wrong.",
     "Try": "Feed duplicate and overlapping hits from two sources into the assembler. Inspect both selected text and the counters explaining what was removed or merged.",
-    "spoken": "Evidence assembly selects relevant passages under a token budget, orders them by relevance, and attaches citations. The model answers using only the assembled evidence. If evidence is insufficient, the system abstains rather than guessing.",
+    "spoken": "Evidence assembly owns scope, applicability, source revision, deduplication, ordering and context budget before generation. It supplies checkable citations and explicit gaps. Instructing a model to use only this evidence does not guarantee it will comply; validate output and measure unsupported claims.",
     "domain": "ai-rag",
     "subdomain": "evidence",
     "module": "evidence",
-    "concept": "evidence assembly with citations",
+    "concept": "Why does evidence assembly deserve a separate module",
     "difficulty": "implementation",
     "misconception_target": "More evidence always means better answers",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Select top passages within budget, attach citations, send to model.",
       "output": "Answer with source citations"
     },
-    "production_case": "A customer support assistant that answers using only indexed policy documents with citations.",
+    "production_case": "Two similar policy passages apply to different dates. The assembler keeps applicability metadata and selects the correct revision before the generator sees the evidence.",
     "alternatives": [
       "Full-context approach (no budget)",
       "Summary-based evidence compression"
@@ -43,11 +43,11 @@
       "Missing citations on claims",
       "Answering without sufficient evidence"
     ],
-    "complexity": "O(passages) for selection and budget check",
+    "complexity": "Filtering and token accounting scale with inspected passages and text. Ranking may sort candidates or invoke a model. Preserve applicability and deduplicate before spending the context budget.",
     "follow_ups": [
       {
-        "Q": "When should the system abstain?",
-        "A": "When no retrieved passage supports the answer or evidence quality is too low."
+        "Q": "Does source-ID membership prove a citation is faithful?",
+        "A": "No. Check that the cited span supports the specific claim and applies to this case, as well as remaining authorized."
       }
     ],
     "citations": [

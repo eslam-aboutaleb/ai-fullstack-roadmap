@@ -6,11 +6,11 @@
     "Risk": "A caller-supplied session may already have an open transaction throughout preparation. The library cannot undo that host decision, so do not claim remote calls are outside every possible transaction in all integrations.",
     "Trade": "Preparation can be duplicated by concurrent workers, but database contention is lower. Serializing all work under a lock saves duplicate embeddings while holding scarce resources longer.",
     "Try": "Instrument session entry, embedding start, lock acquisition, upsert, and commit. Compare internally owned and caller-owned session paths.",
-    "spoken": "Run ingestion idempotently: compare document revisions before writing, skip unchanged content, and use unique operation keys so retries do not create duplicates. Support rollback by keeping previous revision metadata and providing a way to revert to a known-good snapshot.",
+    "spoken": "Ingestion discovers source identities, fetches within trusted boundaries, extracts and validates content, adapts schemas, chunks/embeds and publishes a versioned projection. Commit destination progress and checkpoints consistently, quarantine explicit failures and test replay, deletion and stale revisions.",
     "domain": "backend",
     "subdomain": "ingestion",
     "module": "ingestion",
-    "concept": "idempotent ingestion with revision checks",
+    "concept": "What are the phases of the ingestion workflow",
     "difficulty": "implementation",
     "misconception_target": "Ingestion can be safely re-run without side effects",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Skip unchanged documents, write new revisions, keep snapshots for rollback.",
       "output": "Document updated or skipped"
     },
-    "production_case": "A nightly sync that refreshes product catalog data from a supplier API.",
+    "production_case": "A process crashes after writing a document but before advancing its source cursor. Replay must resolve the same revision without duplicate visible chunks or silently skipped data.",
     "alternatives": [
       "Full refresh on every run",
       "Event-driven ingestion via webhooks"
@@ -43,11 +43,11 @@
       "No snapshot for rollback",
       "Non-unique operation keys"
     ],
-    "complexity": "O(documents) per ingestion run",
+    "complexity": "Work depends on source bytes/pages, changed revisions, parsing, chunking, embedding and destination writes. Incremental runs should distinguish discovery cost from the subset actually reprocessed.",
     "follow_ups": [
       {
-        "Q": "How do you handle a failed rollback?",
-        "A": "Keep multiple snapshots and verify integrity before restoring."
+        "Q": "Does keeping an old snapshot make rollback always safe?",
+        "A": "No. A rollback must still respect current deletions, ACL changes and retention rules."
       }
     ],
     "citations": [

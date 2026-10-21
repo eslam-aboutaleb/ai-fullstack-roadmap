@@ -6,11 +6,11 @@
     "Risk": "Duplicated business logic can enforce different permissions through different protocols.",
     "Trade": "Layering adds interfaces while keeping behavior consistent.",
     "Try": "Implement one search service behind both an HTTP route and an MCP tool.",
-    "spoken": "Layer MCP servers with input validation, structured error responses, and human confirmation for destructive operations. Validate every tool parameter against a schema. Return errors that help the agent recover, not raw exceptions. Require explicit human approval before writes.",
+    "spoken": "Keep transport/protocol adaptation separate from schema validation, identity policy and domain operations. Return actionable structured failures without leaking internals. Bind required approval to material operation parameters and enforce authorization/state checks again at execution.",
     "domain": "agents",
     "subdomain": "mcp",
     "module": "mcp-server-engineering",
-    "concept": "MCP server validation and safety layers",
+    "concept": "How should an MCP server be layered",
     "difficulty": "implementation",
     "misconception_target": "MCP servers pass parameters through without validation",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Validate, authorize, confirm, then execute.",
       "output": "Tool result or structured error"
     },
-    "production_case": "An MCP server for a calendar tool that requires human approval before deleting events.",
+    "production_case": "A tool request has valid JSON but names another customer’s order. The server rejects object access before executing the domain action, without disclosing the order’s private state.",
     "alternatives": [
       "No validation (unsafe)",
       "Client-side validation only"
@@ -43,11 +43,11 @@
       "No authorization check",
       "Raw exception exposure"
     ],
-    "complexity": "O(parameter count) for validation",
+    "complexity": "Validation depends on payload size/schema structure; transport, authentication, authorization and domain effects add separate latency and state costs. Bound request sizes and execution deadlines.",
     "follow_ups": [
       {
-        "Q": "Why require human confirmation for destructive operations?",
-        "A": "Prevents accidental or malicious data loss through agent error."
+        "Q": "Should every write require a human click?",
+        "A": "Choose approval based on explicit risk and product policy. Regardless of approval, writes still need scope checks, stable identity and recovery semantics."
       }
     ],
     "citations": [

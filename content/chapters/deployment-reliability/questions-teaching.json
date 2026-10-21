@@ -1,0 +1,52 @@
+[
+  {
+    "Q": "How do health checks, graceful shutdown and readiness affect safe releases?",
+    "A": "A process being alive does not mean it can serve correct traffic. Liveness detects a stuck process under a defined policy; readiness indicates whether it should receive traffic; startup checks allow initialization without premature restarts. Graceful shutdown stops admission, drains or transfers owned work and respects an overall termination deadline. Schema changes and background jobs need compatible rollout ordering. Test the deployed request path, not only a local process, and preserve operation status for work that outlives a client connection.",
+    "Why": "A worker receives termination after accepting a durable job. It should stop taking new jobs and leave an explicit completion or takeover boundary, rather than losing ownership silently when the process exits.",
+    "Risk": "Aggressive health probes can repeatedly restart a slow but recovering dependency path.",
+    "Trade": "Fast detection must be balanced against startup, recovery and drain requirements.",
+    "Try": "Terminate a replica during active work and verify client status, takeover and duplicate prevention.",
+    "worked_case": "A worker receives termination after accepting a durable job. It should stop taking new jobs and leave an explicit completion or takeover boundary, rather than losing ownership silently when the process exits.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
+      "https://www.postgresql.org/docs/current/backup.html",
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+      "https://developer.hashicorp.com/terraform/intro",
+      "https://sre.google/sre-book/service-level-objectives/",
+      "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "operations",
+    "subdomain": "deployment-reliability"
+  },
+  {
+    "Q": "How do recovery objectives and restore drills differ from simply keeping backups?",
+    "A": "A backup is an artifact; recovery is a tested procedure that returns an acceptable service and data state. Define the recovery point objective as tolerated data loss and recovery time objective as tolerated restoration delay. Verify integrity, schema compatibility, credentials, deletion intents and dependent indexes after restore. Record what happened after the snapshot and how it is reconciled. A successful file copy does not establish that the restored application enforces current ownership or does not resurrect deleted data.",
+    "Why": "Restoring yesterday's database can recreate a document deleted this morning. Reapply authoritative deletion intent before exposing restored search results and report which newer accepted writes could not be recovered.",
+    "Risk": "An untested backup can be unreadable, incomplete or semantically unsafe to publish.",
+    "Trade": "More frequent snapshots reduce some loss windows while increasing storage and operational cost.",
+    "Try": "Perform a restore and record elapsed recovery, missing writes and deletion visibility.",
+    "worked_case": "Restoring yesterday's database can recreate a document deleted this morning. Reapply authoritative deletion intent before exposing restored search results and report which newer accepted writes could not be recovered.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
+      "https://www.postgresql.org/docs/current/backup.html",
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+      "https://developer.hashicorp.com/terraform/intro",
+      "https://sre.google/sre-book/service-level-objectives/",
+      "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "operations",
+    "subdomain": "deployment-reliability"
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "Q": "How do you resume a huge upload safely after a disconnect or an expired upload URL?",
+    "A": "**Persist an upload manifest.** Bind the upload identifier to the authenticated owner, intended object key, declared size, expiration policy and lifecycle state. Track acknowledged part numbers and integrity information. On resume, authenticate the user again and reconcile the server-side part listing with the client record. Refresh only the missing authorized operations; never accept an arbitrary bucket or key from the resume request.\n\n**Separate transfer completion from ingestion completion.** Use states such as uploading, uploaded, validating, processing, ready, failed and canceled. A client claiming that all parts arrived is not enough to mark the document searchable. Complete the upload, inspect the resulting object and validate its size, checksum strategy and format. Multipart entity tags are not universally whole-file MD5 checksums; use the storage provider's documented integrity mechanism.\n\n**Make completion and cancellation race-safe.** The application state transition must be conditional on the current upload version. Duplicate completion requests should return the same result. An object-finalization notification may be delivered more than once; deduplicate its ingestion job using object identity and version. A canceled upload must not become visible because a delayed worker finishes. Periodically reconcile abandoned sessions and incomplete multipart data.\n\n**Design the learner-facing progress honestly.** Show bytes transferred separately from documents indexed. Offer resume for interrupted transfer, retry for failed processing and clear explanations for rejected formats. A progress bar at 100% uploaded should not imply that embeddings or search are ready.",
+    "Why": "A browser loses connectivity after part 800. Its old signed URLs expire overnight. The user resumes the same owned session, reconciles uploaded parts and requests new URLs for missing parts instead of starting an unrelated object.",
+    "worked_case": "A browser loses connectivity after part 800. Its old signed URLs expire overnight. The user resumes the same owned session, reconciles uploaded parts and requests new URLs for missing parts instead of starting an unrelated object.",
+    "Risk": "A presigned URL is a bearer capability until it expires; avoid logging it or allowing it to select another tenant object.",
+    "Trade": "Fine-grained upload state improves recovery but needs reconciliation jobs and retention limits.",
+    "Try": "Test duplicate completion, cancel-versus-complete races, expired URLs and a notification arriving after cancellation.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "storage",
+    "citations": [
+      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html",
+      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "Which metadata belongs on every retrieval chunk, and how do you evolve it without a full re-embedding?",
+    "A": "**Design metadata around queries and lineage.** A useful contract can include tenant identifier, document identifier, immutable source version, chunk identifier, parent identifier, page or section coordinates, effective-time range, language, content type, ingestion time, extraction version and embedding model version. These fields answer different questions: ingestion time does not tell you when a policy applied.\n\n**Separate trusted fields from inferred fields.** Tenant and access-control scope come from authenticated ownership and the permission service. An extracted product name or model-generated tag is uncertain content classification. Store its provenance and confidence if needed; do not grant access based on a tag predicted from document text. Use explicit types, timezone rules, null semantics and schema versions. An absent expiration date may mean open-ended validity only if the schema explicitly defines that meaning.\n\n**Index the predicates you actually use.** Equality and range filters need appropriate scalar or payload indexes depending on the backend. Measure cardinality, selectivity, storage cost and update rate. Do not copy a huge access list into every chunk without considering membership churn and update amplification. An authorization service or scope indirection may be more maintainable, but its retrieval and recheck path must still be safe.\n\n**Distinguish payload edits from representation changes.** Correcting a title or access scope may require a metadata update without recomputing the vector if that field was not embedded. If the title was prepended to embedding text, or the text/chunker/model changes, the vector is stale. During schema migration, dual-read compatible versions, backfill missing fields and deny records that cannot satisfy required authorization predicates.",
+    "Why": "A document has 20,000 chunks. Its department changes but its embedded body does not. Update the trusted scope metadata and invalidate authorization-sensitive caches; if department names were part of the embedding input, schedule a versioned re-embedding instead.",
+    "worked_case": "A document has 20,000 chunks. Its department changes but its embedded body does not. Update the trusted scope metadata and invalidate authorization-sensitive caches; if department names were part of the embedding input, schedule a versioned re-embedding instead.",
+    "Risk": "Mixing created-at, ingested-at and effective-at produces confident answers based on the wrong historical policy.",
+    "Trade": "Denormalization speeds retrieval but amplifies metadata updates; indirection requires a dependable join or permission lookup.",
+    "Try": "Design a schema for policies that change over time, then migrate a nullable field to a required field without exposing records with missing access scope.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "storage",
+    "citations": [
+      "https://qdrant.tech/documentation/search/filtering/",
+      "https://www.postgresql.org/docs/current/ddl-rowsecurity.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

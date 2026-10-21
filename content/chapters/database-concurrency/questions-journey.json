@@ -1,0 +1,52 @@
+[
+  {
+    "Q": "Why can checking an operation key before inserting still create duplicate tasks?",
+    "spoken": "Two transactions can both observe absence before either commits. Enforce identity with a database uniqueness rule and resolve the conflict against stored payload and ownership. Keep state changes and outbox intent in the required transaction. Retrying after a serialization or uniqueness conflict must preserve the logical operation identity.",
+    "A": "Two transactions can both observe absence before either commits. Enforce identity with a database uniqueness rule and resolve the conflict against stored payload and ownership. Keep state changes and outbox intent in the required transaction. Retrying after a serialization or uniqueness conflict must preserve the logical operation identity.\n\nConcrete engineering case: A read-then-insert race admits two matching requests from concurrent browser retries.\n\nBoundary defense: Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched.",
+    "Why": "Two transactions can both observe absence before either commits. Enforce identity with a database uniqueness rule and resolve the conflict against stored payload and ownership. Keep state changes and outbox intent in the required transaction. Retrying after a serialization or uniqueness conflict must preserve the logical operation identity.",
+    "Risk": "A read-then-insert race admits two matching requests from concurrent browser retries.",
+    "Trade": "Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "domain": "backend",
+    "subdomain": "database-concurrency",
+    "module": "database-concurrency",
+    "concept": "Why can checking an operation key before inserting still create duplicate tasks?",
+    "difficulty": "scenario",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A read-then-insert race admits two matching requests from concurrent browser retries.",
+    "definitions": [
+      {
+        "term": "Boundary: database concurrency",
+        "definition": "Two transactions can both observe absence before either commits."
+      }
+    ],
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "example": {
+      "code": "{\n  \"scenario\": \"A read-then-insert race admits two matching requests from concurrent browser retries.\",\n  \"required_decision\": \"Two transactions can both observe absence before either commits\"\n}",
+      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
+      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+    },
+    "production_case": "A read-then-insert race admits two matching requests from concurrent browser retries.",
+    "alternatives": [
+      "Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched."
+    ],
+    "pitfalls": [
+      "A read-then-insert race admits two matching requests from concurrent browser retries."
+    ],
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "follow_ups": [
+      {
+        "Q": "What if the same key arrives with changed content?",
+        "A": "Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched."
+      }
+    ],
+    "citations": [
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://www.postgresql.org/docs/current/explicit-locking.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

@@ -1,0 +1,780 @@
+{
+  "id": "engineering-practicum",
+  "title": "Engineering practicum: cumulative systems and independent evidence",
+  "description": "Build a typed local application, evaluate a real dataset, exercise versioned protocol clients, run Beam late-data semantics and defend restore and release decisions.",
+  "version": "1.0.0",
+  "updated": "2026-10-21",
+  "review_status": "Authored with executable evidence for the stated local paths; independent review pending",
+  "units": [
+    {
+      "id": "cumulative-typed-application",
+      "study_id": 843,
+      "title": "Build and defend a typed browser/API application",
+      "outcomes": [
+        "Compile a complete React/TypeScript project and operate its local API",
+        "Prove stale identity responses cannot repopulate the answer"
+      ],
+      "terms": [
+        {
+          "term": "Discriminated union",
+          "definition": "A set of typed alternatives selected by an explicit tag, such as delta or done."
+        },
+        {
+          "term": "Runtime narrowing",
+          "definition": "Checking untrusted values before treating them as a more specific type."
+        },
+        {
+          "term": "Request generation",
+          "definition": "A local ownership token that prevents obsolete callbacks from publishing state."
+        }
+      ],
+      "narrative": [
+        "Build the downloadable Evidence workbench before studying its reference source. Node compiles strict TypeScript and bundles React; Python serves the built assets and a real HTTP API. First draw the boundary between form state, request ownership, the byte parser and the answer component. Keep transport data outside trusted UI state until runtime checks succeed. A declaration such as response as Answer is a compiler instruction, not evidence that a server returned an Answer. The server validates its request independently because a different client can bypass every browser check.",
+        "Submission is an explicit user event. The reference does not dispatch an answer request from an Effect merely because the screen rendered. An Effect owns cleanup when the component disappears. The current generation is incremented before aborting an old fetch. Every asynchronous update checks that generation, because a callback already delivered can outlive cancellation. Switching the demo identity clears text and citations and invalidates the old operation. This addresses retained presentation state; the API must still scope its own response before any private document bytes cross the network.",
+        "Trace one response from Python bytes through streaming TextDecoder, newline framing, unknown-value validation and the tagged frame union. A delta extends bounded text; an exact repeated sequence is ignored; a conflicting repeat or gap is rejected. Completion requires a valid terminal frame with permitted citations. The stream may close after plausible prose without proving completion. This exercise uses NDJSON. Porting to SSE requires its actual field and blank-line grammar, not renaming the Content-Type header.",
+        "Run the actual browser acceptance workflow against compiled assets and real HTTP. Prove that literal markup stays text, malformed output fails, identity switching clears old evidence and unsupported questions abstain. Then implement the interface independently from a blank component, add a conflicting replay fixture, and save a failing/passing regression. Public demo bearer strings let the two fixture owners be selected; they are not a secure login system. A production extension needs real credential verification, session expiry, admission limits, deployment transport security and a declared cookie/CSRF or bearer-token policy."
+      ],
+      "lab": "streaming_reader.html",
+      "practice": [
+        "Download the project and follow its clean-start README",
+        "Implement the component independently and reproduce one stale-response failure",
+        "Add SSE without weakening frame bounds or completion semantics"
+      ],
+      "debugging": "Inspect request generation, captured identity and parser state before changing React rendering. Compare the network body with visible text to distinguish an API disclosure from a stale UI result.",
+      "tradeoffs": "Strict compile-time contracts and runtime checks solve different problems. A small explicit state machine is useful here; shared query caches or a router need user-scoped keys and invalidation as the project grows.",
+      "references": [
+        "https://react.dev/learn/synchronizing-with-effects",
+        "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
+        "https://vite.dev/guide/",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events",
+        "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+      ],
+      "prerequisites": [
+        "browser-security-performance",
+        "fastapi-request-boundary"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Identity changes during a slow answer",
+          "setup": "Owner A has received one delta when the user switches to Owner B.",
+          "steps": [
+            "Increment the generation and abort A’s controller.",
+            "Clear retained text and citations.",
+            "Submit B under B’s server credential.",
+            "Reject any callback whose captured generation is no longer current."
+          ],
+          "result": "The screen contains only B’s evidence even if an old callback was already queued."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why can an old answer return after logout?",
+          "spoken": "Clearing the screen does not cancel every pending callback or invalidate every cache. I bind updates to an operation generation and a caller scope.",
+          "deep": "Separate the browser operation identity, server authentication and durable business identity. Aborting a fetch is cooperative and cannot undo committed effects. Inspect all three when diagnosing an apparent logout leak.",
+          "follow_up": {
+            "question": "Can a TypeScript interface enforce the HTTP contract?",
+            "answer": "No. Narrow unknown runtime input, validate it on the server too, and test malformed or unauthorized data across the actual network boundary."
+          },
+          "rubric": [
+            "Names the authoritative state and the caller boundary",
+            "Reproduces a failure and supplies independent evidence",
+            "Explains the measurement assumptions and a recovery limitation"
+          ]
+        }
+      ],
+      "project": "evidence-workbench",
+      "assessment": "typed-runtime-boundary",
+      "source_context": [
+        {
+          "reference_id": "react-effects",
+          "explanation": "Separate submission events from resource cleanup and ignore obsolete asynchronous results.",
+          "boundary": "Effect cleanup cannot undo a committed external effect.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "ts-narrowing",
+          "explanation": "Narrow unknown wire values before consuming the delta/done union.",
+          "boundary": "A compile-time assertion does not inspect a received response.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "vite-guide",
+          "explanation": "Compile the TypeScript contract and bundle the optional local application.",
+          "boundary": "The generated app is separate from the static course reader.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "id": "model-selection-uncertainty",
+      "study_id": 844,
+      "title": "Model selection, leakage, uncertainty and a measured CPU baseline",
+      "outcomes": [
+        "Select a model without fitting preprocessing or hyperparameters to test data",
+        "Report a baseline, uncertainty, error slices and reproducible CPU measurements"
+      ],
+      "terms": [
+        {
+          "term": "Held-out test set",
+          "definition": "Examples excluded from preprocessing, fitting, tuning and selection until the evaluation decision is frozen."
+        },
+        {
+          "term": "Paired bootstrap",
+          "definition": "Resampling the same evaluated cases for both systems to estimate uncertainty in their metric difference."
+        },
+        {
+          "term": "Calibration",
+          "definition": "Agreement between stated predictive probabilities and empirical outcome frequencies under a defined distribution."
+        }
+      ],
+      "narrative": [
+        "The bundled digits dataset supplies 1,797 handwritten 8 by 8 images, making this a real dataset experiment beyond a generated linearly separable classifier. Fix the row indices for train, validation and test before fitting anything. The reference uses 1,078 training, 359 validation and 360 test rows. Fit StandardScaler only inside the training pipeline and reuse its learned transformation. Validation chooses among three regularization values using multiclass log loss. The test labels cannot select the best value or fix preprocessing. A pipeline prevents some accidental preprocessing mistakes; it cannot make an inappropriate split representative.",
+        "State the generalization question before reporting accuracy. A random stratified row split measures this particular row-sampling design. It does not establish independence from handwriting authors, because the loader does not provide the writer identities needed to enforce that split. For customer or document datasets, put all examples from one correlated group on one side of a split. For forecasting, preserve time and prevent features from seeing the future. Repeatedly inspecting a test set and altering the system turns that set into another validation set.",
+        "Compare the selected model with a most-frequent-class baseline on exactly the same test rows. Save the confusion matrix and the indices of errors rather than retaining only one average. A Wilson interval estimates uncertainty in a binomial accuracy under independent-sample assumptions; 98 correct answers out of 100 do not imply a population accuracy exactly equal to 98 percent. A paired bootstrap resamples corresponding row-wise differences between systems, preserving their evaluation pairing. Correlated samples and many repeated comparisons need a different design; a random seed is not a correction for those biases.",
+        "Keep probability quality, corruption robustness and performance separate. Log loss penalizes confident mistakes but is not a pure measure of calibration. If adding a calibrator, fit it without using the final test labels and inspect reliability bins with their sample counts. The supplied middle-row corruption is a declared stress slice, not a future production population. Warm up the model, constrain numerical library threads and measure repeated single-row calls with an explicit timer. The result includes Python/sklearn overhead and describes local CPU latency only. It cannot justify a GPU throughput, concurrent-service or foundation-model finetuning claim."
+      ],
+      "lab": "model_selection.py",
+      "practice": [
+        "Run the experiment with pinned optional dependencies and save its JSON",
+        "Replace the split with a group or time split on an independently chosen dataset",
+        "Add calibration and an abstention threshold using validation data only",
+        "Write a release decision that includes correlated-sample and dataset limitations"
+      ],
+      "debugging": "When performance looks unexpectedly perfect, inspect duplicate/group leakage, feature construction timing and preprocessing fit indices before increasing the model size.",
+      "tradeoffs": "A larger test set reduces sampling uncertainty but does not repair distribution mismatch. More hyperparameter searches spend compute and consume validation information; reserve a fresh test design for major iteration cycles.",
+      "references": [
+        "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+        "https://scikit-learn.org/stable/common_pitfalls.html",
+        "https://scikit-learn.org/stable/modules/cross_validation.html",
+        "https://scikit-learn.org/stable/modules/calibration.html",
+        "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+        "https://mlflow.org/docs/latest/ml/tracking/"
+      ],
+      "prerequisites": [
+        "ml-splits-models"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Two errors in one hundred examples",
+          "setup": "A model is correct on 98 of 100 approximately independent examples.",
+          "steps": [
+            "Compute the observed proportion 0.98.",
+            "Use the Wilson denominator 1 + 1.96²/100.",
+            "Compute the center and half-width from the binomial formula.",
+            "Report an approximate 95% interval of 0.9300 to 0.9945 with the assumptions."
+          ],
+          "result": "The observed 98% is an estimate; the interval does not prove performance on another distribution."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Your validation score improved but held-out performance fell. What do you inspect?",
+          "spoken": "I first inspect split integrity, group overlap, preprocessing fit data and repeated selection on the validation set. Then I examine per-class and corruption slices under the same frozen test protocol.",
+          "deep": "A favorable mean can hide correlated duplicates or a brittle slice. Compare models on matched rows with a paired interval, keep provenance for labels and features, and avoid tuning after inspecting the test errors without declaring a new evaluation cycle.",
+          "follow_up": {
+            "question": "Does a lower log loss prove better calibration?",
+            "answer": "No. Log loss reflects more than calibration. Inspect reliability and sample support, and evaluate discrimination and calibration separately."
+          },
+          "rubric": [
+            "Names the authoritative state and the caller boundary",
+            "Reproduces a failure and supplies independent evidence",
+            "Explains the measurement assumptions and a recovery limitation"
+          ]
+        }
+      ],
+      "dependencies": "Python 3.12 and requirements-advanced.txt; run python labs/model_selection.py from the downloaded project root.",
+      "assessment": "test-set-selection",
+      "source_context": [
+        {
+          "reference_id": "sklearn-pitfalls",
+          "explanation": "Fit preprocessing only on training rows and reuse that transformation.",
+          "boundary": "A pipeline cannot repair group overlap or an inappropriate sampling design.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "sklearn-calibration",
+          "explanation": "Distinguish probabilistic scoring from calibration-only judgments.",
+          "boundary": "Lower log loss alone does not establish improved calibration.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "nist-binomial",
+          "explanation": "Use a bounded Wilson interval for a binomial proportion.",
+          "boundary": "Independence and distribution assumptions still constrain interpretation.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "id": "low-rank-adaptation-profiling",
+      "study_id": 850,
+      "title": "Train a causal model adapter, verify frozen weights and profile honestly",
+      "outcomes": [
+        "Optimize a low-rank update on a causal language-model output head",
+        "Verify base-weight identity and adapter reload before reporting a measured result"
+      ],
+      "terms": [
+        {
+          "term": "Low-rank update",
+          "definition": "An update BA formed from smaller matrices; its rank is bounded by their shared inner dimension."
+        },
+        {
+          "term": "Causal mask",
+          "definition": "An attention restriction preventing a token position from seeing later input positions."
+        },
+        {
+          "term": "Allocated tensor memory",
+          "definition": "Memory occupied by tracked tensors, distinct from reserved allocator memory and whole-process device use."
+        }
+      ],
+      "narrative": [
+        "Run the optional PyTorch exercise after the training/attention and real-dataset evaluation units. It trains a tiny causal character model on a declared authored corpus, freezes that model and learns only an output-head update. A shifted target predicts the next character; a causal attention mask prevents future input positions from leaking into its prediction. Vocabulary is fixed before reading any evaluation text. The small authored validation text is kept separate from fitting, but it is not an independent population sample or a benchmark of language understanding. Inspect training and validation losses without claiming domain generalization.",
+        "For a base output matrix W with shape vocabulary by hidden-width, the update is W + (alpha/r)BA. A maps hidden width to rank r and B maps rank r to vocabulary. The fixture uses hidden width 32, rank 4 and alpha 8. With vocabulary size 42, the two trainable matrices have 4×32 + 42×4 = 296 parameters. Initializing B to zero makes the initial update zero while A can have a nonzero initialization. If both factors start at zero, their first gradients vanish. An output-head-only adapter illustrates the mechanism; applying LoRA throughout attention projections changes gradient paths, memory and capacity.",
+        "Freeze the base parameters explicitly, clear their old gradient buffers and construct the optimizer from trainable parameters only. The harness hashes all base tensors before and after adaptation and asserts their identity. It saves adapter tensors with the exact base hash, vocabulary hash, data hash, rank and alpha. Reloading uses tensor-only loading and must reproduce the same logits with that base. A compatible architecture name is insufficient: applying an adapter to a different tokenizer or base checkpoint can silently change its meaning. A production loader must reject an incompatible manifest before serving.",
+        "Measure the work actually executed. The default CPU run records adaptation time, batch/sequence assumptions, parameter count and environment. Parameter bytes omit activation, gradient, optimizer and allocator costs. An explicitly requested CUDA run synchronizes around timing and reports peak allocated tensor memory only when CUDA is available; otherwise it fails rather than fabricating a number. Profile operator shapes and memory before changing rank, batch size, checkpointing or precision. Scaling a miniature reference to a real foundation model needs licensed data, sequence-level evaluation, resource planning, safety regression and measured target hardware. Its local loss reduction does not establish those guarantees."
+      ],
+      "lab": "adapter_training.py",
+      "practice": [
+        "Run the CPU reference and save frozen-weight and artifact-reload assertions",
+        "Compare ranks 2, 4 and 8 using validation only and record trainable counts and elapsed time",
+        "Inject a wrong base or vocabulary digest and reject the artifact before serving",
+        "On available CUDA hardware, record synchronized timing and allocated/reserved/process memory with distinct labels"
+      ],
+      "debugging": "If no update learns, inspect both factor initializations, requires_grad, optimizer parameters and gradient buffers. If an adapter loads but answers change unexpectedly, compare exact base, vocabulary and data manifests before retraining.",
+      "tradeoffs": "Low-rank updates reduce trainable and optimizer-state requirements but still need base inference and, for internal-layer adaptation, activation/backward work. Smaller rank can underfit; merging a low-rank update can alter precision and must preserve validated artifact identity.",
+      "references": [
+        "https://arxiv.org/abs/2106.09685",
+        "https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html",
+        "https://docs.pytorch.org/docs/2.14/generated/torch.cuda.memory.max_memory_allocated.html",
+        "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+        "https://arxiv.org/abs/1706.03762"
+      ],
+      "prerequisites": [
+        "model-selection-uncertainty",
+        "adaptation-quantization"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "dependencies": "Python 3.12 and requirements-models.txt. Run python labs/adapter_training.py for CPU; --device cuda requires actual CUDA-capable hardware and a matching PyTorch build.",
+      "worked_examples": [
+        {
+          "title": "Count the adapter, not only the base",
+          "setup": "Output matrix has vocabulary 42, hidden width 32 and rank 4.",
+          "steps": [
+            "A has 4×32 = 128 parameters.",
+            "B has 42×4 = 168 parameters.",
+            "Total trainable adapter parameters are 296.",
+            "Keep frozen base parameters separate when reporting the trainable fraction and memory scope."
+          ],
+          "result": "The update is low-rank, but base parameters and runtime activations still occupy memory."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "A LoRA run reports low memory and lower training loss. Is it ready to deploy?",
+          "spoken": "I need the measurement scope, target-hardware result, validation design and exact base/tokenizer/adapter manifest. Lower training loss and fewer trainable parameters are insufficient.",
+          "deep": "Check causal labels and masks, frozen tensors, optimizer membership, held-out slices and safety regressions. Profile activations, optimizer and allocator behavior separately. Verify that reload reproduces logits and reject incompatible checkpoints before assessing serving behavior.",
+          "follow_up": {
+            "question": "Why initialize one low-rank factor to zero rather than both?",
+            "answer": "With nonzero A and zero B, the initial update is zero but B can receive a useful first gradient. If both factors are zero, both first gradients vanish."
+          },
+          "rubric": [
+            "Derives the matrix shapes and count",
+            "Proves frozen weights and reload identity",
+            "Separates fit quality from evaluation and measured memory scope"
+          ]
+        }
+      ],
+      "source_context": [
+        {
+          "reference_id": "lora-paper",
+          "explanation": "Use a frozen base and trainable low-rank factors to illustrate adaptation mechanics.",
+          "boundary": "The local exercise adapts only the output head of a miniature model, not a paper-scale foundation model.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "pytorch-profiler",
+          "explanation": "Inspect operator work, shapes and memory instead of inferring performance from parameter count.",
+          "boundary": "CPU timing and parameter bytes cannot substitute for GPU allocator or whole-process measurements.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "id": "sdk-protocol-interoperability",
+      "study_id": 845,
+      "title": "Version-pinned MCP and A2A clients over real transports",
+      "outcomes": [
+        "Observe actual MCP negotiation over STDIO and HTTP",
+        "Discover an A2A 1.0 agent, consume streamed status and read authoritative task state"
+      ],
+      "terms": [
+        {
+          "term": "Protocol profile",
+          "definition": "The wire specification version actually used by a connection, distinct from the SDK package version."
+        },
+        {
+          "term": "Discovery",
+          "definition": "Retrieving capabilities and endpoint metadata before choosing an interaction."
+        },
+        {
+          "term": "Terminal task state",
+          "definition": "An authoritative lifecycle result distinct from merely receiving an artifact or closing a stream."
+        }
+      ],
+      "narrative": [
+        "Install the exact optional dependency versions before running the interoperability harness. MCP 2.3.0 exposes the v2 MCPServer and Client APIs; do not copy a FastMCP/ClientSession example from another major version and silently assume the same lifecycle. The harness creates a real subprocess STDIO server and a separate loopback Streamable HTTP server. Each official client connection asserts the negotiated 2026-07-28 profile, discovers tools, reads one public fixture and verifies invalid input and denied source identities. Negotiation and metadata are handled by the SDK; an assertion makes unexpected fallback visible.",
+        "The tool returns a typed output model so the SDK can advertise and validate structured output. Accepting a schema is not permission to read every source. The fixture capability permits only public@1 and rejects private@1, independently of how a model chooses arguments. STDIO inherits a local subprocess boundary. An exposed HTTP service additionally needs authenticated caller context, token audience and resource checks, transport security and a policy for client-controlled URLs. Those OAuth and multi-tenant checks are not implemented by this read-only public fixture, so passing it cannot certify a remote deployment.",
+        "A2A uses an agent-facing task contract rather than MCP tool invocation. Its separate official client performs actual HTTP discovery, selects the advertised JSON-RPC protocol 1.0 interface and receives an SSE stream containing a task, working status, artifact and completed status. It then reads the task back through the client. The harness requests an unsupported version and asserts an error. A2A SDK 1.2.3 provides a 0.3 compatibility option, but this exercise disables that option. Never describe an old message/send payload and a 1.0 SendMessageRequest as interchangeable without a versioned adapter.",
+        "Separate three acceptance layers: your handler invariants, SDK and transport interoperability, and production authorization/recovery. The first two now have executable evidence for the stated public read path. Independent work adds cancellation races, task continuation, expired credentials, pagination, streaming interruption and restart with a durable task store. An in-memory task store loses tasks when the server restarts. A received artifact may be a partial result and cannot alone authorize a business effect. Save SDK pins, negotiated profile, method, terminal state and rejection output without recording real tokens or private payloads."
+      ],
+      "lab": "protocol_interop.py",
+      "practice": [
+        "Run the harness and record both SDK and wire versions",
+        "Add an unknown-tool and timeout case without swallowing transport failures",
+        "Implement task cancellation and restart with durable readback",
+        "Build an authenticated HTTP variant with two caller scopes and expired-token fixtures"
+      ],
+      "debugging": "Distinguish a tool result with is_error from a JSON-RPC or transport error. When a field is missing, inspect the installed SDK major version and the negotiated profile before changing business logic.",
+      "tradeoffs": "SDKs reduce framing work but do not prove cross-vendor compatibility, durable task semantics or correct authorization. Keep a small explicit tested support matrix and reject silent fallback when a required feature is absent.",
+      "references": [
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+        "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization",
+        "https://py.sdk.modelcontextprotocol.io/get-started/first-steps/",
+        "https://a2a-protocol.org/v1.0.0/specification/",
+        "https://github.com/a2aproject/a2a-python"
+      ],
+      "prerequisites": [
+        "safe-tools-protocol-boundaries"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Artifact is not task completion",
+          "setup": "The A2A stream delivered an artifact but has not delivered a terminal status.",
+          "steps": [
+            "Retain the artifact as partial output.",
+            "Inspect the task identity and lifecycle status.",
+            "On disconnect, query the authoritative task state.",
+            "Permit completion only after the protocol reports a valid terminal state."
+          ],
+          "result": "The client does not convert an interrupted stream into a successful business operation."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why pin both an SDK and a wire profile?",
+          "spoken": "An SDK release can support several protocol profiles or compatibility modes. Pinning its package is not proof of the semantics used on a connection.",
+          "deep": "Record negotiated versions and verify required capabilities on the actual transport. Handle unknown methods, denied resources and incomplete streams distinctly. Add cross-implementation and authenticated cases before claiming production interoperability.",
+          "follow_up": {
+            "question": "Is an agent card proof that the caller may execute its skills?",
+            "answer": "No. Discovery is capability metadata; authentication, authorization and any approval boundary still need independent enforcement."
+          },
+          "rubric": [
+            "Names the authoritative state and the caller boundary",
+            "Reproduces a failure and supplies independent evidence",
+            "Explains the measurement assumptions and a recovery limitation"
+          ]
+        }
+      ],
+      "dependencies": "Python 3.12 and requirements-advanced.txt; the harness starts disposable subprocess/loopback servers and closes them after verification.",
+      "assessment": "sdk-versus-wire-version",
+      "source_context": [
+        {
+          "reference_id": "mcp-sdk-v2",
+          "explanation": "Use the installed v2 server/client API and observe the actual protocol profile.",
+          "boundary": "The public read fixture does not implement remote OAuth or tenant policy.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "a2a-v1",
+          "explanation": "Distinguish task, artifact and terminal status under the version 1.0 contract.",
+          "boundary": "An artifact or disconnected SSE stream is not proof of task completion.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "a2a-python",
+          "explanation": "Pin the SDK and disable undesired compatibility fallback.",
+          "boundary": "One client/server pair does not establish cross-vendor conformance.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "id": "beam-watermarks-recovery",
+      "study_id": 846,
+      "title": "Run event-time windows and late corrections on a real Beam runner",
+      "outcomes": [
+        "Execute on-time, accepted-late and beyond-lateness cases with Beam",
+        "Explain how pane accumulation changes destination idempotency requirements"
+      ],
+      "terms": [
+        {
+          "term": "Event-time window",
+          "definition": "A grouping interval determined by event timestamps rather than machine arrival time."
+        },
+        {
+          "term": "Allowed lateness",
+          "definition": "A retention policy determining how long a runner can update a window after its event-time end."
+        },
+        {
+          "term": "Accumulating pane",
+          "definition": "An emitted window result that includes values already represented in earlier panes."
+        }
+      ],
+      "narrative": [
+        "Run the optional Apache Beam DirectRunner exercise before inferring behavior from a timeline. It assigns event timestamps, fixed ten-second windows and an explicit watermark. Values 2 and 3 enter the same tenant/window before its end; their on-time result is 5. The watermark then advances to 12 and a value of 7 arrives with timestamp 3. With ten seconds of allowed lateness and a late-count trigger, the retained window emits a corrected total of 12. These are actual runner outputs checked by an assertion, not a list computed by the teaching page.",
+        "Accumulating panes contain all accepted values so far. A downstream database must replace the aggregate under a stable window key or track pane/version identity; adding 5 and then 12 would incorrectly produce 17. Discarding mode has different sink requirements because later panes represent different contributions. Exactly-once aggregation claims are incomplete until the external write contract is included. A broker offset, Beam state and an independently committed database write do not automatically form one transaction.",
+        "After the watermark advances beyond window end plus allowed lateness, the fixture sends another event timestamped inside that old window. The asserted output excludes a correction to 112. This is a policy outcome, not evidence that the event never existed. Decide whether a real application discards, quarantines or later backfills that event and how users learn that an aggregate changed. Allowed lateness retains state and costs memory. An idle partition or skewed source can delay progress; an overly optimistic watermark can force useful events beyond the correction policy.",
+        "The local DirectRunner and TestStream exercise real Beam transforms but simulated source timing. The separate Kafka recovery unit now supplies a real broker, a killed worker process and a durable destination checkpoint. Neither fixture alone establishes a distributed Beam runner checkpoint guarantee or a real CDC connector. Extend the two paths with a schema-registry source, an idempotent destination keyed by owner/window/schema generation and a worker crash after destination commit. Compare durable final state against an independent oracle and keep source retention, deletion intent and rebuild manifests compatible with the replay window."
+      ],
+      "lab": "beam_event_time.py",
+      "practice": [
+        "Run TestStream and save the on-time and corrected totals",
+        "Replace the accumulating sink with a versioned upsert and prove replay safety",
+        "Build a broker-backed extension and inject a post-write pre-acknowledgment crash"
+      ],
+      "debugging": "When totals inflate after a correction, inspect the pane accumulation mode and sink operation before blaming duplicate source messages. When outputs stall, inspect watermark progress and idle partitions.",
+      "tradeoffs": "Longer lateness improves correction coverage at a state and latency cost. DirectRunner is useful for semantics; distributed recovery and connector behavior require their own deployed tests.",
+      "references": [
+        "https://beam.apache.org/documentation/programming-guide/",
+        "https://kafka.apache.org/documentation/",
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "prerequisites": [
+        "event-time-quality",
+        "lineage-deletion-rebuild"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Do not add accumulating panes",
+          "setup": "One window emits 5 and then 12 after a late event.",
+          "steps": [
+            "Identify that 12 already includes the original 5.",
+            "Choose a stable owner/window/version key.",
+            "Upsert the latest aggregate instead of adding both totals.",
+            "Replay the latest pane and assert the stored value remains 12."
+          ],
+          "result": "A replay-safe sink retains 12, not 17 or 24."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Your late-event fix doubled a dashboard total. What failed?",
+          "spoken": "I would inspect whether accumulating panes were appended as independent deltas. A corrected pane may already contain the earlier values.",
+          "deep": "Trace source identity, event timestamp, watermark, allowed lateness, pane mode and destination write identity. Verify a durable final state through restart and duplicate delivery before claiming exactly-once results.",
+          "follow_up": {
+            "question": "Can you infer Kafka recovery from this DirectRunner test?",
+            "answer": "No. It verifies Beam window semantics under controlled timing. A broker, connector and distributed runner need separate failure and retention tests."
+          },
+          "rubric": [
+            "Names the authoritative state and the caller boundary",
+            "Reproduces a failure and supplies independent evidence",
+            "Explains the measurement assumptions and a recovery limitation"
+          ]
+        }
+      ],
+      "dependencies": "Python 3.12 and requirements-advanced.txt; run python labs/beam_event_time.py. DirectRunner requires no cloud account.",
+      "assessment": "accumulating-pane-sink",
+      "source_context": [
+        {
+          "reference_id": "beam-programming",
+          "explanation": "Exercise event timestamps, allowed lateness, late triggers and accumulating panes.",
+          "boundary": "DirectRunner TestStream timing does not establish distributed checkpoint or Kafka connector behavior.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "id": "restore-and-rollout-drills",
+      "study_id": 847,
+      "title": "Restore data, reapply deletion intent and diagnose a stalled rollout",
+      "outcomes": [
+        "Restore an actual snapshot and detect lost post-backup writes",
+        "Prevent deleted data from reappearing before serving a restored copy"
+      ],
+      "terms": [
+        {
+          "term": "Recovery point",
+          "definition": "The durable state to which a restore returns, including which later writes are lost."
+        },
+        {
+          "term": "Recovery time",
+          "definition": "Elapsed time to a declared usable service state, not merely to copying a backup file."
+        },
+        {
+          "term": "Deletion intent",
+          "definition": "An authoritative record that prevents a restored or replayed old copy from making deleted data visible again."
+        }
+      ],
+      "narrative": [
+        "A successful backup command is insufficient evidence of recoverability. The supplied drill uses the SQLite backup API to create a consistent snapshot, commits another row and a deletion afterwards, then restores into an isolated new database. It checks the backup digest, database integrity and exact visible row identities. The new post-backup row is absent after restore. That observed loss is one known operation, not a measured time-based RPO. The reported timer covers local restore, integrity checking and deletion replay only; it is not a full user-visible RTO.",
+        "A snapshot can resurrect data that was deleted after the snapshot. The drill retains deletion intent outside the restored data copy and reapplies that intent before exposing restored rows. A production design must keep that ledger durably, define deletion authority and expiry, and rebuild projections with the same filtering. Encryption keys, retained logs, search indexes, object-store versions and downstream caches need their own recovery and deletion contract. A digest proves snapshot identity; it does not establish correct keys, complete retention or semantic data consistency.",
+        "Port the discipline to PostgreSQL without pretending SQLite backup is PostgreSQL PITR. Record database major version, schema/migration state, roles, extensions, backup type, WAL coverage and recovery target. Restore into a disposable instance and run owner-isolation, write/read and application quality checks before routing traffic. A restore that opens successfully can still contain incompatible application state. Reconcile effects already committed at external receivers instead of resending every restored outbox row under new operation identities.",
+        "The cumulative project includes a container and Kubernetes manifest for a separate rollout drill. In a disposable local cluster, start two replicas, set an unavailable image and inspect desired, updated and available counts. A progress deadline reports that rollout progress stalled; it does not automatically roll the Deployment back. Save health observations and perform an explicit undo. Readiness and liveness have different consequences even when the teaching server uses one shallow endpoint. These cluster steps remain an independent exercise until actual cluster output is saved."
+      ],
+      "lab": "restore_drill.py",
+      "practice": [
+        "Run the isolated restore and save exact recovered/lost identities",
+        "Extend deletion intent to an independent durable ledger with a restore-order guard",
+        "Follow the cumulative project cluster drill and record explicit rollback evidence"
+      ],
+      "debugging": "If deleted records return after recovery, inspect the order in which deletion intent, source snapshots and derived indexes were restored. If rollback succeeds but requests fail, compare app/schema compatibility and dependency readiness.",
+      "tradeoffs": "Older snapshots can improve recovery availability while increasing replay work and data loss. Automated rollout recovery needs an explicit controller or pipeline decision; process health is weaker than restored business correctness.",
+      "references": [
+        "https://docs.python.org/3/library/sqlite3.html#sqlite3.Connection.backup",
+        "https://www.postgresql.org/docs/current/backup.html",
+        "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+      ],
+      "prerequisites": [
+        "recovery-governance-release",
+        "artifact-release-infrastructure"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "A valid backup contains a later-deleted record",
+          "setup": "Snapshot has d1 and d2; later writes insert d3 and delete d2.",
+          "steps": [
+            "Restore the snapshot into an isolated database.",
+            "Detect d3 as a lost post-snapshot insert.",
+            "Load authoritative deletion intent for d2.",
+            "Remove d2 before exposing the restored database and verify only d1 remains."
+          ],
+          "result": "The restore is internally valid but intentionally older; visibility respects newer deletion authority."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Your restore passed integrity checks. Can traffic resume?",
+          "spoken": "Only after the application-level recovery checks and deletion/effect reconciliation pass. File integrity alone does not establish safe service state.",
+          "deep": "Define the recovered point, lost operations, dependencies, schema compatibility and readiness oracle. Measure recovery through user-visible checks and preserve external effect identities so restoring a ledger does not duplicate a previously committed action.",
+          "follow_up": {
+            "question": "Will Kubernetes undo a rollout at its progress deadline?",
+            "answer": "No. The Deployment reports stalled progress. An operator or higher-level controller must decide and execute rollback."
+          },
+          "rubric": [
+            "Names the authoritative state and the caller boundary",
+            "Reproduces a failure and supplies independent evidence",
+            "Explains the measurement assumptions and a recovery limitation"
+          ]
+        }
+      ],
+      "project": "evidence-workbench",
+      "assessment": "restore-deletion-authority",
+      "source_context": [
+        {
+          "reference_id": "sqlite-backup",
+          "explanation": "Create and restore a consistent snapshot through the backup API.",
+          "boundary": "Local snapshot restore is not PostgreSQL point-in-time recovery.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "k8s-deployments",
+          "explanation": "Inspect rollout progress and perform an explicit undo when a release stalls.",
+          "boundary": "The progress deadline reports a condition; it does not automatically roll back.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "id": "kafka-checkpoint-recovery",
+      "study_id": 849,
+      "title": "Recover a real Kafka worker after destination commit and before acknowledgment",
+      "outcomes": [
+        "Demonstrate actual broker redelivery across a killed worker process",
+        "Preserve schema revisions, quarantine and deletion under source replay"
+      ],
+      "terms": [
+        {
+          "term": "Consumer offset commit",
+          "definition": "A broker-stored position from which a consumer group can resume; it is distinct from a destination database commit."
+        },
+        {
+          "term": "Payload-bound receipt",
+          "definition": "A durable processed-input record that binds an identity to the exact content already applied."
+        }
+      ],
+      "narrative": [
+        "Start a disposable native Apache Kafka broker with the supplied harness and a checksum-verified distribution, or use the official container on loopback. The reference creates a unique topic and consumer group, one partition and a temporary durable SQLite projection. The producer waits for actual delivery callbacks. The consumer disables automatic commits and offset storage, validates source values and applies a contiguous checkpoint plus projection inside a database transaction. Mapping Kafka offset zero to local checkpoint one is explicit. Do not apply this single-partition cursor unchanged to a multi-partition source.",
+        "The harness launches the first consumer in its own operating-system process. After committing the first destination change, the worker exits with status 73 before committing its Kafka offset. The parent inspects the surviving database checkpoint and receipt, then starts a fresh worker for the same group. Since the broker did not receive the acknowledgment, the first message can be delivered again. The stored source digest and receipt make this a verified replay, not a second document effect. Only after the local transaction succeeds does the replacement worker commit the corresponding broker offset.",
+        "The six source messages include an original schema, a newer schema adapter, an older document revision, a deletion, a stale post-deletion update and an invalid schema. Final acceptance inspects durable destination state: checkpoint six, revision four with empty content and a tombstone, five valid receipts and one quarantine reason. A source checkpoint alone is insufficient; inspect what the user could actually read after recovery. A quarantine policy that advances progress must retain a safe operational reason and define how the bad source event will be repaired without silently changing its identity.",
+        "This is an at-least-once source path with a replay-safe destination for the stated invariant. It is not a claim that SQLite and Kafka participate in one distributed transaction. The native broker uses one local replica, so it cannot establish availability after machine loss. Extend the project with two partitions, rebalance ownership and a destination checkpoint keyed by topic and partition; make the source retention horizon longer than the recovery requirement. A real CDC connector or schema registry needs separate deployment and failure tests. Preserve event and external effect identities rather than generating a new business operation on every delivery."
+      ],
+      "lab": "kafka_recovery.py",
+      "practice": [
+        "Run the native-broker harness and retain the crash, replay and final projection output",
+        "Inject a crash before the destination commit and compare the restart result",
+        "Extend checkpoints to topic/partition identity and test rebalance ownership",
+        "Add a schema-registry or CDC source and document source retention and deletion authority"
+      ],
+      "debugging": "If the first record is lost, inspect auto-commit settings and the destination-before-ack order. If it is applied twice, inspect durable receipt identity and source payload matching. Diagnose broker group membership separately from the projection transaction.",
+      "tradeoffs": "A one-partition fixture makes ordering explicit but limits parallelism. More partitions require independent checkpoints and correct ownership through rebalance. A deduplicated destination does not make unrelated external effects atomic.",
+      "references": [
+        "https://kafka.apache.org/quickstart/",
+        "https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/index.html",
+        "https://kafka.apache.org/documentation/",
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "prerequisites": [
+        "beam-watermarks-recovery",
+        "cdc-checkpoints-idempotency"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "dependencies": "Python 3.12, requirements-advanced.txt and a disposable Kafka broker. Download all local project sources; run python scripts/test_kafka_recovery.py --distribution /path/to/extracted-kafka with Java 17+.",
+      "worked_examples": [
+        {
+          "title": "One commit survives an unacknowledged crash",
+          "setup": "The worker commits offset-zero projection changes and dies before broker acknowledgment.",
+          "steps": [
+            "Observe a durable local checkpoint of one.",
+            "Restart the same group without a committed broker offset.",
+            "Verify the repeated offset has the stored digest and produces already-checkpointed.",
+            "Commit the broker offset only after the local invariant is satisfied."
+          ],
+          "result": "One document effect remains even though the source delivered the record more than once."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Is committing a database and then a Kafka offset exactly-once?",
+          "spoken": "There is a crash window between the two commits. I use durable payload-bound receipts and atomic local checkpoints so the resulting replay is safe for this destination.",
+          "deep": "State the guarantee in terms of final destination effects, not the number of deliveries. Acknowledge only after a recoverable local commit, reject changed content under a reused identity, and handle partitions and external receiver effects independently.",
+          "follow_up": {
+            "question": "What changes when the source has two partitions?",
+            "answer": "Track topic and partition in each checkpoint and receipt identity, and make rebalance ownership and destination writes safe. A single global contiguous offset is no longer a valid invariant."
+          },
+          "rubric": [
+            "Identifies the database/broker commit window",
+            "Shows actual restart and destination evidence",
+            "Explains partition and external-effect limits"
+          ]
+        }
+      ],
+      "source_context": [
+        {
+          "reference_id": "kafka-quickstart",
+          "explanation": "Use the official single-node distribution as a disposable local source.",
+          "boundary": "One local replica is not evidence of broker high availability.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "kafka-python-api",
+          "explanation": "Wait for delivery callbacks and explicitly commit consumed offsets after destination state.",
+          "boundary": "These separate commits do not create a distributed database/broker transaction.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "id": "independent-review-practicum",
+      "study_id": 848,
+      "title": "Evaluate multilingual, permission, accessibility and interview failure slices",
+      "outcomes": [
+        "Create a slice-based evaluation and distinguish objective checks from semantic review",
+        "Defend a release decision with reproducible failure and recovery evidence"
+      ],
+      "terms": [
+        {
+          "term": "Failure slice",
+          "definition": "A declared subset with a particular risk or operating condition, evaluated separately from an aggregate."
+        },
+        {
+          "term": "Review evidence",
+          "definition": "Reproducible artifacts and observations supporting a decision, distinguished from a reviewer name or a self-rating."
+        },
+        {
+          "term": "Abstention contract",
+          "definition": "The conditions under which a system declines to provide an unsupported answer or action."
+        }
+      ],
+      "narrative": [
+        "Use the downloadable review packet to assess a project as a reviewer who did not write its implementation. Freeze the artifact, data manifest, source versions, identity policy and evaluation cases before measuring. Include normal completion, unsupported evidence, conflicting policy versions, cross-owner access, fragmented Unicode, interrupted output and stale identity responses. For a multilingual extension, add Arabic and mixed right-to-left/Latin identifiers, non-Latin search terms and composed/decomposed characters. The current English policy fixture does not demonstrate multilingual retrieval quality; that extension needs human-labeled source support and per-language results.",
+        "Separate deterministic protocol assertions from semantic judgments. A test can prove that markup is inert or that the parser rejects a missing final frame. It cannot establish that a citation actually supports an answer or that translated eligibility language has the same meaning. Have two reviewers label claim support, resolve disagreements and keep the adjudication rationale. Report slice counts and unsupported/incorrect answers separately; an aggregate accuracy improvement cannot compensate for a newly disclosed private document. Avoid using the evaluated model as the only uncalibrated judge of its own quality.",
+        "Automated accessibility checks cover a useful subset of barriers. Walk the actual application with keyboard only, zoom and a screen reader. Test labels, focus order, failure messages, cancellation and output announcements after identity switching. Constantly announcing every token can overwhelm a user even when an automated rule scan passes. Record browser, operating system, assistive technology, task, expected interaction, actual observation and severity. A pending manual check stays pending; creating a checklist does not turn it into a passed review.",
+        "Finish with an oral defense grounded in the artifacts. Ask the learner to locate a real failure, identify the authoritative state, propose a fix and show a regression that fails when the fix is removed. Follow with changed assumptions: a receiver already committed, a test sample is correlated, a source was deleted, or the protocol upgraded. Score reasoning, evidence and recovery limits separately. Independent review is a human acceptance activity, so this course provides the packet and objective fixtures while keeping external technical and assistive-technology sign-off explicitly unclaimed."
+      ],
+      "lab": "streaming_reader.html",
+      "practice": [
+        "Download the review packet and fill its artifact and slice tables with actual observations",
+        "Run keyboard and assistive-technology tasks and keep unexecuted checks pending",
+        "Have another reviewer challenge the task identity, split design and restore authority"
+      ],
+      "debugging": "When a release looks strong only in an overall score, inspect risk-slice counts, denominators and whether missing outcomes were excluded. When reviewers disagree, resolve the claim/source ambiguity before tuning a grader.",
+      "tradeoffs": "Human adjudication costs time but supplies meaning that schema and string checks cannot establish. Use automation for repeatable invariants and reserve reviewers for consequential semantic and interaction decisions.",
+      "references": [
+        "https://www.w3.org/WAI/test-evaluate/preliminary/",
+        "https://genai.owasp.org/llm-top-10/",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/",
+        "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"
+      ],
+      "prerequisites": [
+        "cumulative-typed-application",
+        "model-selection-uncertainty",
+        "sdk-protocol-interoperability",
+        "beam-watermarks-recovery",
+        "restore-and-rollout-drills",
+        "kafka-checkpoint-recovery",
+        "low-rank-adaptation-profiling"
+      ],
+      "estimated_minutes": 180,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "An average improvement hides a disclosure",
+          "setup": "Candidate improves 90 of 100 routine questions but reveals one other-owner source.",
+          "steps": [
+            "Separate routine quality from critical disclosure outcomes.",
+            "Inspect the actual response bytes for the unauthorized source.",
+            "Reject release under the declared zero-disclosure gate.",
+            "Repair server scope and add the case as a permanent regression."
+          ],
+          "result": "A critical permission failure is not traded away for a better average answer score."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "All automated checks passed. Is independent acceptance finished?",
+          "spoken": "No. Automated checks establish their stated invariants. Semantic support, untested operating conditions and manual interaction tasks need recorded review evidence.",
+          "deep": "A meaningful defense distinguishes authored content, executed fixtures and independent judgment. Ask for a deliberately broken implementation that the regression catches, then change one assumption and evaluate whether the original guarantee still holds.",
+          "follow_up": {
+            "question": "How do you avoid turning a rubric into a memorization test?",
+            "answer": "Require the learner to reproduce an unfamiliar failure, inspect artifacts and justify a changed decision under a new constraint."
+          },
+          "rubric": [
+            "Names the authoritative state and the caller boundary",
+            "Reproduces a failure and supplies independent evidence",
+            "Explains the measurement assumptions and a recovery limitation"
+          ]
+        }
+      ],
+      "project": "review-packet",
+      "assessment": "critical-slice-release",
+      "source_context": [
+        {
+          "reference_id": "wai-review",
+          "explanation": "Use preliminary checks as a starting point for observed manual interaction review.",
+          "boundary": "Passing these checks or axe does not establish complete accessibility conformance.",
+          "accessed_at": "2026-10-21"
+        },
+        {
+          "reference_id": "otel-privacy",
+          "explanation": "Minimize collected data and avoid treating hashed predictable identifiers as anonymous.",
+          "boundary": "Diagnostic evidence must not become a second private document store.",
+          "accessed_at": "2026-10-21"
+        }
+      ]
+    }
+  ]
+}

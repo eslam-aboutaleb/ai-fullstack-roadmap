@@ -132,3 +132,103 @@ add PostgreSQL’s bin directory to PATH and use `py -3.11 scripts/test_postgres
 The harness omits Unix sockets on Windows; this platform path has not been executed
 in the current macOS verification environment.
 Run the tensor bridge from a checkout with `python -m labs.numpy_torch_bridge`.
+
+## Engineering course boundary exercises
+
+The six courses at `courses.html` combine mechanisms, worked cases, interview
+responses, independent work and review rubrics. Four additional credential-free
+Python 3.11+ exercises can be run directly from this folder:
+
+- `python3.11 data_contract_pipeline.py`: version adapters, atomic projection and
+  checkpoints, immutable source offsets, stale revisions, quarantine and deletion.
+- `python3.11 llm_contracts.py`: mock provider, preflight context accounting,
+  bounded rate-limit retries, conservative per-attempt reservation, output shape
+  and caller-scoped citation validation. Citation membership does not prove support.
+- `python3.11 retrieval_scorecard.py`: scoped lexical BM25 baseline, rank fusion,
+  Recall/MRR/binary nDCG and separate handling of empty-gold cases.
+- `python3.11 production_scorecard.py`: explicit mean-capacity assumptions,
+  error-budget burn, quality/privacy/latency gates and telemetry attribute allowlists.
+
+On Windows use `py -3.11` in place of `python3.11`. These exercises use the standard
+library, in-memory/synthetic data and no hosted service. The local SQLite CDC example
+is one source partition, not a Kafka/Beam implementation or distributed atomic commit.
+
+Open `streaming_reader.html` in a browser for a self-contained synthetic stream.
+Test the normal, disconnected and malformed scenarios, then cancel and restart.
+It demonstrates UTF-8 byte framing, replay deduplication, request ownership and
+explicit terminal states. It is a protocol/UI fixture, not a model or actual SSE
+server. The project browser suite checks its behavior and accessibility.
+
+## Engineering practicum: real local integrations
+
+Use Python 3.12 and an isolated environment for the optional dependencies:
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements-advanced.txt
+.venv/bin/python labs/model_selection.py
+.venv/bin/python labs/beam_event_time.py
+.venv/bin/python labs/protocol_interop.py
+.venv/bin/python labs/restore_drill.py
+```
+
+The digits experiment uses a real bundled dataset, train-only preprocessing,
+validation selection, a held-out baseline, uncertainty, a corruption slice and
+actual local CPU latency. The row split is not writer-independent and does not
+establish foundation-model or GPU quality. Beam uses actual DirectRunner windows
+and late panes under TestStream's controlled watermark. The protocol harness
+uses official pinned clients and actual subprocess/HTTP transports: MCP SDK
+2.3.0 with profile 2026-07-28, A2A SDK 1.2.3 with protocol 1.0 JSON-RPC/SSE.
+Its public fixture is read-only and does not implement production OAuth/tenancy.
+The restore drill measures only its stated local restore phases, reapplies newer
+deletion intent and identifies a lost post-backup insert.
+
+The complete ZIP also contains `projects/evidence-workbench` (compiled React,
+strict TypeScript, a real local API, a container and cluster drill) and
+`projects/review-packet` (independent implementation, multilingual, semantic and
+manual accessibility review). Follow each project's README. Do not upload public
+demo credentials or expose the teaching server as a production authentication service.
+
+### Kafka crash/replay path
+
+Download Apache Kafka 4.3.1 from the official distribution endpoint and verify its
+SHA-512 before extracting. Java 17+ is required by the native broker:
+
+https://downloads.apache.org/kafka/4.3.1/kafka_2.13-4.3.1.tgz
+https://downloads.apache.org/kafka/4.3.1/kafka_2.13-4.3.1.tgz.sha512
+
+```sh
+.venv/bin/python scripts/test_kafka_recovery.py --distribution /path/to/kafka_2.13-4.3.1
+```
+
+Alternatively run `python scripts/test_kafka_recovery.py --download`; it downloads
+the official archive into a temporary directory and verifies a pinned SHA-512
+before extraction. The harness starts and removes only its own temporary native broker. It creates a
+unique topic/group, kills a separate worker after its database commit and before
+offset acknowledgment, restarts the worker and inspects durable state. Final
+acceptance checks replay, schema adaptation, quarantine and a tombstone that stale
+revisions cannot resurrect. This is one partition, one worker and one local broker;
+it does not establish broker high availability or multi-partition rebalance safety.
+
+Container alternative, on a machine with Docker and a free loopback port 9092:
+
+```sh
+docker run -d --name roadmap-kafka-practice -p 127.0.0.1:9092:9092 apache/kafka:4.3.1
+.venv/bin/python labs/kafka_recovery.py --bootstrap 127.0.0.1:9092
+docker rm -f roadmap-kafka-practice
+```
+
+Primary context: https://kafka.apache.org/quickstart/ and
+https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/index.html
+
+### Causal language-model adapter and profiling
+
+Install `requirements-models.txt` in a separate environment, then run
+`python labs/adapter_training.py`. The reference trains an authored miniature
+character corpus, freezes the base and learns a 296-parameter low-rank output-head
+update. It verifies causal prefix invariance, frozen base tensors, reproducible
+adapter reload and rejection of a wrong base manifest. The JSON includes actual
+CPU adaptation time and explicitly labels parameter bytes as excluding activations,
+optimizer state and allocator overhead. `--device cuda` requires real CUDA-capable
+hardware; it synchronizes timing and reports peak allocated tensor memory only
+when the device is available. No GPU result is fabricated on the CPU path.

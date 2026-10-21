@@ -13,6 +13,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
 from course_data import load
 from question_examples import load_question_examples
+from interview_teaching import teaching_title, answer_acronyms
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / '_site'
@@ -23,6 +24,7 @@ class QuestionExamples(HTMLParser):
         super().__init__()
         self.question = None
         self.examples = []
+        self.text = []
         self.feed(text)
 
     def handle_starttag(self, tag, attrs):
@@ -34,7 +36,12 @@ class QuestionExamples(HTMLParser):
             assert values['id'] == f'code-q{self.question}'
             self.examples.append((self.question, values['data-code-example']))
 
+    def handle_data(self, data):
+        self.text.append(data)
+
     def handle_endtag(self, tag):
+        if tag in ('p','li','h2','h3','h4','dd','td','th','figcaption'):
+            self.text.append(' ')
         if tag == 'article':
             self.question = None
 
@@ -51,7 +58,22 @@ def check():
     rendered = []
     for chapter in chapters:
         page = QuestionExamples((SITE / (chapter['slug'] + '.html')).read_text())
-        expected = {q['id'] for q in chapter['lessons'] + chapter['questions']}
+        expected = {q['id'] for q in chapter['lessons'] + chapter['questions'] if q['id'] in assigned}
+        # Conceptual defenses retain detailed, visible cases; do not manufacture
+        # irrelevant executable snippets to inflate code coverage.
+        import html, re
+        text=(SITE / (chapter['slug'] + '.html')).read_text()
+        visible=re.sub(r'\s+',' ',''.join(page.text))
+        assert not 'data-topic-redirect' in text, chapter['slug']
+        for q in chapter['lessons']+chapter['questions']:
+            assert teaching_title(q).endswith('?'), q['Q']
+            assert html.escape(teaching_title(q),quote=True) in text
+            for _, definition in answer_acronyms(q):
+                assert definition in visible
+        for q in chapter['questions']:
+            if q.get('answer_format') == 'conceptual':
+                assert q['worked_case'] in visible
+                assert f'id="q{q["id"]}"' in text
         assert {question_id for question_id, _ in page.examples} == expected
         assert len(page.examples) == len(expected), chapter['slug']
         rendered.extend(page.examples)
@@ -83,7 +105,7 @@ def check():
                 path.write_text(code)
                 checked_process([node, '--check', str(path)])
                 counts['javascript_syntax_checked'] += 1
-                if name in {'local-server-state', 'client-operation-key'}:
+                if name in {'local-server-state', 'client-operation-key'} or example.get('execute'):
                     actual = checked_process([node, str(path)])
                     assert actual == example['expect'], (name, actual)
                     counts['javascript_executed_with_expected_output'] += 1

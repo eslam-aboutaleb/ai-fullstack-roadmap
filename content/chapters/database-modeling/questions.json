@@ -6,11 +6,11 @@
     "Risk": "Treating the vector record as the sole source of truth makes exact authorization, status transitions, and recovery dependent on a derived index. Search ranking cannot decide whether a service request exists or who owns it.",
     "Trade": "Relational plus search modeling creates projection maintenance work but supports exact operations and flexible discovery. A text-only prototype is smaller and insufficient for authoritative workflows.",
     "Try": "Mark every Claim column as identity, business fact, authority constraint, lifecycle metadata, or derived search data. Explain which can be rebuilt.",
-    "spoken": "Model entities as tables, relationships as foreign keys, and business rules as constraints. Start with the questions your application will ask, then design tables to answer them efficiently. Normalize to avoid redundancy, but denormalize only when read performance demands it.",
+    "spoken": "Relational tables enforce structured identities, relationships, constraints and transactions for service requests. Vector documents support relevance lookup but do not replace the authoritative operation state. Model owned tasks, operation keys, revisions and effect intent explicitly, then derive searchable projections as needed.",
     "domain": "backend",
     "subdomain": "database-modeling",
     "module": "database-modeling",
-    "concept": "schema design and normalization",
+    "concept": "Why store support service requests in relational tables instead of only vector documents",
     "difficulty": "foundations",
     "misconception_target": "More tables always means better design",
     "definitions": [
@@ -29,11 +29,11 @@
     ],
     "execution_timeline": "Identify entities → Define attributes → Choose primary keys → Map relationships → Add constraints → Review normal forms",
     "example": {
-      "code": "CREATE TABLE documents (\n  id UUID PRIMARY KEY,\n  owner_id UUID NOT NULL REFERENCES users(id),\n  revision INT NOT NULL DEFAULT 1,\n  content TEXT NOT NULL,\n  UNIQUE(owner_id, revision)\n);",
-      "explanation": "Document table with owner reference, revision tracking, and uniqueness constraint.",
-      "output": "Table created successfully"
+      "code": "CREATE TABLE documents (\n  id UUID PRIMARY KEY,\n  owner_id UUID NOT NULL REFERENCES users(id)\n);\nCREATE TABLE document_revisions (\n  document_id UUID NOT NULL REFERENCES documents(id),\n  revision INT NOT NULL CHECK (revision > 0),\n  content TEXT NOT NULL,\n  PRIMARY KEY (document_id, revision)\n);",
+      "explanation": "Document ownership is separate from per-document revision identity. Different documents owned by the same user can each have revision one. PostgreSQL fragment requires an existing users table and a disposable schema.",
+      "output": "Schema illustration; execute with its users dependency in a disposable PostgreSQL environment."
     },
-    "production_case": "A document management system where each user can have multiple revisions of the same document.",
+    "production_case": "A user retries the same request after a timeout. UNIQUE(owner, operation_key) resolves it to the existing task, whereas similarity search cannot reliably decide whether two messages are the same logical operation.",
     "alternatives": [
       "Denormalized design for read-heavy workloads",
       "Document store for unstructured content"
@@ -43,11 +43,11 @@
       "Storing derived data redundantly",
       "Over-normalizing for simple read patterns"
     ],
-    "complexity": "Schema design is O(entities); queries are O(log n) with proper indexes",
+    "complexity": "Query cost depends on access path, selectivity, joins, indexes and concurrency. B-tree lookup is often logarithmic in tree height plus returned/filtered rows; an index does not make every query O(log n). Inspect real query plans.",
     "follow_ups": [
       {
-        "Q": "When should you denormalize?",
-        "A": "When read performance requires joining many tables and write volume is low."
+        "Q": "Can a vector index be your transaction ledger?",
+        "A": "It is not a substitute for the uniqueness, ownership and atomic state-transition guarantees required by the operation contract."
       }
     ],
     "citations": [

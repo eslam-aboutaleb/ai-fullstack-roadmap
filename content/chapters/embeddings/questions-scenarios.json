@@ -1,0 +1,22 @@
+[
+  {
+    "Q": "How do you embed millions of chunks when the provider is slower than ingestion?",
+    "A": "**Treat embedding as a rate-limited, restartable stage.** Count tokens before enqueueing a request and enforce per-input limits plus batch token and item limits. Schedule against both requests per minute and tokens per minute; a batch that fits one quota may exceed the other. Avoid launching an unbounded task for every chunk.\n\n**Apply backpressure upstream.** A bounded queue makes a producer wait when the consumer falls behind. For multi-process or restartable work, use a durable queue and object references; an in-memory queue alone does not survive a crash. Enforce queued-byte and oldest-job-age limits. Stop admitting new work or spill to durable storage before RAM grows without bound. Use a shared quota coordinator when many workers share one provider account.\n\n**Retry the logical chunk, not the entire upload.** Give each work item a deterministic identity derived from tenant, source version, chunk position/content policy, embedding model and preprocessing version. Handle partial batch failures separately. Retry transient failures with bounded exponential backoff and jitter, honor server retry guidance, and put persistent failures in a reviewable dead-letter state. A timeout may mean the provider processed the request; application deduplication prevents duplicate index records but may not prevent duplicate billing.\n\n**Publish a coherent version.** Store vector dimension, model identifier, normalization policy and source lineage. Do not mix incompatible embeddings in the same similarity space. Verify expected chunk counts and failure policy before activating the new index version. Report throughput, token cost, backlog age and failed chunks so operators can distinguish slow progress from a stalled job.",
+    "Why": "A parser emits 1,000 chunks per second while embedding capacity is 100. A 10,000-chunk queue fills in roughly 11.1 seconds at a net 900 per second. Enlarging RAM delays the failure; throttling and durable backlog management address it.",
+    "worked_case": "A parser emits 1,000 chunks per second while embedding capacity is 100. A 10,000-chunk queue fills in roughly 11.1 seconds at a net 900 per second. Enlarging RAM delays the failure; throttling and durable backlog management address it.",
+    "Risk": "Naive retries can create a thundering herd, duplicate charges and an index containing mixed model versions.",
+    "Trade": "Larger batches reduce request overhead but increase failure blast radius and wait time for small jobs.",
+    "Try": "Simulate a quota reduction and partial batch failure. Show bounded memory, fair scheduling across tenants and exactly one active vector record per logical chunk.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "embeddings",
+    "citations": [
+      "https://docs.python.org/3/library/asyncio-queue.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]
