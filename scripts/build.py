@@ -150,9 +150,6 @@ def interview(q):
   body+=writer.section('Try it yourself',q['Try'],'answer-exercise')
   references=list(dict.fromkeys(([q['reference']] if q.get('reference') else [])+q.get('citations',[])))
   if references:body+='<section class="answer-references"><h4>Primary references</h4><ul>'+''.join('<li><a href="'+E(ref)+'">'+E(ref)+'</a></li>' for ref in references)+'</ul></section>'
-  if q.get('reviewer_status'):
-    review=q['reviewer_status']
-    body+='<p class="editorial-status"><strong>Editorial status: '+E(review['status'])+'</strong> · '+E(review['reviewer'])+'</p>'
   return f'''<article class="interview-question" id="q{q['id']}" data-question="{q['id']}">{question_heading(q,"h3")}<p class="question-meta">{E(' · '.join(q[k] for k in ('difficulty','domain') if q.get(k)))}</p><details class="answer"><summary class="answer-toggle" role="button"><span class="when-closed">View answer</span><span class="when-open">Hide answer</span></summary><div class="answer-body">{body}</div></details>{controls(q,include_bookmark=False)}</article>'''
 
 def diagram(c):
