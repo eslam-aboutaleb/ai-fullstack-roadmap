@@ -117,6 +117,10 @@ for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py'
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
 
+safety_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/ai_safety_release_gate.py')],capture_output=True,text=True,timeout=10)
+assert safety_result.returncode==0,(safety_result.stdout,safety_result.stderr)
+assert 'PASS' in safety_result.stdout
+
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
 assert actual == expected, 'Simulation transition fixtures drifted'
