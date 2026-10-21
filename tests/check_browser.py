@@ -42,6 +42,20 @@ def check(base_path=''):
             page.on('response', lambda response: failed_requests.append(response.url) if response.status >= 400 else None)
             page.goto(base+'/index.html')
             page.wait_for_function("window.GuideAppReady === true")
+            # Navigation is the default view; focus remains a deliberate,
+            # accessible page-local option and must not hide the next visit.
+            assert page.locator('#navigation').is_visible()
+            focus = page.locator('#distraction-free')
+            assert focus.get_attribute('aria-pressed') == 'false'
+            page.evaluate("window.GuideStudy.store.set('distractionFree', 'global', true)")
+            page.reload(); page.wait_for_function("window.GuideAppReady === true")
+            assert page.locator('#navigation').is_visible()
+            focus.click()
+            assert focus.get_attribute('aria-pressed') == 'true'
+            assert not page.locator('#navigation').is_visible()
+            page.reload(); page.wait_for_function("window.GuideAppReady === true")
+            assert page.locator('#navigation').is_visible()
+            assert focus.get_attribute('aria-pressed') == 'false'
             # Entry points must teach prerequisites before RAG without breaking old routes.
             assert page.locator('.home-hero .primary').get_attribute('href') == 'programming-foundations.html'
             cards=page.locator('.chapter-card').evaluate_all('(items)=>items.map(item=>item.getAttribute("href"))')
