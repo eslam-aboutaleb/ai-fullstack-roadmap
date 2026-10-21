@@ -166,7 +166,20 @@
     "Why": "Global top-k then authorization filtering can silently drop eligible evidence and leak unauthorized IDs.",
     "Risk": "A backend that ignores a filter can still leak data. Defense in depth detects some invalid results, but tests must also ensure a reranker or external processor does not receive unauthorized candidates before that final check.",
     "Trade": "Filter-aware search can affect query plans and approximate recall. Security requirements take precedence; tune backend indexes rather than dropping constraints for speed.",
-    "Try": "Run the exact reference fixture with different owners, an unindexed revision and a deletion; specify the real provider integration test needed next."
+    "Try": "Run the exact reference fixture with different owners, an unindexed revision and a deletion; specify the real provider integration test needed next.",
+    "citations": [
+      "https://qdrant.tech/documentation/guides/optimize/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why can top-k post-filtering harm recall even if it removes every unauthorized result?",
+        "A": "Unscoped candidates can fill all top-k slots with forbidden neighbors and displace lower-ranked eligible evidence. Apply the trusted ACL in the engine's candidate selection or separate index namespaces, then verify an owner-scoped Recall@k oracle and a revoked-document negative case."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
   },
   {
     "Q": "How should I interpret distance thresholds and relevance scores?",
@@ -182,6 +195,19 @@
     "Why": "The retrieval service exposes distinct modules and result shapes for these stages. That separation supports inspection of intermediate artifacts rather than guessing that every wrong answer is an embedding problem.",
     "Risk": "Debug logging can expose queries or private passages. Prefer controlled fixtures and sanitized IDs, and do not bypass scope checks simply to make a document appear during investigation.",
     "Trade": "Stage-by-stage diagnosis takes longer than tweaking a single constant but targets the actual cause and prevents compensating errors.",
-    "Try": "Run the grounded policy pipeline, delete the primary rule or swap tenant scope, and observe which stage makes the answer abstain."
+    "Try": "Run the grounded policy pipeline, delete the primary rule or swap tenant scope, and observe which stage makes the answer abstain.",
+    "citations": [
+      "https://aclanthology.org/2020.emnlp-main.550/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "If a RAG answer cites an obsolete but lexically perfect policy, what should the retrieval stage do?",
+        "A": "Check validity/revision and deletion before candidate ranking and revalidate at source resolution. Refuse when no current authorized evidence remains; improving BM25 or reranker score cannot make an invalid source valid, and the stale cache must be invalidated."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
   }
 ]
