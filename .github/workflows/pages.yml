@@ -160,10 +160,26 @@ jobs:
           assert 'a-policy@1' in body and 'Owner B private' not in body
           PYCODE
 
+  vector-engine-check:
+    name: Actual local vector engine contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Install pinned local engine SDKs
+        run: python -m pip install -r requirements-vector-engines.txt
+      - name: Verify native owner/profile filters, idempotency and deletion
+        run: python -B labs/vector_engines.py
+
   gate:
     name: Quality gate
     if: always()
-    needs: [quality, browser-check, model-check, advanced-check, workflow-lint, security]
+    needs: [quality, browser-check, model-check, advanced-check, workflow-lint, security, vector-engine-check]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
