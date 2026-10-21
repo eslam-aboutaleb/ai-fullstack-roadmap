@@ -365,12 +365,6 @@
     const link = document.createElement('a'); link.href = url; link.download = 'ai-fullstack-study-progress.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  document.querySelector('#bank-filter')?.addEventListener('input', event => {
-    const term = event.target.value.toLocaleLowerCase().trim();
-    const items = [...document.querySelectorAll('[data-bank-text]')];
-    for (const item of items) item.hidden = !item.dataset.bankText.includes(term);
-    document.querySelector('#bank-filter-status').textContent = `${items.filter(item => !item.hidden).length} questions on this page`;
-  });
   // Filter only the chapter directory: the complete lesson remains available.
   const finder = document.querySelector('.question-finder');
   if (finder) {
