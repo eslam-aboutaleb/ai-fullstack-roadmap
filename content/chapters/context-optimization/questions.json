@@ -48,10 +48,15 @@
       {
         "Q": "Is four characters per token a safe hard limit?",
         "A": "No. Tokenization varies by model, language and representation. Use a compatible tokenizer or counting interface for hard budgeting."
+      },
+      {
+        "Q": "Can a long tool response be truncated after it reports an authorization denial?",
+        "A": "Not safely without a typed loss-aware projection. Preserve the denial, original source span and state of any authoritative side effects; trimming a decisive exception to hit a token budget changes the meaning of the evidence and must be rejected in a regression test."
       }
     ],
     "citations": [
-      "https://arxiv.org/abs/2305.14818"
+      "https://arxiv.org/abs/2305.14818",
+      "https://platform.openai.com/docs/guides/prompt-caching"
     ],
     "reviewer_status": {
       "reviewer": "independent technical review pending",
@@ -98,7 +103,16 @@
     "Why": "Keep cache keys tied to tenant, policy, model configuration, evidence version, and required freshness where relevant. Inspect provider caching rules separately from application response reuse.",
     "Risk": "A semantically similar question from another user can require a different answer or authorization scope.",
     "Trade": "Reuse saves latency and cost while increasing invalidation complexity.",
-    "Try": "Run the local context-packet fixture and demonstrate cache key changes under revocation and corpus updates."
+    "Try": "Run the local context-packet fixture and demonstrate cache key changes under revocation and corpus updates.",
+    "citations": [
+      "https://platform.openai.com/docs/guides/prompt-caching"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens to an answer cache when an owner's document permission is revoked?",
+        "A": "A previous matching question is not enough to reuse the response. Invalidate or reject cache entries under the new ACL/corpus revision, recheck the trusted user and object permissions at retrieval, and never permit a stale cached source to cross the authorization boundary."
+      }
+    ]
   },
   {
     "Q": "How should memory retrieval avoid overwhelming the prompt?",
