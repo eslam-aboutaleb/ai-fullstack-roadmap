@@ -1,0 +1,410 @@
+[
+  {
+    "Q": "How do matrix shapes explain a linear model and expose a silent broadcasting bug?",
+    "spoken": "With X shaped batch by features and W shaped features by outputs, XW produces batch by outputs. Bias must broadcast over the declared output dimension. A result with an unexpected extra axis can still execute and produce a meaningless loss. Write shapes at each boundary and compare a tiny hand-computed example before trusting a framework expression.",
+    "A": "With X shaped batch by features and W shaped features by outputs, XW produces batch by outputs. Bias must broadcast over the declared output dimension. A result with an unexpected extra axis can still execute and produce a meaningless loss. Write shapes at each boundary and compare a tiny hand-computed example before trusting a framework expression.\n\nEngineering case: A target shaped batch is subtracted from predictions shaped batch by one, producing a batch-by-batch tensor instead of one residual per example.\n\nReasoning under a changed assumption: No. A reshape changes interpretation and may hide a semantic mismatch. Identify which axis represents examples, features and outputs first.",
+    "Why": "With X shaped batch by features and W shaped features by outputs, XW produces batch by outputs. Bias must broadcast over the declared output dimension. A result with an unexpected extra axis can still execute and produce a meaningless loss. Write shapes at each boundary and compare a tiny hand-computed example before trusting a framework expression.",
+    "Risk": "A target shaped batch is subtracted from predictions shaped batch by one, producing a batch-by-batch tensor instead of one residual per example.",
+    "Trade": "No. A reshape changes interpretation and may hide a semantic mismatch. Identify which axis represents examples, features and outputs first.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "How do matrix shapes explain a linear model and expose a silent broadcasting bug?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated matrix shape boundary: A target shaped batch is subtracted from predictions shaped batch by one, producing a batch-by-batch tensor instead of one residual per example.",
+    "definitions": [
+      {
+        "term": "Matrix shape",
+        "definition": "With X shaped batch by features and W shaped features by outputs, XW produces batch by outputs."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A target shaped batch is subtracted from predictions shaped batch by one, producing a batch-by-batch tensor instead of one residual per example.\",\n  \"decision\": \"With X shaped batch by features and W shaped features by outputs, XW produces batch by outputs\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A target shaped batch is subtracted from predictions shaped batch by one, producing a batch-by-batch tensor instead of one residual per example.",
+    "alternatives": [
+      "No. A reshape changes interpretation and may hide a semantic mismatch. Identify which axis represents examples, features and outputs first."
+    ],
+    "pitfalls": [
+      "A target shaped batch is subtracted from predictions shaped batch by one, producing a batch-by-batch tensor instead of one residual per example."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can reshape always fix the problem?",
+        "A": "No. A reshape changes interpretation and may hide a semantic mismatch. Identify which axis represents examples, features and outputs first."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "When do dot product and cosine similarity disagree?",
+    "spoken": "A dot product depends on vector direction and magnitude; cosine divides by both vector norms and compares direction. Normalizing vectors changes the ranking contract, and a zero vector has no defined cosine without an explicit policy. Use the metric expected by the model and index, then evaluate retrieval relevance rather than assuming one geometric metric is always best.",
+    "A": "A dot product depends on vector direction and magnitude; cosine divides by both vector norms and compares direction. Normalizing vectors changes the ranking contract, and a zero vector has no defined cosine without an explicit policy. Use the metric expected by the model and index, then evaluate retrieval relevance rather than assuming one geometric metric is always best.\n\nEngineering case: Two candidates point similarly to a query, but a much larger vector dominates a raw dot-product rank despite lower directional alignment.\n\nReasoning under a changed assumption: It changes them. For unit-normalized vectors there is a specific relation between squared Euclidean distance and cosine, but that does not hold unchanged for arbitrary norms.",
+    "Why": "A dot product depends on vector direction and magnitude; cosine divides by both vector norms and compares direction. Normalizing vectors changes the ranking contract, and a zero vector has no defined cosine without an explicit policy. Use the metric expected by the model and index, then evaluate retrieval relevance rather than assuming one geometric metric is always best.",
+    "Risk": "Two candidates point similarly to a query, but a much larger vector dominates a raw dot-product rank despite lower directional alignment.",
+    "Trade": "It changes them. For unit-normalized vectors there is a specific relation between squared Euclidean distance and cosine, but that does not hold unchanged for arbitrary norms.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "When do dot product and cosine similarity disagree?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated vector normalization boundary: Two candidates point similarly to a query, but a much larger vector dominates a raw dot-product rank despite lower directional alignment.",
+    "definitions": [
+      {
+        "term": "Vector normalization",
+        "definition": "A dot product depends on vector direction and magnitude; cosine divides by both vector norms and compares direction."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"Two candidates point similarly to a query, but a much larger vector dominates a raw dot-product rank despite lower directional alignment.\",\n  \"decision\": \"A dot product depends on vector direction and magnitude; cosine divides by both vector norms and compares direction\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "Two candidates point similarly to a query, but a much larger vector dominates a raw dot-product rank despite lower directional alignment.",
+    "alternatives": [
+      "It changes them. For unit-normalized vectors there is a specific relation between squared Euclidean distance and cosine, but that does not hold unchanged for arbitrary norms."
+    ],
+    "pitfalls": [
+      "Two candidates point similarly to a query, but a much larger vector dominates a raw dot-product rank despite lower directional alignment."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does normalization preserve Euclidean distances?",
+        "A": "It changes them. For unit-normalized vectors there is a specific relation between squared Euclidean distance and cosine, but that does not hold unchanged for arbitrary norms."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Why does conditional probability matter when a rare-event classifier looks accurate?",
+    "spoken": "A high sensitivity does not directly give the probability that a positive alert is correct. That posterior also depends on the base rate and false-positive rate. Work with a population table or Bayes’ rule and state the sampling assumptions. Accuracy can look strong when the frequent class dominates.",
+    "A": "A high sensitivity does not directly give the probability that a positive alert is correct. That posterior also depends on the base rate and false-positive rate. Work with a population table or Bayes’ rule and state the sampling assumptions. Accuracy can look strong when the frequent class dominates.\n\nEngineering case: Among 10,000 cases, 100 are positive. Detecting 90 of them while falsely flagging 99 negatives yields 90 true positives out of 189 alerts, not 90% alert precision.\n\nReasoning under a changed assumption: Not necessarily. Sensitivity and false-positive behavior may transfer differently, and posterior precision changes with prevalence even when those conditional rates stay fixed.",
+    "Why": "A high sensitivity does not directly give the probability that a positive alert is correct. That posterior also depends on the base rate and false-positive rate. Work with a population table or Bayes’ rule and state the sampling assumptions. Accuracy can look strong when the frequent class dominates.",
+    "Risk": "Among 10,000 cases, 100 are positive. Detecting 90 of them while falsely flagging 99 negatives yields 90 true positives out of 189 alerts, not 90% alert precision.",
+    "Trade": "Not necessarily. Sensitivity and false-positive behavior may transfer differently, and posterior precision changes with prevalence even when those conditional rates stay fixed.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "Why does conditional probability matter when a rare-event classifier looks accurate?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated conditional probability boundary: Among 10,000 cases, 100 are positive. Detecting 90 of them while falsely flagging 99 negatives yields 90 true positives out of 189 alerts, not 90% alert precision.",
+    "definitions": [
+      {
+        "term": "Conditional probability",
+        "definition": "A high sensitivity does not directly give the probability that a positive alert is correct."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"Among 10,000 cases, 100 are positive. Detecting 90 of them while falsely flagging 99 negatives yields 90 true positives out of 189 alerts, not 90% alert precision.\",\n  \"decision\": \"A high sensitivity does not directly give the probability that a positive alert is correct\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "Among 10,000 cases, 100 are positive. Detecting 90 of them while falsely flagging 99 negatives yields 90 true positives out of 189 alerts, not 90% alert precision.",
+    "alternatives": [
+      "Not necessarily. Sensitivity and false-positive behavior may transfer differently, and posterior precision changes with prevalence even when those conditional rates stay fixed."
+    ],
+    "pitfalls": [
+      "Among 10,000 cases, 100 are positive. Detecting 90 of them while falsely flagging 99 negatives yields 90 true positives out of 189 alerts, not 90% alert precision."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Will the same alert precision hold after the base rate changes?",
+        "A": "Not necessarily. Sensitivity and false-positive behavior may transfer differently, and posterior precision changes with prevalence even when those conditional rates stay fixed."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What do expectation, variance and correlation tell you about an evaluation average?",
+    "spoken": "Expectation describes a distributional mean, variance describes spread, and correlation describes a form of dependence rather than causation. An empirical average estimates a target mean only under its sampling design. Repeated near-duplicate cases can overstate the effective amount of independent evidence and make ordinary confidence intervals optimistic.",
+    "A": "Expectation describes a distributional mean, variance describes spread, and correlation describes a form of dependence rather than causation. An empirical average estimates a target mean only under its sampling design. Repeated near-duplicate cases can overstate the effective amount of independent evidence and make ordinary confidence intervals optimistic.\n\nEngineering case: One source document produces one hundred nearly identical evaluation questions. Treating all of them as independent exaggerates certainty.\n\nReasoning under a changed assumption: Resample or split at the relevant group level and define the target population. The grouping must reflect the dependency, not merely make intervals wider.",
+    "Why": "Expectation describes a distributional mean, variance describes spread, and correlation describes a form of dependence rather than causation. An empirical average estimates a target mean only under its sampling design. Repeated near-duplicate cases can overstate the effective amount of independent evidence and make ordinary confidence intervals optimistic.",
+    "Risk": "One source document produces one hundred nearly identical evaluation questions. Treating all of them as independent exaggerates certainty.",
+    "Trade": "Resample or split at the relevant group level and define the target population. The grouping must reflect the dependency, not merely make intervals wider.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "What do expectation, variance and correlation tell you about an evaluation average?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated dependent sampling boundary: One source document produces one hundred nearly identical evaluation questions. Treating all of them as independent exaggerates certainty.",
+    "definitions": [
+      {
+        "term": "Dependent sampling",
+        "definition": "Expectation describes a distributional mean, variance describes spread, and correlation describes a form of dependence rather than causation."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"One source document produces one hundred nearly identical evaluation questions. Treating all of them as independent exaggerates certainty.\",\n  \"decision\": \"Expectation describes a distributional mean, variance describes spread, and correlation describes a form of dependence rather than causation\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "One source document produces one hundred nearly identical evaluation questions. Treating all of them as independent exaggerates certainty.",
+    "alternatives": [
+      "Resample or split at the relevant group level and define the target population. The grouping must reflect the dependency, not merely make intervals wider."
+    ],
+    "pitfalls": [
+      "One source document produces one hundred nearly identical evaluation questions. Treating all of them as independent exaggerates certainty."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "How would you estimate uncertainty for document-level correlated cases?",
+        "A": "Resample or split at the relevant group level and define the target population. The grouping must reflect the dependency, not merely make intervals wider."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do you derive a scalar squared-error gradient before using autograd?",
+    "spoken": "For prediction wx and loss (wx-y)², the chain rule gives derivative 2(wx-y)x with respect to w. At w=1, x=2 and y=5, the derivative is -12. A gradient-descent step with learning rate 0.1 gives w=2.2. State whether the loss includes a one-half or averaging factor because those change the gradient scale.",
+    "A": "For prediction wx and loss (wx-y)², the chain rule gives derivative 2(wx-y)x with respect to w. At w=1, x=2 and y=5, the derivative is -12. A gradient-descent step with learning rate 0.1 gives w=2.2. State whether the loss includes a one-half or averaging factor because those change the gradient scale.\n\nEngineering case: An implementation averages a loss in the forward pass but sums its derivative, making effective learning rate grow with batch size.\n\nReasoning under a changed assumption: Perturb the parameter symmetrically and compare the numerical slope with the analytic/autograd result. Choose a step and precision that avoid domination by truncation or rounding.",
+    "Why": "For prediction wx and loss (wx-y)², the chain rule gives derivative 2(wx-y)x with respect to w. At w=1, x=2 and y=5, the derivative is -12. A gradient-descent step with learning rate 0.1 gives w=2.2. State whether the loss includes a one-half or averaging factor because those change the gradient scale.",
+    "Risk": "An implementation averages a loss in the forward pass but sums its derivative, making effective learning rate grow with batch size.",
+    "Trade": "Perturb the parameter symmetrically and compare the numerical slope with the analytic/autograd result. Choose a step and precision that avoid domination by truncation or rounding.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "How do you derive a scalar squared-error gradient before using autograd?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated chain rule boundary: An implementation averages a loss in the forward pass but sums its derivative, making effective learning rate grow with batch size.",
+    "definitions": [
+      {
+        "term": "Chain rule",
+        "definition": "For prediction wx and loss (wx-y)², the chain rule gives derivative 2(wx-y)x with respect to w."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"An implementation averages a loss in the forward pass but sums its derivative, making effective learning rate grow with batch size.\",\n  \"decision\": \"For prediction wx and loss (wx-y)², the chain rule gives derivative 2(wx-y)x with respect to w\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "An implementation averages a loss in the forward pass but sums its derivative, making effective learning rate grow with batch size.",
+    "alternatives": [
+      "Perturb the parameter symmetrically and compare the numerical slope with the analytic/autograd result. Choose a step and precision that avoid domination by truncation or rounding."
+    ],
+    "pitfalls": [
+      "An implementation averages a loss in the forward pass but sums its derivative, making effective learning rate grow with batch size."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "How does a finite-difference check help?",
+        "A": "Perturb the parameter symmetrically and compare the numerical slope with the analytic/autograd result. Choose a step and precision that avoid domination by truncation or rounding."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Why subtract the maximum before computing softmax?",
+    "spoken": "Exponentiating large logits can overflow even though the normalized probabilities are finite. Subtracting the same constant leaves the softmax ratios unchanged. For logits 1000 and 1001, exponentiating 0 and 1 yields approximately 0.268941 and 0.731059 after normalization. Stable log-sum-exp also avoids taking the logarithm of a rounded zero probability.",
+    "A": "Exponentiating large logits can overflow even though the normalized probabilities are finite. Subtracting the same constant leaves the softmax ratios unchanged. For logits 1000 and 1001, exponentiating 0 and 1 yields approximately 0.268941 and 0.731059 after normalization. Stable log-sum-exp also avoids taking the logarithm of a rounded zero probability.\n\nEngineering case: A training run produces NaN after a confident prediction because it computes exp on very large logits and then divides infinite values.\n\nReasoning under a changed assumption: No. Check input finiteness, masks, invalid operations, mixed precision and exploding gradients. Numerical stabilization addresses one mechanism rather than all possible failures.",
+    "Why": "Exponentiating large logits can overflow even though the normalized probabilities are finite. Subtracting the same constant leaves the softmax ratios unchanged. For logits 1000 and 1001, exponentiating 0 and 1 yields approximately 0.268941 and 0.731059 after normalization. Stable log-sum-exp also avoids taking the logarithm of a rounded zero probability.",
+    "Risk": "A training run produces NaN after a confident prediction because it computes exp on very large logits and then divides infinite values.",
+    "Trade": "No. Check input finiteness, masks, invalid operations, mixed precision and exploding gradients. Numerical stabilization addresses one mechanism rather than all possible failures.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "Why subtract the maximum before computing softmax?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated numerically stable softmax boundary: A training run produces NaN after a confident prediction because it computes exp on very large logits and then divides infinite values.",
+    "definitions": [
+      {
+        "term": "Numerically stable softmax",
+        "definition": "Exponentiating large logits can overflow even though the normalized probabilities are finite."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A training run produces NaN after a confident prediction because it computes exp on very large logits and then divides infinite values.\",\n  \"decision\": \"Exponentiating large logits can overflow even though the normalized probabilities are finite\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A training run produces NaN after a confident prediction because it computes exp on very large logits and then divides infinite values.",
+    "alternatives": [
+      "No. Check input finiteness, masks, invalid operations, mixed precision and exploding gradients. Numerical stabilization addresses one mechanism rather than all possible failures."
+    ],
+    "pitfalls": [
+      "A training run produces NaN after a confident prediction because it computes exp on very large logits and then divides infinite values."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can subtracting the maximum fix every NaN?",
+        "A": "No. Check input finiteness, masks, invalid operations, mixed precision and exploding gradients. Numerical stabilization addresses one mechanism rather than all possible failures."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What does SVD or PCA preserve, and why is unsupervised preprocessing still a leakage risk?",
+    "spoken": "SVD factors a matrix into singular directions and magnitudes. PCA typically applies a related decomposition to centered training data to retain high-variance directions. High variance need not be predictive or fair. Fitting centering or principal directions on a held-out set exposes information from that set even without its labels.",
+    "A": "SVD factors a matrix into singular directions and magnitudes. PCA typically applies a related decomposition to centered training data to retain high-variance directions. High variance need not be predictive or fair. Fitting centering or principal directions on a held-out set exposes information from that set even without its labels.\n\nEngineering case: A pipeline computes PCA on the full dataset before cross-validation, letting each fold influence the feature representation used to evaluate itself.\n\nReasoning under a changed assumption: No. Noise and signal can occupy overlapping directions, and useful low-variance features can be discarded. Choose dimensions with a validation design tied to the actual task.",
+    "Why": "SVD factors a matrix into singular directions and magnitudes. PCA typically applies a related decomposition to centered training data to retain high-variance directions. High variance need not be predictive or fair. Fitting centering or principal directions on a held-out set exposes information from that set even without its labels.",
+    "Risk": "A pipeline computes PCA on the full dataset before cross-validation, letting each fold influence the feature representation used to evaluate itself.",
+    "Trade": "No. Noise and signal can occupy overlapping directions, and useful low-variance features can be discarded. Choose dimensions with a validation design tied to the actual task.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "What does SVD or PCA preserve, and why is unsupervised preprocessing still a leakage risk?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated principal directions boundary: A pipeline computes PCA on the full dataset before cross-validation, letting each fold influence the feature representation used to evaluate itself.",
+    "definitions": [
+      {
+        "term": "Principal directions",
+        "definition": "SVD factors a matrix into singular directions and magnitudes."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A pipeline computes PCA on the full dataset before cross-validation, letting each fold influence the feature representation used to evaluate itself.\",\n  \"decision\": \"SVD factors a matrix into singular directions and magnitudes\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A pipeline computes PCA on the full dataset before cross-validation, letting each fold influence the feature representation used to evaluate itself.",
+    "alternatives": [
+      "No. Noise and signal can occupy overlapping directions, and useful low-variance features can be discarded. Choose dimensions with a validation design tied to the actual task."
+    ],
+    "pitfalls": [
+      "A pipeline computes PCA on the full dataset before cross-validation, letting each fold influence the feature representation used to evaluate itself."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can a small number of components remove every noisy feature?",
+        "A": "No. Noise and signal can occupy overlapping directions, and useful low-variance features can be discarded. Choose dimensions with a validation design tied to the actual task."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What does a 95% confidence interval actually justify for a measured proportion?",
+    "spoken": "Under the procedure’s assumptions, repeated samples produce intervals with their stated coverage behavior. The interval is not a promise for every subgroup or future distribution. A Wilson interval remains within feasible probability bounds and is useful for small error counts, but it does not repair dependence, label errors or selection on the test set.",
+    "A": "Under the procedure’s assumptions, repeated samples produce intervals with their stated coverage behavior. The interval is not a promise for every subgroup or future distribution. A Wilson interval remains within feasible probability bounds and is useful for small error counts, but it does not repair dependence, label errors or selection on the test set.\n\nEngineering case: A model gets 98 of 100 examples right. The Wilson interval is approximately 0.9300 to 0.9945 rather than certainty at exactly 0.98.\n\nReasoning under a changed assumption: Selection changes the evaluation interpretation. Keep model choice in validation and evaluate the frozen decision under an appropriate fresh protocol.",
+    "Why": "Under the procedure’s assumptions, repeated samples produce intervals with their stated coverage behavior. The interval is not a promise for every subgroup or future distribution. A Wilson interval remains within feasible probability bounds and is useful for small error counts, but it does not repair dependence, label errors or selection on the test set.",
+    "Risk": "A model gets 98 of 100 examples right. The Wilson interval is approximately 0.9300 to 0.9945 rather than certainty at exactly 0.98.",
+    "Trade": "Selection changes the evaluation interpretation. Keep model choice in validation and evaluate the frozen decision under an appropriate fresh protocol.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "mathematics",
+    "subdomain": "mathematics-foundations",
+    "module": "mathematics-foundations",
+    "concept": "What does a 95% confidence interval actually justify for a measured proportion?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated interval coverage boundary: A model gets 98 of 100 examples right. The Wilson interval is approximately 0.9300 to 0.9945 rather than certainty at exactly 0.98.",
+    "definitions": [
+      {
+        "term": "Interval coverage",
+        "definition": "Under the procedure’s assumptions, repeated samples produce intervals with their stated coverage behavior."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A model gets 98 of 100 examples right. The Wilson interval is approximately 0.9300 to 0.9945 rather than certainty at exactly 0.98.\",\n  \"decision\": \"Under the procedure’s assumptions, repeated samples produce intervals with their stated coverage behavior\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A model gets 98 of 100 examples right. The Wilson interval is approximately 0.9300 to 0.9945 rather than certainty at exactly 0.98.",
+    "alternatives": [
+      "Selection changes the evaluation interpretation. Keep model choice in validation and evaluate the frozen decision under an appropriate fresh protocol."
+    ],
+    "pitfalls": [
+      "A model gets 98 of 100 examples right. The Wilson interval is approximately 0.9300 to 0.9945 rather than certainty at exactly 0.98."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can you select the best of many models and reuse an ordinary interval without qualification?",
+        "A": "Selection changes the evaluation interpretation. Keep model choice in validation and evaluate the frozen decision under an appropriate fresh protocol."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/1706.03762",
+      "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+      "https://scikit-learn.org/stable/modules/cross_validation.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

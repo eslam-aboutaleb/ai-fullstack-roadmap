@@ -1,0 +1,359 @@
+[
+  {
+    "Q": "Trace an HTTPS request from a browser address to an application response.",
+    "spoken": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target. Intermediaries may route or cache it before the application validates identity, input and authorization. Separate network establishment, server processing and response consumption when measuring latency; their failures imply different recovery decisions.",
+    "A": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target. Intermediaries may route or cache it before the application validates identity, input and authorization. Separate network establishment, server processing and response consumption when measuring latency; their failures imply different recovery decisions.\n\nEngineering case: A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.\n\nReasoning under a changed assumption: No. TLS protects and authenticates the transport endpoint. Application identity and object-level permission checks remain independent.",
+    "Why": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target. Intermediaries may route or cache it before the application validates identity, input and authorization. Separate network establishment, server processing and response consumption when measuring latency; their failures imply different recovery decisions.",
+    "Risk": "A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.",
+    "Trade": "No. TLS protects and authenticates the transport endpoint. Application identity and object-level permission checks remain independent.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "backend",
+    "subdomain": "web-foundations",
+    "module": "web-foundations",
+    "concept": "Trace an HTTPS request from a browser address to an application response.",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated request lifecycle boundary: A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.",
+    "definitions": [
+      {
+        "term": "Request lifecycle",
+        "definition": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.\",\n  \"decision\": \"The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.",
+    "alternatives": [
+      "No. TLS protects and authenticates the transport endpoint. Application identity and object-level permission checks remain independent."
+    ],
+    "pitfalls": [
+      "A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does TLS authorize access to an individual record?",
+        "A": "No. TLS protects and authenticates the transport endpoint. Application identity and object-level permission checks remain independent."
+      }
+    ],
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do safe methods, idempotent methods and an application operation key differ?",
+    "spoken": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request. An operation key lets an application bind a logical mutation to stable content. HTTP method semantics do not prove that a particular implementation is safe, and a key must reject changed content rather than merge unrelated requests.",
+    "A": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request. An operation key lets an application bind a logical mutation to stable content. HTTP method semantics do not prove that a particular implementation is safe, and a key must reject changed content rather than merge unrelated requests.\n\nEngineering case: A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.\n\nReasoning under a changed assumption: That violates the expected safe-method contract and exposes the action to caches, prefetching and automated traversal. Use an explicit authorized mutation contract.",
+    "Why": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request. An operation key lets an application bind a logical mutation to stable content. HTTP method semantics do not prove that a particular implementation is safe, and a key must reject changed content rather than merge unrelated requests.",
+    "Risk": "A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.",
+    "Trade": "That violates the expected safe-method contract and exposes the action to caches, prefetching and automated traversal. Use an explicit authorized mutation contract.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "backend",
+    "subdomain": "web-foundations",
+    "module": "web-foundations",
+    "concept": "How do safe methods, idempotent methods and an application operation key differ?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated idempotent effect boundary: A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.",
+    "definitions": [
+      {
+        "term": "Idempotent effect",
+        "definition": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.\",\n  \"decision\": \"Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.",
+    "alternatives": [
+      "That violates the expected safe-method contract and exposes the action to caches, prefetching and automated traversal. Use an explicit authorized mutation contract."
+    ],
+    "pitfalls": [
+      "A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can GET perform a payment because it is easier to call?",
+        "A": "That violates the expected safe-method contract and exposes the action to caches, prefetching and automated traversal. Use an explicit authorized mutation contract."
+      }
+    ],
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "When should an API distinguish invalid input, unauthenticated access and missing records?",
+    "spoken": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies. The exact status choices must match the API policy, including whether to conceal cross-owner record existence. Stable machine-readable error codes let the client react without scraping prose or exposing internal diagnostics.",
+    "A": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies. The exact status choices must match the API policy, including whether to conceal cross-owner record existence. Stable machine-readable error codes let the client react without scraping prose or exposing internal diagnostics.\n\nEngineering case: An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.\n\nReasoning under a changed assumption: No. Preserve useful internal correlation and diagnostics without returning secrets, private values or unnecessary implementation details.",
+    "Why": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies. The exact status choices must match the API policy, including whether to conceal cross-owner record existence. Stable machine-readable error codes let the client react without scraping prose or exposing internal diagnostics.",
+    "Risk": "An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.",
+    "Trade": "No. Preserve useful internal correlation and diagnostics without returning secrets, private values or unnecessary implementation details.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "backend",
+    "subdomain": "web-foundations",
+    "module": "web-foundations",
+    "concept": "When should an API distinguish invalid input, unauthenticated access and missing records?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated http error contract boundary: An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.",
+    "definitions": [
+      {
+        "term": "HTTP error contract",
+        "definition": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.\",\n  \"decision\": \"Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.",
+    "alternatives": [
+      "No. Preserve useful internal correlation and diagnostics without returning secrets, private values or unnecessary implementation details."
+    ],
+    "pitfalls": [
+      "An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Should an error response include the full database query?",
+        "A": "No. Preserve useful internal correlation and diagnostics without returning secrets, private values or unnecessary implementation details."
+      }
+    ],
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Why is CORS not authentication or a server-to-server access control system?",
+    "spoken": "CORS is a browser policy governing which origins may read certain cross-origin responses. Non-browser clients do not enforce it. Authenticate and authorize the request on the server regardless of Origin. A preflight is a browser permission check for a request shape, not proof that its eventual caller owns the target object.",
+    "A": "CORS is a browser policy governing which origins may read certain cross-origin responses. Non-browser clients do not enforce it. Authenticate and authorize the request on the server regardless of Origin. A preflight is a browser permission check for a request shape, not proof that its eventual caller owns the target object.\n\nEngineering case: A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.\n\nReasoning under a changed assumption: No. Cookies can be attached automatically under their rules and some cross-origin requests can be sent without a preflight. Apply an explicit cookie and CSRF threat model.",
+    "Why": "CORS is a browser policy governing which origins may read certain cross-origin responses. Non-browser clients do not enforce it. Authenticate and authorize the request on the server regardless of Origin. A preflight is a browser permission check for a request shape, not proof that its eventual caller owns the target object.",
+    "Risk": "A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.",
+    "Trade": "No. Cookies can be attached automatically under their rules and some cross-origin requests can be sent without a preflight. Apply an explicit cookie and CSRF threat model.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "backend",
+    "subdomain": "web-foundations",
+    "module": "web-foundations",
+    "concept": "Why is CORS not authentication or a server-to-server access control system?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated browser origin policy boundary: A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.",
+    "definitions": [
+      {
+        "term": "Browser origin policy",
+        "definition": "CORS is a browser policy governing which origins may read certain cross-origin responses."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.\",\n  \"decision\": \"CORS is a browser policy governing which origins may read certain cross-origin responses\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.",
+    "alternatives": [
+      "No. Cookies can be attached automatically under their rules and some cross-origin requests can be sent without a preflight. Apply an explicit cookie and CSRF threat model."
+    ],
+    "pitfalls": [
+      "A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does CORS alone prevent CSRF?",
+        "A": "No. Cookies can be attached automatically under their rules and some cross-origin requests can be sent without a preflight. Apply an explicit cookie and CSRF threat model."
+      }
+    ],
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do cookie sessions and browser-held bearer tokens create different risks?",
+    "spoken": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes. JavaScript-held bearer tokens can be stolen by successful script injection. Both approaches need expiry, server verification, object authorization and invalidation of user-scoped caches on identity changes.",
+    "A": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes. JavaScript-held bearer tokens can be stolen by successful script injection. Both approaches need expiry, server verification, object authorization and invalidation of user-scoped caches on identity changes.\n\nEngineering case: After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.\n\nReasoning under a changed assumption: No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data.",
+    "Why": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes. JavaScript-held bearer tokens can be stolen by successful script injection. Both approaches need expiry, server verification, object authorization and invalidation of user-scoped caches on identity changes.",
+    "Risk": "After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.",
+    "Trade": "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "backend",
+    "subdomain": "web-foundations",
+    "module": "web-foundations",
+    "concept": "How do cookie sessions and browser-held bearer tokens create different risks?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated session authority boundary: After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.",
+    "definitions": [
+      {
+        "term": "Session authority",
+        "definition": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.\",\n  \"decision\": \"A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.",
+    "alternatives": [
+      "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data."
+    ],
+    "pitfalls": [
+      "After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Is clearing local storage a complete logout design?",
+        "A": "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data."
+      }
+    ],
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What makes API pagination stable while records are being inserted?",
+    "spoken": "Offset pagination can shift under concurrent inserts and deletes. A cursor can encode a stable ordering boundary such as created_at plus a unique ID, but still needs declared consistency and filtering semantics. Apply caller scope before selecting the page and bind cursors to their query contract. Avoid treating an opaque cursor as permission.",
+    "A": "Offset pagination can shift under concurrent inserts and deletes. A cursor can encode a stable ordering boundary such as created_at plus a unique ID, but still needs declared consistency and filtering semantics. Apply caller scope before selecting the page and bind cursors to their query contract. Avoid treating an opaque cursor as permission.\n\nEngineering case: An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.\n\nReasoning under a changed assumption: No. A cursor identifies a continuation boundary. Snapshot consistency requires additional storage or transaction semantics and a defined lifetime.",
+    "Why": "Offset pagination can shift under concurrent inserts and deletes. A cursor can encode a stable ordering boundary such as created_at plus a unique ID, but still needs declared consistency and filtering semantics. Apply caller scope before selecting the page and bind cursors to their query contract. Avoid treating an opaque cursor as permission.",
+    "Risk": "An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.",
+    "Trade": "No. A cursor identifies a continuation boundary. Snapshot consistency requires additional storage or transaction semantics and a defined lifetime.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "backend",
+    "subdomain": "web-foundations",
+    "module": "web-foundations",
+    "concept": "What makes API pagination stable while records are being inserted?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated cursor ordering boundary: An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.",
+    "definitions": [
+      {
+        "term": "Cursor ordering",
+        "definition": "Offset pagination can shift under concurrent inserts and deletes."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.\",\n  \"decision\": \"Offset pagination can shift under concurrent inserts and deletes\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.",
+    "alternatives": [
+      "No. A cursor identifies a continuation boundary. Snapshot consistency requires additional storage or transaction semantics and a defined lifetime."
+    ],
+    "pitfalls": [
+      "An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can a cursor guarantee a snapshot without a snapshot mechanism?",
+        "A": "No. A cursor identifies a continuation boundary. Snapshot consistency requires additional storage or transaction semantics and a defined lifetime."
+      }
+    ],
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Which API failures can be retried safely and within what budget?",
+    "spoken": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget. A rate-limit response may supply retry guidance, while invalid input or permission denial usually requires a changed decision. Backoff and jitter reduce synchronized retry pressure but do not resolve uncertain commits.",
+    "A": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget. A rate-limit response may supply retry guidance, while invalid input or permission denial usually requires a changed decision. Backoff and jitter reduce synchronized retry pressure but do not resolve uncertain commits.\n\nEngineering case: A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.\n\nReasoning under a changed assumption: Use the original operation key and an authoritative status or receipt. A timeout alone cannot identify whether the effect happened.",
+    "Why": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget. A rate-limit response may supply retry guidance, while invalid input or permission denial usually requires a changed decision. Backoff and jitter reduce synchronized retry pressure but do not resolve uncertain commits.",
+    "Risk": "A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.",
+    "Trade": "Use the original operation key and an authoritative status or receipt. A timeout alone cannot identify whether the effect happened.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "backend",
+    "subdomain": "web-foundations",
+    "module": "web-foundations",
+    "concept": "Which API failures can be retried safely and within what budget?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated retry eligibility boundary: A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.",
+    "definitions": [
+      {
+        "term": "Retry eligibility",
+        "definition": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.\",\n  \"decision\": \"Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.",
+    "alternatives": [
+      "Use the original operation key and an authoritative status or receipt. A timeout alone cannot identify whether the effect happened."
+    ],
+    "pitfalls": [
+      "A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "What if the server timed out after committing?",
+        "A": "Use the original operation key and an authoritative status or receipt. A timeout alone cannot identify whether the effect happened."
+      }
+    ],
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

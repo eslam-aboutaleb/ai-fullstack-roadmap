@@ -14,11 +14,11 @@
     "Risk": "Naive JSON.parse on each read loses events or fails on multibyte characters. Error recovery must also distinguish a malformed event from a clean terminal completion.",
     "Trade": "A small parser handles a narrow contract; a mature SSE client can cover more protocol details. Test the actual API framing and reconnection requirements.",
     "Try": "Feed the same stream split at every possible byte boundary, including inside Unicode text. Verify identical parsed events.",
-    "spoken": "Streaming UI state machines track request state across connection drops and reconnects. Citation rendering shows source passages alongside answers. The UI must handle loading, streaming, complete, and error states without losing user context.",
+    "spoken": "Decode bytes incrementally, preserve partial UTF-8 state and parse the transport’s actual event framing before parsing JSON. Track operation identity, sequence/replay, partial content and explicit completion separately. Bound buffers and reject malformed or conflicting events.",
     "domain": "frontend",
     "subdomain": "streaming-ui",
     "module": "product-delivery",
-    "concept": "streaming UI state machines and citation rendering",
+    "concept": "How should a browser parse streaming chunks correctly",
     "difficulty": "implementation",
     "misconception_target": "Streaming UI is just showing text as it arrives",
     "definitions": [
@@ -41,7 +41,7 @@
       "explanation": "Track state transitions for streaming UI.",
       "output": "UI state transitions correctly"
     },
-    "production_case": "A chat interface that streams model responses with citations and handles reconnection.",
+    "production_case": "An accented character and a JSON delimiter arrive in different network chunks. A streaming decoder plus framing buffer reconstructs the event; per-chunk JSON parsing fails.",
     "alternatives": [
       "Polling for updates",
       "Server-sent events without state machine"
@@ -51,11 +51,11 @@
       "No error state handling",
       "Citations not matched to text"
     ],
-    "complexity": "O(1) per state transition",
+    "complexity": "Decoder/reducer work depends on bytes, events and retained history; immutable copies and rendering can add growing cost. Bound buffers and batch visible updates after measuring responsiveness.",
     "follow_ups": [
       {
-        "Q": "Why a state machine instead of simple flags?",
-        "A": "State machines prevent invalid transitions and make reconnection logic explicit."
+        "Q": "Does a fetch chunk correspond to one SSE event?",
+        "A": "No. Network chunk boundaries are arbitrary. SSE fields and blank-line framing need a compatible parser."
       }
     ],
     "citations": [

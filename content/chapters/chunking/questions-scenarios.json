@@ -1,0 +1,22 @@
+[
+  {
+    "Q": "How do you chunk a 100 GB stream without splitting records, losing provenance or exhausting memory?",
+    "A": "**Transport parts and retrieval chunks solve different problems.** A byte range is useful for transfer; a retrieval chunk should preserve meaning and fit the embedding tokenizer. Never assume that an upload part ends at a character, JSON record, paragraph or table boundary.\n\n**Maintain bounded parsing state.** Decode text incrementally so a multibyte character split across reads survives. Then use a format-aware parser to identify records or document structures. Apply maximum record size, decompressed size and nesting limits. A file with one enormous record can defeat an otherwise streaming iterator; quarantine or use a parser designed for that structure. For formats requiring random access, use bounded scratch storage or a worker with appropriate resources.\n\n**Create semantic windows within hard bounds.** Preserve headings, table headers, list structure and rule-exception relationships. Use token limits for the embedding model and a smaller retrieval target justified by evaluation. Carry overlap intentionally across semantic boundaries rather than repeatedly adding the entire prior chunk. Keep source byte offsets where reliable, page or section coordinates, parent identifiers and extraction/chunker versions. Offsets in extracted text are not interchangeable with offsets in the original binary file.\n\n**Checkpoint only at reproducible boundaries.** Persist a record cursor and the deterministic identities of emitted chunks after durable writes. Decoder state or an arbitrary byte offset may be insufficient for restart. For compressed streams, restart from indexed compression boundaries or replay from an earlier safe checkpoint. Evaluate chunking on boundary-spanning questions and exclusions, not only chunk length statistics.",
+    "Why": "A UTF-8 character crosses a transport boundary, and a refund rule ends just before its exclusion. The decoder preserves the character; the chunker retains a parent link so retrieval can recover both clauses without including an entire book.",
+    "worked_case": "A UTF-8 character crosses a transport boundary, and a refund rule ends just before its exclusion. The decoder preserves the character; the chunker retains a parent link so retrieval can recover both clauses without including an entire book.",
+    "Risk": "Unbounded lines, compression bombs and pathological tables can exceed the memory plan even when read buffers are small.",
+    "Trade": "Overlap improves boundary recall but adds embedding cost and duplicate evidence; compare against parent expansion.",
+    "Try": "Create fixtures with split multibyte characters, a long record, repeated table headers and a cross-page exception. Verify stable chunk IDs after replay.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "chunking",
+    "citations": [
+      "https://docs.python.org/3/library/codecs.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

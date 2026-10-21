@@ -1,0 +1,22 @@
+[
+  {
+    "Q": "How can connection pooling undermine session-based tenant isolation?",
+    "A": "A pool reuses physical database connections among logical requests. Session settings can therefore outlive the request that created them unless reset or scoped correctly. A tenant filter or row-level policy depending on such state must use a trustworthy assignment and lifecycle contract, including errors and rollback. Keep migration/administrative roles separate from application roles that should be constrained. Test reuse of the same connection across two principals rather than assuming a fresh connection for every operation.",
+    "Why": "Request A sets a tenant session value and fails before cleanup. Request B reuses that connection and must not inherit A's tenant visibility. Transaction-scoped assignment and verified reset behavior can constrain this boundary.",
+    "Risk": "Superuser or owner privileges can bypass protections expected from ordinary application queries.",
+    "Trade": "Pooling saves setup cost while making connection-state ownership an explicit requirement.",
+    "Try": "Force one pooled connection through success, rollback and two different tenant requests.",
+    "worked_case": "Request A sets a tenant session value and fails before cleanup. Request B reuses that connection and must not inherit A's tenant visibility. Transaction-scoped assignment and verified reset behavior can constrain this boundary.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.postgresql.org/docs/current/ddl-rowsecurity.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "ai-rag",
+    "subdomain": "database-security"
+  }
+]

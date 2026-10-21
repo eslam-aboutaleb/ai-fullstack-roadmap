@@ -1,0 +1,23 @@
+[
+  {
+    "Q": "How do event IDs, replay retention and truncated frames affect SSE recovery?",
+    "A": "**A network read is not an SSE message.** Server-sent events are UTF-8 text framed by lines and a blank-line delimiter; a read can split a character, line or entire event.\n\n1. Decode bytes with an **incremental decoder**, retaining incomplete character bytes.\n2. Preserve unfinished text until a complete line is available.\n3. Assemble an event from its fields and dispatch only when its frame is complete.\n4. Track the completed application event identity under the server's replay contract.\n5. On reconnect, deduplicate any replay and handle an expired retention cursor explicitly.\n\nAn event ID supports recovery only when the server defines its **scope, ordering, retention and resume behavior**. An automatic EventSource reconnect does not create an end-to-end exactly-once guarantee for business effects.\n\nIf a connection closes halfway through a frame, do not apply that partial event as a successful completion. Distinguish an explicit terminal application event from an unexpected disconnect, and reconcile authoritative task state when the stream alone cannot establish the result.",
+    "Why": "The connection closes after half an event, then reconnects with the last completed ID. The client must not apply the truncated event or duplicate a completed event replayed by the server.",
+    "Risk": "Treating every received byte chunk as a complete event corrupts framing.",
+    "Trade": "Replay improves continuity while requiring bounded storage and an explicit expired-cursor policy.",
+    "Try": "Split a UTF-8 character and frame across reads, then test duplicate replay after reconnect.",
+    "worked_case": "The connection closes after half an event, then reconnects with the last completed ID. The client must not apply the truncated event or duplicate a completed event replayed by the server.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "frontend",
+    "subdomain": "sse-streaming"
+  }
+]

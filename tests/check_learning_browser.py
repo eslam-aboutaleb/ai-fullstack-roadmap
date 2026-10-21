@@ -19,6 +19,8 @@ def check(base_path=''):
     def visit(page,path):
         page.goto(base+'/'+path)
         page.wait_for_function('window.GuideAppReady === true')
+        if path in ('assessments.html','coding-labs.html','study.html'):
+            page.wait_for_function('window.GuidePracticeReady === true')
     def snapshot(page):
         return page.evaluate('window.GuideStudy.store.snapshot')
     try:
@@ -153,12 +155,62 @@ def check(base_path=''):
                 request.onsuccess=()=>{const db=request.result;const read=db.transaction('events').objectStore('events').getAll();read.onsuccess=()=>{resolve(read.result);db.close();};};request.onerror=()=>reject(request.error);
             })""")
             assert len(stored)==1 and stored[0]['kind']=='reset',stored
+            visit(page,'index.html')
+            page.locator('#chapter-filter').select_option('course-data-engineering')
+            page.locator('#query').fill('event time')
+            page.locator('#results a[href$="course-event-time-quality.html"]').wait_for()
+            visit(page,'assessments.html')
+            scenario=page.locator('#a-cdc-checkpoint-crash')
+            scenario.locator('input[value="2"]').check();scenario.locator('[data-grade]').click()
+            page.wait_for_function("window.GuideStudy.store.snapshot.attempts.some(a=>a.assessment==='cdc-checkpoint-crash'&&a.passed)")
+            page.evaluate('window.GuideStudy.store.flush()')
+            visit(page,'course-cdc-checkpoints-idempotency.html')
+            assert page.locator('[data-mastery]').inner_text().startswith('Independent'), snapshot(page)
+            assert page.get_by_role('heading',name='Production incident walkthrough').count()==1
+            page.goto(base+'/examples/labs/streaming_reader.html')
+            page.locator('#send').click()
+            page.wait_for_function("document.querySelector('#status').textContent.startsWith('Complete:')")
+            assert 'Café policy' in page.locator('#answer').inner_text()
+            assert '<b>' in page.locator('#answer').inner_text() and page.locator('#answer b').count()==0
+            for failure in ('disconnect','malformed'):
+                page.locator('#scenario').select_option(failure);page.locator('#send').click()
+                page.wait_for_function("document.querySelector('#status').textContent.startsWith('Failed:')")
+            page.locator('#scenario').select_option('normal');page.locator('#send').click()
+            page.wait_for_function("document.querySelector('#answer').textContent.length>0")
+            page.locator('#cancel').click()
+            assert page.locator('#status').inner_text().startswith('Cancelled:')
+            page.locator('#send').click()
+            page.wait_for_function("document.querySelector('#status').textContent.startsWith('Complete:')")
+            assert awaitable_fixture_checks(page)
             assert not remote,remote
             assert not errors,errors
             context.close();browser.close()
     finally:
         server.shutdown();server.server_close()
     print(json.dumps({'learning_browser':'pass','base_path':base_path or '/', 'storage':'IndexedDB + localStorage fallback', 'two_tab_merge':'pass','portable_attempts':'pass','javascript_worker':'pass','python_wasm':'pass','timeout_stop_output_limits':'pass','evidence_mastery':'pass'}))
+
+
+def awaitable_fixture_checks(page):
+    return page.evaluate('''async () => {
+        const {initial,reduce,decode}=window.StreamingReaderLab;
+        const event={requestId:'x',seq:1,type:'delta',text:'café'};
+        const state=reduce(initial('x'),event);
+        if(reduce(state,event)!==state||reduce(state,{...event,requestId:'old'})!==state)throw new Error('Replay/ownership regression');
+        for(const invalid of [{...event,text:'changed'},{...event,seq:3},'not an object']) {
+            let failed=false;try{reduce(state,invalid);}catch{failed=true;}if(!failed)throw new Error('Invalid transition accepted');
+        }
+        const bytes=new TextEncoder().encode(JSON.stringify(event)+'\\n');
+        async function* singleBytes(){for(const byte of bytes)yield Uint8Array.of(byte);}
+        const events=[];for await(const value of decode(singleBytes()))events.push(value);
+        if(events.length!==1||events[0].text!=='café')throw new Error('UTF-8 fragmentation failed');
+        async function* manyFrames(){yield new TextEncoder().encode((JSON.stringify(event)+'\\n').repeat(500));}
+        let count=0;for await(const value of decode(manyFrames()))count++;
+        if(count!==500)throw new Error('Valid aggregate chunk rejected as one oversized frame');
+        async function* incomplete(){yield new TextEncoder().encode('{"unfinished":');}
+        let rejected=false;try{for await(const value of decode(incomplete())){}}catch{rejected=true;}
+        if(!rejected)throw new Error('Truncated frame accepted');
+        return true;
+    }''')
 
 
 if __name__=='__main__':

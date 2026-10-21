@@ -6,7 +6,7 @@
     "Risk": "Adding replicas can multiply quotas, repeat model calls, and split conversational state. A load balancer does not make local state shared.",
     "Trade": "Shared services improve continuity and introduce network dependencies. One process with honest limitations can be a simpler initial deployment.",
     "Try": "Test retries routed to another replica, session continuation, worker claiming, and global quota behavior during Redis failure.",
-    "spoken": "Health checks let orchestrators know whether an instance can serve traffic. Rollouts gradually shift users to a new version while monitoring error rates. Disaster recovery drills practice restoring from backups and failing over to a secondary region. Each reduces blast radius when something goes wrong.",
+    "spoken": "Multiple replicas need shared authoritative state, scoped identities, atomic/idempotent operation handling and coordinated schema changes. In-memory tasks and locks do not span processes. Also review connection pools, downstream quotas, health semantics, rollout compatibility and recovery behavior.",
     "domain": "operations",
     "subdomain": "reliability",
     "difficulty": "foundations",
@@ -31,7 +31,7 @@
       "explanation": "Unhealthy instances are removed from traffic and on-call is alerted.",
       "output": "Instance drained, alert sent"
     },
-    "production_case": "A payment service that deploys new versions with canary rollouts and automatic rollback on error spikes.",
+    "production_case": "A request is accepted by replica A and status polling reaches B. If state is process-local, B reports unknown despite a real accepted task; move authoritative task state to shared durable storage.",
     "alternatives": [
       "Big bang deployment",
       "Blue-green deployment"
@@ -41,11 +41,11 @@
       "Rollback too slow during incident",
       "No disaster recovery practice"
     ],
-    "complexity": "Health check is O(1); rollout is O(users shifted)",
+    "complexity": "Readiness probes should be bounded and inexpensive, but deployment cost includes startup, migration locks, mixed-version traffic and capacity headroom. Measure the actual rollout and recovery behavior.",
     "follow_ups": [
       {
-        "Q": "What should a health check verify?",
-        "A": "That the instance can reach its dependencies and serve representative requests."
+        "Q": "Will a load-balancer sticky session fix durability?",
+        "A": "It may mask routing symptoms temporarily, but process loss, scaling and background workers still require shared recoverable state."
       }
     ],
     "citations": [
@@ -56,7 +56,8 @@
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "What must change when scaling from one process to multiple replicas"
   },
   {
     "Q": "Should migrations run on every application startup?",
@@ -65,34 +66,34 @@
     "Risk": "Concurrent DDL, long locks, and destructive changes can affect all replicas. A schema change can also prevent rollback to the prior image.",
     "Trade": "Self-initializing services reduce manual steps; dedicated migration stages improve sequencing. Either requires tested failure behavior and appropriate database privileges.",
     "Try": "Design a rolling deployment with one migrator, compatible schema, application rollout, verification, and delayed cleanup.",
-    "spoken": "Run health checks to verify instances can serve traffic. Use gradual rollouts with error-rate monitoring. Practice disaster recovery drills regularly. Each practice reduces blast radius when something goes wrong in production.",
+    "spoken": "Run migrations as an explicit, serialized release operation with reviewed locking and compatibility behavior. Avoid every replica racing to change schema at startup. Use expand/migrate/contract phases so old and new replicas can coexist, and rehearse rollback limits for destructive changes.",
     "domain": "operations",
     "subdomain": "reliability",
     "module": "deployment-reliability",
-    "concept": "health checks, rollouts, disaster recovery",
+    "concept": "Should migrations run on every application startup",
     "difficulty": "implementation",
     "misconception_target": "A successful deploy means the system is healthy",
     "definitions": [
       {
-        "term": "Health check",
-        "definition": "Endpoint that reports whether an instance can serve traffic"
+        "term": "Migration owner",
+        "definition": "The single coordinated release operation responsible for a schema change."
       },
       {
-        "term": "Rollout",
-        "definition": "Gradual deployment to users with error-rate monitoring"
+        "term": "Expand/contract",
+        "definition": "A staged transition that preserves compatibility before removing old fields or interfaces."
       },
       {
-        "term": "Disaster recovery drill",
-        "definition": "Practiced procedure for restoring service after failure"
+        "term": "Rollback limit",
+        "definition": "State or external changes that an application-image rollback cannot automatically undo."
       }
     ],
-    "execution_timeline": "Deploy new version -> Health checks pass -> Gradual traffic shift -> Monitor error rates -> Full rollout or rollback",
+    "execution_timeline": "Review migration -> expand schema -> deploy compatible code -> backfill/verify -> retire old code -> contract schema",
     "example": {
-      "code": "if health_check() == unhealthy:\n    remove_from_load_balancer(instance)\n    alert_oncall()",
-      "explanation": "Unhealthy instances are removed from traffic and on-call is alerted.",
-      "output": "Instance drained, alert sent"
+      "code": "release_steps = ['expand', 'compatible_code', 'backfill', 'verify', 'contract']\nassert release_steps.index('verify') < release_steps.index('contract')\nprint('contract only after verification')",
+      "explanation": "This is an ordering fixture, not a database migration tool or proof that a real DDL operation has no locking cost.",
+      "output": "contract only after verification"
     },
-    "production_case": "A payment service that deploys new versions with canary rollouts and automatic rollback on error spikes.",
+    "production_case": "Twenty replicas start after a rollout and all attempt one large schema rewrite. A migration job with a single ownership boundary, staged compatibility and measured lock behavior avoids the startup stampede.",
     "alternatives": [
       "Big bang deployment",
       "Blue-green deployment"
@@ -102,15 +103,16 @@
       "Rollback too slow during incident",
       "No disaster recovery practice"
     ],
-    "complexity": "Health check is O(1); rollout is O(users shifted)",
+    "complexity": "Runtime and locking depend on the specific DDL, engine version, table size and access pattern. Measure representative migrations and define failure/recovery behavior.",
     "follow_ups": [
       {
-        "Q": "What should a health check verify?",
-        "A": "That the instance can reach its dependencies and serve representative requests."
+        "Q": "Is application-image rollback enough after a destructive migration?",
+        "A": "No. Old code may no longer understand the schema or lost data. Plan compatibility and restore/reconciliation before applying the migration."
       }
     ],
     "citations": [
-      "https://sre.google/sre-book/"
+      "https://www.postgresql.org/docs/current/explicit-locking.html",
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
     ],
     "reviewer_status": {
       "reviewer": "independent technical review pending",
