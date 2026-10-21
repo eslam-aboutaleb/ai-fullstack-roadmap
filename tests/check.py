@@ -170,3 +170,7 @@ for project in ('evidence-workbench','review-packet'):
         if project=='evidence-workbench':
             assert {'projects/evidence-workbench/package-lock.json','projects/evidence-workbench/src/App.tsx','projects/evidence-workbench/server.py'} <= set(names)
 print('Cumulative project downloads and dependency/build exclusions: pass')
+
+memory_project = subprocess.run([sys.executable, '-B', str(ROOT/'labs/memory_project.py'), 'check'], capture_output=True, text=True, timeout=30)
+assert memory_project.returncode == 0, (memory_project.stdout, memory_project.stderr)
+print(memory_project.stdout.strip())
