@@ -1,0 +1,23 @@
+[
+  {
+    "Q": "How do you prevent two agents from issuing the same irreversible action?",
+    "A": "**Separate proposed actions from committed effects.** Agents may independently recommend an operation, but only an authorized application service commits it. That service validates identity, current business rules, approval scope and resource version. An agent's reasoning trace is not a transaction lock.\n\n**Create one logical operation identity.** Use a durable idempotency key bound to the tenant, business object and intended operation. Persist the key, canonical request fingerprint and result. Repeating the same operation returns its existing outcome; reusing the key with different arguments is rejected. Generate the identity at the workflow boundary rather than independently inside each retrying agent.\n\n**Control concurrency at the resource.** Use a conditional update or transaction to move the business object from eligible to committed. If an external service performs the effect, use its idempotency support where available and reconcile ambiguous timeouts by operation identity. A database lock held only while sending a network request cannot make a remote service participate in the database transaction. Use an outbox or durable intent plus reconciliation where appropriate.\n\n**Fence stale workers and approvals.** An expired worker lease must not authorize new writes. Approval should cover exact parameters or a clearly defined range, and it may expire after state changes. For operations lacking reliable reconciliation, escalate an unknown outcome rather than automatically repeating a potentially irreversible action.",
+    "Why": "Two refund agents both decide to refund order 123. They submit the same workflow operation key to the payment service. One effect is committed and both observe its recorded result. If the amount differs, the second request is rejected as a conflicting intent.",
+    "worked_case": "Two refund agents both decide to refund order 123. They submit the same workflow operation key to the payment service. One effect is committed and both observe its recorded result. If the amount differs, the second request is rejected as a conflicting intent.",
+    "Risk": "A model instruction saying do not duplicate payments is not a concurrency guarantee.",
+    "Trade": "Strict effect control reduces autonomous flexibility but makes retries and audits defensible.",
+    "Try": "Run two workers concurrently, lose the response to the first commit and retry both. Verify one effect and rejection of a changed amount.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "agent-harness",
+    "citations": [
+      "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+      "https://www.anthropic.com/research/building-effective-agents"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

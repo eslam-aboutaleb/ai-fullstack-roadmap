@@ -45,7 +45,35 @@
       "prerequisites": [],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 819
+      "study_id": 819,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "Two names refer to one list; a function mutates it and then rebinds its local parameter.",
+          "steps": [
+            "Bind a=[1] and b=a.",
+            "Appending 2 through b changes the shared object, so a observes [1,2].",
+            "Assigning b=[9] changes only b’s binding; a still observes [1,2]."
+          ],
+          "result": "Identity explains the shared mutation; rebinding is a separate operation."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What happens when a function receives a list argument?",
+          "spoken": "It receives a reference to an object. Mutation can affect aliases, while rebinding the parameter does not replace the caller’s binding.",
+          "deep": "Discuss identity versus equality, mutable defaults and ownership. Copying a container may still share nested objects; a shallow copy is not a universal isolation boundary.",
+          "follow_up": {
+            "question": "Does a tuple make everything inside it immutable?",
+            "answer": "No. A tuple’s element bindings are fixed, but a referenced mutable object can still change and may make the tuple unhashable."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "python-iteration-types",
@@ -91,7 +119,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 820
+      "study_id": 820,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A file-backed iterator raises midway through processing.",
+          "steps": [
+            "Acquire the file in a context manager.",
+            "Consume records lazily and handle the declared exception.",
+            "Ensure context exit closes the handle even when iteration fails."
+          ],
+          "result": "Resource lifetime is tied to scope rather than successful completion of the loop."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do you keep a lazy pipeline from leaking resources?",
+          "spoken": "Make ownership and cleanup explicit with context managers and structured iteration, including exceptional and cancellation paths.",
+          "deep": "A generator can hold a resource while suspended. Merely constructing it does not finish its lifetime; closing or leaving its owning scope must be defined. Type hints document expectations but do not close files or validate records.",
+          "follow_up": {
+            "question": "Does a type annotation validate incoming JSON?",
+            "answer": "No. Validate external values at runtime and then pass the checked representation into typed code."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "complexity-os-network",
@@ -137,7 +193,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 821
+      "study_id": 821,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A handler makes 20 sequential 100 ms remote calls.",
+          "steps": [
+            "Estimate about 2 seconds of waiting before other work.",
+            "Bound concurrent I/O to five calls, giving about four idealized waves.",
+            "Measure real rate limits, pool capacity and tail times rather than assuming perfect speedup."
+          ],
+          "result": "Concurrency can reduce waiting under these assumptions; it does not reduce CPU work or bypass downstream limits."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "When does asyncio improve service throughput?",
+          "spoken": "When work spends time awaiting cooperative I/O and concurrency is bounded to the downstream system’s capacity. It does not make CPU-heavy Python work automatically parallel.",
+          "deep": "Distinguish a process, thread and task; identify whether the measured bottleneck is CPU, blocking I/O, connection contention or queueing. Move blocking calls off the event loop where appropriate and propagate deadlines.",
+          "follow_up": {
+            "question": "Would creating thousands of tasks solve a slow endpoint?",
+            "answer": "It can increase memory and overwhelm dependencies. Bound admission and in-flight work, then measure the bottleneck."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "asyncio-lifecycle",
@@ -184,7 +268,35 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 822
+      "study_id": 822,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A batch contains one successful job, one job timeout and a cancelled caller.",
+          "steps": [
+            "Give job failures an explicit result contract.",
+            "Bound each job’s wait with a deadline.",
+            "Propagate caller cancellation and clean up workers and queued items."
+          ],
+          "result": "Job timeout and whole-operation cancellation remain distinct and no background task is silently abandoned."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why use structured concurrency for worker orchestration?",
+          "spoken": "It makes task lifetime and cleanup follow an owning scope, so failures and cancellation can be handled as part of one operation.",
+          "deep": "Decide which failures are isolated per job and which terminate the group. Always restore queue accounting in finally blocks. Catching cancellation and continuing blindly can leave the caller believing work stopped while effects continue.",
+          "follow_up": {
+            "question": "Is cancelling the coroutine equivalent to undoing its HTTP side effect?",
+            "answer": "No. A remote receiver may already have committed; use a stable operation key and reconciliation."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "fastapi-request-boundary",
@@ -230,7 +342,35 @@
       ],
       "estimated_minutes": 35,
       "path": "core",
-      "study_id": 823
+      "study_id": 823,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A syntactically valid request contains whitespace-only input and another user’s task ID.",
+          "steps": [
+            "Validate field constraints and semantic content before admission.",
+            "Resolve identity through a trusted authentication dependency.",
+            "Scope the database query and mutation by that identity."
+          ],
+          "result": "JSON parsing, request validation and object authorization are three independent checks."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What does a Pydantic request model fail to prove?",
+          "spoken": "It can validate declared structure and constraints, but not automatically establish permissions, ownership, factual correctness or a valid domain transition.",
+          "deep": "A valid token does not grant access to every object ID. Resolve trusted caller identity, enforce ownership in queries and writes and classify retryable failures separately from validation/policy denials.",
+          "follow_up": {
+            "question": "Should authentication trust the owner field in the body?",
+            "answer": "No. Derive authority from verified credentials and application membership, then treat any requested owner as untrusted input."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "sql-transactions-outbox",
@@ -276,7 +416,35 @@
       ],
       "estimated_minutes": 35,
       "path": "core",
-      "study_id": 824
+      "study_id": 824,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "Two confirmations arrive for one pending task.",
+          "steps": [
+            "Lock the owned task row within a transaction.",
+            "Recheck its state and create the transition and outbox intent atomically.",
+            "Let the second transaction observe confirmed state and return the same operation result."
+          ],
+          "result": "The database has one state transition and one durable intent; external effect delivery still needs deduplication."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What guarantee does a transactional outbox provide?",
+          "spoken": "It couples local business state and durable dispatch intent in one transaction. It does not make an independent effect receiver exactly once.",
+          "deep": "A dispatcher can crash after the receiver commits and before acknowledging the outbox row. Retain the same effect identity across retries and require receiver deduplication or reconciliation. Unique keys and payload binding matter alongside row locks.",
+          "follow_up": {
+            "question": "Can SELECT FOR UPDATE lock an object that has not been inserted?",
+            "answer": "Not as an ordinary existing-row lock. Use uniqueness and an insert/upsert protocol or another appropriate serialization design."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     },
     {
       "id": "testing-delivery",
@@ -322,10 +490,38 @@
       ],
       "estimated_minutes": 25,
       "path": "core",
-      "study_id": 825
+      "study_id": 825,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "An implementation returns a correct message but writes the same effect twice.",
+          "steps": [
+            "Assert the visible response.",
+            "Inspect an independently counted durable effect ledger.",
+            "Inject a crash after receiver commit and retry with the same operation identity."
+          ],
+          "result": "The oracle detects the duplicate even if both response strings look correct."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What makes an integration test valuable for an AI workflow?",
+          "spoken": "It verifies an externally observable invariant under realistic failures, with an oracle independent of the implementation’s own success claim.",
+          "deep": "Use synthetic identities and disposable services, avoid mocking the very transaction or authorization boundary being tested, and distinguish syntax checks from executed integrations. A benchmark or model judge cannot replace deterministic effect checks.",
+          "follow_up": {
+            "question": "Should you test only the happy path before a demo?",
+            "answer": "No. Include changed payloads, other-owner access, lost acknowledgments and recovery from interruption for the critical boundaries."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        }
+      ]
     }
   ],
   "review_status": "technical review pending",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "updated": "2026-10-20"
 }

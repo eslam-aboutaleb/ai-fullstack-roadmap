@@ -39,7 +39,11 @@ def load_question_examples(chapters):
         if unlisted:
             raise ValueError(f'Unregistered teaching files in {catalog.parent.name}: {sorted(unlisted)}')
     ids = {q['id'] for chapter in chapters for q in chapter['lessons'] + chapter['questions']}
-    if set(assignments) != ids:
-        raise ValueError(f'Code coverage mismatch: missing={sorted(ids-set(assignments))}, '
+    required = {q['id'] for chapter in chapters for q in chapter['lessons'] + chapter['questions']
+                if q.get('answer_format') != 'conceptual'}
+    # A conceptual/design question may also gain a useful executable example.
+    # Existing code contracts stay required; optional code still needs a known ID.
+    if required - set(assignments) or set(assignments) - ids:
+        raise ValueError(f'Code coverage mismatch: missing={sorted(required-set(assignments))}, '
                          f'unknown={sorted(set(assignments)-ids)}')
     return recipes, assignments

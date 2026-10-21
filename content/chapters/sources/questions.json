@@ -6,11 +6,11 @@
     "Risk": "Flattening every failure into an empty list can cause a later reconciliation to delete healthy knowledge. The connector contract represents errors and whether a result is authoritative; the pipeline refuses non-authoritative a typed scan result mutation.",
     "Trade": "Rich status handling takes more code than returning strings. It supports safe retries, deletion decisions, and actionable diagnostics.",
     "Try": "Trace a PDF in an object bucket through all four stages. Specify the returned status when each stage fails and which stages can be retried independently.",
-    "spoken": "Build ingestion connectors that read from source systems, checkpoint progress, and handle pagination. Protect against SSRF by validating target URLs before fetching. Use idempotent operations so re-running ingestion after a failure does not duplicate data.",
+    "spoken": "Separate discovery, network fetching, content extraction and ingestion because their failures and trust boundaries differ. Preserve source identity and completeness signals, bound untrusted fetches and checkpoint durable progress. An empty successful response is different from a permission or parser failure.",
     "domain": "backend",
     "subdomain": "ingestion",
     "module": "sources",
-    "concept": "incremental ingestion with checkpoints",
+    "concept": "Why distinguish discovery, fetching, extraction, and ingestion",
     "difficulty": "implementation",
     "misconception_target": "Re-running ingestion safely duplicates data",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Load checkpoint, paginate through source, save checkpoint after each page.",
       "output": "All records ingested with no duplicates"
     },
-    "production_case": "A daily ingestion job that pulls new support tickets from an external API.",
+    "production_case": "A connector reports zero documents after its credentials expire. Propagate the incomplete/error state rather than publishing an empty replacement index as a complete successful sync.",
     "alternatives": [
       "Push-based webhooks",
       "Polling with fixed intervals"
@@ -43,11 +43,11 @@
       "Lost checkpoints causing reprocessing",
       "No rate-limit handling"
     ],
-    "complexity": "O(pages * records_per_page) API calls",
+    "complexity": "For R records and source pages of P records, basic listing needs roughly ceil(R/P) requests, plus detail fetches and retries. Payload bytes, pagination consistency and source rate limits affect elapsed time.",
     "follow_ups": [
       {
-        "Q": "What happens if ingestion fails mid-page?",
-        "A": "The checkpoint from the last completed page lets you resume without reprocessing."
+        "Q": "Is a URL hostname check enough to prevent SSRF?",
+        "A": "No. Consider redirects, DNS/address resolution, private/reserved networks and egress controls at the actual connection boundary."
       }
     ],
     "citations": [

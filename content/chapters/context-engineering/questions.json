@@ -6,11 +6,11 @@
     "Risk": "Mixing user documents with privileged instructions creates an injection path. Keep explicit boundaries and authorize actions outside the model.",
     "Trade": "More context can improve coverage while increasing cost, distraction, and disclosure.",
     "Try": "Design a manifest for a help-desk turn and justify every block.",
-    "spoken": "Context engineering separates instructions, evidence, and tool output into distinct sections of the prompt. System instructions define behavior, evidence provides facts, and tool output carries action results. Clear boundaries prevent evidence from being mistaken for instructions.",
+    "spoken": "Context engineering selects and versions the instructions, history, tool schemas, retrieved evidence and observations a model receives within a budget. Clear boundaries help interpretation, but untrusted content can still influence generation. Enforce authorization and effects in backend code.",
     "domain": "ai-rag",
     "subdomain": "context-engineering",
     "module": "context-engineering",
-    "concept": "context section separation",
+    "concept": "How is context engineering different from writing a prompt",
     "difficulty": "implementation",
     "misconception_target": "All prompt content is equally trustworthy",
     "definitions": [
@@ -33,21 +33,21 @@
       "explanation": "Separate system instructions from evidence with clear markers.",
       "output": "Structured prompt ready for model"
     },
-    "production_case": "A RAG application that prevents prompt injection by separating user content from system instructions.",
+    "production_case": "An external document tells the model to reveal credentials. Keep it marked as evidence, restrict available tools and prove that the downstream policy denies the attempted disclosure.",
     "alternatives": [
       "Single-block prompt (no separation)",
       "XML-tagged sections"
     ],
     "pitfalls": [
-      "Instructions buried in evidence",
-      "No clear section boundaries",
-      "User content overriding system behavior"
+      "Treating delimiters as an authorization guarantee",
+      "Dropping source or applicability metadata",
+      "Logging sensitive context without a defined policy"
     ],
-    "complexity": "O(prompt length) for assembly",
+    "complexity": "Context construction costs depend on history/evidence/tool-schema bytes and selection methods. The model inference cost is separate and changes with token length, architecture and serving backend.",
     "follow_ups": [
       {
-        "Q": "How do separators help security?",
-        "A": "They make it harder for injected content to be interpreted as system instructions."
+        "Q": "Do delimiters prevent prompt injection?",
+        "A": "They are one defense-in-depth measure, not a hard authority boundary. Test adversarial content against independently enforced capabilities."
       }
     ],
     "citations": [

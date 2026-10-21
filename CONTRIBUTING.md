@@ -263,3 +263,40 @@ Draft material is published with its pending status. The editorial report displa
 source-derived review counts separately from test results. Legacy content has not
 been retroactively certified. The course-unit review label is also explicitly
 pending; it does not imply the question attestation gate covers every content type.
+
+## Authoring interview-led chapters
+
+All main chapter answers are rendered on their chapter page; do not slice the
+chapter at the separate question bank's page size. Add as many distinct questions
+as a subject needs, including more than 100 where justified. Prefer a mechanism,
+worked example, failure, design choice or meaningful follow-up over paraphrases.
+Use `questions-*.json` for additional editable source shards and register new IDs
+with `scripts/course_data.py --assign-ids`; never rename old registry keys merely
+to change a display heading.
+
+For a conceptual question without a relevant executable snippet, use
+`answer_format: conceptual`, the required detailed `A`, `Why`, `Risk`, `Trade`,
+`Try`, `worked_case`, `citations` and draft `reviewer_status` fields. The contract
+is in `content/shared/conceptual-question-schema.json`. Describe a concrete
+scenario and reasoning; do not add irrelevant code to claim execution evidence.
+Other questions and lessons retain the existing catalogued code requirement.
+
+Define abbreviations with full names and plain meanings in
+`content/shared/acronyms.json`; these are shown inside relevant answers and in the
+terminology guide. `scripts/interview_teaching.py` owns display-only question
+headings for legacy lesson titles, preserving their IDs and notes.
+
+## Formatting detailed answers
+
+Write one complete `A` answer; the UI does not repeat `spoken` above it. Use blank
+lines for paragraphs, `**bold**` for important terms, backticks for identifiers,
+`-` lists, numbered steps, comparison tables and fenced code where appropriate.
+The safe formatter in `scripts/answer_format.py` escapes raw HTML. Keep executable
+reference code in the catalog when its output should be checked automatically.
+
+Use `content/shared/answer-diagrams.json` to attach a title, explanation and ordered
+mechanism steps to an existing study ID. These diagrams are inline and readable
+without JavaScript. Choose a concrete trace or decision boundary rather than
+copying the chapter overview into every answer. Existing nonconceptual questions
+still require their catalogued code. Conceptual questions may optionally gain a
+relevant executable example, with its declared output and scope.

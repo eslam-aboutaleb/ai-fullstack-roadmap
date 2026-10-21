@@ -1,0 +1,43 @@
+[
+  {
+    "Q": "How would you ingest a 100 GB file with a server that has only 2 GB of RAM?",
+    "A": "**Clarify RAM, disk and throughput separately.** A 100 GB object cannot reside in 2 GB of memory; it also cannot be retained on a 2 GB disk. The solution needs external durable storage or a streaming destination. Define whether 100 GB means decimal gigabytes and whether the file is compressed, encrypted, seekable or composed of independent records. A huge PDF and line-delimited JSON have different parsing requirements.\n\n**Separate the control path from the bytes.** The application authorizes an upload session and chooses a tenant-scoped object key. The client sends independently retryable parts directly to object storage with scoped, expiring credentials. The application verifies completed object identity, size and integrity before scheduling processing. If traffic must pass through the server, disable whole-body buffering across the proxy and application and stream with strict concurrency bounds.\n\n**Budget every live buffer.** An illustrative 2 GiB worker allocation is 512 MiB runtime, 256 MiB parser, 128 MiB embedding batches, 256 MiB network buffers and 256 MiB queues: 1,408 MiB allocated with 640 MiB headroom. Validate resident memory under adversarial inputs; object overhead, decompression and native libraries can invalidate the estimate. Bound both item counts and bytes. Two 64 MiB upload buffers need at least 128 MiB before SDK copies.\n\n**Process incrementally with durable checkpoints.** Workers receive object references, not file bodies. Emit normalized records, semantic chunks, embedding requests and versioned index writes through bounded stages. Restart from safe record boundaries and idempotent identifiers. Quarantine files whose parser requires unavailable memory or scratch space. More concurrency helps only until memory, network or provider quotas become the bottleneck.",
+    "Why": "For a hypothetical 100,000,000,000-byte object using 64 MiB parts, ceiling division gives 1,491 parts. Uploading parts is separate from producing language-aware retrieval chunks. A worker crash at 60% should replay a bounded record range, not require another browser upload.",
+    "worked_case": "For a hypothetical 100,000,000,000-byte object using 64 MiB parts, ceiling division gives 1,491 parts. Uploading parts is separate from producing language-aware retrieval chunks. A worker crash at 60% should replay a bounded record range, not require another browser upload.",
+    "Risk": "A streaming route may still buffer inside a reverse proxy, SDK, decompressor or document parser. Load-test the whole path.",
+    "Trade": "Direct uploads simplify application memory use but require upload lifecycle, ownership validation, cleanup and object-store access controls.",
+    "Try": "Run with a memory limit, throttle the embedding stage and inject a parser crash. Record peak memory, queued bytes and the last durable checkpoint.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "ingestion",
+    "citations": [
+      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html",
+      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do you recover when an ingestion worker crashes after writing vectors but before saving its checkpoint?",
+    "A": "**Assume at-least-once execution across services.** The vector database and the job store usually do not share one transaction. A worker can write data and crash before acknowledging its work. Acknowledging first instead creates the opposite failure: work can be lost. Design replay to be safe rather than claiming distributed exactly-once execution.\n\n**Use deterministic identities and versioned publication.** Derive chunk identity from source version, parser/chunker version and stable position or content policy. Upsert the same logical chunk on retry, and persist a batch manifest with expected items and acknowledged results. If identifiers depend only on text hashes, two equal passages may incorrectly collapse distinct provenance; choose deduplication semantics explicitly.\n\n**Protect against late writers.** A generation or fencing token identifies the currently valid indexing attempt. Verify that token when accepting results and before promotion. A worker whose lease expired cannot reactivate an older source version. Keep tombstones for deleted sources so retries cannot resurrect them. Reads use the active generation and authorization policy, not every vector that happens to exist.\n\n**Reconcile independent stores.** Compare manifest entries against index records, retry missing writes and garbage-collect inactive generations after a retention period. Track terminal failures separately from unprocessed items. A complete count alone is insufficient if identifiers or vectors belong to the wrong version; verify provenance and model compatibility as well.",
+    "Why": "Worker A writes chunks 1–500 and dies before checkpointing. Worker B replays the batch with the same IDs, then advances the durable cursor. A later result from A carries an expired generation and is rejected from publication.",
+    "worked_case": "Worker A writes chunks 1–500 and dies before checkpointing. Worker B replays the batch with the same IDs, then advances the durable cursor. A later result from A carries an expired generation and is rejected from publication.",
+    "Risk": "Random UUIDs on each retry turn a recoverable crash into duplicate evidence and inflated storage.",
+    "Trade": "Keeping inactive generations costs storage but makes rollback and consistency validation much safer.",
+    "Try": "Inject crashes before write, after write and after checkpoint. Delete the source during replay and prove that no active result resurrects it.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "ingestion",
+    "citations": [
+      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

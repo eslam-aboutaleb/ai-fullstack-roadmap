@@ -127,4 +127,5 @@
     history.append(list);
   }
   store.addEventListener('change', renderStudy); renderStudy();
+  window.GuidePracticeReady = true;
 })();

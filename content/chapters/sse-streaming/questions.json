@@ -6,11 +6,11 @@
     "Risk": "An open connection does not prove that work is persisted or authorized.",
     "Trade": "SSE fits HTTP infrastructure and offers only one-way messaging on that connection.",
     "Try": "Compare a chat answer stream with a collaborative voice interaction.",
-    "spoken": "SSE provides a one-way streaming connection from server to client. Implement reconnection with Last-Event-ID to resume from where the connection dropped. Handle backpressure by pausing sends when the client buffer is full.",
+    "spoken": "SSE suits server-to-client events when its browser/HTTP constraints fit. Implement proper event framing, explicit terminal states and durable replay if promised. EventSource reconnection and Last-Event-ID only help when the server honors a valid replay contract. Bound server queues and handle slow readers.",
     "domain": "frontend",
     "subdomain": "sse",
     "module": "sse-streaming",
-    "concept": "SSE reconnection and backpressure",
+    "concept": "When should an AI application use SSE",
     "difficulty": "implementation",
     "misconception_target": "SSE connections never drop and need no recovery",
     "definitions": [
@@ -24,7 +24,7 @@
       },
       {
         "term": "Backpressure",
-        "definition": "Signaling the server to slow down when client cannot keep up"
+        "definition": "A policy/mechanism limiting admitted or buffered work for a slower consumer; EventSource itself exposes no application-level backpressure API."
       }
     ],
     "execution_timeline": "Client connects -> Server streams events -> Connection drops -> Client reconnects with Last-Event-ID -> Server resumes",
@@ -33,7 +33,7 @@
       "explanation": "Connect to SSE stream, handle messages, reconnect on error.",
       "output": "Events streamed to client with reconnection"
     },
-    "production_case": "A live dashboard that streams AI agent progress updates to the browser.",
+    "production_case": "A client reconnects after event 42. The server authenticates it again and replays permitted events after the cursor, while business effects remain deduplicated by their operation identity.",
     "alternatives": [
       "WebSocket for bidirectional streaming",
       "Polling for updates"
@@ -43,11 +43,11 @@
       "Ignoring Last-Event-ID",
       "No backpressure handling"
     ],
-    "complexity": "O(1) per event",
+    "complexity": "Parsing and delivery scale with event bytes and client fan-out; retained buffers and replay history add memory/storage. Slow readers require a bounded policy rather than an O(1) event-cost assumption.",
     "follow_ups": [
       {
-        "Q": "How does Last-Event-ID enable resumption?",
-        "A": "The server uses it to skip already-delivered events and resume from the next one."
+        "Q": "Does EventSource expose automatic application-level backpressure?",
+        "A": "No. Define bounded server buffering, disconnect/drop policy and replay behavior; do not assume the browser API solves overload."
       }
     ],
     "citations": [

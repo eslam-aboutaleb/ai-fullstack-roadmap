@@ -6,7 +6,7 @@
     "Risk": "An index that returns similar vectors but cannot enforce a required tenant filter is unsuitable for that request. Capability validation rejects unsupported mandatory constraints instead of silently ignoring them.",
     "Trade": "A general-purpose database can unify transactional metadata and vectors; a specialist engine can offer different scaling and operational features. Compare the adapter's concrete guarantees rather than category labels.",
     "Try": "Create a decision matrix for persistence, filters, lexical search, transactions, generation visibility, and deletion latency for two candidate backends.",
-    "spoken": "Vector storage stores embeddings with metadata and supports approximate nearest neighbor search. Keyword storage indexes exact terms for BM25-style search. Document storage keeps full documents with structured fields. Use vector for semantic similarity, keyword for exact terms, and document for full records with metadata filters.",
+    "spoken": "A retrieval store may keep vectors, searchable text and metadata such as owner scope, document revision and source spans. Backend capabilities vary. Compare indexing, filtering, consistency, deletion and backup contracts rather than assuming every vector database provides equivalent authorization and durability.",
     "domain": "ai-rag",
     "subdomain": "storage",
     "difficulty": "foundations",
@@ -31,7 +31,7 @@
       "explanation": "Store in both backends, query both, merge results.",
       "output": "Merged ranked results from both backends"
     },
-    "production_case": "An e-commerce search that finds products by semantic description and exact brand name.",
+    "production_case": "A document is revoked but its vector and cached passage remain. Reconcile all derived stores and enforce current source access at retrieval and document-read boundaries.",
     "alternatives": [
       "Single backend with hybrid support",
       "Separate specialized backends"
@@ -41,11 +41,11 @@
       "Keyword-only misses synonyms",
       "Inconsistent metadata across backends"
     ],
-    "complexity": "Vector ANN is sublinear; keyword index is O(1) per term lookup",
+    "complexity": "Exact vector comparison scales with corpus size and vector dimension. Approximate-search performance and recall depend on index/settings/data; inverted-index queries depend on posting lists and filtering, not merely term count.",
     "follow_ups": [
       {
-        "Q": "How do you keep vector and keyword storage in sync?",
-        "A": "Write to both in the same ingestion transaction; use outbox pattern for durability."
+        "Q": "Does a metadata filter automatically establish row-level security?",
+        "A": "No. It must be derived from trusted scope and enforced for every path, with backend semantics and negative tests understood."
       }
     ],
     "citations": [
@@ -56,7 +56,8 @@
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "What does a vector database store besides vectors"
   },
   {
     "Q": "Why use PostgreSQL with pgvector and full-text search?",
@@ -65,11 +66,11 @@
     "Risk": "Database extension setup, indexes, pool sizing, and query plans still need operational care. The presence of pgvector does not prove that an approximate index is configured or used for a particular query.",
     "Trade": "One database reduces cross-system coordination but couples workloads and capacity. A separate vector service isolates scaling while introducing another consistency and authorization boundary.",
     "Try": "Explain what an EXPLAIN plan would need to show before you claim a vector query uses an ANN index. Keep that distinct from the Python adapter's API.",
-    "spoken": "Vector storage stores embeddings with metadata and supports approximate nearest neighbor search. Keyword storage indexes exact terms for BM25-style search. Document storage keeps full documents with structured fields. Use vector for semantic similarity, keyword for exact terms, and document for full records with metadata filters.",
+    "spoken": "PostgreSQL can combine transactional source state with full-text search and vector capabilities through an extension such as pgvector. This can simplify operations and joins, but index/filter behavior, workload isolation and capacity need measurement. A dedicated search system may fit different scale or latency needs.",
     "domain": "ai-rag",
     "subdomain": "storage",
     "module": "storage",
-    "concept": "vector vs keyword vs document storage",
+    "concept": "Why use PostgreSQL with pgvector and full-text search",
     "difficulty": "foundations",
     "misconception_target": "One storage backend handles all retrieval needs",
     "definitions": [
@@ -92,7 +93,7 @@
       "explanation": "Store in both backends, query both, merge results.",
       "output": "Merged ranked results from both backends"
     },
-    "production_case": "An e-commerce search that finds products by semantic description and exact brand name.",
+    "production_case": "A team already operates PostgreSQL and wants one authoritative ownership model. Start with a measured search baseline, inspect query plans and test mixed transactional/search workloads before adding a second storage platform.",
     "alternatives": [
       "Single backend with hybrid support",
       "Separate specialized backends"
@@ -102,11 +103,11 @@
       "Keyword-only misses synonyms",
       "Inconsistent metadata across backends"
     ],
-    "complexity": "Vector ANN is sublinear; keyword index is O(1) per term lookup",
+    "complexity": "Exact vector comparison scales with corpus size and vector dimension. Approximate-search performance and recall depend on index/settings/data; inverted-index queries depend on posting lists and filtering, not merely term count.",
     "follow_ups": [
       {
-        "Q": "How do you keep vector and keyword storage in sync?",
-        "A": "Write to both in the same ingestion transaction; use outbox pattern for durability."
+        "Q": "When would you add a dedicated vector service?",
+        "A": "When measured requirements such as corpus scale, isolation, indexing throughput or query latency justify its additional operational and consistency boundaries."
       }
     ],
     "citations": [

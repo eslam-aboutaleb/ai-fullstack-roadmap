@@ -1,0 +1,22 @@
+[
+  {
+    "Q": "How do leases, fencing and clock assumptions prevent a recovered worker from corrupting newer work?",
+    "A": "A lease limits how long a worker may claim ownership, but a paused worker may resume after its lease expires. Fencing uses a monotonically ordered ownership token checked atomically at the protected write boundary to reject the old worker. A separate pre-write check is not enough because ownership can change immediately after it. Define the clock authority, renewal rules and destination enforcement. If the destination cannot enforce fencing, the design needs another scoped exclusion or version policy.",
+    "Why": "Worker A pauses, B obtains a newer lease and writes current state, then A resumes. The destination must reject A's lower fence even if A still believes it owns the job.",
+    "Risk": "Process-local locks cannot coordinate independent replicas or fence stale writers.",
+    "Trade": "Leases improve recovery only with enforcement where protected state changes.",
+    "Try": "Pause an owner past expiry and demonstrate rejection of its delayed write.",
+    "worked_case": "Worker A pauses, B obtains a newer lease and writes current state, then A resumes. The destination must reject A's lower fence even if A still believes it owns the job.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "coordination"
+  }
+]

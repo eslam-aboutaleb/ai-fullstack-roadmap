@@ -14,32 +14,32 @@
     "Risk": "Framework confusion leads to examples that cannot run against the reference design's dependencies. The later LangChain, LangGraph, and A2A chapters explicitly describe alternatives or additions rather than pretending those frameworks are already installed.",
     "Trade": "Staying with one orchestrator reduces state-model overlap. Adding another can solve a measured workflow need but introduces serialization, tracing, error, and deployment boundaries.",
     "Try": "Make a dependency-layer table with web framework, agent runtime, model adapter, retrieval library, persistence layer, and tracing service. Name their concrete constructors.",
-    "spoken": "The browser handles the form event and sends an HTTP request. DNS resolves the host, TLS encrypts the connection, and a reverse proxy routes to the application. The application authenticates the caller, validates input, calls business services, and returns a status, headers, and body. Parsing JSON is not validation; it only converts text to data.",
-    "domain": "frontend",
+    "spoken": "The orchestration layer owns workflow state, budgets, policy and ordering. A model adapter translates provider contracts; a retrieval adapter exposes scoped evidence candidates. Keep business invariants in authoritative services so replacing the model or orchestration framework cannot bypass them.",
+    "domain": "system-design",
     "subdomain": "api-lifecycle",
     "difficulty": "foundations",
-    "misconception_target": "Parsing JSON means the data is valid",
+    "misconception_target": "Confusing orchestration, evidence, eligibility and committed operation state",
     "definitions": [
       {
-        "term": "DNS",
-        "definition": "Resolves host names to IP addresses"
+        "term": "Orchestrator",
+        "definition": "Owns workflow transitions, budgets and ordering around adapters."
       },
       {
-        "term": "TLS",
-        "definition": "Encrypts the connection between client and server"
+        "term": "Model adapter",
+        "definition": "Translates a provider interface into the application-owned model contract."
       },
       {
-        "term": "JSON parsing",
-        "definition": "Converting JSON text to data structures; distinct from business validation"
+        "term": "Retrieval adapter",
+        "definition": "Returns scoped versioned evidence through a defined retrieval contract."
       }
     ],
-    "execution_timeline": "Browser submits form -> DNS resolves -> TLS encrypts -> Reverse proxy routes -> Application authenticates -> Validates -> Calls services -> Returns response",
+    "execution_timeline": "Validated task -> scoped retrieval -> model proposal -> domain validation -> authorized effect -> durable result",
     "example": {
-      "code": "POST /questions\nContent-Type: application/json\n\n{\"question\": \"Can I return this?\"}\n\nHTTP/1.1 202 Accepted\n{\"task_id\": \"task-123\"}",
-      "explanation": "Valid question returns accepted task ID; blank question returns 400 validation error.",
-      "output": "HTTP 201 with task ID, or HTTP 400 with validation error"
+      "code": "def choose_next(state):\n    if not state['has_evidence']:\n        return 'retrieve'\n    if not state['proposal_valid']:\n        return 'validate_proposal'\n    return 'domain_authorization'\n\nprint(choose_next({'has_evidence': True, 'proposal_valid': False}))",
+      "explanation": "The deterministic decision owns ordering; an adapter call does not grant business authority.",
+      "output": "validate_proposal"
     },
-    "production_case": "A question submission endpoint that validates input before accepting long-running requests.",
+    "production_case": "Replacing a model provider changes response and retry formats. Adapter contract tests should catch the change while the same task state machine and authorization service remain responsible for effects.",
     "alternatives": [
       "GraphQL for flexible queries",
       "WebSocket for bidirectional streaming"
@@ -49,22 +49,25 @@
       "Malformed JSON crashes handler",
       "Authentication bypassed"
     ],
-    "complexity": "HTTP request handling is O(1) per request; validation adds CPU proportional to field count",
+    "complexity": "Workflow cost depends on the selected model, retrieval and tool operations; interface separation adds a testable boundary rather than a universal speed improvement.",
     "follow_ups": [
       {
-        "Q": "Why is JSON parsing not business validation?",
-        "A": "Parsing only checks syntax; validation checks that values satisfy business constraints."
+        "Q": "What should an adapter avoid owning?",
+        "A": "Global workflow authority or hidden business writes. Its contract should expose results and failures for the caller to handle explicitly."
       }
     ],
     "citations": [
-      "https://developer.mozilla.org/en-US/docs/Web/HTTP"
+      "https://docs.langchain.com/oss/python/langgraph/thinking-in-langgraph",
+      "https://docs.langchain.com/oss/python/langchain/models",
+      "https://docs.langchain.com/oss/python/langchain/tools"
     ],
     "reviewer_status": {
       "reviewer": "independent technical review pending",
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "How should the orchestration framework be distinguished from model and retrieval adapters"
   },
   {
     "Q": "How does an eligibility question differ from a request-status question?",
@@ -73,34 +76,34 @@
     "Risk": "Semantic similarity cannot establish that an arbitrary request ID belongs to the user or that a versioned rule applies to their contract. Tool-side identity checks remain necessary even when prompting selects the right tool.",
     "Trade": "Separate tools make intent and authority clearer but require route-selection evaluation. One universal search tool is simpler and can blur exact facts with approximate matches.",
     "Try": "Write expected tool sequences for an exact request ID, a remembered incident without an ID, and an eligibility question with missing facts.",
-    "spoken": "JavaScript connects page events to data and rendering. A promise represents a future result; await lets an async function wait without blocking other browser work. A fetch response must be checked with response.ok before its body is treated as success, because HTTP errors do not automatically reject the promise. TypeScript types help catch incompatible code, but received JSON still needs runtime checks.",
-    "domain": "frontend",
+    "spoken": "An eligibility question asks what current evidence and business rules permit. A request-status question asks what a durable operation has actually reached. Use applicable policies for eligibility and authoritative operational state for status; generated text or retrieved prose cannot prove a request committed.",
+    "domain": "system-design",
     "subdomain": "javascript-typescript",
     "module": "application-architecture",
-    "concept": "JavaScript promises, fetch, TypeScript runtime checks",
+    "concept": "How does an eligibility question differ from a request-status question",
     "difficulty": "foundations",
-    "misconception_target": "HTTP errors automatically reject fetch promises",
+    "misconception_target": "Confusing orchestration, evidence, eligibility and committed operation state",
     "definitions": [
       {
-        "term": "Promise",
-        "definition": "Object representing the eventual completion of an asynchronous operation"
+        "term": "Eligibility",
+        "definition": "What applicable evidence and current rules permit for this case."
       },
       {
-        "term": "fetch",
-        "definition": "Browser API for making HTTP requests"
+        "term": "Operation status",
+        "definition": "The durable state reached by a specific owned task or effect."
       },
       {
-        "term": "TypeScript runtime check",
-        "definition": "Validating received data at runtime despite TypeScript types"
+        "term": "Authoritative state",
+        "definition": "The system of record whose committed result determines the operation outcome."
       }
     ],
-    "execution_timeline": "User submits -> preventDefault -> Read input -> Set loading -> Await fetch -> Check response.ok -> Validate JSON -> Render or catch error -> Finally restore control",
+    "execution_timeline": "Classify question -> validate identity -> policy/evidence lookup OR owned operation lookup -> report scoped conclusion",
     "example": {
-      "code": "const res = await fetch(url);\\nif (!res.ok) throw new Error(res.status);\\nconst data = await res.json();\\nvalidate(data);",
-      "explanation": "Check response.ok before parsing JSON.",
-      "output": "Validated data or error"
+      "code": "def answer_source(question_type):\n    return {'eligibility': 'applicable_policy_and_case',\n            'status': 'owned_durable_operation'}[question_type]\n\nprint(answer_source('status'))",
+      "explanation": "Route by the kind of fact being requested; a policy passage cannot confirm a completed external effect.",
+      "output": "owned_durable_operation"
     },
-    "production_case": "A form submission that handles network errors, HTTP errors, and invalid JSON separately.",
+    "production_case": "A user asks whether a refund is allowed and then whether it was sent. The first needs current policy and case attributes; the second needs the owned operation and receiver-confirmed effect state.",
     "alternatives": [
       "XMLHttpRequest",
       "Third-party HTTP libraries"
@@ -110,15 +113,16 @@
       "Trusting TypeScript types at runtime",
       "No error handling"
     ],
-    "complexity": "O(1) per request",
+    "complexity": "Eligibility may involve evidence/rule evaluation; status uses authoritative operation lookup. Neither should be inferred from fluent generated text.",
     "follow_ups": [
       {
-        "Q": "Why validate JSON at runtime with TypeScript?",
-        "A": "TypeScript types are compile-time only; received JSON may not match."
+        "Q": "Can a retrieved policy confirm a completed refund?",
+        "A": "No. Policy supports a permission/eligibility decision, while execution status requires durable operation and effect evidence."
       }
     ],
     "citations": [
-      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+      "https://arxiv.org/abs/2005.11401",
+      "https://www.postgresql.org/docs/current/tutorial.html"
     ],
     "reviewer_status": {
       "reviewer": "independent technical review pending",

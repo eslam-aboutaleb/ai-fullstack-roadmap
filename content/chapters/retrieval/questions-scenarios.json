@@ -1,0 +1,22 @@
+[
+  {
+    "Q": "When should metadata filtering happen before vector search, and when is post-filtering acceptable?",
+    "A": "**Separate eligibility from relevance.** Tenant, access scope, effective date, source version and required product are eligibility constraints. Semantic similarity cannot decide whether a user may see a document. Build mandatory predicates from authenticated application state. Optional preferences, such as favored document type, can instead influence ranking when the user has not required them.\n\n**Understand the candidate set.** Filtering before or during nearest-neighbor search lets ranking operate on eligible records. Filtering only a global top-k list can discard most results without searching for the next eligible neighbors. Provider implementations differ; test actual engine semantics and shard behavior rather than assuming a mode name is portable. Approximate search may still miss eligible neighbors.\n\n**Illustrative counterexample.** Suppose the ten most similar global documents belong to another tenant, while the best authorized document ranks eleventh. Retrieving ten and then filtering gives zero results. Searching within the authorized tenant can find that document. Increasing k can mitigate this example, but it is not a general completeness guarantee and can increase cost.\n\n**Keep security enforcement independent of ranking optimization.** No unauthorized content should reach a reranker, model, client or unprotected log. Recheck permissions before evidence leaves the trusted retrieval boundary, especially when index permissions lag. Treat missing required metadata as ineligible. For a legitimate optional filter with zero hits, explain the restriction and let the user broaden it; never silently relax tenant or access rules.",
+    "Why": "A user searches for a policy in a small tenant containing 0.1% of the global corpus. A global top-20 query followed by tenant filtering returns nothing although the relevant document exists. Measure recall against an exact eligible-set baseline.",
+    "worked_case": "A user searches for a policy in a small tenant containing 0.1% of the global corpus. A global top-20 query followed by tenant filtering returns nothing although the relevant document exists. Measure recall against an exact eligible-set baseline.",
+    "Risk": "A relevance optimization can become a data leak if authorization is applied only after the model has seen candidates.",
+    "Trade": "Highly selective eligible sets can make exact filtered search competitive; benchmark latency and recall before choosing an approximate index strategy.",
+    "Try": "Build a corpus with unauthorized nearest neighbors and an authorized lower-ranked match. Compare pre-filter, post-filter and exact eligible-set results.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://learn.microsoft.com/en-us/azure/search/vector-search-filters"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Streaming reader boundary lab</title>
+<style>body{font:1.05rem/1.6 system-ui;max-width:48rem;margin:2rem auto;padding:1rem;color:#14243a;background:#f5f7fc}button,select,textarea{font:inherit;padding:.6rem;max-width:100%}button{cursor:pointer}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #2458d3;outline-offset:3px}textarea{display:block;width:94%;min-height:4rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:white;padding:1rem;border:1px solid #a6b6cc}label{display:block;margin-top:1rem}.buttons{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1rem}#status{min-height:2rem}</style></head>
+<body><main><h1>Streaming reader boundary lab</h1><p>This synthetic browser fixture sends newline-delimited JSON bytes. No server, account, model or network request is used. A partial answer never confirms a business action.</p>
+<form id="form"><label for="message">Question</label><textarea id="message" maxlength="1000" required>Show the café policy.</textarea><label for="scenario">Failure scenario</label><select id="scenario"><option value="normal">Normal stream with a duplicate frame</option><option value="disconnect">Disconnect before completion</option><option value="malformed">Malformed event</option></select><div class="buttons"><button id="send">Start a new request</button><button id="cancel" type="button" disabled>Cancel</button></div></form>
+<p id="status" role="status" aria-live="polite">Idle</p><h2>Received text</h2><pre id="answer" tabindex="0"></pre><p id="citation"></p><p>Experiment: start one stream, cancel it, then start another. Delayed events from the first request must not replace the new response. Inspect the reducer and change one sequence number to reproduce a protocol gap.</p></main>
+<script>
+'use strict';
+const permittedSources = new Set(['policy@3']);
+function initial(requestId){return {requestId,phase:'streaming',last:0,text:'',seen:{},citations:[]};}
+function reduce(state,event){
+  if(!event||typeof event!=='object'||Array.isArray(event)||typeof event.requestId!=='string')throw new Error('Invalid event object');
+  if(event.requestId!==state.requestId)return state;
+  if(!Number.isSafeInteger(event.seq)||event.seq<1||!['delta','done'].includes(event.type))throw new Error('Invalid event envelope');
+  const serialized=JSON.stringify(event);
+  if(event.seq<=state.last){if(state.seen[event.seq]!==serialized)throw new Error('Conflicting replay');return state;}
+  if(state.phase!=='streaming')return state;
+  if(event.seq!==state.last+1)throw new Error('Sequence gap: reconnect from the durable cursor');
+  if(event.type==='delta'&&(typeof event.text!=='string'||state.text.length+event.text.length>2000))throw new Error('Text contract or output limit');
+  if(event.type==='done'&&(!Array.isArray(event.citations)||event.citations.some(id=>!permittedSources.has(id))))throw new Error('Invalid citation identifiers');
+  return {...state,last:event.seq,seen:{...state.seen,[event.seq]:serialized},phase:event.type==='done'?'complete':'streaming',text:state.text+(event.type==='delta'?event.text:''),citations:event.type==='done'?event.citations:state.citations};
+}
+async function* decode(chunks){
+  const decoder=new TextDecoder('utf-8',{fatal:true});let buffer='';
+  for await(const bytes of chunks){
+    buffer+=decoder.decode(bytes,{stream:true});
+    let newline;while((newline=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,newline);buffer=buffer.slice(newline+1);if(line.length>16384)throw new Error('Frame buffer cap');if(line.trim())yield JSON.parse(line);}
+    if(buffer.length>16384)throw new Error('Frame buffer cap');
+  }
+  buffer+=decoder.decode();if(buffer.trim())throw new Error('Incomplete terminal frame');
+}
+async function* fixture(requestId,scenario,signal){
+  const frames=[{requestId,seq:1,type:'delta',text:'Café policy: '},{requestId,seq:1,type:'delta',text:'Café policy: '},{requestId,seq:2,type:'delta',text:'evidence must be checked. <b>Literal markup stays text.</b>'}];
+  if(scenario==='malformed')frames.push({requestId,seq:9,type:'delta',text:'gap'});
+  else if(scenario!=='disconnect')frames.push({requestId,seq:3,type:'done',citations:['policy@3']});
+  const bytes=new TextEncoder().encode(frames.map(frame=>JSON.stringify(frame)).join('\n')+'\n');
+  for(let i=0;i<bytes.length;i+=7){await new Promise(resolve=>setTimeout(resolve,8));if(signal.aborted)throw new DOMException('Cancelled','AbortError');yield bytes.slice(i,i+7);}
+}
+let generation=0,controller,state;
+const status=document.querySelector('#status'),answer=document.querySelector('#answer'),citation=document.querySelector('#citation'),cancel=document.querySelector('#cancel');
+function render(){answer.textContent=state.text;citation.textContent=state.citations.length?'Synthetic citation: '+state.citations.join(', '):'';status.textContent=state.phase==='complete'?'Complete: validated terminal event':state.phase==='streaming'?'Streaming: partial output':state.phase;}
+document.querySelector('#form').addEventListener('submit',async event=>{
+ event.preventDefault();controller?.abort();controller=new AbortController();const signal=controller.signal,session=++generation;state=initial('request-'+session);cancel.disabled=false;render();
+ try{for await(const frame of decode(fixture(state.requestId,document.querySelector('#scenario').value,signal))){if(session!==generation||signal.aborted)return;state=reduce(state,frame);render();}if(state.phase!=='complete')throw new Error('Connection ended without completion');}
+ catch(error){if(session!==generation)return;state={...state,phase:signal.aborted?'Cancelled: partial text retained':'Failed: '+error.message};render();}
+ finally{if(session===generation)cancel.disabled=true;}
+});
+cancel.addEventListener('click',()=>{controller?.abort();if(state){state={...state,phase:'Cancelled: partial text retained'};render();}cancel.disabled=true;});
+window.StreamingReaderLab=Object.freeze({initial,reduce,decode});
+</script></body></html>

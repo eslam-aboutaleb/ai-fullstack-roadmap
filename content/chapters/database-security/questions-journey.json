@@ -1,0 +1,51 @@
+[
+  {
+    "Q": "What can PostgreSQL row-level security fail to protect if connection roles are chosen incorrectly?",
+    "spoken": "Row policies operate within database role and session semantics. Owners or privileged roles may bypass ordinary policies unless configured appropriately; pooled connections can also retain stale caller context. Use the intended restricted role, bind and reset caller context safely, and test actual application queries with two identities rather than inspecting policy text alone.",
+    "A": "Row policies operate within database role and session semantics. Owners or privileged roles may bypass ordinary policies unless configured appropriately; pooled connections can also retain stale caller context. Use the intended restricted role, bind and reset caller context safely, and test actual application queries with two identities rather than inspecting policy text alone.\n\nConcrete engineering case: The application always connects as the table owner and assumes its row policy is restricting every read.\n\nBoundary defense: Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers.",
+    "Why": "Row policies operate within database role and session semantics. Owners or privileged roles may bypass ordinary policies unless configured appropriately; pooled connections can also retain stale caller context. Use the intended restricted role, bind and reset caller context safely, and test actual application queries with two identities rather than inspecting policy text alone.",
+    "Risk": "The application always connects as the table owner and assumes its row policy is restricting every read.",
+    "Trade": "Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "domain": "ai-rag",
+    "subdomain": "database-security",
+    "module": "database-security",
+    "concept": "What can PostgreSQL row-level security fail to protect if connection roles are chosen incorrectly?",
+    "difficulty": "scenario",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: The application always connects as the table owner and assumes its row policy is restricting every read.",
+    "definitions": [
+      {
+        "term": "Boundary: database security",
+        "definition": "Row policies operate within database role and session semantics."
+      }
+    ],
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "example": {
+      "code": "{\n  \"scenario\": \"The application always connects as the table owner and assumes its row policy is restricting every read.\",\n  \"required_decision\": \"Row policies operate within database role and session semantics\"\n}",
+      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
+      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+    },
+    "production_case": "The application always connects as the table owner and assumes its row policy is restricting every read.",
+    "alternatives": [
+      "Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers."
+    ],
+    "pitfalls": [
+      "The application always connects as the table owner and assumes its row policy is restricting every read."
+    ],
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "follow_ups": [
+      {
+        "Q": "Can application filters be removed after enabling RLS?",
+        "A": "Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers."
+      }
+    ],
+    "citations": [
+      "https://www.postgresql.org/docs/current/ddl-rowsecurity.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

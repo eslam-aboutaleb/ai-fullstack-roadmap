@@ -1,0 +1,23 @@
+[
+  {
+    "Q": "How do you stop revoked documents from leaking through cached RAG answers or stale vector metadata?",
+    "A": "**Treat authorization as a property of every disclosure path.** Retrieval filters are necessary but a cached answer may bypass retrieval altogether. Build cache keys from the relevant tenant, principal or permission scope, policy version, source/index version and query semantics. A global semantic cache is unsafe for user-private answers unless all returned content is independently authorized for the current user.\n\n**Recheck near the disclosure boundary.** When permissions change, invalidate affected cache entries and update index metadata. Because those operations can lag, enforce current authorization against candidate document identifiers before returning text to a model or user. Fail closed if the authority service is unavailable for a request requiring private data. Do not assume that a database administrator role is constrained by the same row policies as an ordinary application role.\n\n**Define revocation behavior during a stream.** Decide whether a long response is authorized at request start or requires periodic checks. For sensitive applications, cancel future emission when a revocation is observed. Previously delivered text cannot be recalled from a client, so minimize disclosure scope and avoid promising instantaneous removal everywhere.\n\n**Trace derived artifacts.** Answers, citations, summaries, exported reports and agent memories may contain text from a revoked source. Store provenance to identify affected derivatives. Test an access revocation after retrieval but before generation, a cache hit after revocation and a resumed task carrying old evidence. Audit identifiers and decisions without copying sensitive content into unrestricted logs.",
+    "Why": "A manager loses access to a compensation document while a cached answer still references it. The answer cache must miss or reauthorize the cited sources; a current tenant match alone is insufficient because department membership changed.",
+    "worked_case": "A manager loses access to a compensation document while a cached answer still references it. The answer cache must miss or reauthorize the cited sources; a current tenant match alone is insufficient because department membership changed.",
+    "Risk": "Updating vector metadata alone leaves cached answers, agent memory and pending tool results as disclosure paths.",
+    "Trade": "Permission-aware caching reduces hit rates but preserves the correct audience; stronger revocation checks add latency.",
+    "Try": "Revoke a document between retrieval and answer emission, then repeat the request through a cache and a resumed agent task. Verify every path.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "security",
+    "citations": [
+      "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

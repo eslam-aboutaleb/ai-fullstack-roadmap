@@ -6,11 +6,11 @@
     "Risk": "A character-based guess can exceed the limit or remove important content unpredictably.",
     "Trade": "Large reservations reduce available evidence but improve completion reliability.",
     "Try": "Calculate budgets for two models with different context windows and output limits.",
-    "spoken": "Context optimization decides what to keep within the token budget. Truncation drops the least relevant items. Compression summarizes or extracts key sentences. The choice depends on whether exact wording matters (truncation) or meaning matters more (compression).",
+    "spoken": "Count instructions, history, tool definitions, evidence and reserved output using the model-specific contract. Leave a documented margin, then choose evidence selection, truncation or compression while preserving source identity and critical exceptions. Re-evaluate quality after changing the packing policy.",
     "domain": "ai-rag",
     "subdomain": "context-optimization",
     "module": "context-optimization",
-    "concept": "context budget management",
+    "concept": "How do you calculate a safe context budget",
     "difficulty": "implementation",
     "misconception_target": "Truncation and compression are interchangeable",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Choose truncation or compression based on whether exact wording matters.",
       "output": "Prompt within token budget"
     },
-    "production_case": "A long-document QA system where source documents exceed the model context window.",
+    "production_case": "A growing tool catalog consumes the remaining context even though user messages stay short. Break token usage down by category and reject overflow before invoking the provider.",
     "alternatives": [
       "Map-reduce over chunks",
       "Hierarchical context"
@@ -43,11 +43,11 @@
       "Compression losing critical details",
       "No budget monitoring"
     ],
-    "complexity": "O(n) for token counting and ranking",
+    "complexity": "Token counting, candidate selection, sorting and model-based compression have distinct costs. Track input sizes, selected tokens, added model calls and quality impact rather than claiming all optimization is linear.",
     "follow_ups": [
       {
-        "Q": "When to use compression over truncation?",
-        "A": "When meaning matters more than exact wording and you need to fit more content."
+        "Q": "Is four characters per token a safe hard limit?",
+        "A": "No. Tokenization varies by model, language and representation. Use a compatible tokenizer or counting interface for hard budgeting."
       }
     ],
     "citations": [

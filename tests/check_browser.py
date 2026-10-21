@@ -42,6 +42,14 @@ def check(base_path=''):
             page.on('response', lambda response: failed_requests.append(response.url) if response.status >= 400 else None)
             page.goto(base+'/index.html')
             page.wait_for_function("window.GuideAppReady === true")
+            # Entry points must teach prerequisites before RAG without breaking old routes.
+            assert page.locator('.home-hero .primary').get_attribute('href') == 'programming-foundations.html'
+            cards=page.locator('.chapter-card').evaluate_all('(items)=>items.map(item=>item.getAttribute("href"))')
+            assert cards[:4] == ['programming-foundations.html','computer-science-foundations.html','web-foundations.html','frontend-foundations.html']
+            assert cards.index('foundations.html') > cards.index('deep-learning-foundations.html')
+            from check_learning_navigation import check as check_navigation
+            check_navigation(page, base)
+            page.goto(base+'/index.html')
             seed = {'learned': {'1': True}, 'bookmarks': {'2': True}, 'notes': {'3': 'keep my explanation'},
                     'reviews': {'1': {'interval': 3, 'reps': 2, 'nextReview': 1}},
                     'confidence': {'1': 4}, 'theme': 'warm', 'distractionFree': False}
@@ -59,6 +67,7 @@ def check(base_path=''):
             page.keyboard.press('Escape')
             page.goto(base+'/foundations.html')
             page.wait_for_function("window.GuideAppReady === true")
+            page.locator('#practice').click()
             page.locator('.notes summary').first.click()
             page.locator('[data-note]').first.fill('new note')
             saved = page.evaluate('window.GuideStudy.store.snapshot')
@@ -154,10 +163,51 @@ def check(base_path=''):
             reader.goto(base+'/database-concurrency.html')
             assert reader.locator('.textbook-content').count() == 1
             assert reader.locator('figure figcaption').count() > 0
+            reader.locator('.lesson').filter(has=reader.locator('.textbook-content')).locator('details.answer > summary').click()
             assert 'conflict' in reader.locator('.textbook-content').inner_text()
             reader.get_by_text('Read the complete walkthrough transcript', exact=True).click()
             assert reader.locator('details[open]').count() > 0
             assert reader.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Mobile horizontal overflow'
+            reader.goto(base+'/programming-foundations.html')
+            reader.locator('#question-finder > summary').click()
+            assert reader.locator('.finder-controls').is_hidden()
+            assert reader.locator('.finder-results a').count() == reader.locator('article[data-question]').count()
+            reader.locator('#question-finder > summary').click()
+            assert reader.locator('article[data-question]').count() > 40
+            assert reader.locator('[data-review]').count() == 0
+            assert reader.locator('.lesson-kicker a').count() == 0
+            assert reader.get_by_role('button',name='View answer',exact=True).count() == reader.locator('details.answer').count()
+            last = reader.locator('article[data-question]').last
+            assert last.locator('.answer-body').count() == 1
+            last.get_by_role('button',name='View answer',exact=True).click()
+            assert last.locator('details.answer').get_attribute('open') is not None
+            assert last.locator('.answer-body').inner_text().strip()
+            assert '/programming-foundations.html' in reader.url
+            reader.goto(base+'/web-foundations.html')
+            first_answer = reader.locator('details.answer').first
+            summary = first_answer.locator('summary').first
+            summary.focus()
+            reader.keyboard.press('Enter')
+            assert first_answer.get_attribute('open') is not None
+            assert 'Hypertext Transfer Protocol' in first_answer.locator('.answer-terms').inner_text()
+            assert summary.get_by_text('Hide answer',exact=True).is_visible()
+            assert reader.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+            reader.goto(base+'/programming-foundations.html')
+            reader.locator('#question-finder > summary').click()
+            assert reader.locator('.finder-controls').is_hidden()
+            assert reader.locator('.finder-results a').count() == reader.locator('article[data-question]').count()
+            reader.locator('#question-finder > summary').click()
+            alias = reader.locator('article[data-question]').filter(has=reader.get_by_role('heading',name='Why can appending to one Python list change another variable?',exact=True))
+            alias.get_by_role('button',name='View answer',exact=True).click()
+            assert alias.locator('.answer-diagram .answer-flow li').count() == 4
+            assert alias.locator('.spoken-answer').count() == 0
+            assert alias.locator('.answer-body').inner_text().count('Assignment binds names to objects; it does not recursively copy them.') == 1
+            assert 'b.append(2)' in alias.locator('.question-code code').first.inner_text()
+            assert alias.locator('.answer-body strong').count() > 0
+            collections = reader.locator('article[data-question]').filter(has=reader.get_by_role('heading',name='When should you use a list, tuple, set or dictionary?',exact=True))
+            collections.get_by_role('button',name='View answer',exact=True).click()
+            assert collections.locator('.answer-table th').count() == 4
+            assert reader.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
             no_js.close()
             assert not errors, errors
             assert not failed_requests, failed_requests

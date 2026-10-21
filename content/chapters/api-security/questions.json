@@ -6,11 +6,11 @@
     "Risk": "A valid token may remain usable after access should be revoked unless the product checks revocation or session versions. Choose lifetime and refresh behavior from the threat model.",
     "Trade": "Stateless token checks scale well, while immediate revocation needs additional state or shorter-lived credentials. Database user lookup already provides one current-state validation point.",
     "Try": "Test expired, malformed, deleted-user, wrong-signature, and valid tokens. Verify that a known request ID still requires owner authorization.",
-    "spoken": "Validate identity at every API boundary. Enforce ownership by checking that the authenticated user owns the resource they are accessing. Never store secrets in code; use environment variables or a secrets manager. Validate all input before it reaches business logic.",
+    "spoken": "Validate JWT signature with an allowed algorithm and trusted keys, then check issuer, audience, expiry and relevant claims. Map the verified subject to a trusted application identity and scope every resource operation by that identity. A user-supplied owner ID is not authority.",
     "domain": "backend",
     "subdomain": "api-security",
     "module": "api-security",
-    "concept": "authentication, authorization, and secrets",
+    "concept": "How are JWTs validated and converted into database ownership",
     "difficulty": "foundations",
     "misconception_target": "HTTPS alone secures an API",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Check ownership before executing any business logic.",
       "output": "Processed result or 403 Forbidden"
     },
-    "production_case": "A multi-tenant API where users can only access their own documents.",
+    "production_case": "An attacker submits a real task UUID owned by another customer using their own valid token. The query must combine task ID with trusted owner scope and return no other-owner state.",
     "alternatives": [
       "Role-based access control (RBAC)",
       "Attribute-based access control (ABAC)"
@@ -43,11 +43,11 @@
       "Secrets in source code",
       "Input not validated before use"
     ],
-    "complexity": "O(1) per request for authz checks",
+    "complexity": "Authentication may verify a signature or fetch/cache trusted keys; authorization can require membership or object queries. Cache cautiously with expiry/revocation semantics and measure the actual lookup path.",
     "follow_ups": [
       {
-        "Q": "Where should secrets be stored?",
-        "A": "Environment variables or a secrets manager, never in source code."
+        "Q": "Does a valid JWT authorize every resource?",
+        "A": "No. It establishes verified claims; object permissions, tenant membership and allowed state transitions still require explicit checks."
       }
     ],
     "citations": [

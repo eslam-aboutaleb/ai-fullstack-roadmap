@@ -1,0 +1,434 @@
+[
+  {
+    "Q": "How does backpropagation differ from an optimizer update?",
+    "spoken": "Backpropagation computes derivatives of the chosen loss through the computation graph. An optimizer uses those derivatives and its own state to update trainable parameters. Accumulated gradients, learning-rate schedules, averaging and zeroing policies affect the actual step. Computing a gradient does not itself change a parameter.",
+    "A": "Backpropagation computes derivatives of the chosen loss through the computation graph. An optimizer uses those derivatives and its own state to update trainable parameters. Accumulated gradients, learning-rate schedules, averaging and zeroing policies affect the actual step. Computing a gradient does not itself change a parameter.\n\nEngineering case: A training loop forgets to zero gradients between independent minibatches, unintentionally accumulating them and changing effective update size.\n\nReasoning under a changed assumption: No. It can deliberately approximate a larger effective batch when loss scaling and optimizer-step timing are explicit.",
+    "Why": "Backpropagation computes derivatives of the chosen loss through the computation graph. An optimizer uses those derivatives and its own state to update trainable parameters. Accumulated gradients, learning-rate schedules, averaging and zeroing policies affect the actual step. Computing a gradient does not itself change a parameter.",
+    "Risk": "A training loop forgets to zero gradients between independent minibatches, unintentionally accumulating them and changing effective update size.",
+    "Trade": "No. It can deliberately approximate a larger effective batch when loss scaling and optimizer-step timing are explicit.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "How does backpropagation differ from an optimizer update?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated gradient versus update boundary: A training loop forgets to zero gradients between independent minibatches, unintentionally accumulating them and changing effective update size.",
+    "definitions": [
+      {
+        "term": "Gradient versus update",
+        "definition": "Backpropagation computes derivatives of the chosen loss through the computation graph."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A training loop forgets to zero gradients between independent minibatches, unintentionally accumulating them and changing effective update size.\",\n  \"decision\": \"Backpropagation computes derivatives of the chosen loss through the computation graph\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A training loop forgets to zero gradients between independent minibatches, unintentionally accumulating them and changing effective update size.",
+    "alternatives": [
+      "No. It can deliberately approximate a larger effective batch when loss scaling and optimizer-step timing are explicit."
+    ],
+    "pitfalls": [
+      "A training loop forgets to zero gradients between independent minibatches, unintentionally accumulating them and changing effective update size."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Is gradient accumulation always a defect?",
+        "A": "No. It can deliberately approximate a larger effective batch when loss scaling and optimizer-step timing are explicit."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do batch size, learning rate and optimizer state interact with memory and stability?",
+    "spoken": "Batch size affects activation memory and the gradient estimate. Learning rate controls update scale under the optimizer’s rule; adaptive optimizers also retain moment state. Smaller batches reduce some memory but may change training behavior. Measure activations, gradients, parameters and optimizer state separately before assuming a parameter-count estimate predicts device fit.",
+    "A": "Batch size affects activation memory and the gradient estimate. Learning rate controls update scale under the optimizer’s rule; adaptive optimizers also retain moment state. Smaller batches reduce some memory but may change training behavior. Measure activations, gradients, parameters and optimizer state separately before assuming a parameter-count estimate predicts device fit.\n\nEngineering case: A model’s weights fit on a GPU but training fails when activations and Adam moments are allocated.\n\nReasoning under a changed assumption: No. Parameter and optimizer allocations may remain fixed, and attention/sequence shapes and allocator behavior influence peak use.",
+    "Why": "Batch size affects activation memory and the gradient estimate. Learning rate controls update scale under the optimizer’s rule; adaptive optimizers also retain moment state. Smaller batches reduce some memory but may change training behavior. Measure activations, gradients, parameters and optimizer state separately before assuming a parameter-count estimate predicts device fit.",
+    "Risk": "A model’s weights fit on a GPU but training fails when activations and Adam moments are allocated.",
+    "Trade": "No. Parameter and optimizer allocations may remain fixed, and attention/sequence shapes and allocator behavior influence peak use.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "How do batch size, learning rate and optimizer state interact with memory and stability?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated training memory boundary: A model’s weights fit on a GPU but training fails when activations and Adam moments are allocated.",
+    "definitions": [
+      {
+        "term": "Training memory",
+        "definition": "Batch size affects activation memory and the gradient estimate."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A model’s weights fit on a GPU but training fails when activations and Adam moments are allocated.\",\n  \"decision\": \"Batch size affects activation memory and the gradient estimate\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A model’s weights fit on a GPU but training fails when activations and Adam moments are allocated.",
+    "alternatives": [
+      "No. Parameter and optimizer allocations may remain fixed, and attention/sequence shapes and allocator behavior influence peak use."
+    ],
+    "pitfalls": [
+      "A model’s weights fit on a GPU but training fails when activations and Adam moments are allocated."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does halving the batch always halve total memory?",
+        "A": "No. Parameter and optimizer allocations may remain fixed, and attention/sequence shapes and allocator behavior influence peak use."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What do dropout, normalization and train/eval mode change in a neural network?",
+    "spoken": "Dropout randomly changes activations during training under its scaling rule; inference normally uses deterministic behavior. Some normalization layers also use learned or running statistics differently across modes. Set train/eval behavior explicitly and inspect the layer type. Disabling gradients and selecting evaluation mode solve different problems.",
+    "A": "Dropout randomly changes activations during training under its scaling rule; inference normally uses deterministic behavior. Some normalization layers also use learned or running statistics differently across modes. Set train/eval behavior explicitly and inspect the layer type. Disabling gradients and selecting evaluation mode solve different problems.\n\nEngineering case: Evaluation runs with dropout active and repeated predictions vary. Another run uses no_grad but leaves the model in training mode.\n\nReasoning under a changed assumption: No. Evaluation mode changes module behavior. Use the appropriate gradient context separately when backward graphs are unnecessary.",
+    "Why": "Dropout randomly changes activations during training under its scaling rule; inference normally uses deterministic behavior. Some normalization layers also use learned or running statistics differently across modes. Set train/eval behavior explicitly and inspect the layer type. Disabling gradients and selecting evaluation mode solve different problems.",
+    "Risk": "Evaluation runs with dropout active and repeated predictions vary. Another run uses no_grad but leaves the model in training mode.",
+    "Trade": "No. Evaluation mode changes module behavior. Use the appropriate gradient context separately when backward graphs are unnecessary.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "What do dropout, normalization and train/eval mode change in a neural network?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated module evaluation mode boundary: Evaluation runs with dropout active and repeated predictions vary. Another run uses no_grad but leaves the model in training mode.",
+    "definitions": [
+      {
+        "term": "Module evaluation mode",
+        "definition": "Dropout randomly changes activations during training under its scaling rule; inference normally uses deterministic behavior."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"Evaluation runs with dropout active and repeated predictions vary. Another run uses no_grad but leaves the model in training mode.\",\n  \"decision\": \"Dropout randomly changes activations during training under its scaling rule; inference normally uses deterministic behavior\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "Evaluation runs with dropout active and repeated predictions vary. Another run uses no_grad but leaves the model in training mode.",
+    "alternatives": [
+      "No. Evaluation mode changes module behavior. Use the appropriate gradient context separately when backward graphs are unnecessary."
+    ],
+    "pitfalls": [
+      "Evaluation runs with dropout active and repeated predictions vary. Another run uses no_grad but leaves the model in training mode."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does model.eval disable gradient computation?",
+        "A": "No. Evaluation mode changes module behavior. Use the appropriate gradient context separately when backward graphs are unnecessary."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "When do convolutional, recurrent and attention architectures make different assumptions?",
+    "spoken": "Convolutions share local filters, recurrent models propagate state through an ordered sequence, and attention combines representations through data-dependent weights. These choices change inductive bias, parallelism and memory. Compare them against the task’s spatial or temporal structure rather than treating the most fashionable architecture as universally best.",
+    "A": "Convolutions share local filters, recurrent models propagate state through an ordered sequence, and attention combines representations through data-dependent weights. These choices change inductive bias, parallelism and memory. Compare them against the task’s spatial or temporal structure rather than treating the most fashionable architecture as universally best.\n\nEngineering case: A small image task is served under tight latency constraints. A compact convolutional baseline is easier to deploy than an oversized attention model.\n\nReasoning under a changed assumption: Yes. A content-based attention operation alone does not necessarily encode the intended token order. Position representations and masking define important sequence semantics.",
+    "Why": "Convolutions share local filters, recurrent models propagate state through an ordered sequence, and attention combines representations through data-dependent weights. These choices change inductive bias, parallelism and memory. Compare them against the task’s spatial or temporal structure rather than treating the most fashionable architecture as universally best.",
+    "Risk": "A small image task is served under tight latency constraints. A compact convolutional baseline is easier to deploy than an oversized attention model.",
+    "Trade": "Yes. A content-based attention operation alone does not necessarily encode the intended token order. Position representations and masking define important sequence semantics.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "When do convolutional, recurrent and attention architectures make different assumptions?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated architectural inductive bias boundary: A small image task is served under tight latency constraints. A compact convolutional baseline is easier to deploy than an oversized attention model.",
+    "definitions": [
+      {
+        "term": "Architectural inductive bias",
+        "definition": "Convolutions share local filters, recurrent models propagate state through an ordered sequence, and attention combines representations through data-dependent weights."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A small image task is served under tight latency constraints. A compact convolutional baseline is easier to deploy than an oversized attention model.\",\n  \"decision\": \"Convolutions share local filters, recurrent models propagate state through an ordered sequence, and attention combines representations through data-dependent weights\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A small image task is served under tight latency constraints. A compact convolutional baseline is easier to deploy than an oversized attention model.",
+    "alternatives": [
+      "Yes. A content-based attention operation alone does not necessarily encode the intended token order. Position representations and masking define important sequence semantics."
+    ],
+    "pitfalls": [
+      "A small image task is served under tight latency constraints. A compact convolutional baseline is easier to deploy than an oversized attention model."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can attention still need position information?",
+        "A": "Yes. A content-based attention operation alone does not necessarily encode the intended token order. Position representations and masking define important sequence semantics."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do tokenizer units and causal labels define a language-model training example?",
+    "spoken": "A tokenizer maps text to a vocabulary-specific sequence of IDs. Next-token learning aligns each input position with the following target and applies a causal restriction against future information. Token counts are not character or word counts. Preserve the tokenizer identity and inspect padding, special tokens and label masks.",
+    "A": "A tokenizer maps text to a vocabulary-specific sequence of IDs. Next-token learning aligns each input position with the following target and applies a causal restriction against future information. Token counts are not character or word counts. Preserve the tokenizer identity and inspect padding, special tokens and label masks.\n\nEngineering case: A training sample allows the input to attend to the target token at the same future position. Loss looks excellent but autoregressive generation fails.\n\nReasoning under a changed assumption: No. It is a transparent bounded fixture, but its vocabulary, context and efficiency are unlike those of a production subword model.",
+    "Why": "A tokenizer maps text to a vocabulary-specific sequence of IDs. Next-token learning aligns each input position with the following target and applies a causal restriction against future information. Token counts are not character or word counts. Preserve the tokenizer identity and inspect padding, special tokens and label masks.",
+    "Risk": "A training sample allows the input to attend to the target token at the same future position. Loss looks excellent but autoregressive generation fails.",
+    "Trade": "No. It is a transparent bounded fixture, but its vocabulary, context and efficiency are unlike those of a production subword model.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "How do tokenizer units and causal labels define a language-model training example?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated causal next-token labels boundary: A training sample allows the input to attend to the target token at the same future position. Loss looks excellent but autoregressive generation fails.",
+    "definitions": [
+      {
+        "term": "Causal next-token labels",
+        "definition": "A tokenizer maps text to a vocabulary-specific sequence of IDs."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A training sample allows the input to attend to the target token at the same future position. Loss looks excellent but autoregressive generation fails.\",\n  \"decision\": \"A tokenizer maps text to a vocabulary-specific sequence of IDs\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A training sample allows the input to attend to the target token at the same future position. Loss looks excellent but autoregressive generation fails.",
+    "alternatives": [
+      "No. It is a transparent bounded fixture, but its vocabulary, context and efficiency are unlike those of a production subword model."
+    ],
+    "pitfalls": [
+      "A training sample allows the input to attend to the target token at the same future position. Loss looks excellent but autoregressive generation fails."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Is a character tokenizer wrong for every teaching model?",
+        "A": "No. It is a transparent bounded fixture, but its vocabulary, context and efficiency are unlike those of a production subword model."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Trace query, key and value shapes through one attention head.",
+    "spoken": "For a sequence of length T and head width d, projected queries and keys produce a T-by-T score matrix. Scaling by the square root of d helps control score magnitudes, a mask restricts permitted positions, and normalized weights combine the value vectors. Shape checks and a tiny numerical example expose transposition and masking errors.",
+    "A": "For a sequence of length T and head width d, projected queries and keys produce a T-by-T score matrix. Scaling by the square root of d helps control score magnitudes, a mask restricts permitted positions, and normalized weights combine the value vectors. Shape checks and a tiny numerical example expose transposition and masking errors.\n\nEngineering case: A decoder applies softmax along the query axis instead of the key axis, producing normalized values with the wrong interpretation.\n\nReasoning under a changed assumption: No. The computation mixes representations. A semantic support or explanation claim requires its own evidence rather than reading attention weights as an entailment certificate.",
+    "Why": "For a sequence of length T and head width d, projected queries and keys produce a T-by-T score matrix. Scaling by the square root of d helps control score magnitudes, a mask restricts permitted positions, and normalized weights combine the value vectors. Shape checks and a tiny numerical example expose transposition and masking errors.",
+    "Risk": "A decoder applies softmax along the query axis instead of the key axis, producing normalized values with the wrong interpretation.",
+    "Trade": "No. The computation mixes representations. A semantic support or explanation claim requires its own evidence rather than reading attention weights as an entailment certificate.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "Trace query, key and value shapes through one attention head.",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated attention shape boundary: A decoder applies softmax along the query axis instead of the key axis, producing normalized values with the wrong interpretation.",
+    "definitions": [
+      {
+        "term": "Attention shape",
+        "definition": "For a sequence of length T and head width d, projected queries and keys produce a T-by-T score matrix."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A decoder applies softmax along the query axis instead of the key axis, producing normalized values with the wrong interpretation.\",\n  \"decision\": \"For a sequence of length T and head width d, projected queries and keys produce a T-by-T score matrix\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A decoder applies softmax along the query axis instead of the key axis, producing normalized values with the wrong interpretation.",
+    "alternatives": [
+      "No. The computation mixes representations. A semantic support or explanation claim requires its own evidence rather than reading attention weights as an entailment certificate."
+    ],
+    "pitfalls": [
+      "A decoder applies softmax along the query axis instead of the key axis, producing normalized values with the wrong interpretation."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does attention weight prove a source supports a generated claim?",
+        "A": "No. The computation mixes representations. A semantic support or explanation claim requires its own evidence rather than reading attention weights as an entailment certificate."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Why do prefill and token decoding have different serving bottlenecks?",
+    "spoken": "Prefill processes the prompt context; decoding repeatedly produces new tokens while reusing cached keys and values where supported. KV caching trades recomputation for memory and must bind to the exact model, tokens and request state. Measure first-token and completion behavior separately under the relevant batch and context shapes.",
+    "A": "Prefill processes the prompt context; decoding repeatedly produces new tokens while reusing cached keys and values where supported. KV caching trades recomputation for memory and must bind to the exact model, tokens and request state. Measure first-token and completion behavior separately under the relevant batch and context shapes.\n\nEngineering case: A service looks fast on short prompts but runs out of cache memory on long concurrent sessions even though model weights are unchanged.\n\nReasoning under a changed assumption: Not for every workload or hardware configuration. Include transfer, allocation, batch behavior and memory pressure in actual measurements.",
+    "Why": "Prefill processes the prompt context; decoding repeatedly produces new tokens while reusing cached keys and values where supported. KV caching trades recomputation for memory and must bind to the exact model, tokens and request state. Measure first-token and completion behavior separately under the relevant batch and context shapes.",
+    "Risk": "A service looks fast on short prompts but runs out of cache memory on long concurrent sessions even though model weights are unchanged.",
+    "Trade": "Not for every workload or hardware configuration. Include transfer, allocation, batch behavior and memory pressure in actual measurements.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "Why do prefill and token decoding have different serving bottlenecks?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated kv-cache contract boundary: A service looks fast on short prompts but runs out of cache memory on long concurrent sessions even though model weights are unchanged.",
+    "definitions": [
+      {
+        "term": "KV-cache contract",
+        "definition": "Prefill processes the prompt context; decoding repeatedly produces new tokens while reusing cached keys and values where supported."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A service looks fast on short prompts but runs out of cache memory on long concurrent sessions even though model weights are unchanged.\",\n  \"decision\": \"Prefill processes the prompt context; decoding repeatedly produces new tokens while reusing cached keys and values where supported\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A service looks fast on short prompts but runs out of cache memory on long concurrent sessions even though model weights are unchanged.",
+    "alternatives": [
+      "Not for every workload or hardware configuration. Include transfer, allocation, batch behavior and memory pressure in actual measurements."
+    ],
+    "pitfalls": [
+      "A service looks fast on short prompts but runs out of cache memory on long concurrent sessions even though model weights are unchanged."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does a cache always make inference faster?",
+        "A": "Not for every workload or hardware configuration. Include transfer, allocation, batch behavior and memory pressure in actual measurements."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "What does a low-rank adapter reduce, and what still needs to be measured?",
+    "spoken": "Low-rank adaptation trains smaller factor matrices against a frozen base. It reduces trainable parameters and associated optimizer work, but the base and relevant activations still occupy memory. An output-head-only fixture has different gradient paths from adapters inside attention layers. Verify frozen weights, exact artifact compatibility and held-out behavior.",
+    "A": "Low-rank adaptation trains smaller factor matrices against a frozen base. It reduces trainable parameters and associated optimizer work, but the base and relevant activations still occupy memory. An output-head-only fixture has different gradient paths from adapters inside attention layers. Verify frozen weights, exact artifact compatibility and held-out behavior.\n\nEngineering case: An adapter loads against a base with the same architecture name but different weights or vocabulary, silently changing its semantics.\n\nReasoning under a changed assumption: No. Inspect data permission, leakage, validation quality, task and safety slices, artifact reload and actual target-hardware serving behavior.",
+    "Why": "Low-rank adaptation trains smaller factor matrices against a frozen base. It reduces trainable parameters and associated optimizer work, but the base and relevant activations still occupy memory. An output-head-only fixture has different gradient paths from adapters inside attention layers. Verify frozen weights, exact artifact compatibility and held-out behavior.",
+    "Risk": "An adapter loads against a base with the same architecture name but different weights or vocabulary, silently changing its semantics.",
+    "Trade": "No. Inspect data permission, leakage, validation quality, task and safety slices, artifact reload and actual target-hardware serving behavior.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "deep-learning",
+    "subdomain": "deep-learning-foundations",
+    "module": "deep-learning-foundations",
+    "concept": "What does a low-rank adapter reduce, and what still needs to be measured?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated low-rank update boundary: An adapter loads against a base with the same architecture name but different weights or vocabulary, silently changing its semantics.",
+    "definitions": [
+      {
+        "term": "Low-rank update",
+        "definition": "Low-rank adaptation trains smaller factor matrices against a frozen base."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"An adapter loads against a base with the same architecture name but different weights or vocabulary, silently changing its semantics.\",\n  \"decision\": \"Low-rank adaptation trains smaller factor matrices against a frozen base\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "An adapter loads against a base with the same architecture name but different weights or vocabulary, silently changing its semantics.",
+    "alternatives": [
+      "No. Inspect data permission, leakage, validation quality, task and safety slices, artifact reload and actual target-hardware serving behavior."
+    ],
+    "pitfalls": [
+      "An adapter loads against a base with the same architecture name but different weights or vocabulary, silently changing its semantics."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does low training loss establish a safe production finetune?",
+        "A": "No. Inspect data permission, leakage, validation quality, task and safety slices, artifact reload and actual target-hardware serving behavior."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://arxiv.org/abs/1706.03762",
+      "https://arxiv.org/abs/1508.07909",
+      "https://arxiv.org/abs/2106.09685",
+      "https://docs.pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html",
+      "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

@@ -1,0 +1,52 @@
+[
+  {
+    "Q": "How should a workflow resume after the provider committed but the orchestrator lost the acknowledgment?",
+    "spoken": "Resume through a durable operation identity and inspect or reconcile receiver state. Persisted graph position alone does not prove whether an external effect occurred. Replaying a node must reuse the logical effect key or follow a receiver-specific reconciliation policy, while rejecting payload or owner conflicts.",
+    "A": "Resume through a durable operation identity and inspect or reconcile receiver state. Persisted graph position alone does not prove whether an external effect occurred. Replaying a node must reuse the logical effect key or follow a receiver-specific reconciliation policy, while rejecting payload or owner conflicts.\n\nConcrete engineering case: A payment node is retried from its last checkpoint after the provider committed. A new effect key produces a second charge.\n\nBoundary defense: No. The provider’s transaction is independent. Model compensation or reconciliation explicitly rather than inventing distributed atomicity.",
+    "Why": "Resume through a durable operation identity and inspect or reconcile receiver state. Persisted graph position alone does not prove whether an external effect occurred. Replaying a node must reuse the logical effect key or follow a receiver-specific reconciliation policy, while rejecting payload or owner conflicts.",
+    "Risk": "A payment node is retried from its last checkpoint after the provider committed. A new effect key produces a second charge.",
+    "Trade": "No. The provider’s transaction is independent. Model compensation or reconciliation explicitly rather than inventing distributed atomicity.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "domain": "ai-rag",
+    "subdomain": "agent-orchestration",
+    "module": "agent-orchestration",
+    "concept": "How should a workflow resume after the provider committed but the orchestrator lost the acknowledgment?",
+    "difficulty": "scenario",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A payment node is retried from its last checkpoint after the provider committed. A new effect key produces a second charge.",
+    "definitions": [
+      {
+        "term": "Boundary: agent orchestration",
+        "definition": "Resume through a durable operation identity and inspect or reconcile receiver state."
+      }
+    ],
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "example": {
+      "code": "{\n  \"scenario\": \"A payment node is retried from its last checkpoint after the provider committed. A new effect key produces a second charge.\",\n  \"required_decision\": \"Resume through a durable operation identity and inspect or reconcile receiver state\"\n}",
+      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
+      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+    },
+    "production_case": "A payment node is retried from its last checkpoint after the provider committed. A new effect key produces a second charge.",
+    "alternatives": [
+      "No. The provider’s transaction is independent. Model compensation or reconciliation explicitly rather than inventing distributed atomicity."
+    ],
+    "pitfalls": [
+      "A payment node is retried from its last checkpoint after the provider committed. A new effect key produces a second charge."
+    ],
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "follow_ups": [
+      {
+        "Q": "Can rolling back the workflow database undo the provider commit?",
+        "A": "No. The provider’s transaction is independent. Model compensation or reconciliation explicitly rather than inventing distributed atomicity."
+      }
+    ],
+    "citations": [
+      "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "https://docs.langchain.com/oss/python/langgraph/interrupts"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]
