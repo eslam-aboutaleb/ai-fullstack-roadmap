@@ -77,6 +77,11 @@ result=subprocess.run([sys.executable,str(SITE/'examples/labs/voice_pipeline.py'
 assert result.returncode==0,result.stderr
 result=subprocess.run([sys.executable,str(SITE/'examples/labs/foundation_bridge.py')],capture_output=True,text=True,timeout=10)
 assert result.returncode==0,result.stderr
+context_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/context_packet_policy.py')],
+                              capture_output=True,text=True,timeout=10)
+assert context_result.returncode==0,(context_result.stdout,context_result.stderr)
+assert 'PASS' in context_result.stdout
+
 for slug in manifest['chapter_order']:
     assert {'review-notes','recommended-practice'}.issubset(pages[SITE/(slug+'.html')].ids),slug
 from check_structure import check as check_structure
