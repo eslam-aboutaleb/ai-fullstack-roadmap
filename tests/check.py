@@ -108,19 +108,21 @@ for page_path in SITE.glob('*.html'):
     assert not re.search(r'<script[^>]+src=["\']https?://', text), page_path
 
 subprocess.run(['node', str(ROOT/'tests/check_study.cjs')], check=True)
-from check_question_bank import check as check_question_bank
-check_question_bank()
-
-memory_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/agent_memory_lifecycle.py')],
-                             capture_output=True,text=True,timeout=10)
-assert memory_result.returncode==0,(memory_result.stdout,memory_result.stderr)
-assert 'PASS' in memory_result.stdout
+from check_question_data import check as check_question_data
+check_question_data()
 
 for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py',
                  'data_contract_pipeline.py', 'llm_contracts.py', 'retrieval_scorecard.py', 'production_scorecard.py', 'restore_drill.py'):
     result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/lab_name)], capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
+
+# Agent-memory reference and assessment capstone (PR #53).
+for memory_lab, args in (('agent_memory_lifecycle.py', []), ('memory_project.py', ['check'])):
+    result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/memory_lab), *args],
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, (memory_lab, result.stdout, result.stderr)
+    assert 'PASS' in result.stdout, (memory_lab, result.stdout)
 
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
@@ -171,6 +173,22 @@ for project in ('evidence-workbench','review-packet'):
             assert {'projects/evidence-workbench/package-lock.json','projects/evidence-workbench/src/App.tsx','projects/evidence-workbench/server.py'} <= set(names)
 print('Cumulative project downloads and dependency/build exclusions: pass')
 
-memory_project = subprocess.run([sys.executable, '-B', str(ROOT/'labs/memory_project.py'), 'check'], capture_output=True, text=True, timeout=30)
-assert memory_project.returncode == 0, (memory_project.stdout, memory_project.stderr)
-print(memory_project.stdout.strip())
+# The learning journey owns discovery. Removing duplicate index pages must not
+# strand the unique worked units, projects or inline transition simulations.
+retired_pages = {'courses.html', 'capstones.html', 'simulations.html', 'question-bank.html', 'topic-coverage.html'}
+assert not any((SITE/name).exists() for name in retired_pages)
+assert not list(SITE.glob('questions-*.html')), 'Answers must have one canonical chapter page'
+curriculum = json.loads((ROOT/'content/curriculum.json').read_text())['chapters']
+placements = {}
+for slug, entry in curriculum.items():
+    for identity in entry.get('course_units', []):
+        assert identity not in placements, ('ambiguous unit placement', identity)
+        placements[identity] = slug
+        assert 'course-'+identity+'.html' in (SITE/(slug+'.html')).read_text()
+assert set(placements) == {unit['id'] for unit in course_units}, 'A unique worked unit lost its chapter entry point'
+for identity, slug in {'asyncio':'sources', 'locking':'database-concurrency', 'retrieval':'foundations', 'retries':'agent-evaluation'}.items():
+    assert 'data-simulation="'+identity+'"' in (SITE/(slug+'.html')).read_text()
+portfolio = (SITE/'portfolio-capstone.html').read_text()
+for identity in ('async-engine', 'transaction-api', 'rag-quality', 'durable-agent'):
+    assert 'capstone-'+identity+'.html' in portfolio
+print('Single learning journey: retired duplicate pages absent; every unit, project and simulation remains reachable')
