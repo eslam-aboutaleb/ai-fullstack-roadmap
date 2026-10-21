@@ -131,6 +131,8 @@ def rigorous_lesson(q):
 def interview(q):
   writer=AnswerWriter(q)
   body=writer.render(q['A'],reserve_followups=True)
+  if q.get('answer_format')=='conceptual' and q.get('worked_case'):
+    body+='<section class="answer-section answer-mechanism"><h4>Worked scenario</h4><p>'+E(q['worked_case'])+'</p></section>'
   body+=answer_diagram(q)
   if normalize_answer(q['Why']) not in writer.followups:
     body+=writer.section('Worked case' if q.get('answer_format')=='conceptual' else 'How it works',q['Why'],'answer-mechanism')
