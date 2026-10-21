@@ -29,3 +29,34 @@ equate a toy decrease in training loss with production quality.
 Primary sources:
 https://huggingface.co/docs/peft/developer_guides/quantization
 https://arxiv.org/abs/2106.09685
+
+## Executed Transformers/PEFT causal-LM training
+
+`labs/peft_causal_sft.py` now executes a real Transformers GPT-2 architecture
+with real PEFT LoRA adapters. Install the pinned model requirements and
+`requirements-peft.txt`, then run:
+
+```sh
+python3 -B labs/peft_causal_sft.py --output peft-result.json
+```
+
+The default run is offline and CPU-only: no pretrained weights, model downloads,
+service account or provider calls. It starts from an explicitly random tiny
+base and original synthetic color-rule data. This tests SFT mechanics and real
+SDK/artifact compatibility, not a foundation model's general language quality.
+The tokenizer vocabulary and prompt template are hashed. Example IDs are split
+before training, and evaluation predicts the first response token from the
+prompt alone rather than reading teacher-forced target text.
+
+The run checks response-only and padding label masks, shifted causal loss against
+an independent cross-entropy calculation, two equal-token microbatches per
+optimizer step, causal prefix invariance, frozen base tensors, compatible
+adapter manifest, actual save/reload and merged output equivalence. A changed
+base/tokenizer/template digest is rejected. The actual held-out validation and
+test counts, losses, label accuracy, parameter count, SDK versions and measured
+CPU training time are in `docs/evidence/peft-causal-sft.json`. Those 16-case sets
+are a narrowly controlled oracle and do not support production-quality claims.
+
+A pretrained-model SFT profile, broader safety/forgetting evaluation and genuine
+QLoRA/GPU measurements remain separate requirements; this report does not
+relabel the random base or a CPU result as any of those.
