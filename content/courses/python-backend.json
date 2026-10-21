@@ -72,6 +72,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Why does a mutable default argument leak state across requests, and how do you correct it?",
+          "spoken": "Python evaluates a function default at function definition time; mutable defaults are reused between calls. Use None or an immutable sentinel, allocate per request, and distinguish shallow from deep copy.",
+          "deep": "**Language mechanics.** Python executes each default-value expression when defining the function, not each time a caller omits that argument. A function `def record(event, events=[]): events.append(event); return events` therefore has one shared list object stored in its function metadata. The call `record(\"A\")` produces [\"A\"]; a later `record(\"B\")` can produce [\"A\",\"B\"], even if the calls belong to different HTTP requests. This is observable shared state, not an asyncio-specific race. It may become a privacy bug if the list holds caller-specific data.\n\n**Correct boundary.** Use `def record(event, events=None): events = [] if events is None else events; events.append(event); return events` when the default is an independent new list. This pattern preserves intentionally supplied list ownership, so callers should still document whether the function mutates an argument or returns a new copy. A shallow `list(existing)` copies the outer list, but nested dictionaries remain shared; use explicit serialization/data-model reconstruction when crossing untrusted or tenant boundaries. Do not reach for deepcopy indiscriminately because it may copy large graphs or objects with external resource identity.\n\n**Production example.** An API accepts a policy query with a mutable default `filters={}`. A handler adds `filters[\"owner\"]=principal.id`. Another request with no filters inherits the previous owner. This can poison a cache key or database predicate. The server must build new scoped filters per request from a trusted principal, validate the effective query, and enforce row-level permissions at the database layer, not only in a dictionary.\n\n**Negative tests.** Call the function sequentially with two identities and assert no content from the first appears in the second's state. Then use two concurrent calls and verify independent request-local objects. Test explicit external mutable arguments separately, and check that Python type annotations do not automatically guarantee deep immutability or runtime validation.\n\n**Follow-up.** If two objects contain identical values, that does not establish that they have distinct identities. Use `is` for identity and `==` for value equality, and inspect nested aliases when investigating unexpected mutations.",
+          "follow_up": {
+            "question": "Does a default tuple guarantee immutable nested data?",
+            "answer": "No. A tuple is immutable as a container, but can hold references to mutable lists or dictionaries that still change between calls. An immutable, validated data model or per-request copy policy is required for true isolation."
+          },
+          "rubric": [
+            "Explains the exact mechanism and trusted request-state boundary",
+            "Works a quantitative example or precise resource lifecycle",
+            "Shows an independent failure test and an answered change-of-assumption follow-up"
+          ]
         }
       ]
     },
@@ -146,6 +160,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "How do async generators, iteration and context managers determine the lifetime of database connections?",
+          "spoken": "A generator suspends with live local variables and resources. Use an explicit async context manager and finally cleanup, and make cancellation/restart behavior part of the public contract.",
+          "deep": "**Fundamentals.** An iterator implements next-value retrieval; a generator is a suspended frame that resumes at each yield, preserving its local state between values. An async generator uses `async for` and may yield while awaiting asynchronous I/O. A database cursor, socket or file bound inside that suspended frame can remain open until the generator is exhausted or explicitly closed. Merely constructing an iterator or breaking from a loop does not constitute a durable resource-lifetime contract.\n\n**Safe lifecycle.** Use `async with acquire_connection() as conn` or `try/finally` inside the async generator so its cleanup code runs on normal exhaustion, error and explicit closure. Consumers that stop early should close with `aclose()` where appropriate. Cancellation is raised at an await boundary; don't swallow `CancelledError` and falsely treat an incomplete transaction as committed. If the generator emits data after committing an irreversible write, a client disconnect cannot retroactively undo that write. Return the original committed result on a stable idempotency key.\n\n**Worked failure.** An endpoint streams a large result set and yields only two records to a browser before the client navigates away. If the generator holds the same database transaction and never closes on disconnect, connection-pool capacity is gradually exhausted. The health endpoint may remain 200 while p99 requests block waiting for a connection. Add a cleanup counter and simulate early termination, backpressure and cancellations under a bounded pool.\n\n**HTTP choice.** Streaming improves perceived latency and memory for large results but complicates partial errors, buffering, cache intermediaries and exact completion semantics. For small bounded result sets, ordinary JSON responses may be simpler. An async generator does not make CPU-intensive serialization nonblocking; move blocking work to a suitable execution pool or restructure the workload.\n\n**Changed assumption.** If the consumer is a background worker instead of a browser, require durable checkpoint/resume of the source offset independently from generator locals; process restarts discard suspended Python frames.",
+          "follow_up": {
+            "question": "Is finally guaranteed to execute immediately when an async generator is abandoned?",
+            "answer": "No. Cleanup timing depends on explicit aclose(), exhaustion or event-loop finalization. Design the consumer to close generators deterministically rather than relying on garbage collection."
+          },
+          "rubric": [
+            "Explains the exact mechanism and trusted request-state boundary",
+            "Works a quantitative example or precise resource lifecycle",
+            "Shows an independent failure test and an answered change-of-assumption follow-up"
+          ]
         }
       ]
     },
@@ -219,6 +247,20 @@
             "Defines assumptions and key terms",
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Why can an O(1) cache lookup still cause slow p99 HTTP requests?",
+          "spoken": "Asymptotic complexity describes scaling with an input variable, not a real system's queueing, network latency, lock contention, memory locality or tail distribution.",
+          "deep": "**Algorithmic vs system cost.** A hash-table lookup is expected O(1) with respect to entries under common hash assumptions, but that does not mean zero or constant wall-clock latency across all hardware and load. Cache misses may trigger disk or network fetches; memory access may stall on cache-line fetches; locks and thread scheduling add waiting. A web request often crosses DNS, TCP/TLS, proxy, app queue, connection pools, database and downstream model/provider calls. The slowest/most variable stage can dominate the tail even if each local lookup is efficient.\n\n**Worked queueing example.** A server receives λ=90 requests/s and serves μ=100 requests/s under an idealized M/M/1 model. Utilization is ρ=λ/μ=.9, while the idealized mean time in system is 1/(μ−λ)=0.1 seconds. If arrivals rise to 99/s with the same 100/s capacity, utilization becomes .99 and the idealized mean grows to 1 second. The tenfold growth does not reflect a worse hash algorithm; it follows queueing near saturation. Real services depart from the Poisson/exponential assumptions, so verify observed histograms rather than presenting this estimate as a production measurement.\n\n**Debugging.** Break p95/p99 latency into queue wait, connect, TLS, app CPU, lock contention, database, tool/model and response streaming. Use per-stage traces, bounded high-cardinality identifiers and load tests. Confirm that timeouts propagate through all dependencies rather than allowing abandoned work to consume backend capacity. A larger worker count may initially reduce queueing but can increase context switching or exceed database connections, worsening tails.\n\n**Trade-offs.** A local dictionary cache is fast but not durable and can leak unscoped user data. A distributed cache adds network latency, serializing/deserializing and invalidation requirements. Prefer measuring correctness and cache hit eligibility before tuning throughput.\n\n**Changed assumption.** If service time is heavy-tailed or tasks include long LLM completions, a simple M/M/1 mean is inadequate; use actual request-length mix, concurrency limits and empirical latency percentiles.",
+          "follow_up": {
+            "question": "Does Little's Law directly guarantee p99 latency from average arrival rate?",
+            "answer": "No. Little's Law relates long-run average number of items in a stable system to throughput and average time. It does not determine tail percentiles or hold under unbounded unstable queues."
+          },
+          "rubric": [
+            "Explains the exact mechanism and trusted request-state boundary",
+            "Works a quantitative example or precise resource lifecycle",
+            "Shows an independent failure test and an answered change-of-assumption follow-up"
           ]
         }
       ]
