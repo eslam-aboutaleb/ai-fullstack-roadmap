@@ -1,0 +1,178 @@
+[
+  {
+    "Q": "What belongs in a URL, request header and request body?",
+    "A": "A URL locates a resource and may carry query parameters; headers carry protocol metadata such as accepted representations, authorization and caching conditions; the body carries the request representation where the method contract supports it. Avoid placing secrets in URLs because they can appear in history, logs and referrer data. Validate all three as untrusted input. Choosing a transport location does not change authorization requirements, and a large JSON body still needs size limits and a schema.",
+    "Why": "A list endpoint can accept a bounded page size in its query string and a bearer credential in a header. It must not trust an owner query parameter as proof of the caller's identity.",
+    "Risk": "Sensitive query parameters can be retained outside the application's intended storage.",
+    "Trade": "Use explicit resource and representation contracts rather than arbitrary placement.",
+    "Try": "Design a list request and identify where identity, pagination and filtering belong.",
+    "worked_case": "A list endpoint can accept a bounded page size in its query string and a bearer credential in a header. It must not trust an owner query parameter as proof of the caller's identity.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  },
+  {
+    "Q": "How do HTTP status codes and error bodies form a usable API contract?",
+    "A": "Use the **HTTP status** for the broad protocol outcome and a **stable application error code** for client recovery. Human-readable messages can change or be translated; clients should not parse their English wording.\n\n| Situation | Typical status | Client decision |\n| --- | --- | --- |\n| Malformed request | 400 | Correct the representation |\n| Missing or invalid authentication | 401 | Obtain valid credentials under the authentication contract |\n| Authenticated but forbidden | 403 | Stop or request the necessary permission |\n| Missing resource | 404 | Handle absence under the privacy policy |\n| Current-state conflict | 409 | Refresh or reconcile the operation |\n| Semantically invalid content | 422 when chosen by the API contract | Correct the invalid fields |\n| Rate or capacity policy exceeded | 429 | Follow the bounded retry policy and any valid retry hint |\n| Temporary service unavailability | 503 | Retry only when the operation and deadline allow it |\n\nThese are **contract choices, not substitutes for domain reasoning**. A service may deliberately avoid exposing whether another user's resource exists. It must not expose internal traces or credentials through error details.\n\nReturn a safe request/operation identifier and a documented error category where useful. Do not return an apparently successful response when a required operation failed, and do not blindly retry a stale version conflict as if it were a dropped connection.",
+    "Why": "An optimistic version conflict can return 409 with a safe conflict category. A client should refresh authoritative state instead of endlessly resending the same stale version as if it were a transient connection error.",
+    "Risk": "An undifferentiated 500 response makes safe client recovery difficult.",
+    "Trade": "Rich errors improve recovery but must preserve privacy and avoid internal implementation leakage.",
+    "Try": "Define error bodies for invalid input, stale version and temporary overload.",
+    "worked_case": "An optimistic version conflict can return 409 with a safe conflict category. A client should refresh authoritative state instead of endlessly resending the same stale version as if it were a transient connection error.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  },
+  {
+    "Q": "How do cookies, sessions and bearer tokens establish different trust boundaries?",
+    "A": "A cookie is browser-managed storage attached according to domain, path and security attributes. A server session commonly stores authoritative login state keyed by a cookie value. A bearer token grants access to whoever possesses it within its validity and scope. Storage location, automatic attachment and revocation determine different risks. Protect secrets in transit and at rest, rotate session identity at appropriate authentication boundaries, and authorize the current action server-side. A client-side decoded claim is not verification.",
+    "Why": "A stolen bearer token can be replayed until expiry or revocation policy stops it. An HttpOnly cookie reduces script access to the cookie but does not stop an injected script from making actions in the victim's browser context.",
+    "Risk": "Treating one token storage option as solving all browser attacks leaves other controls missing.",
+    "Trade": "Session and token choices depend on clients, revocation and trust boundaries.",
+    "Try": "Trace credential creation, storage, automatic attachment, validation and logout for one design.",
+    "worked_case": "A stolen bearer token can be replayed until expiry or revocation policy stops it. An HttpOnly cookie reduces script access to the cookie but does not stop an injected script from making actions in the victim's browser context.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  },
+  {
+    "Q": "How do browser origins, sites and preflight requests differ?",
+    "A": "An origin is the scheme, host and port tuple used by important browser isolation rules. A site is a different grouping used by mechanisms such as SameSite cookies. Cross-origin requests may require a CORS preflight that asks the server about permitted methods and headers. A permitted response is not an authorization decision, and some cross-origin requests can be sent even when scripts cannot read their responses. Specify credentials behavior and allowed origins deliberately rather than reflecting arbitrary request origins.",
+    "Why": "A development UI on one port and API on another are different origins even on the same host. An allow-origin policy can permit reading the response without deciding which account's rows the API may return.",
+    "Risk": "Confusing origins with sites leads to incorrect cookie and CORS assumptions.",
+    "Trade": "Narrow policies reduce accidental exposure while development proxies can simplify local setup.",
+    "Try": "Compare two URLs by scheme, host and port, then predict credential and preflight behavior.",
+    "worked_case": "A development UI on one port and API on another are different origins even on the same host. An allow-origin policy can permit reading the response without deciding which account's rows the API may return.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  },
+  {
+    "Q": "How do HTTP caching, ETags and conditional requests avoid stale or leaked data?",
+    "A": "A cache stores a representation under a key and freshness policy. An ETag identifies a representation version and can support conditional validation or guarded updates. Cache keys and Vary behavior must include all relevant representation inputs. Private user data should not enter a shared cache under an identity-blind key. A 304 response reuses an existing representation under the cache contract; it does not re-run every business authorization policy by magic. Coordinate expiry and permission revocation requirements explicitly.",
+    "Why": "A public product description can be cached differently from an owner-specific account balance. Reusing the same URL alone as a shared key for both users can disclose one user's balance to another.",
+    "Risk": "A correct freshness interval does not establish correct tenant isolation.",
+    "Trade": "Caching reduces work but adds invalidation, versioning and privacy obligations.",
+    "Try": "Design cache policies and conditional responses for a public document and a private account view.",
+    "worked_case": "A public product description can be cached differently from an owner-specific account balance. Reusing the same URL alone as a shared key for both users can disclose one user's balance to another.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  },
+  {
+    "Q": "How do cursor pagination and offset pagination behave under concurrent updates?",
+    "A": "Offset pagination skips a count in an ordered result, which is simple but can become expensive and unstable when rows are inserted or deleted before the next page. Cursor pagination resumes from an explicit ordering boundary, usually including a unique tie-breaker. It still needs stable filters, ordering and an authority or snapshot contract if a complete consistent scan is required. Validate opaque cursors and scope them to the caller and query instead of treating them as trusted arbitrary database instructions.",
+    "Why": "Paging by created_at alone can skip rows sharing the same timestamp. A compound boundary using created_at and a unique identifier gives a deterministic next position under the chosen ordering.",
+    "Risk": "A cursor is not automatically a snapshot of a changing source.",
+    "Trade": "Offsets suit small stable views; cursors suit larger or changing ordered streams.",
+    "Try": "Page records with equal timestamps while inserting one new row between requests.",
+    "worked_case": "Paging by created_at alone can skip rows sharing the same timestamp. A compound boundary using created_at and a unique identifier gives a deterministic next position under the chosen ordering.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  },
+  {
+    "Q": "How should webhooks be authenticated, deduplicated and acknowledged?",
+    "A": "A webhook is an inbound event delivery, often retried by the sender. Verify the sender's documented signature over the exact required bytes, apply replay controls appropriate to its contract, and validate the event type and payload. Persist a deduplication identity and accepted work before acknowledging when processing is asynchronous. A quick success response says the event was accepted under that contract, not that every downstream action completed. Keep authoritative event status and a repair path for later failures.",
+    "Why": "A sender retries event E9 after a lost acknowledgement. The receiver should recognize the same event and avoid charging or notifying twice, while retaining a clear record of its original acceptance and processing state.",
+    "Risk": "Parsing and reserializing before signature verification can change the bytes being verified.",
+    "Trade": "Asynchronous handling improves response time but requires durable ownership and operational visibility.",
+    "Try": "Simulate duplicate delivery and a crash after acceptance but before processing.",
+    "worked_case": "A sender retries event E9 after a lost acknowledgement. The receiver should recognize the same event and avoid charging or notifying twice, while retaining a clear record of its original acceptance and processing state.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  },
+  {
+    "Q": "How do reverse proxies, load balancers and timeouts change an API deployment?",
+    "A": "A reverse proxy accepts client requests and forwards them to application workers; a load balancer chooses among backends. They can terminate TLS, buffer bodies, enforce size limits and impose their own timeouts. An application deadline longer than an upstream proxy timeout may leave expensive work running after the client is gone. Trust forwarded identity or address headers only from configured trusted infrastructure. Verify streaming, cancellation and connection lifetimes through the actual deployed path, not only a direct localhost connection.",
+    "Why": "A stream that works directly can appear in one burst through a buffering proxy. An idle timeout can terminate a quiet stream even though the application believes its connection is still active.",
+    "Risk": "Trusting arbitrary forwarded headers can let clients spoof network context.",
+    "Trade": "Proxies centralize controls while adding configuration and timeout interactions.",
+    "Try": "Trace every hop's body limit, buffering policy and timeout for a streaming request.",
+    "worked_case": "A stream that works directly can appear in one burst through a buffering proxy. An idle timeout can terminate a quiet stream even though the application believes its connection is still active.",
+    "answer_format": "conceptual",
+    "difficulty": "mechanism",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    },
+    "domain": "backend",
+    "subdomain": "web-foundations"
+  }
+]

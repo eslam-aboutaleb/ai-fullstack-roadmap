@@ -1,0 +1,22 @@
+[
+  {
+    "Q": "How do you answer a question when the evidence exceeds the model context window?",
+    "A": "**Start with a token ledger and the information the task actually requires.** A context window is a limit on the model request, not a promise that every included fact will be used reliably. Count instructions, tool schemas, conversation, retrieved evidence and reserved output with the model's tokenizer. Check provider rules for output and reasoning tokens. Budget before submitting each request, including requests after tool calls.\n\n**Worked capacity plan.** In a hypothetical 32,000-token window, reserve 4,000 output tokens, 2,000 for instructions and tools, 2,000 for relevant conversation and a 2,000-token safety margin. That leaves 22,000 for evidence. These are design assumptions, not advertised model limits. Recount the final serialized request; separators, citations and message framing also cost tokens.\n\n**Choose the reduction according to the question.** For one policy exception, retrieve and rerank relevant passages, preserve the exception and its parent heading, and remove overlapping duplicates. For an exhaustive count over all records, use a database or streaming aggregation: top-k retrieval cannot establish completeness. For a long comparative report, extract structured findings per section, retain source spans, then synthesize within another explicit budget. A hierarchy of summaries can lose qualifications, so verify decisive claims against original passages.\n\n**Fail explicitly when the remaining evidence cannot support the answer.** Ask for a narrower scope, run another bounded retrieval step, or return a partial answer naming what remains unresolved. Silently truncating the end can remove the most important exclusion. A larger-window model is an alternative to measure for accuracy, latency and price, not a replacement for evidence selection.",
+    "Why": "A support request has 90,000 evidence tokens but a 22,000-token evidence allowance. Retrieve the applicable policy and exception first; a different request asking how many refunds occurred must execute an authorized aggregate over all matching transactions.",
+    "worked_case": "A support request has 90,000 evidence tokens but a 22,000-token evidence allowance. Retrieve the applicable policy and exception first; a different request asking how many refunds occurred must execute an authorized aggregate over all matching transactions.",
+    "Risk": "Compression may preserve the general rule while removing its exception. A successful API response does not prove evidence completeness.",
+    "Trade": "Compare retrieval, structured aggregation, hierarchical synthesis and a larger model using the same answer-support checks.",
+    "Try": "Create five questions requiring one passage and five requiring complete-corpus coverage. Show where retrieval alone gives an incorrect count.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "context-engineering",
+    "citations": [
+      "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

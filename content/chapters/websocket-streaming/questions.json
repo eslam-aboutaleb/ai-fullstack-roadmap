@@ -6,11 +6,11 @@
     "Risk": "Choosing WebSockets does not automatically improve application latency.",
     "Trade": "Duplex sessions add lifecycle and routing complexity.",
     "Try": "Specify the messages that genuinely require a persistent bidirectional channel.",
-    "spoken": "WebSocket provides bidirectional streaming. Authenticate on the first frame, then use message envelopes with type and sequence numbers. Implement flow control so fast producers do not overwhelm slow consumers.",
+    "spoken": "Use WebSocket when bidirectional application messaging justifies it. Choose an authentication approach compatible with the client, authorize every resource/action, bound unauthenticated work and revalidate expiring sessions. Define envelopes, sequence/replay, flow control and close/error behavior explicitly.",
     "domain": "frontend",
     "subdomain": "websocket",
     "module": "websocket-streaming",
-    "concept": "WebSocket auth, envelopes, flow control",
+    "concept": "When should WebSockets replace SSE",
     "difficulty": "implementation",
     "misconception_target": "WebSocket connections are secure by default",
     "definitions": [
@@ -24,7 +24,7 @@
       },
       {
         "term": "Envelope authentication",
-        "definition": "Verifying identity on the first WebSocket frame"
+        "definition": "Authentication at an explicitly chosen handshake or message boundary before any protected work, with per-action authorization."
       }
     ],
     "execution_timeline": "Client connects -> Send auth token as first frame -> Server validates -> Exchange envelopes -> Apply flow control -> Close cleanly",
@@ -33,7 +33,7 @@
       "explanation": "Send auth on open, parse envelopes on message.",
       "output": "Authenticated bidirectional stream"
     },
-    "production_case": "A realtime AI chat with bidirectional streaming and flow control.",
+    "production_case": "A browser reconnects with an expired session while old queued commands remain. Re-authenticate, scope replay and reconcile command identities rather than executing the queue under stale authority.",
     "alternatives": [
       "SSE for server-to-client only",
       "HTTP long-polling"
@@ -43,11 +43,11 @@
       "No message envelopes",
       "No flow control"
     ],
-    "complexity": "O(1) per message",
+    "complexity": "Message handling scales with payload bytes, validation and dispatched work. Concurrent connections, buffered messages and replay retention determine memory; bidirectional transport does not create automatic flow control.",
     "follow_ups": [
       {
-        "Q": "Why sequence numbers in envelopes?",
-        "A": "To detect and handle out-of-order or missing messages."
+        "Q": "Must WebSocket authentication always happen in the first frame?",
+        "A": "No. Handshake-based session patterns and explicit message protocols have different constraints. If authenticating in a message, expose no protected work beforehand and bound timeout/message size."
       }
     ],
     "citations": [

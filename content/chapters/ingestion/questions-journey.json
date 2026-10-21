@@ -1,0 +1,53 @@
+[
+  {
+    "Q": "What must ingestion do when an old source event arrives after a deletion?",
+    "spoken": "Preserve versioned deletion authority so an older upsert cannot resurrect a record. Bind source position and event identity to content, apply projection and recoverable progress under a clear transaction contract, and treat replay separately from new input. Include derived indexes and caches in visibility policy.",
+    "A": "Preserve versioned deletion authority so an older upsert cannot resurrect a record. Bind source position and event identity to content, apply projection and recoverable progress under a clear transaction contract, and treat replay separately from new input. Include derived indexes and caches in visibility policy.\n\nConcrete engineering case: A deleted policy reappears because a delayed retry rewrites its text without comparing the stored deletion revision.\n\nBoundary defense: Not when retained source events, snapshots or backfills can recreate it. Keep the authoritative deletion or an equivalent replay guard.",
+    "Why": "Preserve versioned deletion authority so an older upsert cannot resurrect a record. Bind source position and event identity to content, apply projection and recoverable progress under a clear transaction contract, and treat replay separately from new input. Include derived indexes and caches in visibility policy.",
+    "Risk": "A deleted policy reappears because a delayed retry rewrites its text without comparing the stored deletion revision.",
+    "Trade": "Not when retained source events, snapshots or backfills can recreate it. Keep the authoritative deletion or an equivalent replay guard.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "domain": "backend",
+    "subdomain": "ingestion",
+    "module": "ingestion",
+    "concept": "What must ingestion do when an old source event arrives after a deletion?",
+    "difficulty": "scenario",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A deleted policy reappears because a delayed retry rewrites its text without comparing the stored deletion revision.",
+    "definitions": [
+      {
+        "term": "Boundary: ingestion",
+        "definition": "Preserve versioned deletion authority so an older upsert cannot resurrect a record."
+      }
+    ],
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "example": {
+      "code": "{\n  \"scenario\": \"A deleted policy reappears because a delayed retry rewrites its text without comparing the stored deletion revision.\",\n  \"required_decision\": \"Preserve versioned deletion authority so an older upsert cannot resurrect a record\"\n}",
+      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
+      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+    },
+    "production_case": "A deleted policy reappears because a delayed retry rewrites its text without comparing the stored deletion revision.",
+    "alternatives": [
+      "Not when retained source events, snapshots or backfills can recreate it. Keep the authoritative deletion or an equivalent replay guard."
+    ],
+    "pitfalls": [
+      "A deleted policy reappears because a delayed retry rewrites its text without comparing the stored deletion revision."
+    ],
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "follow_ups": [
+      {
+        "Q": "Does deleting the current search row suffice?",
+        "A": "Not when retained source events, snapshots or backfills can recreate it. Keep the authoritative deletion or an equivalent replay guard."
+      }
+    ],
+    "citations": [
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://beam.apache.org/documentation/programming-guide/",
+      "https://kafka.apache.org/documentation/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

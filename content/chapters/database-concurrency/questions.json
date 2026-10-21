@@ -7,7 +7,7 @@
     "Trade": "Pessimistic locking simplifies this contested transition but makes lock duration important. Keep remote model work out of the locked transaction.",
     "Try": "Start two confirmations simultaneously in separate database sessions. Assert one logical claim and one consumed submission, then inspect the losing request's result.",
     "reference": "https://www.postgresql.org/docs/current/explicit-locking.html",
-    "spoken": "A check-then-write race happens when two callers both read the same pending state before either writes. Each caller then believes it may proceed, leading to conflicting actions like duplicate reservations. The bug lives in the gap between checking the condition and enforcing it under a lock or transaction, not in whether your code uses async.",
+    "spoken": "SELECT FOR UPDATE serializes access to an existing row within the transaction. Recheck pending state after acquiring the lock, then write confirmation and outbox intent atomically. Keep a unique operation/effect key as an invariant. The row lock cannot by itself deduplicate an independent external effect.",
     "domain": "backend",
     "subdomain": "concurrency",
     "difficulty": "foundations",
@@ -28,7 +28,7 @@
       "explanation": "Barrier synchronizes both callers, then only one insert succeeds due to unique constraint.",
       "output": "One caller gets 'ok', the other gets 'conflict'"
     },
-    "production_case": "A reservation service where two agents book the same slot simultaneously.",
+    "production_case": "Two workers confirm one pending task concurrently. The first transitions it and creates one outbox row; the second observes confirmed state after waiting and returns the existing result.",
     "alternatives": [
       "Optimistic concurrency with version checks",
       "Pessimistic locking with SELECT FOR UPDATE"
@@ -37,11 +37,11 @@
       "Random sleep tests miss races",
       "Application locks do not coordinate across replicas"
     ],
-    "complexity": "Database unique constraint check is O(1); serialization reduces throughput under contention",
+    "complexity": "Unique-index operations depend on index structure and conflicts; they are not universally O(1). Lock wait time and transaction duration can dominate confirmation latency under contention.",
     "follow_ups": [
       {
-        "Q": "How do you test a race deliberately?",
-        "A": "Use barriers or test hooks to synchronize callers at a precise point, then assert durable state."
+        "Q": "What if there is no row to lock yet?",
+        "A": "Use a unique constraint and an insert/upsert protocol or another suitable serialization boundary; locking a nonexistent result does not magically reserve its identity."
       }
     ],
     "citations": [
@@ -52,7 +52,8 @@
       "reviewed_at": "2026-10-20",
       "status": "draft"
     },
-    "added": true
+    "added": true,
+    "concept": "How does SELECT FOR UPDATE prevent duplicate confirmation"
   },
   {
     "Q": "What is the difference between flush, commit, and rollback?",

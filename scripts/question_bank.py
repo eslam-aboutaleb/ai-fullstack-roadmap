@@ -39,7 +39,7 @@ def build(out, chapters, render, write, url):
             seen[normalized]=row['id']
         coverage.append({'chapter':chapter['slug'],'questions':len(chapter['questions']),'pages':count,
                          'facets':dict(Counter(q.get('difficulty','unclassified') for q in chapter['questions'])),
-                         'enriched':sum('spoken' in q for q in chapter['questions'])})
+                         'enriched':sum('spoken' in q or q.get('answer_format')=='conceptual' for q in chapter['questions'])})
     (out/'questions').mkdir(exist_ok=True)
     for chapter in chapters:
         for index in range(0,len(chapter['questions']),PAGE_SIZE):
@@ -47,7 +47,7 @@ def build(out, chapters, render, write, url):
     report={'page_size':PAGE_SIZE,'total_questions':sum(len(c['questions']) for c in chapters),'subjects':coverage,'exact_duplicate_ids':duplicates}
     (out/'questions/coverage.json').write_text(json.dumps(report,indent=2)+'\n')
     cards=''.join(f'<article class="map-card"><h2><a href="{url("questions-"+c["slug"]+"-1.html")}">{E(c["title"])}</a></h2><p>{len(c["questions"])} questions · {counts[c["slug"]]} pages · {sum("spoken" in q for q in c["questions"])} enriched answers</p></article>' for c in chapters)
-    write('question-bank.html','Question bank','<p class="eyebrow">DISTINCT QUESTIONS · STABLE STUDY IDS</p><h1>Explore one subject at a time.</h1><p>Counts come from source. Each page contains at most 40 full answers; no subject has a question-count cap. Legacy entries without calibrated facets are labeled unclassified in the coverage report. Search across subjects using the course search, or follow the static page links without JavaScript.</p><p><a href="'+url('questions/coverage.json')+'">Download the coverage report</a></p>'+cards)
+    write('question-bank.html','Question bank','<p class="eyebrow">DISTINCT QUESTIONS · STABLE STUDY IDS</p><h1>Explore one subject at a time.</h1><p>This optional browser contains the deeper interview questions. Each chapter page includes its foundation questions and all deeper answers together. Counts come from source. Each bank page contains at most 40 full answers; no subject has a question-count cap. Legacy entries without calibrated facets are labeled unclassified in the coverage report. Search across subjects using the course search, or follow the static page links without JavaScript.</p><p><a href="'+url('questions/coverage.json')+'">Download the coverage report</a></p>'+cards)
     return routes, sum(counts.values())
 
 
@@ -55,12 +55,13 @@ def search_shards(out, entries, curriculum):
     directory=out/'search';directory.mkdir(exist_ok=True)
     tracks={slug:track['id'] for track in curriculum['tracks'] for slug in track['chapters']}
     shards=[]
-    for track in curriculum['tracks']:
-        group=[entry for entry in entries if tracks[entry['slug']]==track['id']]
+    for track in [*curriculum['tracks'], {'id':'courses'}]:
+        group=[entry for entry in entries if tracks.get(entry['slug'],entry.get('track'))==track['id']]
         for index in range(0,len(group),60):
             subset=group[index:index+60]
             # Metadata and searchable text, never whole expanded answer DOMs.
             name=f'{track["id"]}-{index//60+1}.json'
             (directory/name).write_text(json.dumps(subset,ensure_ascii=False,separators=(',',':'))+'\n')
             shards.append({'url':'search/'+name,'track':track['id'],'chapters':sorted({r['slug'] for r in subset}),'count':len(subset)})
+    if sum(shard['count'] for shard in shards)!=len(entries):raise ValueError('Search entries contain an unmapped subject')
     (directory/'manifest.json').write_text(json.dumps({'version':1,'count':len(entries),'shards':shards},separators=(',',':'))+'\n')

@@ -6,11 +6,11 @@
     "Risk": "A style-only score can reward unsafe behavior.",
     "Trade": "Broad evaluation costs effort and prevents expensive hidden failures.",
     "Try": "Create a fluent answer paired with a duplicate write and ensure it fails the suite.",
-    "spoken": "Evaluation engineering partitions datasets into train/validation/test, calibrates LLM judges against human ratings, and reports both quality and performance metrics. Use separate datasets for development and final evaluation to avoid overfitting to the test set.",
+    "spoken": "An agent can give a good-looking answer after unsafe or unnecessary actions. Evaluate task outcomes, permission and ordering invariants, effect state, latency and spend. Partition development and held-out cases, calibrate semantic judges and inspect failures by slice.",
     "domain": "operations",
     "subdomain": "evaluation-engineering",
     "module": "evaluation-engineering",
-    "concept": "dataset partitioning and judge calibration",
+    "concept": "Why does an agent need evaluation even when its answers look good",
     "difficulty": "implementation",
     "misconception_target": "One dataset serves all evaluation purposes",
     "definitions": [
@@ -33,7 +33,7 @@
       "explanation": "Split data, calibrate judge on validation, evaluate on test.",
       "output": "Evaluation results on held-out test set"
     },
-    "production_case": "A production RAG system where LLM judges are calibrated to match human evaluators before deployment.",
+    "production_case": "A prompt change improves a judge score but doubles tool calls and occasionally skips approval. The release must fail the hard trajectory invariant and report the cost regression independently.",
     "alternatives": [
       "Single dataset for all purposes",
       "No judge calibration"
@@ -43,11 +43,11 @@
       "Uncalibrated LLM judges",
       "Evaluating on training data"
     ],
-    "complexity": "O(dataset size) for evaluation",
+    "complexity": "Track dataset size, query/model attempts, judged token volume and reviewer effort. Deterministic checks and model-based semantic evaluation have different cost and variance profiles.",
     "follow_ups": [
       {
-        "Q": "Why separate validation from test?",
-        "A": "Validation is for tuning; test is for unbiased final evaluation."
+        "Q": "Can you tune prompts repeatedly on the final test set?",
+        "A": "Doing so turns it into development data. Preserve a fresh holdout and report what was used for selection."
       }
     ],
     "citations": [

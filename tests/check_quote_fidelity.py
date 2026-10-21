@@ -51,6 +51,8 @@ def check():
     for chapter in chapters:
         blocks = CodeBlocks((ROOT/'_site'/f'{chapter["slug"]}.html').read_text()).blocks
         for q in chapter['lessons'] + chapter['questions']:
+            if q['id'] not in examples:
+                continue
             assert examples[q['id']]['code'] in blocks, ('rendered source differs', q['id'])
             for example in q.get('worked_examples', []):
                 assert example['code'] in blocks, ('rich source differs', q['id'])

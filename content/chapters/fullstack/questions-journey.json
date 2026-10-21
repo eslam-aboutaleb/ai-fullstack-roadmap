@@ -1,0 +1,59 @@
+[
+  {
+    "Q": "How do you trace a duplicate action across a browser, task API, worker and provider?",
+    "spoken": "Follow one stable logical operation identity through caller scope, accepted payload, task state, worker attempt and receiver receipt. Separate presentation retries from effect retries and compare durable state at every commit boundary. A browser error or missing acknowledgment cannot alone establish whether the provider committed.",
+    "A": "Follow one stable logical operation identity through caller scope, accepted payload, task state, worker attempt and receiver receipt. Separate presentation retries from effect retries and compare durable state at every commit boundary. A browser error or missing acknowledgment cannot alone establish whether the provider committed.\n\nConcrete engineering case: The browser retries after losing the acceptance response, the worker restarts after a checkpoint and the provider receives three calls for one intended operation.\n\nBoundary defense: Not by itself. Inspect the intended final durable effects and conflicts. Multiple deliveries may be acceptable when the receiver preserves one logical effect.",
+    "Why": "Follow one stable logical operation identity through caller scope, accepted payload, task state, worker attempt and receiver receipt. Separate presentation retries from effect retries and compare durable state at every commit boundary. A browser error or missing acknowledgment cannot alone establish whether the provider committed.",
+    "Risk": "The browser retries after losing the acceptance response, the worker restarts after a checkpoint and the provider receives three calls for one intended operation.",
+    "Trade": "Not by itself. Inspect the intended final durable effects and conflicts. Multiple deliveries may be acceptable when the receiver preserves one logical effect.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "domain": "system-design",
+    "subdomain": "fullstack",
+    "module": "fullstack",
+    "concept": "How do you trace a duplicate action across a browser, task API, worker and provider?",
+    "difficulty": "scenario",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: The browser retries after losing the acceptance response, the worker restarts after a checkpoint and the provider receives three calls for one intended operation.",
+    "definitions": [
+      {
+        "term": "Boundary: fullstack",
+        "definition": "Follow one stable logical operation identity through caller scope, accepted payload, task state, worker attempt and receiver receipt."
+      }
+    ],
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "example": {
+      "code": "{\n  \"scenario\": \"The browser retries after losing the acceptance response, the worker restarts after a checkpoint and the provider receives three calls for one intended operation.\",\n  \"required_decision\": \"Follow one stable logical operation identity through caller scope, accepted payload, task state, worker attempt and receiver receipt\"\n}",
+      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
+      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+    },
+    "production_case": "The browser retries after losing the acceptance response, the worker restarts after a checkpoint and the provider receives three calls for one intended operation.",
+    "alternatives": [
+      "Not by itself. Inspect the intended final durable effects and conflicts. Multiple deliveries may be acceptable when the receiver preserves one logical effect."
+    ],
+    "pitfalls": [
+      "The browser retries after losing the acceptance response, the worker restarts after a checkpoint and the provider receives three calls for one intended operation."
+    ],
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "follow_ups": [
+      {
+        "Q": "Is the number of calls the right correctness oracle?",
+        "A": "Not by itself. Inspect the intended final durable effects and conflicts. Multiple deliveries may be acceptable when the receiver preserves one logical effect."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/curriculum/core/",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
+      "https://ai.google.dev/gemini-api/docs/generate-content",
+      "https://ai.google.dev/gemini-api/docs/rate-limits",
+      "https://ai.google.dev/gemini-api/docs/structured-output",
+      "https://developers.openai.com/api/docs/guides/rate-limits",
+      "https://developers.openai.com/api/docs/guides/streaming-responses",
+      "https://developers.openai.com/api/docs/guides/structured-outputs"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]
