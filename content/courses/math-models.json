@@ -34,7 +34,8 @@
       "practice": [
         "Calculate a dot product, norm and cosine by hand, then verify with Python.",
         "Construct two datasets with equal means but different variance.",
-        "Explain how a change in base rate changes a posterior probability without changing test sensitivity."
+        "Explain how a change in base rate changes a posterior probability without changing test sensitivity.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
       ],
       "debugging": "Unexpected similarity values often come from incompatible spaces, unnormalized vectors, or zero denominators. A confident metric from dependent or biased samples requires a better dataset, not more decimal places.",
       "tradeoffs": "Geometric simplifications build intuition but can hide high-dimensional behavior; statistical estimates need assumptions, uncertainty and a defined sampling population.",
@@ -72,6 +73,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Why can a classifier with 90% sensitivity have only 15% precision on rare events?",
+          "spoken": "Sensitivity measures true-positive detection among actual positives. Precision depends also on prevalence and false positives. With a 1% base rate and a 5% false-positive rate, most positive predictions may be false.",
+          "deep": "**Begin with the question's denominator.** Sensitivity (true-positive rate) is `P(predicted positive | actually positive)`. Precision, or positive predictive value (PPV), is `P(actually positive | predicted positive)`. They reverse the condition. Bayes' theorem connects them using the **base rate** (prevalence): PPV = (sensitivity × prevalence) / [(sensitivity × prevalence) + (false-positive rate × (1 − prevalence))].\n\n**Work the numbers before an interview shortcut.** Suppose 1% of 10,000 events are genuinely fraudulent (100). With sensitivity 90%, we catch 90 true events. There are 9,900 legitimate events; at a 5% false-positive rate, 495 innocent events are flagged. The positive predictions total 585, so precision is 90/585 = approximately **15.38%**, not 90%. Specificity is the true-negative rate: 95% in this example. Accuracy may still look good because negatives dominate, and this can hide operationally expensive false alerts.\n\n**Implementation.** The local `labs/math_interview_mechanics.py` calculates the conditional probability and asserts the result using a direct numerator/denominator. It rejects probabilities outside [0,1]. This verifies arithmetic, not a real classifier's calibration, group fairness or distribution stability.\n\n**Production scenario.** A claims-screening classifier produces too many false positives during a low-prevalence season. Adjusting the threshold changes sensitivity and false-positive rate; choose a policy using a validation dataset with representative base rates and explicit fraud-loss/human-review costs. Calibration matters if users interpret numeric outputs as probabilities, but calibrated prediction alone cannot repair a missing population feature.\n\n**Changed assumption.** If prevalence rises from 1% to 20% with unchanged conditional rates, PPV becomes (.9×.2)/(.9×.2 + .05×.8) = .18/.22 ≈ **81.82%**. The measured classification threshold and future drift still need revalidation.",
+          "follow_up": {
+            "question": "Does a higher ROC-AUC guarantee good precision for a rare-event application?",
+            "answer": "No. ROC-AUC aggregates sensitivity/false-positive trade-offs without fixing prevalence or downstream error costs. Examine precision-recall curves, calibrated probabilities and workload-specific utility on representative groups."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
         }
       ]
     },
@@ -106,7 +121,8 @@
       "practice": [
         "Verify the scalar update and the overshooting rate by hand.",
         "Change one gradient sign in the capstone and demonstrate that finite differences reject it.",
-        "Compare 100, 300 and 600 updates without tuning against the held-out test set."
+        "Compare 100, 300 and 600 updates without tuning against the held-out test set.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
       ],
       "debugging": "If loss is NaN, inspect input scale, overflow and learning rate. If loss decreases but gradient checks fail, do not trust convergence as proof that backpropagation is implemented correctly.",
       "tradeoffs": "Larger batches reduce gradient noise but use more memory; smaller steps may be stable but slow. Choose optimization settings using validation evidence and measured compute.",
@@ -146,6 +162,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Derive a gradient descent step and show how finite differences reveal a derivative bug.",
+          "spoken": "Compute the derivative of the loss with respect to the weight, then move opposite the derivative by a chosen learning rate; compare the analytic result with a small central difference at a fixed point.",
+          "deep": "**First principles.** Consider a one-parameter linear model `prediction = w × x` and squared error `L(w) = (wx − y)^2`. The chain rule yields `dL/dw = 2(wx−y)×x` because the derivative of a square is twice its input and the derivative of the inner expression `wx−y` with respect to `w` is `x`.\n\n**Worked gradient.** With `w=0.25`, `x=3`, `y=1`, prediction is 0.75 and error is -0.25. Gradient is `2×(-0.25)×3 = -1.5`. Taking learning rate `η=0.01`, `w_new = w−η×gradient = 0.265`. The original loss is (0.75−1)^2 = 0.0625; the new loss is (0.795−1)^2 = 0.042025, so this particular small update improved the objective. A larger learning rate can overshoot; improvement is not guaranteed for arbitrary networks or steps.\n\n**Numerical verification.** Use a central difference `[L(w+h)−L(w−h)]/(2h)` with `h=10^-5`. Its result should approximately match -1.5. This is a practical test of tensor shape, missing factors, and incorrect masking/reduction. Tiny `h` can cause floating-point cancellation, while too large `h` biases the estimate; try multiple step sizes and appropriate tolerances.\n\n**Autograd and production.** A modern PyTorch autograd engine traces differentiable tensor operations and accumulates gradients through the computation graph. It does not validate the business meaning of the labels or prove that the model generalizes. The same training pipeline must examine data leakage, numerical precision, optimizers and reproducibility. In the repository, the CPU `numpy_torch_bridge.py` goes beyond this scalar exercise.\n\n**Changed assumption.** If the label is mis-scaled or a training-only feature leaks the target, a mathematically correct gradient can reduce training loss while making deployment quality worse. Use leakage-free held-out splits and independent error analysis rather than judging correctness by monotonic training loss.",
+          "follow_up": {
+            "question": "Does a gradient check on one weight prove a deep model is implemented correctly?",
+            "answer": "No. It is a local derivative oracle for the tested path. Test vector shapes, masked positions, reduction/scaling, non-differentiable operations, other parameters and realistic batch/deployment paths independently."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
         }
       ]
     },
@@ -180,7 +210,8 @@
       "practice": [
         "Compare accuracy with precision and recall on a rare-event fixture.",
         "Add a duplicate entity across the split and explain the leakage.",
-        "Create an uninformative majority baseline before increasing model complexity."
+        "Create an uninformative majority baseline before increasing model complexity.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
       ],
       "debugging": "Unexpectedly perfect results call for a split and feature-provenance audit. A train/test gap can result from leakage, distribution shift, insufficient data, overfitting or an unsuitable task definition.",
       "tradeoffs": "Flexible models can reduce training error while increasing variance; simpler baselines are easier to debug and deploy, but may miss real structure.",
@@ -219,6 +250,20 @@
             "Defines assumptions and key terms",
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "How do random row splits leak information for grouped or time-dependent AI datasets?",
+          "spoken": "Random rows can put near-duplicates, data from one user or future information in both training and test sets. Split along the deployment boundary—entity, time, source or document family—and fit preprocessing on training data only.",
+          "deep": "**Start with the deployment question.** A train/test split is an estimate of how a trained system will generalize to data *it did not know when trained*. A random row partition is valid only if rows are appropriately independent and identically distributed for the intended task. Repeated users, patients, devices, documents, policy versions or sessions break that assumption.\n\n**Leakage mechanisms.** Suppose each customer has ten nearly identical messages. A random 80/20 split may place eight of a customer's messages in training and two in test. The model can memorize customer-specific language or identifiers and produce a high score without learning to serve an unseen customer. For a future forecasting task, random rows can place future events into training. A text normalization vocabulary or feature scaler fitted before the split can also include held-out information, even if model fitting itself used only the training partition.\n\n**Implementation.** Group by an entity whose behavior must generalize (`GroupKFold` or group holdout) or split chronologically when predicting future events, leaving a realistic time gap if labels mature late. Fit vectorizers, scalers, imputation, feature selection, model tuning and threshold selection **only inside** the training/validation folds. Seal the final test set until the design is frozen; use independent evaluation on new domains and corruptions.\n\n**Production failure.** A document RAG reranker appears to reach recall@5=99% because chunks from the same source PDF and revised copies occur in both train and evaluation corpora. Group by source/revision family and test claim-level retrieval from genuinely unseen material. For an LLM judge, keep gold label, model answer and source provenance separate to prevent leakage.\n\n**Trade-off and changed assumption.** Group/time splits may reduce the headline score and usable train rows; that lower score is often more honest. If deployment intentionally serves existing customers, evaluate both seen-customer future-time and entirely new-customer slices. State which risk each number measures.",
+          "follow_up": {
+            "question": "Can you fit a scaler on the full dataset if you do not fit model weights on test labels?",
+            "answer": "No for a clean held-out evaluation. Global statistics can reveal test feature distribution and alter training transformations. Fit preprocessing on training folds, then apply the frozen transform to validation and test."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
           ]
         }
       ]
@@ -406,7 +451,8 @@
         "Calculate the two-key worked example by hand.",
         "Derive the output shape for Q=(3,4), K=(5,4), V=(5,2).",
         "Remove stable-softmax subtraction and reproduce overflow with a large logit.",
-        "Describe why one learned byte merge is not a complete production tokenizer."
+        "Describe why one learned byte merge is not a complete production tokenizer.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
       ],
       "debugging": "Shape errors often swap key length and feature width. Softmax over the wrong axis can produce valid-looking numbers with the wrong meaning.",
       "tradeoffs": "Dense attention has quadratic score count in sequence length; efficient kernels change memory traffic and constants, while sparse or linear alternatives change assumptions or computations.",
@@ -448,6 +494,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Why scale query-key attention logits and mask future tokens before softmax?",
+          "spoken": "Scaled dot-product attention divides the query/key dot product by sqrt(key dimension) to control logit magnitude. In a causal decoder, future positions must receive zero probability before normalizing.",
+          "deep": "**Define tensor shapes.** With sequence length `T` and key/query width `d_k`, queries `Q` and keys `K` have shape `T × d_k`. The raw score matrix is `QKᵀ` of shape `T × T`. Divide by `sqrt(d_k)` to reduce the growth in variance of dot products when features have roughly independent unit-scale components. Add a causal mask that excludes key positions later than the current query position; then apply softmax independently to each row.\n\n**Numerical example.** For two queries `[(1,0),(0,1)]` and keys of the same vectors, the first query has raw logits `[1,0]`. But when generating token 1, position 2 is in the *future*, so mask its logit to negative infinity before softmax; the resulting attention weight is exactly `[1,0]` (up to numerical representation). If its value vector is `(10,0)`, the output is `(10,0)`. The second query may attend to both earlier and current positions.\n\n**Stable softmax.** For allowed logits `s_i`, compute `exp(s_i−max(s)) / sum(exp(s_j−max(s)))`. Subtracting the max cancels mathematically but avoids numeric overflow with very large logits. Masked positions should contribute exactly zero. An all-masked row is invalid unless the architecture explicitly defines fallback behavior; reject it rather than divide by zero.\n\n**Implementation and reliability.** `labs/math_interview_mechanics.py` calculates these weights with only Python math and asserts mask/shape behavior. Production attention includes head and batch dimensions, different query/KV head counts, padding masks, attention kernels, precision and caching; this tiny program illustrates semantics, not GPU performance. Incorrect mask broadcasting can leak future tokens in a language-model evaluation.\n\n**Changed assumption.** With a bidirectional encoder, future-key masking may be inappropriate; padding masks still apply. Always derive mask semantics from the training objective and deployed task, not from using the word “transformer.”",
+          "follow_up": {
+            "question": "Why should the mask be applied before softmax rather than multiplying probabilities by zero afterward?",
+            "answer": "Masking after softmax changes the normalization and can leave a row summing to less than one; it can also waste probability mass on forbidden keys. Mask logits first and normalize only over legal positions."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
         }
       ]
     },
@@ -482,7 +542,8 @@
       "practice": [
         "Explain the distinction between prefill and one-token decode.",
         "Estimate cache element count from layers, sequence length, batch and head dimensions.",
-        "Compare greedy and sampled outputs under an explicitly fixed configuration."
+        "Compare greedy and sampled outputs under an explicitly fixed configuration.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
       ],
       "debugging": "If incremental output differs from full-prefix computation, inspect masking, cache positions, model mode and projection reuse before assuming numerical noise.",
       "tradeoffs": "Caching trades memory for saved computation; batching can improve throughput while increasing per-request waiting and retained cache demand.",
@@ -521,6 +582,20 @@
             "Defines assumptions and key terms",
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Why is KV caching useful during decoding, and what memory assumptions does it introduce?",
+          "spoken": "Caching prior key and value tensors avoids recomputing past attention projections at each generated step, trading GPU memory for faster per-token decoding; the retained tensors grow with context, layer count and concurrent sequences.",
+          "deep": "**Autoregressive mechanism.** During prefill, the model processes the prompt tokens and computes attention projections. During decoding, it generates one token at a time. Without a KV cache, the decoder may repeatedly recompute keys and values for previous tokens. A KV cache stores per-layer past key/value representations so the new query can attend to previous positions without recomputing every prior projection.\n\n**Memory calculation.** For a simplified decoder with `L` layers, `H_kv` KV heads, head width `D`, `T` live tokens per sequence and `b` bytes per KV scalar, key+value storage is approximately `2 × L × H_kv × D × T × b` bytes per sequence. Example: `L=32`, `H_kv=8`, `D=128`, `T=4096`, `b=2` (FP16): `2×32×8×128×4096×2 = 536,870,912` bytes, or **512 MiB** for that sequence's KV cache alone. Across eight same-length sequences, the simple total is roughly 4 GiB. This does not include model weights, activations, allocator overhead, fragmentation or compute workspaces.\n\n**Latency vs throughput.** Prefill can be compute-heavy and processes many tokens concurrently; decoding often has limited arithmetic per token and becomes memory-bandwidth/scheduling sensitive. Continuous batching can improve hardware use, but it must manage variable prompt lengths, admission and fairness. Prefix sharing and paged KV allocations have version-specific constraints. A smaller weight quantization does not necessarily improve latency if its kernels and memory movement are inefficient.\n\n**Implementation.** The `labs/math_interview_mechanics.py` causal attention fixture shows the correctness semantics of masking and reuse candidates; it does not allocate a real GPU KV cache. Issue #38 separately covers vLLM/TGI, profiling and hardware measurements. Performance claims require actual model, tokenizer, GPU, prompt lengths, precision, warmup, p95/p99 and tokens/s.\n\n**Follow-up — what if context doubles under the same concurrency?** KV storage grows approximately linearly with retained tokens in the formula; admission and memory pressure must be recalculated, and tail latency can worsen even when average throughput looks acceptable.",
+          "follow_up": {
+            "question": "Does 4 GiB for eight sequences mean an 8 GiB GPU can host the server?",
+            "answer": "No. Model weights, CUDA/runtime allocations, activations, fragmentation and headroom remain. Real admission and benchmark results require measuring the actual serving engine and model/hardware pair."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
           ]
         }
       ]

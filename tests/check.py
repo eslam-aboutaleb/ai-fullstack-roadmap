@@ -72,6 +72,11 @@ for slug,e in EXAMPLES.items():
         result=subprocess.run([sys.executable,'-I','-c',e['code']],capture_output=True,text=True,timeout=10)
         assert result.returncode==0,(slug,result.stderr)
         executed+=1
+math_lab_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/math_interview_mechanics.py')],
+                               capture_output=True,text=True,timeout=10)
+assert math_lab_result.returncode==0,(math_lab_result.stdout,math_lab_result.stderr)
+assert 'PASS' in math_lab_result.stdout
+
 for path in (SITE/'examples'/'labs').glob('*.py'):ast.parse(path.read_text())
 result=subprocess.run([sys.executable,str(SITE/'examples/labs/voice_pipeline.py')],capture_output=True,text=True,timeout=10)
 assert result.returncode==0,result.stderr
