@@ -62,6 +62,8 @@ def check_fixtures():
         assert len(record['A'])>=350 and record['citations']
         assert record['follow_ups'][0]['A']
     assert check(chapters)['new_chapter_topics'] >= 3
+    from answer_format import VISUALS
+    assert all(str(number) in VISUALS and len(VISUALS[str(number)]['steps'])>=4 for number in (1212,1213,1214)), 'The new reader questions require explanatory diagrams'
     print('Interview-first authoring contract: positive, negative and legacy cases pass')
 
 
