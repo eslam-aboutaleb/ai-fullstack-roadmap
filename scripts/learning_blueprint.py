@@ -43,6 +43,25 @@ def validate_plan(plan=None, curriculum=None):
     return plan
 
 
+
+def verified_assessment_links(index, evidence=None):
+    """Validate issue->actual assessment identifiers; these are draft mappings."""
+    if evidence is None:
+        evidence=json.loads((ROOT/'content/shared/assessment-evidence.json').read_text())
+    issues=evidence.get('issues')
+    if not isinstance(issues,dict) or not issues:
+        raise ValueError('Missing assessment/issue evidence mapping')
+    assessment_ids={x['id'] for x in index}
+    if len(assessment_ids)!=len(index):
+        raise ValueError('Duplicate assessment identifiers')
+    for issue,ids in issues.items():
+        if not str(issue).isdigit() or not isinstance(ids,list) or not ids or len(ids)!=len(set(ids)):
+            raise ValueError('Invalid issue-to-assessment mapping')
+        if set(ids)-assessment_ids:
+            raise ValueError('Unknown assessment for issue #'+str(issue)+': '+str(sorted(set(ids)-assessment_ids)))
+    return {str(k):list(v) for k,v in issues.items()}
+
+
 def inventory(chapters, curriculum):
     plan = validate_plan(curriculum=curriculum)
     practices = json.loads((ROOT/'content/assessments.json').read_text())['items']
@@ -53,6 +72,8 @@ def inventory(chapters, curriculum):
                         'outcomes':u['outcomes'], 'lab':u['lab'],
                         'prerequisites':u['prerequisites']}
              for course in courses for u in course['units']}
+    assessment_links = verified_assessment_links(practices)
+    assessments_by_id = {row['id']:row for row in practices}
     tasks = defaultdict(list)
     for row in practices:
         tasks[row['topic']].append({'kind':row['kind'],'id':row['id'],
@@ -60,6 +81,8 @@ def inventory(chapters, curriculum):
     for row in browser:
         tasks[row['topic']].append({'kind':'browser-code','id':row['id'],
                                    'objective':row['objective']})
+    for unit in units.values():
+        unit['practice']=tasks[unit['study_id']]
     records = []
     for chapter in chapters:
         slug = chapter['slug']
@@ -85,15 +108,27 @@ def inventory(chapters, curriculum):
                             'terms':[term[0] for term in chapter['terms']]},
             'foundation_lessons':guided,'interview_questions':interviews,
             'linked_course_units':mapped_units,
-            'linked_practice_count':sum(len(row['practice']) for row in guided+interviews),
+            'linked_practice_count':sum(len(row['practice']) for row in guided+interviews)+sum(len(u['practice']) for u in mapped_units),
             'evidence_stage':'introduced; some local practice is authored, independent learner mastery not verified',
             'independent_technical_review':'pending',
         })
+    issue_evidence = [{
+        'issue':int(issue),'assessment_ids':ids,
+        'items':[{'id':identity,'topic':assessments_by_id[identity]['topic'],
+                  'objective':assessments_by_id[identity]['objective'],
+                  'kind':assessments_by_id[identity]['kind'],
+                  'status':'authored-assessment-only'} for identity in ids],
+        'definition_of_done_met':False,
+        'external_integration_verified':False,
+        'independent_review':'pending'
+    } for issue,ids in sorted(assessment_links.items(),key=lambda x:int(x[0]))]
     return {'version':1,'review_status':'planned-and-source-inventory',
             'no_question_cap':True,
             'disclaimer':'An authored outcome, lab or answered question is not evidence of real learner mastery or independent technical approval.',
             'total_chapters':len(records),'total_planned_modules':len(plan['modules']),
-            'chapters':records,'planned_modules':plan['modules']}
+            'chapters':records,'planned_modules':plan['modules'],
+            'assessment_evidence':issue_evidence,'registered_assessments':len(practices),
+            'evidence_scope':'Draft assessment authoring and identity traceability, not subject acceptance or learner mastery'}
 
 
 def build(out, write, chapters, curriculum, url):

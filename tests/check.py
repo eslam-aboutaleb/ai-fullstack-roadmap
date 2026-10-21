@@ -177,3 +177,16 @@ for integration_lab in ["agent_memory_lifecycle.py","context_packet_policy.py","
     assert integration_result.returncode==0, (integration_lab,integration_result.stdout,integration_result.stderr)
     assert 'PASS' in integration_result.stdout, (integration_lab,integration_result.stdout)
 print('All 18 locally executable Batch 1-4 exercises passed in the combined tree')
+
+
+# Acceptance refresh: verify all five new stable reader question IDs and
+# all 23 authored assessments from Batches 1-4 survive integration.
+from course_data import load as load_integrated_study
+integrated_ids={q['id'] for chapter in load_integrated_study() for q in chapter['questions']+chapter['lessons']}
+assert set(range(1212,1217)) <= integrated_ids, 'New Batch 1-4 study IDs missing from integrated reader'
+integrated_assessments=json.loads((ROOT/'content/assessments.json').read_text())['items']
+assert len(integrated_assessments)==52, ('expected combined 52 assessments',len(integrated_assessments))
+assert len({a['id'] for a in integrated_assessments})==52
+for record in integrated_assessments:
+    assert record['topic'] in integrated_ids or record['topic'] in {u['study_id'] for course in load_courses() for u in course['units']}
+print('Integrated newly authored questions and issue-linked assessments: pass')
