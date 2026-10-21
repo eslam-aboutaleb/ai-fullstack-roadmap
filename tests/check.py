@@ -165,3 +165,15 @@ for project in ('evidence-workbench','review-packet'):
         if project=='evidence-workbench':
             assert {'projects/evidence-workbench/package-lock.json','projects/evidence-workbench/src/App.tsx','projects/evidence-workbench/server.py'} <= set(names)
 print('Cumulative project downloads and dependency/build exclusions: pass')
+
+# Cross-PR integration checks: preserve every independent regression runner.
+from check_interview_contract import check_fixtures as check_batch_authoring_fixtures
+from interview_contract import check as check_batch_authoring
+check_batch_authoring_fixtures()
+check_batch_authoring()
+for integration_lab in ["agent_memory_lifecycle.py","context_packet_policy.py","finops_budget_ledger.py","async_backend_failure.py","math_interview_mechanics.py","vector_index_migration.py","eval_platform_contract.py","ai_safety_release_gate.py","mcp_remote_policy.py","framework_contract_compare.py","grounded_policy_pipeline.py","replayable_agent_workflow.py","inference_capacity.py","vision_grounding_geometry.py","video_temporal_alignment.py","sft_lora_contract.py","data_rollout_contract.py","stream_session_reducer.cjs"]:
+    integration_cmd = ['node', str(ROOT/'labs'/integration_lab)] if integration_lab.endswith('.cjs') else [sys.executable,'-B',str(ROOT/'labs'/integration_lab)]
+    integration_result = subprocess.run(integration_cmd,capture_output=True,text=True,timeout=30,check=False)
+    assert integration_result.returncode==0, (integration_lab,integration_result.stdout,integration_result.stderr)
+    assert 'PASS' in integration_result.stdout, (integration_lab,integration_result.stdout)
+print('All 18 locally executable Batch 1-4 exercises passed in the combined tree')

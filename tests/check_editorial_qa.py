@@ -73,6 +73,22 @@ def check():
 
     assert not link_errors, ('Broken reference links', link_errors[:10])
 
+    from course_data import load
+    from editorial_evidence import evidence_report, inspect_new_question, validate_new_records
+    chapters = load()
+    assert validate_new_records(chapters) >= 0
+    evidence = evidence_report(chapters)
+    assert len(evidence['chapters']) == len(chapters)
+    assert sum(row['total_interview_questions'] for row in evidence['chapters']) == len(all_questions)
+    published = json.loads((ROOT/'_site/questions/editorial-evidence.json').read_text())
+    assert published == evidence, 'Published editorial evidence does not match current sources'
+    synthetic = {'id': 999999, 'Q': 'How should we verify?', 'A': 'TODO: write',
+                 'citations': ['http://example.com'],
+                 'follow_ups': [], 'reviewer_status': {'status': 'draft'}}
+    problems = inspect_new_question(synthetic)
+    assert len(problems) >= 3 and inspect_new_question({'id': 1}) == []
+    print('Editorial evidence report: source counts, published artifact, and negative gates pass')
+
     print(json.dumps({
         'issue': 20,
         'total_questions': len(all_questions),
