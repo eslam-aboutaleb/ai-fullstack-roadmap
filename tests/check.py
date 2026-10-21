@@ -117,6 +117,11 @@ for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py'
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
 
+finops_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/finops_budget_ledger.py')],
+                              capture_output=True,text=True,timeout=15)
+assert finops_result.returncode==0,(finops_result.stdout,finops_result.stderr)
+assert 'PASS' in finops_result.stdout
+
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
 assert actual == expected, 'Simulation transition fixtures drifted'
