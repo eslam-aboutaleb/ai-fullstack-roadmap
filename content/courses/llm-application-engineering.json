@@ -2,9 +2,9 @@
   "id": "llm-application-engineering",
   "title": "LLM applications, retrieval quality and safe agent boundaries",
   "description": "Connect provider-neutral model contracts to measurable retrieval, citation validation, authorization and recoverable tool effects with credential-free local fixtures.",
-  "version": "1.0.0",
-  "updated": "2026-10-20",
-  "review_status": "Authored and fixture-verified; independent technical review pending",
+  "version": "1.1.0",
+  "updated": "2026-10-22",
+  "review_status": "Per-unit Codex AI review status and content-specific evidence in content/reviews.json; no human endorsement claimed.",
   "units": [
     {
       "id": "llm-provider-contracts",
@@ -355,7 +355,7 @@
         "Every side effect needs an identity and a recovery rule. Persist the logical operation key, owner and payload hash before dispatch. A timeout after the receiver commits is an uncertain acknowledgment, not proof that nothing happened. Retry with the same effect identity where the receiver deduplicates, or reconcile its durable state before sending again. A local database rollback cannot undo an external commit. The existing durable-agent capstone demonstrates this distinction with a separate provider fixture.",
         "Approvals should bind to the actual operation, scope and material parameters, not an open-ended phrase such as allow tools. Revalidate authorization and state at execution because conditions can change after planning or approval. Record what was proposed, allowed, dispatched and confirmed without retaining unnecessary sensitive context. Evaluate trajectories and side effects independently from the final answer, including unauthorized attempts, loops, duplicate writes and cost limits."
       ],
-      "lab": "durable_agent.py",
+      "lab": "research_support_project.py",
       "practice": [
         "Explain MCP local and remote transport boundaries without conflating discovery with trust",
         "Prove a lost acknowledgment does not produce a second logical effect",
@@ -392,7 +392,7 @@
         {
           "question": "How do A2A, MCP and REST differ, and where does authorization live?",
           "spoken": "A2A supports interactions between agent systems; MCP standardizes AI-facing capabilities over local or remote integrations; ordinary APIs expose domain behavior. Authorization remains an application/service responsibility.",
-          "deep": "Select a protocol based on the interaction contract and interoperability need. Verify advertised capabilities and versions, but derive authority from validated identity, scopes and business policy. For remote delegation, define what information may leave the boundary and which service owns each effect.",
+          "deep": "Select a protocol based on the interaction contract and interoperability need. Verify advertised capabilities and versions, but derive authority from validated identity, scopes and business policy. For remote delegation, define what information may leave the boundary and which service owns each effect.\n\nMCP exchanges capabilities/context between a host's client and servers; A2A supports interactions between agent systems; REST describes a style for domain APIs. These are different contracts, not substitutes for a planner or permission system. Negotiate an actual supported profile and distinguish a transport failure from a tool-level error. Discovery describes an interface and cannot authorize every resource named in its arguments.\n\nThe pinned protocol lab uses real SDK clients over STDIO and loopback HTTP, lists read_policy and tests valid, private and malformed arguments. The local support workflow separately demonstrates an application tool registry, exact expiring approval and a persisted source-to-effect ledger. Its in-process descriptor is not labeled MCP wire conformance. In either design, the executor rechecks trusted owner, material payload and current business state before committing. After acknowledgment loss, reconcile the existing operation; do not generate a fresh write key or treat a model's success claim as receiver evidence.",
           "follow_up": {
             "question": "Does human approval make a tool call safe forever?",
             "answer": "No. Bind the approval to material parameters and scope, expire it where appropriate and revalidate changing state and authority before execution."
@@ -404,7 +404,12 @@
           ]
         }
       ],
-      "study_id": 838
+      "study_id": 838,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     }
   ]
 }
