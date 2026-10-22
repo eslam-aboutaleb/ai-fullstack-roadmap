@@ -108,14 +108,28 @@ for page_path in SITE.glob('*.html'):
     assert not re.search(r'<script[^>]+src=["\']https?://', text), page_path
 
 subprocess.run(['node', str(ROOT/'tests/check_study.cjs')], check=True)
-from check_question_bank import check as check_question_bank
-check_question_bank()
+from check_question_data import check as check_question_data
+check_question_data()
 
 for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py',
                  'data_contract_pipeline.py', 'llm_contracts.py', 'retrieval_scorecard.py', 'production_scorecard.py', 'restore_drill.py'):
     result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/lab_name)], capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
+
+# Agent-memory reference and assessment capstone (PR #53).
+for memory_lab, args in (('agent_memory_lifecycle.py', []), ('memory_project.py', ['check'])):
+    result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/memory_lab), *args],
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, (memory_lab, result.stdout, result.stderr)
+    assert 'PASS' in result.stdout, (memory_lab, result.stdout)
+
+# Bounded asyncio task lifecycle and persistent effect retry (#15).
+backend_result = subprocess.run([sys.executable, '-B', str(ROOT/'labs/async_backend_failure.py')],
+                                capture_output=True, text=True, timeout=30)
+assert backend_result.returncode == 0, (backend_result.stdout, backend_result.stderr)
+assert 'PASS' in backend_result.stdout
+assert 'Complete interview answer' in (SITE/'course-asyncio-lifecycle.html').read_text()
 
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
@@ -130,14 +144,6 @@ with zipfile.ZipFile(SITE/'examples/local-projects.zip') as archive:
     assert len(archive.namelist()) == len(set(archive.namelist())), 'Duplicate ZIP members'
     assert {'labs/async_job_engine.py','labs/transaction_api.py','labs/fullstack_demo.py','requirements-models.txt','LICENSE'} <= set(archive.namelist())
     assert not any(name.startswith('/') or '..' in Path(name).parts or '__pycache__' in name for name in archive.namelist())
-async_backend_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/async_backend_failure.py')],
-                                  capture_output=True,text=True,timeout=20)
-assert async_backend_result.returncode==0,(async_backend_result.stdout,async_backend_result.stderr)
-assert 'PASS' in async_backend_result.stdout
-async_course_html=(SITE/'course-asyncio-lifecycle.html').read_text()
-assert 'Complete interview answer' in async_course_html
-assert 'Idempotent' in async_course_html or 'idempotent' in async_course_html
-
 from course_pages import load as load_courses
 course_units = [unit for course in load_courses() for unit in course['units']]
 assert len({unit['study_id'] for unit in course_units}) == len(course_units)
@@ -173,3 +179,23 @@ for project in ('evidence-workbench','review-packet'):
         if project=='evidence-workbench':
             assert {'projects/evidence-workbench/package-lock.json','projects/evidence-workbench/src/App.tsx','projects/evidence-workbench/server.py'} <= set(names)
 print('Cumulative project downloads and dependency/build exclusions: pass')
+
+# The learning journey owns discovery. Removing duplicate index pages must not
+# strand the unique worked units, projects or inline transition simulations.
+retired_pages = {'courses.html', 'capstones.html', 'simulations.html', 'question-bank.html', 'topic-coverage.html'}
+assert not any((SITE/name).exists() for name in retired_pages)
+assert not list(SITE.glob('questions-*.html')), 'Answers must have one canonical chapter page'
+curriculum = json.loads((ROOT/'content/curriculum.json').read_text())['chapters']
+placements = {}
+for slug, entry in curriculum.items():
+    for identity in entry.get('course_units', []):
+        assert identity not in placements, ('ambiguous unit placement', identity)
+        placements[identity] = slug
+        assert 'course-'+identity+'.html' in (SITE/(slug+'.html')).read_text()
+assert set(placements) == {unit['id'] for unit in course_units}, 'A unique worked unit lost its chapter entry point'
+for identity, slug in {'asyncio':'sources', 'locking':'database-concurrency', 'retrieval':'foundations', 'retries':'agent-evaluation'}.items():
+    assert 'data-simulation="'+identity+'"' in (SITE/(slug+'.html')).read_text()
+portfolio = (SITE/'portfolio-capstone.html').read_text()
+for identity in ('async-engine', 'transaction-api', 'rag-quality', 'durable-agent'):
+    assert 'capstone-'+identity+'.html' in portfolio
+print('Single learning journey: retired duplicate pages absent; every unit, project and simulation remains reachable')
