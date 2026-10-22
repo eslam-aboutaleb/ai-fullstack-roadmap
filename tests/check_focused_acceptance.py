@@ -28,7 +28,7 @@ def check():
         from build import interview
         article = interview(dict(question, id=row['study_id']))
         if question.get('worked_case') == question.get('Why'):
-            assert article.count(html.escape(question['worked_case'], quote=True)) == 1, 'duplicate worked case' 
+            assert article.count(html.escape(question['worked_case'], quote=True)) == 1, 'duplicate worked case'
         rendered = (ROOT / '_site' / (row['chapter'] + '.html')).read_text()
         assert f'id="q{row["study_id"]}"' in rendered and 'id="walkthrough"' in rendered
         assert row['assessment'] in (ROOT / '_site/practice-data.js').read_text()
