@@ -1,11 +1,11 @@
 """Keep accepted syllabus evidence attached to real source, practice and pages."""
-import html
 import json
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
+from check_answer_format import Text
 from editorial import validate_review
 from revised_content_gate import validate_record, validate_unit
 
@@ -28,7 +28,7 @@ def check():
         from build import interview
         article = interview(dict(question, id=row['study_id']))
         if question.get('worked_case') == question.get('Why'):
-            assert article.count(html.escape(question['worked_case'], quote=True)) == 1, 'duplicate worked case'
+            assert ''.join(Text(article).parts).count(question['worked_case']) == 1, 'duplicate worked case'
         rendered = (ROOT / '_site' / (row['chapter'] + '.html')).read_text()
         assert f'id="q{row["study_id"]}"' in rendered and 'id="walkthrough"' in rendered
         assert row['assessment'] in (ROOT / '_site/practice-data.js').read_text()
