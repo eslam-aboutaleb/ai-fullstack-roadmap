@@ -66,7 +66,7 @@ jobs:
       - name: Install browser and local integration test dependencies
         run: |
           python -m pip install -r requirements-dev.txt
-          python -m playwright install --with-deps chromium
+          python scripts/install_test_browser.py
       - name: Verify browser interactions and local FastAPI pilot
         run: |
           python tests/check_browser.py
@@ -160,10 +160,26 @@ jobs:
           assert 'a-policy@1' in body and 'Owner B private' not in body
           PYCODE
 
+  editorial-revisions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Validate all changed published learning records and review evidence
+        env:
+          REVIEW_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/revised_content_gate.py --base "$REVIEW_BASE" --require-review
+
   gate:
     name: Quality gate
     if: always()
-    needs: [quality, browser-check, model-check, advanced-check, workflow-lint, security]
+    needs: [quality, browser-check, model-check, advanced-check, workflow-lint, security, editorial-revisions]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
