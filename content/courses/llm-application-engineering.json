@@ -70,7 +70,7 @@
         {
           "question": "Does a model JSON-schema guarantee make the result safe to execute?",
           "spoken": "It guarantees only the supported structural contract. The application still checks permissions, values, ownership and state transitions.",
-          "deep": "A schema can constrain an operation name and arguments but cannot establish whether the current caller may invoke that operation or whether a citation supports the generated claim. Treat model output as a proposal and validate it at the same business boundary used by ordinary callers.",
+          "deep": "A schema can constrain an operation name and arguments but cannot establish whether the current caller may invoke that operation or whether a citation supports the generated claim. Treat model output as a proposal and validate it at the same business boundary used by ordinary callers.\n\nSeparate structure, truth and authority. In the local fixture, JSON must have exact keys and types, a nonempty supported answer and citations drawn from the caller-scoped set. Even after those checks, the source may not support the particular claim. Validate business preconditions at the ordinary application boundary before any effect. A model cannot create an approval by emitting a field named approved.\n\nWith a 100-token local allowance and 30 reserved per attempt, a rate limit followed by success leaves 40. Count attempts separately from user requests and keep actual provider billing categories separate from this conservative reservation. A useful interview defense identifies the malformed-output case that should not be retried, a retryable rate limit bounded by deadline, and an ambiguous committed effect that must be reconciled using its original identity. Run llm_contracts.py and show that forbidden citations fail even when JSON parses.",
           "follow_up": {
             "question": "When would you retry invalid JSON?",
             "answer": "Only under a bounded, explicit repair policy. Do not retry an unauthorized result or repeat an already uncertain business effect."
@@ -83,7 +83,12 @@
         }
       ],
       "study_id": 834,
-      "assessment": "retry-reservation-limit"
+      "assessment": "retry-reservation-limit",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "tokens-context-security",
@@ -148,7 +153,7 @@
         {
           "question": "Why are delimiters insufficient to prevent prompt injection?",
           "spoken": "They help a model distinguish data from instructions, but cannot prevent a model error or grant application authority. Enforce scope and effects in ordinary backend code.",
-          "deep": "Use least-privilege connectors, trusted identity, destination allowlists, independent argument validation, approval where needed and audit evidence. Treat tool descriptions and results as part of the attack surface. Measure whether the downstream boundary blocks an injected request.",
+          "deep": "Use least-privilege connectors, trusted identity, destination allowlists, independent argument validation, approval where needed and audit evidence. Treat tool descriptions and results as part of the attack surface. Measure whether the downstream boundary blocks an injected request.\n\nTreat delimiters as communication with a probabilistic component. They do not authenticate a source or remove its ability to influence a model. A retrieved sentence can suggest a perfectly schema-valid tool call that violates policy; the dispatcher must derive identity and permissions from trusted application state and reject the unauthorized write.\n\nFor a 4,096-token fixture budget reserving 512 output, 384 system/tool instructions and 256 conversation tokens, only 2,944 remain for evidence and separators. Use a compatible tokenizer for a real hard limit and keep the decisive exception when trimming. Demonstrate both failure modes independently: an oversized context rejected before invocation, and a small malicious context that fits but still cannot authorize an effect. A shorter prompt is not automatically safer or more correct. Record source provenance and changed-assumption tests instead of judging the prompt by fluency alone.",
           "follow_up": {
             "question": "Should you log the entire prompt to diagnose failures?",
             "answer": "Only under an explicit sensitive-data access and retention policy. Prefer counts, version IDs and redacted traces for routine monitoring."
@@ -160,7 +165,12 @@
           ]
         }
       ],
-      "study_id": 835
+      "study_id": 835,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "retrieval-ranking-evaluation",
@@ -227,7 +237,7 @@
         {
           "question": "Why can Recall@k improve while the application becomes less useful?",
           "spoken": "The retrieved items may be stale, unauthorized, poorly ordered or irrelevant to the answer’s specific conditions. Recall is one stage metric, not the complete product objective.",
-          "deep": "Evaluate source/version applicability, citation support, abstention, latency and tenant isolation in addition to retrieval metrics. Keep labels independent of the system under test and inspect slices rather than only the average.",
+          "deep": "Evaluate source/version applicability, citation support, abstention, latency and tenant isolation in addition to retrieval metrics. Keep labels independent of the system under test and inspect slices rather than only the average.\n\nRecall only asks whether labeled relevant evidence entered the evaluated set. It can improve when the system retrieves many redundant chunks, exceeds the latency budget or exposes another owner's data under an incorrectly scoped label set. The final answer may still omit a decisive exception. Separate eligible candidate recall, final ranking, context coverage and claim support.\n\nFor one relevant result at rank two, recall is 1, reciprocal rank is 0.5 and binary nDCG is about 0.63093. An unanswerable question has undefined retrieval recall, so evaluate correct abstention separately. Run the policy capstone and inspect the deliberately omitted final-sale exception: a plausible general rule fails the independent answer/span oracle. Compare the same case IDs and corpus/profile snapshot across variants. Explain why a reranker cannot recover a passage absent from its pool and why hand-authored vectors are not evidence that a learned dense model improves quality.",
           "follow_up": {
             "question": "Would increasing k always help?",
             "answer": "It can recover more gold items while increasing context noise, reranker cost and latency. Compare the downstream result under a fixed budget."
@@ -240,7 +250,12 @@
         }
       ],
       "study_id": 836,
-      "assessment": "retrieval-metric-denominators"
+      "assessment": "retrieval-metric-denominators",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "evidence-citations-abstention",
@@ -306,7 +321,7 @@
         {
           "question": "How would you evaluate a policy assistant before release?",
           "spoken": "Use versioned gold cases across applicability, answerability and tenant boundaries; measure retrieval, citation support, false refusal, task quality and latency separately.",
-          "deep": "Predeclare critical zero-tolerance invariants such as cross-tenant disclosure. Calibrate semantic judgments against reviewed examples, freeze a holdout set, run deliberate regressions and record paired candidate/baseline failures. A high fluent-answer score cannot offset unauthorized behavior.",
+          "deep": "Predeclare critical zero-tolerance invariants such as cross-tenant disclosure. Calibrate semantic judgments against reviewed examples, freeze a holdout set, run deliberate regressions and record paired candidate/baseline failures. A high fluent-answer score cannot offset unauthorized behavior.\n\nBegin with independently authored cases whose expected evidence is owner- and revision-specific. Include a supported general policy, a decisive exception, a current revision, another owner's private source, a deleted source, an unknown request and injected connector text. Define correct abstention and false refusal separately, with counts for their different populations.\n\nThe policy project fixes expected spans independently of prediction and accepts learner prediction JSON through --grade. A real source citation is insufficient if the answer omits the final-sale exception. Score the actual claim and citation, not just JSON validity or whether any document was retrieved. Freeze tuning and release sets, inspect paired regressions and block critical disclosure regardless of mean quality. The eight-case deterministic result proves the fixture only; add unseen cases and adjudicated labels before estimating generalization. Save failed and repaired outputs, manifest hashes and a short analysis that identifies the stage responsible for each regression.",
           "follow_up": {
             "question": "What if the evaluation has only ten cases?",
             "answer": "Treat the result as a small smoke fixture, report uncertainty and expand coverage before making broad performance claims."
@@ -326,7 +341,12 @@
         "recovery": "Withhold the unsupported claim, provide a scoped clarification or review path, and correct retrieval/context selection before retrying.",
         "prevention": "Keep separate tests for membership, applicability, semantic support and false refusals with versioned query slices."
       },
-      "assessment": "citation-membership-limit"
+      "assessment": "citation-membership-limit",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "safe-tools-protocol-boundaries",
