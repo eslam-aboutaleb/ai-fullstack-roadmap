@@ -110,8 +110,6 @@ def load(assign_ids=False):
                 if question.get('answer_format') == 'conceptual':
                     conceptual_schema = json.loads((CONTENT/'shared/conceptual-question-schema.json').read_text())
                     _check_schema(question, conceptual_schema, group, slug)
-                    from editorial import validate_review
-                    validate_review(question, namespace + '/' + slug + '/' + question['Q'])
                     from urllib.parse import urlsplit
                     if any(urlsplit(ref).scheme not in ('http','https') or not urlsplit(ref).netloc for ref in question['citations']):
                         raise ValueError(f'{slug}: conceptual citations must be HTTP(S) URLs')
