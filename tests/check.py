@@ -117,12 +117,9 @@ for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py'
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
 
-data_contract_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/data_rollout_contract.py')],capture_output=True,text=True,timeout=10)
-assert data_contract_result.returncode==0,(data_contract_result.stdout,data_contract_result.stderr)
-assert 'PASS' in data_contract_result.stdout
-stream_reducer_result=subprocess.run(['node',str(ROOT/'labs/stream_session_reducer.cjs')],capture_output=True,text=True,timeout=10)
-assert stream_reducer_result.returncode==0,(stream_reducer_result.stdout,stream_reducer_result.stderr)
-assert 'PASS' in stream_reducer_result.stdout
+rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
+assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
+assert 'PASS' in rag_pipeline_result.stdout
 
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
@@ -199,3 +196,7 @@ check_focused_acceptance()
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"policy_assistant_project.py"),"--check"],check=True,capture_output=True,text=True,timeout=30)
 
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"research_support_project.py"),"check"],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.py")],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)

@@ -139,6 +139,8 @@ def score(predictions, cases=CASES):
     rows = []
     for case in cases:
         p = by_id[case['id']]
+        if not {'id', 'answer', 'ranking', 'citations'} <= p.keys():
+            raise ValueError('each prediction requires explicit answer, ranking and citations')
         ranking, citations = p.get('ranking'), p.get('citations')
         if (not isinstance(ranking, list) or not isinstance(citations, list)
                 or any(not isinstance(x, str) for x in ranking + citations)
@@ -188,6 +190,14 @@ def check():
         pass
     else:
         raise AssertionError('duplicate/missing cases accepted')
+    incomplete = [dict(p) for p in predictions]
+    del incomplete[-1]['answer']
+    try:
+        score(incomplete)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('missing explicit abstention accepted')
     return {'evidence_kind': 'executed-local-deterministic-fixture',
             'not_measured': ['embedding model', 'generative quality', 'production latency', 'multilingual recall'],
             'corpus_sha256': sha256(json.dumps([asdict(s) for s in SOURCES], sort_keys=True).encode()).hexdigest(),
