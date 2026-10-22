@@ -13,7 +13,7 @@ From the repository or extracted local-projects ZIP root:
 
 ```sh
 python3 labs/policy_assistant_project.py --check --report policy-report.json
-# In the public source ZIP, replace labs/ with examples/labs/.
+# In the source ZIP keep labs/. For files in a built static-site copy, use examples/labs/.
 ```
 
 The report contains the corpus hash, per-case retrieval/answer results, a deliberately
