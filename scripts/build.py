@@ -132,7 +132,7 @@ def interview(q):
   writer=AnswerWriter(q)
   body=writer.render(q['A'],reserve_followups=True)
   body+=answer_diagram(q)
-  if normalize_answer(q['Why']) not in writer.followups:
+  if normalize_answer(q['Why']) not in writer.followups and not (q.get('answer_format') == 'conceptual' and normalize_answer(q['Why']) == normalize_answer(q.get('worked_case', ''))):
     body+=writer.section('Worked case' if q.get('answer_format')=='conceptual' else 'How it works',q['Why'],'answer-mechanism')
   body+=writer.section('Failure boundary',q['Risk'],'answer-warning')
   if normalize_answer(q['Trade']) not in writer.followups:
