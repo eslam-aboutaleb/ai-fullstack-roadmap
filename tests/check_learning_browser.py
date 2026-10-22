@@ -128,7 +128,7 @@ def check(base_path=''):
             fallback_page.reload();fallback_page.wait_for_function('window.GuideAppReady === true')
             assert snapshot(fallback_page)['notes']['2']=='new copy'
             fallback.close()
-            visit(page,'simulations.html')
+            visit(page,'database-concurrency.html')
             locking=page.locator('[data-simulation=locking]')
             locking.locator('[data-sim-scenario]').select_option('failure')
             locking.locator('input[type=range]').focus(); page.keyboard.press('End')
