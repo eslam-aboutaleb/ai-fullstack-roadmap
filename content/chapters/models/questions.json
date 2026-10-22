@@ -118,11 +118,31 @@
   },
   {
     "Q": "What are temperature, top-p, tokens, and structured output?",
-    "A": "Tokens are the model's discrete input and output units. Temperature changes the sharpness of sampling probabilities; top-p restricts sampling to a cumulative probability mass. Structured output constrains response form, such as a schema. These are generation controls, not retrieval relevance measures.",
-    "Why": "A host chooses generation parameters and serialization outside the library's search path. Evidence budgets reserve output capacity, but the actual generator must honor the chosen output contract and handle parse or validation failures.",
-    "Risk": "Low temperature does not guarantee truth or reproducibility across providers. Valid JSON can still contain unsupported claims or unauthorized source references.",
-    "Trade": "Tighter structure improves integration and can constrain expressive answers. More stochastic generation can help creative tasks while making faithful factual workflows harder to evaluate.",
-    "Try": "Define an answer schema with status, text, and citation references. Validate citation membership against the actual EvidenceBundle rather than only validating JSON syntax."
+    "A": "**An LLM API is a probabilistic computation behind a fallible transport.** A token is one unit in that model's tokenizer, not necessarily a word or character. Temperature rescales next-token logits before sampling; top-p retains a probability-mass prefix before sampling. Their interaction and supported ranges belong to the provider/version contract. A zero-temperature setting does not promise identical execution across hardware, provider revisions or tool choices. A structured-output constraint narrows representation; it does not establish truth, permission or citation support.\n\nStart with an application-owned request: model revision/capability, messages, authenticated scope, deadline, input budget, maximum output, schema and logical request ID. The provider adapter translates that contract into supported parameters. Validate the returned object at runtime: exact keys, types, refusal/terminal state, source eligibility and business policy. Reject unsupported capabilities rather than silently ignoring them. Never treat model-generated tool arguments as authorization.\n\n**Budget before each attempt.** With a 128-token fixture limit, 100 input tokens leave at most 28 output tokens; 29 fails before invocation. With 100 reserved tokens and 30 reserved per attempt, one rate limit followed by success reserves 60 and leaves 40. This is the conservative accounting in `llm_contracts.py`, not a statement about any provider invoice. Actual billing uses the provider's reported input/output/cache categories and dated rate catalog; missing usage remains unresolved rather than zero.\n\nRetry a rate limit only within a total deadline/attempt budget, honoring a bounded Retry-After and adding jitter across a fleet. Do not retry invalid JSON, forbidden citations or business denial without an explicit repair policy. A timeout after a write is an unknown outcome: reconcile the receiver using the same operation identity. Measure logical requests separately from attempts so retries cannot hide cost amplification. Keep a local scripted adapter for tests; an optional live adapter needs secret injection outside source, model/version manifests and the same negative contract suite.",
+    "Why": "The local client receives one rate-limit failure and then scoped JSON. Reserving each attempt yields 40 tokens left; validating JSON alone would still accept a citation to another tenant without the second scope check.",
+    "Risk": "A fallback model can change schema or tool-call semantics. Treat capability mismatch and unknown billed usage explicitly rather than claiming success because some text arrived.",
+    "Trade": "Strict schemas make failure legible but may reject useful prose. Repair adds another cost and injection surface; bounded refusal can be the correct product behavior.",
+    "Try": "Run python3 labs/llm_contracts.py. Reduce the allowance to 30, predict the attempt count, then add an unauthorized citation and demonstrate that it is rejected without another provider call.",
+    "worked_case": "The local client receives one rate-limit failure and then scoped JSON. Reserving each attempt yields 40 tokens left; validating JSON alone would still accept a citation to another tenant without the second scope check.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://json-schema.org/draft/2020-12/json-schema-validation",
+      "https://www.rfc-editor.org/rfc/rfc6585.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What changes when the provider supports cached input pricing?",
+        "A": "Keep cached and uncached input counts separate and apply their dated rates. Do not subtract an estimated cache saving from every request; record reported usage and reconcile unknown attempts before releasing reserved budget."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "models"
   },
   {
     "Q": "What are HyDE, agentic RAG, GraphRAG, and multimodal RAG?",

@@ -189,3 +189,10 @@ portfolio = (SITE/'portfolio-capstone.html').read_text()
 for identity in ('async-engine', 'transaction-api', 'rag-quality', 'durable-agent'):
     assert 'capstone-'+identity+'.html' in portfolio
 print('Single learning journey: retired duplicate pages absent; every unit, project and simulation remains reachable')
+
+from check_focused_acceptance import check as check_focused_acceptance
+check_focused_acceptance()
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"policy_assistant_project.py"),"--check"],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"research_support_project.py"),"check"],check=True,capture_output=True,text=True,timeout=30)
