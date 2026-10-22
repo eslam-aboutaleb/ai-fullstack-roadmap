@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -39,6 +40,12 @@ def check():
         assert not validate_unit(actual, unit['review_identity'], require_review=True)
         validate_review(actual, unit['review_identity'])
         assert (ROOT / '_site' / unit['reader_url']).is_file()
+    with zipfile.ZipFile(ROOT / '_site/examples/local-projects.zip') as archive:
+        names = set(archive.namelist())
+        for source in ('focused-project-guide.md', 'policy_assistant_project.py',
+                       'research_support_project.py', 'agent_trace_reader.html', 'stream_session_reducer.cjs'):
+            if (ROOT / 'labs' / source).is_file():
+                assert 'labs/' + source in names, 'download omitted project instructions/source'
     for issue, evidence in plan['issues'].items():
         assert (ROOT / evidence['lab']).is_file()
         assert (ROOT / evidence['evidence']).is_file()
