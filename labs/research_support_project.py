@@ -12,6 +12,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import time
+from threading import Barrier
 
 TOOLS = [
     {'name': 'search_policy', 'effect': 'read', 'arguments': {'query': 'string, 1..200 characters'}},
@@ -60,6 +61,7 @@ class Support:
         data = canonical(payload)
         source, text = POLICIES[self.owner]
         with self.db:
+            self.db.execute('BEGIN IMMEDIATE')
             prior = self.db.execute('SELECT operation,payload,source FROM runs WHERE owner=? AND run=?',
                                     (self.owner, run)).fetchone()
             if prior:
@@ -91,6 +93,7 @@ class Support:
         if not 0 < lifetime <= 300:
             raise ValueError('approval lifetime must be 1..300 seconds')
         with self.db:
+            self.db.execute('BEGIN IMMEDIATE')
             state, source, op, payload = self.row(run)
             if state != 'awaiting-approval':
                 raise ValueError('only a pending proposal can be approved')
@@ -131,6 +134,7 @@ class Support:
 
     def cancel(self, run):
         with self.db:
+            self.db.execute('BEGIN IMMEDIATE')
             state, _, _, _ = self.row(run)
             if state != 'awaiting-approval':
                 raise ValueError('a committed effect cannot be undone by cancellation')
@@ -194,6 +198,29 @@ def check():
         with ThreadPoolExecutor(max_workers=2) as pool:
             assert list(pool.map(worker, range(2))) == ['completed', 'completed']
         assert a.db.execute('SELECT COUNT(*) FROM tickets').fetchone()[0] == 2
+        a.propose('cancel-race', 'returns', 'ticket-cancel-race', {'summary': 'Race cancellation against commit'})
+        a.approve('cancel-race', now=100)
+        barrier = Barrier(2)
+        def race_action(action):
+            service = Support(path, 'A')
+            try:
+                barrier.wait(timeout=5)
+                try:
+                    if action == 'execute':
+                        service.execute('cancel-race', now=101)
+                    else:
+                        service.cancel('cancel-race')
+                    return 'accepted'
+                except (PermissionError, ValueError):
+                    return 'rejected'
+            finally:
+                service.close()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(race_action, ['execute', 'cancel']))
+        state = a.state('cancel-race')['state']
+        effect = a.db.execute("SELECT 1 FROM tickets WHERE operation='ticket-cancel-race'").fetchone()
+        assert (state == 'completed' and effect and outcomes == ['accepted', 'rejected']
+                or state == 'cancelled' and not effect and outcomes == ['rejected', 'accepted'])
         b = Support(path, 'B')
         for action in (lambda: b.state('case-1'), lambda: b.approve('case-1'), lambda: b.trace('case-1')):
             try:
@@ -222,7 +249,7 @@ def check():
         a.close()
     return {'evidence_kind': 'executed-local-sqlite-deterministic-agent',
             'checks': ['exact-approval', 'expiry', 'changed-payload', 'source-to-effect-lineage',
-                       'lost-ack-restart', 'concurrent-replay', 'owner-denial', 'cancel-before-effect', 'atomic-trace-rollback'],
+                       'lost-ack-restart', 'concurrent-replay', 'owner-denial', 'cancel-before-effect', 'atomic-trace-rollback', 'cancel-commit-race'],
             'trace': trace, 'not_claimed': ['model autonomy', 'remote exactly-once', 'real authentication', 'MCP wire conformance']}
 
 
