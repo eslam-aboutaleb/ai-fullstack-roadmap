@@ -1,4 +1,5 @@
 """Keep accepted syllabus evidence attached to real source, practice and pages."""
+import html
 import json
 from pathlib import Path
 import sys
@@ -24,6 +25,10 @@ def check():
         assessment = practices[row['assessment']]
         assert assessment['topic'] == row['study_id'] and assessment['chapter'] == row['chapter']
         assert assessment['objective'] == row['outcome_id'] and row['subtopics']
+        from build import interview
+        article = interview(dict(question, id=row['study_id']))
+        if question.get('worked_case') == question.get('Why'):
+            assert article.count(html.escape(question['worked_case'], quote=True)) == 1, 'duplicate worked case' 
         rendered = (ROOT / '_site' / (row['chapter'] + '.html')).read_text()
         assert f'id="q{row["study_id"]}"' in rendered and 'id="walkthrough"' in rendered
         assert row['assessment'] in (ROOT / '_site/practice-data.js').read_text()
