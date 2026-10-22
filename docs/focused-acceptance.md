@@ -1,27 +1,15 @@
 # Acceptance evidence: LLM/RAG, agents and full-stack
 
-Reviewed 22 October 2026. Scope: issues #17/#18/#19 and PRs #63/#64/#69.
+Reviewed 22 October 2026. This branch verifies issues #18. Related project sources are shared so every downloaded guide command is available; other issue acceptance remains separate until its own reviewed content and matrix merge.
 
 The user delegated the final technical/content verdict to Codex. Records identify AI-authored/self-reviewed work with content-specific digests; no independent human SME endorsement is claimed. Original issue requirements remain binding. The original projects explicitly allow local/mock connectors and optional external-model/cloud exercises. Real protocol and browser integrations below are additional executed evidence, not mandatory live-vendor dependencies imported from separate advanced issues.
 
 ## Learning coverage
 
-The chapter introduction, terminology and flow precede the existing foundation and deeper questions. Thirty existing question IDs were expanded rather than copied into new hubs. Seventeen companion-unit interviews now contain complete explanations. Thirty applied changed-assumption scenarios and three project rubrics are linked to practice/progress; self-review cannot grant an objective pass.
+The chapter introduction, terminology and flow precede the existing foundation and deeper questions. 8 existing question IDs were expanded rather than copied into new hubs. 1 companion-unit interviews now contain complete explanations. 8 applied changed-assumption scenarios and 1 project rubrics are linked to practice/progress; self-review cannot grant an objective pass.
 
 | Issue | Syllabus concepts | Stable topic / learner page | Assessment |
 |---|---|---|---|
-| #17 | LLM APIs, token budgets, structured outputs, rate limits, retry/cost controls | [128](../content/chapters/models/questions.json), `models.html#q128` | `acceptance-17-128` |
-| #17 | streaming, LLM lifecycle, cancellation | [421](../content/chapters/sse-streaming/questions.json), `sse-streaming.html#q421` | `acceptance-17-421` |
-| #17 | ingestion/parsing/OCR, document provenance, revision publication | [81](../content/chapters/ingestion/questions.json), `ingestion.html#q81` | `acceptance-17-81` |
-| #17 | chunking, context packing, provenance boundaries | [31](../content/chapters/chunking/questions.json), `chunking.html#q31` | `acceptance-17-31` |
-| #17 | embeddings, dense retrieval, similarity profiles | [41](../content/chapters/embeddings/questions.json), `embeddings.html#q41` | `acceptance-17-41` |
-| #17 | BM25, hybrid retrieval/RRF, ranking arithmetic | [63](../content/chapters/retrieval/questions.json), `retrieval.html#q63` | `acceptance-17-63` |
-| #17 | ANN/HNSW, reranking, candidate/final limits | [65](../content/chapters/retrieval/questions.json), `retrieval.html#q65` | `acceptance-17-65` |
-| #17 | citation fidelity, abstention, faithfulness, answer relevance, false refusal | [71](../content/chapters/evidence/questions.json), `evidence.html#q71` | `acceptance-17-71` |
-| #17 | Recall@k, MRR, nDCG, gold datasets, metric oracles | [111](../content/chapters/evaluation/questions.json), `evaluation.html#q111` | `acceptance-17-111` |
-| #17 | offline/online eval, trace analysis, regression release, latency, observability | [119](../content/chapters/evaluation/questions.json), `evaluation.html#q119` | `acceptance-17-119` |
-| #17 | caching, tenant isolation, cache invalidation, token efficiency | [316](../content/chapters/context-optimization/questions.json), `context-optimization.html#q316` | `acceptance-17-316` |
-| #17 | prompt injection, prompt contracts, tool interface design, security | [321](../content/chapters/prompt-foundations/questions.json), `prompt-foundations.html#q321` | `acceptance-17-321` |
 | #18 | agent vs workflow, planning/execution, tool selection, deterministic state machines | [381](../content/chapters/agent-patterns/questions.json), `agent-patterns.html#q381` | `acceptance-18-381` |
 | #18 | tool calling protocol, structured schemas, authorization, least privilege | [393](../content/chapters/agent-harness/questions.json), `agent-harness.html#q393` | `acceptance-18-393` |
 | #18 | MCP architecture, transports, capability discovery, agent protocols | [341](../content/chapters/mcp-foundations/questions.json), `mcp-foundations.html#q341` | `acceptance-18-341` |
@@ -30,18 +18,8 @@ The chapter introduction, terminology and flow precede the existing foundation a
 | #18 | context management, memory boundaries, untrusted tool outputs/prompt injection | [301](../content/chapters/context-engineering/questions.json), `context-engineering.html#q301` | `acceptance-18-301` |
 | #18 | tracing, trajectory evaluation, task success vs side effects, policy checks | [231](../content/chapters/agent-evaluation/questions.json), `agent-evaluation.html#q231` | `acceptance-18-231` |
 | #18 | multi-agent tradeoffs, costs, delegation, recovery ownership | [371](../content/chapters/agent-orchestration/questions.json), `agent-orchestration.html#q371` | `acceptance-18-371` |
-| #19 | semantic HTML/CSS layout, accessible forms, responsive design | [910](../content/chapters/frontend-foundations/questions.json), `frontend-foundations.html#q910` | `acceptance-19-910` |
-| #19 | JS event loop, TypeScript, React rendering/state/effects, fetch/streaming | [912](../content/chapters/frontend-foundations/questions.json), `frontend-foundations.html#q912` | `acceptance-19-912` |
-| #19 | auth UX, testing, performance, browser trust boundaries | [271](../content/chapters/product-delivery/questions.json), `product-delivery.html#q271` | `acceptance-19-271` |
-| #19 | ETL/ELT, batch/stream, schema evolution, validation, storage/SQL | [875](../content/chapters/data-engineering-foundations/questions.json), `data-engineering-foundations.html#q875` | `acceptance-19-875` |
-| #19 | CDC, lineage, data quality, deletion, checkpoint recovery | [877](../content/chapters/data-engineering-foundations/questions.json), `data-engineering-foundations.html#q877` | `acceptance-19-877` |
-| #19 | Docker, IaC, CI/CD, AWS concepts, Kubernetes, secrets management | [286](../content/chapters/deployment-reliability/questions.json), `deployment-reliability.html#q286` | `acceptance-19-286` |
-| #19 | model registries, serving, MLOps, release artifacts | [299](../content/chapters/model-engineering/questions.json), `model-engineering.html#q299` | `acceptance-19-299` |
-| #19 | queues, caching, partitioning, rate limiting, capacity estimates, AI latency/cost/correctness tradeoffs | [138](../content/chapters/fullstack/questions.json), `fullstack.html#q138` | `acceptance-19-138` |
-| #19 | consistency, transactions, security, typed APIs, idempotency | [161](../content/chapters/database-concurrency/questions.json), `database-concurrency.html#q161` | `acceptance-19-161` |
-| #19 | telemetry, cost, reliability, incident response, system design | [289](../content/chapters/deployment-reliability/questions.json), `deployment-reliability.html#q289` | `acceptance-19-289` |
 
-The machine-readable matrix is `content/shared/focused-acceptance.json`: source paths, outcome IDs, introduction/reader anchors, question IDs, unit outcomes, labs and assessments. Original instruction in the surrounding chapters remains available. Eight original accessible/printable ordered diagrams illustrate ingestion publication, chunk exceptions, ranking, release gating, approval/recovery, effects, CDC and capacity.
+The machine-readable matrix is `content/shared/focused-acceptance.json`: source paths, outcome IDs, introduction/reader anchors, question IDs, unit outcomes, labs and assessments. Original instruction in the surrounding chapters remains available. Original accessible/printable ordered diagrams illustrate ingestion publication, chunk exceptions, ranking, release gating, approval/recovery, effects, CDC and capacity.
 
 ## Reproducible projects and expected behavior
 
