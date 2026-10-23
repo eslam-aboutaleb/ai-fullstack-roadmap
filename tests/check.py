@@ -108,8 +108,8 @@ for page_path in SITE.glob('*.html'):
     assert not re.search(r'<script[^>]+src=["\']https?://', text), page_path
 
 subprocess.run(['node', str(ROOT/'tests/check_study.cjs')], check=True)
-from check_question_bank import check as check_question_bank
-check_question_bank()
+from check_question_data import check as check_question_data
+check_question_data()
 
 for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py',
                  'data_contract_pipeline.py', 'llm_contracts.py', 'retrieval_scorecard.py', 'production_scorecard.py', 'restore_drill.py'):
@@ -120,6 +120,9 @@ print('Async, training/gradients, attention, retrieval and durable-effect pilots
 framework_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/framework_contract_compare.py')],capture_output=True,text=True,timeout=10)
 assert framework_result.returncode==0,(framework_result.stdout,framework_result.stderr)
 assert 'PASS' in framework_result.stdout
+rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
+assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
+assert 'PASS' in rag_pipeline_result.stdout
 
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
@@ -169,3 +172,34 @@ for project in ('evidence-workbench','review-packet'):
         if project=='evidence-workbench':
             assert {'projects/evidence-workbench/package-lock.json','projects/evidence-workbench/src/App.tsx','projects/evidence-workbench/server.py'} <= set(names)
 print('Cumulative project downloads and dependency/build exclusions: pass')
+
+# The learning journey owns discovery. Removing duplicate index pages must not
+# strand the unique worked units, projects or inline transition simulations.
+retired_pages = {'courses.html', 'capstones.html', 'simulations.html', 'question-bank.html', 'topic-coverage.html'}
+assert not any((SITE/name).exists() for name in retired_pages)
+assert not list(SITE.glob('questions-*.html')), 'Answers must have one canonical chapter page'
+curriculum = json.loads((ROOT/'content/curriculum.json').read_text())['chapters']
+placements = {}
+for slug, entry in curriculum.items():
+    for identity in entry.get('course_units', []):
+        assert identity not in placements, ('ambiguous unit placement', identity)
+        placements[identity] = slug
+        assert 'course-'+identity+'.html' in (SITE/(slug+'.html')).read_text()
+assert set(placements) == {unit['id'] for unit in course_units}, 'A unique worked unit lost its chapter entry point'
+for identity, slug in {'asyncio':'sources', 'locking':'database-concurrency', 'retrieval':'foundations', 'retries':'agent-evaluation'}.items():
+    assert 'data-simulation="'+identity+'"' in (SITE/(slug+'.html')).read_text()
+portfolio = (SITE/'portfolio-capstone.html').read_text()
+for identity in ('async-engine', 'transaction-api', 'rag-quality', 'durable-agent'):
+    assert 'capstone-'+identity+'.html' in portfolio
+print('Single learning journey: retired duplicate pages absent; every unit, project and simulation remains reachable')
+
+from check_focused_acceptance import check as check_focused_acceptance
+check_focused_acceptance()
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"policy_assistant_project.py"),"--check"],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"research_support_project.py"),"check"],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.py")],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)

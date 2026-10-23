@@ -8,6 +8,9 @@
   const store = window.GuideStudy.store;
   await store.ready;
   let state = store.snapshot;
+  // Navigation is the entry view. Focus is an explicit choice for this page,
+  // rather than a saved preference that hides navigation on future visits.
+  let focusMode = false;
   function save() {
     const previous = store.snapshot;
     const changes = [];
@@ -16,7 +19,7 @@
         if (JSON.stringify(previous[field][id]) !== JSON.stringify(value)) changes.push([field, id, value]);
       }
     }
-    for (const field of ['theme', 'distractionFree']) if (previous[field] !== state[field]) changes.push([field, 'global', state[field]]);
+    for (const field of ['theme']) if (previous[field] !== state[field]) changes.push([field, 'global', state[field]]);
     return Promise.all(changes.map(args => store.set(...args)));
   }
 
@@ -44,7 +47,12 @@
 
   function syncControls() {
   document.documentElement.dataset.theme = state.theme;
-  document.body.classList.toggle('distraction-free', state.distractionFree);
+  document.body.classList.toggle('distraction-free', focusMode);
+  const focusButton = document.querySelector('#distraction-free');
+  if (focusButton) {
+    focusButton.setAttribute('aria-pressed', String(focusMode));
+    focusButton.textContent = focusMode ? 'Show sidebar' : 'Focus mode';
+  }
   const themeBtn = document.querySelector('#theme');
     if (themeBtn) {
       const labels = { light: 'Theme: Light ☀️', warm: 'Theme: Warm ☕', dark: 'Theme: Dark 🌙' };
@@ -347,9 +355,8 @@
   });
 
   document.querySelector('#distraction-free')?.addEventListener('click', () => {
-    state.distractionFree = !state.distractionFree;
-    document.body.classList.toggle('distraction-free', state.distractionFree);
-    save(); syncControls();
+    focusMode = !focusMode;
+    syncControls();
   });
 
   document.querySelector('#export')?.addEventListener('click', async () => {
@@ -357,12 +364,6 @@
     const url = URL.createObjectURL(new Blob([JSON.stringify(store.export(), null, 2)], {type:'application/json'}));
     const link = document.createElement('a'); link.href = url; link.download = 'ai-fullstack-study-progress.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
-  document.querySelector('#bank-filter')?.addEventListener('input', event => {
-    const term = event.target.value.toLocaleLowerCase().trim();
-    const items = [...document.querySelectorAll('[data-bank-text]')];
-    for (const item of items) item.hidden = !item.dataset.bankText.includes(term);
-    document.querySelector('#bank-filter-status').textContent = `${items.filter(item => !item.hidden).length} questions on this page`;
   });
   // Filter only the chapter directory: the complete lesson remains available.
   const finder = document.querySelector('.question-finder');
