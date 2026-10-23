@@ -94,11 +94,31 @@
   },
   {
     "Q": "How do prompt caching and semantic caching differ?",
-    "A": "Prompt caching reuses computation for supported repeated input prefixes. Semantic caching reuses an earlier application answer for a sufficiently similar request under a defined validity policy.",
-    "Why": "Keep cache keys tied to tenant, policy, model configuration, evidence version, and required freshness where relevant. Inspect provider caching rules separately from application response reuse.",
-    "Risk": "A semantically similar question from another user can require a different answer or authorization scope.",
-    "Trade": "Reuse saves latency and cost while increasing invalidation complexity.",
-    "Try": "Design cache keys and invalidation tests for two users with different entitlements."
+    "A": "**Prompt caching and answer caching reuse different things.** A provider prompt cache may reuse computation for an exact eligible prefix under provider-specific rules; it does not mean the final answer is cached. An application answer cache stores a previous output and its evidence. A semantic cache matches similar inputs, which can reuse an answer for a materially different scope, time or condition if its policy is too broad.\n\nDesign cache identity from trusted tenant/permissions, question/task, source/index revision, prompt/tool schema, model/profile and relevant settings. Similar wording is not enough. Bind cached citations to source revisions and reauthorize at read time; invalidate on deletion, policy change or permission epoch. Never use a caller-supplied owner label as authority. Negative caching also needs a lifetime: an earlier 'no evidence' result can become wrong after ingestion succeeds.\n\n**Walk a stale policy.** Owner A asks about returns before a policy update and the answer cache stores 60 days. Revision 2 changes the rule to 30 days. Reusing the old output based only on query similarity yields a fluent stale answer with a real but obsolete citation. A versioned key prevents that hit, and final citation resolution catches a missed invalidation. If Owner B asks the same words, a cache hit must never reveal A's source or text. Clearing the current screen does not clear a shared server cache.\n\nMeasure cache hit rate alongside supported-answer rate, stale-hit rate, false refusals, latency and reported token usage. Do not claim provider savings from a local string match or toy token estimate. A cache stampede needs bounded single-flight or admission control so expiry does not create a burst of expensive attempts; cancellation and failure must release waiters safely. Cache only material allowed by retention/privacy policy and document deletion propagation into cache layers, logs and backups separately. The context packet fixture exercises scope/version logic; real provider prefix caching remains an optional adapter-specific experiment, not an inferred result.",
+    "Why": "Owner A caches a 60-day return answer, then revision 2 changes it to 30 days. A query-only cache returns stale guidance; including the source generation and revalidating citations prevents the incorrect reuse.",
+    "Risk": "Semantic similarity can ignore negation, tenant scope or an effective date. One high hit-rate graph can therefore hide both private-data leaks and wrong policy decisions.",
+    "Trade": "Exact versioned caching sacrifices some hit rate for clear validity. Semantic caching can help repetitive workloads but needs scoped thresholds, independent quality labels and a safe miss path.",
+    "Try": "Run context_packet_policy.py. Add a policy-generation change and owner swap to a cache design, then predict hit/miss and citation eligibility independently of the implementation.",
+    "worked_case": "Owner A caches a 60-day return answer, then revision 2 changes it to 30 days. A query-only cache returns stale guidance; including the source generation and revalidating citations prevents the incorrect reuse.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://www.rfc-editor.org/rfc/rfc9111.html",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can a correct cached answer remain valid after permission revocation?",
+        "A": "The text may remain factually correct but no longer authorized. Treat access validity independently of answer correctness, invalidate permission-scoped entries and recheck eligibility before returning cached text or citations."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "context-optimization"
   },
   {
     "Q": "How should memory retrieval avoid overwhelming the prompt?",
