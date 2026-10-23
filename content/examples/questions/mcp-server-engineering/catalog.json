@@ -1,76 +1,82 @@
 [
   {
-    "explain": "A small protocol adapter delegates to an existing authorized domain function. Business rules stay at the service boundary so other entry points cannot bypass them.",
-    "steps": "Validate the authenticated principal against document ownership. || Return a bounded excerpt through the adapter.",
-    "expect": "Exchange only",
-    "name": "read-tool-service",
+    "name": "layered-server-architecture",
+    "filename": "layered-server-architecture.py",
     "language": "python",
-    "filename": "read-tool-service.py",
+    "explain": "A four-tier MCP architecture isolates protocol handling from domain business logic, allowing domain services to be reused across MCP and REST interfaces without duplication.",
+    "steps": "Define authoritative domain services with business rules and multi-tenant checks. || Implement a thin MCP protocol adapter translating JSON-RPC requests to domain service calls. || Expose the same domain service through an HTTP controller to prevent business logic drift.",
+    "expect": "Layered MCP server architecture and domain service isolation verified successfully.",
     "questions": [
       630,
       631,
       351,
-      350
-    ]
-  },
-  {
-    "reference": "https://github.com/modelcontextprotocol/python-sdk/tree/v1.x",
-    "language": "python-sketch",
-    "explain": "The MCP Python SDK v1 FastMCP interface registers a typed function as a tool and runs a stdio server. Use a compatible v1 release for this example; v2 has a different documented server interface.",
-    "steps": "Install a compatible optional mcp v1 SDK (mcp>=1,<2) in an isolated environment. || Register a bounded read-only synthetic tool and start it using the SDK's stdio entry point.",
-    "expect": "A client sees the synthetic_excerpt tool; a valid call returns Exchange only.",
-    "limit": "Optional SDK integration sketch: syntax-checked only; not executed by offline checks. The synthetic tool has no real user identity or private data.",
-    "name": "mcp-sdk-registration",
-    "filename": "mcp-sdk-registration.py",
-    "questions": [
       352
     ]
   },
   {
-    "explain": "Contract tests exercise rejection and output limits as well as a happy path. All assertions use a local synthetic function without remote capabilities.",
-    "steps": "Define the tool's accepted identity and maximum result size. || Assert valid behavior and expected validation failures.",
-    "expect": "contract checks passed",
-    "name": "tool-contract-tests",
+    "name": "remote-auth-context-propagation",
+    "filename": "remote-auth-context-propagation.py",
     "language": "python",
-    "filename": "tool-contract-tests.py",
+    "explain": "Remote MCP servers authenticate via Bearer JWTs with audience checks to prevent confused-deputy attacks, propagating identity into request context.",
+    "steps": "Validate JWT signatures, expiration, and server audience to defeat confused-deputy vulnerabilities. || Propagate caller identity via asynchronous context variables across tool dispatch boundaries. || Enforce verified tenant context in data queries, rejecting model-injected parameter spoofing.",
+    "expect": "Remote MCP authentication, audience verification, and context propagation verified successfully.",
+    "questions": [
+      632,
+      354,
+      1066
+    ]
+  },
+  {
+    "name": "tool-error-taxonomy",
+    "filename": "tool-error-taxonomy.py",
+    "language": "python",
+    "explain": "A structured domain error taxonomy reports expected business failures with isError: true and actionable guidance for LLM self-correction while redacting internal crash details.",
+    "steps": "Define specialized domain exception classes for validation, missing resources, and rate limits. || Map domain exceptions to MCP CallToolResult payloads with isError: true and recovery guidance. || Redact internal stack traces and server secrets from unexpected crash payloads.",
+    "expect": "MCP tool error modeling and domain taxonomy verified successfully.",
+    "questions": [
+      633,
+      355
+    ]
+  },
+  {
+    "name": "idempotent-write-human-confirmation",
+    "filename": "idempotent-write-human-confirmation.py",
+    "language": "python",
+    "explain": "Write tools enforce business-level idempotency keys, optimistic revision concurrency, and two-phase signed human confirmation for destructive mutations.",
+    "steps": "Deduplicate retries using idempotency keys and reject parameter mismatch conflicts. || Guard concurrent record mutations using optimistic revision checks. || Generate HMAC-signed approval tokens for destructive operations and verify human authorization before execution.",
+    "expect": "Idempotent write tools and two-phase human confirmation verified successfully.",
+    "questions": [
+      634,
+      356,
+      948
+    ]
+  },
+  {
+    "name": "concurrency-retries-telemetry",
+    "filename": "concurrency-retries-telemetry.py",
+    "language": "python",
+    "explain": "MCP server resilience combines semaphore concurrency bounds, exponential backoff with jitter for transient retries, and sanitized OpenTelemetry distributed tracing.",
+    "steps": "Bound active concurrent tool executions using an asyncio Semaphore. || Apply exponential backoff with jitter to transient connection faults while failing fast on deterministic domain errors. || Record OpenTelemetry spans capturing tool duration, tenant ID, and status while omitting private payloads.",
+    "expect": "MCP concurrency bounds, retry backoff, and OpenTelemetry spans verified successfully.",
     "questions": [
       635,
-      775,
-      359
-    ]
-  },
-  {
-    "explain": "A semaphore bounds simultaneous work inside one process. This does not establish a fleet-wide quota or a durable command identity.",
-    "steps": "Acquire the semaphore before entering the simulated tool. || Count maximum active calls and ensure it never exceeds the bound.",
-    "expect": "2",
-    "name": "tool-concurrency",
-    "language": "python",
-    "filename": "tool-concurrency.py",
-    "questions": [
-      357
-    ]
-  },
-  {
-    "explain": "Tool telemetry records safe operation metadata and distinguishes execution errors from business outcomes. Payloads and secrets are omitted.",
-    "steps": "Construct one event after a successful transport returning not_found. || Preserve the business outcome instead of turning it into a transport exception.",
-    "expect": "ok not_found",
-    "name": "tool-observation",
-    "language": "python",
-    "filename": "tool-observation.py",
-    "questions": [
+      357,
       358
     ]
   },
   {
-    "name": "journey-948",
-    "filename": "journey-948.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "contract-tests-schema-evolution",
+    "filename": "contract-tests-schema-evolution.py",
+    "language": "python",
+    "explain": "Automated contract test suites verify bounded input constraints, tenant isolation, and backward-compatible schema evolution across release versions.",
+    "steps": "Enforce strict parameter bounds and capped response payload sizes on tool implementations. || Execute automated contract tests across golden paths, boundary limits, and tenant boundaries. || Verify backward compatibility rules (SemVer) when evolving tool input schemas across releases.",
+    "expect": "MCP contract tests, bounded limits, and schema evolution verified successfully.",
     "questions": [
-      948
+      774,
+      775,
+      353,
+      359,
+      360
     ]
   }
 ]
