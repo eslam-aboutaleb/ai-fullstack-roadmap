@@ -147,11 +147,32 @@
   },
   {
     "Q": "How should container and dependency hardening be evaluated?",
-    "A": "Review non-root execution, image contents, dependency resolution, vulnerability handling, secrets, and runtime privileges. A production filename or non-root USER is one control rather than complete supply-chain assurance.",
-    "Why": "Review base images, non-root execution, dependency resolution, runtime packages, and artifact provenance. Exact direct pins alone do not establish a reproducible environment or safe deployment.",
-    "Risk": "Without constrained resolution and compatibility checks, upgrades can break ADK events, tracing patches, or provider behavior. Build tools and unnecessary files also add maintenance surface.",
-    "Trade": "Strict locking improves repeatability and requires planned updates. Broad ranges support experimentation and weaken deployment reproducibility.",
-    "Try": "Compare resolved dependencies from two clean builds and propose a tested update policy without changing the support repository."
+    "A": "**A deployable artifact is more than source code that once ran locally.** Build a reproducible image from pinned dependencies, record its immutable digest and provenance, run with minimal privileges, and separate configuration/secrets from the image. A tag can move; a Git commit alone does not pin transitive packages, base images or build-time downloads. Scan the actual release artifact and retain enough metadata to reproduce or replace it.\n\nInfrastructure as code (IaC) declares resources and change history, but applying it can still destroy data or expose a service. Review the plan, permissions, state storage, rollback/recovery and environment isolation. Map cloud concepts before naming products: compute runs code, object storage stores blobs, identity limits actions, network policy controls paths and managed databases own durable state. AWS-specific choices such as IAM roles, ECS/EKS, S3 or RDS change operational responsibility and cost; they do not remove authorization or backup duties.\n\nKubernetes schedules containers and reconciles desired state. A Deployment rolling update needs resource requests, readiness, availability/surge limits and a progress deadline. Readiness controls traffic eligibility; liveness can restart an unhealthy process. A remote provider outage should not cause every replica to restart through a badly designed liveness check. A stalled rollout reports failure; rollback is an explicit operational decision, not automatic evidence that the old version is healthy.\n\nThe workbench includes a non-root Dockerfile, a two-replica manifest and a disposable-kind failure/undo exercise. Those commands are optional learner activities until actual runtime output is recorded. This authoring environment has no working Docker daemon, so neither image execution nor cluster recovery is claimed. The local release gate checks digest shape, schema compatibility and recovery evidence, while real browser/API tests exercise the service outside a container. Keep those observations separate. Inject secrets only at runtime through a scoped mechanism, avoid logging them and test rotation/revocation without rebuilding the image.",
+    "Why": "An image tag points to new bytes although the application commit is unchanged. Recording the image digest and dependency locks makes the release identity inspectable; a manifest alone cannot prove the workload actually started.",
+    "Risk": "A liveness probe tied to a provider outage can restart every replica and worsen the incident. Broad cloud credentials in a build image turn artifact access into infrastructure access.",
+    "Trade": "Managed services reduce some maintenance but add service constraints and cost. Kubernetes offers orchestration flexibility with significant operational overhead; a simpler container service may fit the workload better.",
+    "Try": "Review the workbench Dockerfile and manifest, then follow the disposable-kind exercise only on an available local engine. Record rollout and undo output, or clearly mark execution unperformed rather than substituting YAML validation.",
+    "worked_case": "An image tag points to new bytes although the application commit is unchanged. Recording the image digest and dependency locks makes the release identity inspectable; a manifest alone cannot prove the workload actually started.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://docs.docker.com/build/building/best-practices/",
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+      "https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can rolling back the application safely reverse a destructive database migration?",
+        "A": "No. Artifact rollback and data recovery are separate. Use compatible expand/contract migrations, verified backups and a rehearsed forward repair; restoring deleted or incompatible state can create new correctness and privacy failures."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "deployment-reliability"
   },
   {
     "Q": "How should worker shutdown and stale-job recovery be verified?",
@@ -171,19 +192,52 @@
   },
   {
     "Q": "What is a meaningful disaster-recovery drill?",
-    "A": "Restore authoritative data, recover or rebuild derived indexes, reconcile jobs, validate ownership, and demonstrate post-restart application behavior. Measure actual recovery time and data loss against declared objectives.",
-    "Why": "Restore a known fixture and reconcile authoritative records, outbox state, indexes, and access policy. Measure actual recovery duration and data-loss exposure rather than relying on backup existence.",
-    "Risk": "Old jobs may replay and stale vectors may remain visible. Backups themselves also need secure access, retention, and credential-restoration procedures.",
-    "Trade": "Frequent drills cost effort and reveal dependencies that documents miss. Backup configuration alone is not proof of recoverability.",
-    "Try": "Restore a fixture with a service request, pending job, rule revision, and archived conversation. Produce a reconciliation report.",
-    "reference": "https://www.postgresql.org/docs/current/backup.html"
+    "A": "**A recovery drill demonstrates restoration of a usable invariant, not merely the existence of a backup file.** Define recovery point objective (RPO), the acceptable data-loss interval, and recovery time objective (RTO), the acceptable restoration duration. State the reference event/time and workload. A green backup job says data was copied; it does not show decryption keys, schema compatibility, permissions, deletion intent or application behavior survived restoration.\n\nPrepare a runbook with symptom, impact, owner, safe containment, diagnostic evidence and decision points. For an AI assistant, separate service errors, latency, unsupported answers, false refusals, source freshness, unauthorized access and cost amplification. Correlate safe request/attempt/operation IDs across UI, API, data and model calls. Keep secrets and raw private prompts out of default telemetry. A provider outage may require degraded read-only behavior or explicit refusal rather than a restart storm.\n\nRestore into an isolated environment, verify integrity and business invariants, reapply deletion/revocation events newer than the snapshot, then test source eligibility and repeat-safe effects before allowing traffic. Measure elapsed recovery and actual recovered point; do not report planned RTO/RPO as achieved. A rollback may restore software while leaving incompatible data or stale model/index artifacts, so rehearse those coupled changes.\n\nThe workbench README provides optional container/cluster failure and explicit undo steps; local restore and rollout fixtures supply smaller reproducible exercises. A system-design defense should include a sequence diagram, capacity assumptions, failure timeline, proposed mitigation and observed validation. Keep the postmortem focused on the mechanism and prevention: for example, an owner-switch UI race, a stale policy cache or a changed-payload CDC replay. Cost and latency improvements cannot overrule critical disclosure or unsupported business decisions. Separate executed local evidence from infrastructure commands awaiting a suitable learner environment.",
+    "Why": "A backup restores an old document that was deleted after the snapshot. Integrity checks pass, but serving it violates current deletion intent; replaying tombstones before traffic is a required recovery step.",
+    "Risk": "Restoration can resurrect private data or duplicate effects even when files are intact. A runbook that checks only HTTP 200 misses the important business invariants.",
+    "Trade": "Frequent backups improve possible RPO but add cost and retention obligations. Automated restoration reduces delay only when safety checks and access/deletion reconciliation are also automated and tested.",
+    "Try": "Run restore_drill.py and write an incident timeline for a resurrected policy. State measured recovery versus target objectives and show the gate that prevents traffic before deletion reconciliation.",
+    "worked_case": "A backup restores an old document that was deleted after the snapshot. Integrity checks pass, but serving it violates current deletion intent; replaying tombstones before traffic is a required recovery step.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://sre.google/sre-book/managing-incidents/",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if telemetry itself contains the deleted document?",
+        "A": "Treat telemetry as another retention/deletion surface. Minimize sensitive content, scope access and document purge/backup behavior separately; deleting the primary row does not erase logs or exported traces."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "deployment-reliability"
   },
   {
     "Q": "What evidence supports a production-readiness claim?",
-    "A": "Show effective configuration, tested authorization and transaction boundaries, migration ownership, restore evidence, queue and latency measurements, quality limits, privacy policy, and incident ownership. State the workload and scope under which the service request holds.",
-    "Why": "Collect deployment-specific evidence for invariants, capacity, recovery, security, and quality. Document limits honestly and retain rollback; a container build or green process probe is only one check.",
+    "A": "**Production readiness is a traceable claim about particular failure scenarios and observed environments.** Source code, a Helm manifest, Dockerfile or green unit-test badge is evidence of *intent* and some checked invariants, not proof that a service will survive a region outage, database restoration, model quality drift or a critical tenant isolation attack. Name the target operating envelope, customers, security boundary, model/data versions, expected throughput and recovery objectives before deciding what to test.\n\n**Frontend boundary.** A React streaming chat interface must prevent stale network responses from an old request or authenticated user appearing in the new session. Use a request/epoch identity in UI state, cancellation on account switch/unmount, bounded render buffers, explicit stream completeness and accessible status. However, hiding a private citation in the browser does **not** authorize a server call; read permissions must be enforced at the authoritative API/database/retrieval layer. `labs/stream_session_reducer.cjs` tests the session/epoch reducer and deliberately drops late chunks after switching users.\n\n**Data pipeline boundary.** ETL transforms source bytes; CDC (change data capture) replays versioned changes. To prevent double effects or stale-policy resurrection, atomically couple projected state with the consumed source event ID/checkpoint. Reject gaps, scope operations to the authenticated tenant, and propagate tombstones before reindexing old snapshots. Test restart, replay, changed-payload duplicate, schema incompatibility and deletion. `labs/data_rollout_contract.py` uses real SQLite transactions to verify source ordering, replay, tenant scope, tombstones and gap rejection. It is single-process evidence; an actual Kafka/Beam/database pipeline still requires distributed integration tests.\n\n**Release and rollback.** A credible release manifest identifies the immutable container digest, compatible database/migration/schema revision, model/tokenizer/index and training-data lineage, deployment config and software-bill-of-materials/provenance as applicable. A readiness probe says the pod may serve work; liveness says whether it should be restarted. Neither proves answer correctness. A Kubernetes Deployment can roll back its pod template revision, but reverting container image alone does not reverse an incompatible database migration or stale downstream index. Use staged rollout, SLO/error budget gates, latency p95/p99, task-level evaluation slices, authorization negatives and an independently rehearsed restore.\n\n**Worked failure.** A new retrieval index is deployed with fresh model weights but an older policy snapshot. The application returns HTTP 200 and passes liveness while giving unsupported outdated answers. A release gate should reject the index revision mismatch and missing deletion evidence, then rollback read alias while reconciling tombstones. The toy release-policy function in the local lab validates required digest/schema/recovery fields and compares a supplied rollout error fraction with a declared bound; it is **not** a Kubernetes deployment or live traffic measurement.\n\n**Trade-offs and follow-up.** A static Pages learning site has no production backend or cloud credentials; complex services are downloadable labs. A single-machine test enables repeatability but cannot certify multi-zone durability. **If a successful rollback restores an old snapshot**, verify its deletion high-water mark and replay authorization/tombstones before serving; otherwise a 'successful' recovery can violate privacy.",
+    "Why": "Deployment readiness must be supported by exercised source-to-service evidence, not inferred from manifests, unit-test successes or green liveness probes.",
     "Risk": "A polished architecture or passing unit suite can conceal untested runtime behavior. Secure, scalable, and exactly once are service requests requiring specific evidence.",
     "Trade": "Readiness work is slower than a demo and establishes a defensible operational contract. A prototype may ship earlier with narrower commitments.",
-    "Try": "Assemble a release packet with concurrency results, quality report, dependency inventory, privacy review, restore drill, and rollback plan."
+    "Try": "Run the stream reducer and SQLite CDC/rollout exercises; intentionally replay a deleted record and explain the difference between mock rollout policy and real Kubernetes recovery.",
+    "citations": [
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "If a deployment rollback restores an older data snapshot, how can it remain unsafe despite healthy readiness probes?",
+        "A": "An older snapshot may restore deleted policies or revoked owner permissions. Verify the data/ACL/tombstone high-water marks, replay authorized CDC events and ensure index/model/schema compatibility before serving; readiness/liveness only check process capability, not domain correctness."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    }
   }
 ]

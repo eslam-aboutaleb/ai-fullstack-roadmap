@@ -1,11 +1,31 @@
 [
   {
     "Q": "When is a fixed workflow better than an autonomous agent?",
-    "A": "Prefer a fixed workflow when the valid sequence is known and business rules dominate. Use an agent where choosing among tools or exploring uncertain evidence adds measurable value.",
-    "Why": "Put deterministic validation and writes in application services. Limit model discretion to decisions that benefit from language understanding or flexible planning.",
-    "Risk": "An autonomous loop can add latency and unpredictable paths to an otherwise simple operation.",
-    "Trade": "Fixed flows are easier to verify and less adaptable to unexpected tasks.",
-    "Try": "Compare a password-reset workflow with an open-ended technical investigation."
+    "A": "**Delegation splits a task across workers; it does not split accountability automatically.** Use multiple agents when independent capabilities or parallel investigations justify the coordination cost. A supervisor selects work, workers produce bounded artifacts, and a coordinator validates and merges them under one task contract. Several copies of the same model can share the same blind spot; agreement is not independent factual evidence.\n\nDefine ownership of state, budgets, cancellation and effects before parallelizing. Read-only workers can return source-linked findings, but one authoritative executor should control a shared irreversible operation. Pass only the minimum permitted context to each worker and bind delegated identity/scope explicitly. A worker must not inherit all supervisor privileges merely because it received a task.\n\nSuppose two specialists both recommend creating the same support ticket. If each creates its own operation ID, the provider can legitimately create two tickets despite per-key deduplication. The coordinator must identify the single logical business effect and serialize its approval/execution. The support fixture races two workers on one stable operation to expose that invariant; it does not claim model collaboration quality or distributed consensus.\n\nParallelism can reduce wall time for independent calls but raises total token/tool cost and can overload a shared dependency. Reserve a shared budget, cap concurrency and choose a failure policy: cancel all on critical missing evidence, return a labeled partial result, or retry only the failed independent step. Persist accepted artifacts and schema versions so restart does not rerun every worker or duplicate writes. Compare against a single workflow using the same task suite and effect oracle; if delegation adds no measured benefit, keep the simpler design.",
+    "Why": "Two specialists independently propose the same ticket. Stable business identity and one approved executor prevent duplicate effects; two fresh random operation IDs would defeat the intended deduplication.",
+    "Risk": "Delegated context can disclose private evidence to a less trusted worker. Parallel agreement can amplify a shared hallucination rather than validate a claim.",
+    "Trade": "Specialization and parallel reads can help complex tasks, but increase coordination, cost and debugging. A single explicit workflow is often easier to bound and recover.",
+    "Try": "Use the support race test to model two workers requesting one effect. Then design a two-read-worker budget and compare total attempts and latency assumptions against a sequential baseline.",
+    "worked_case": "Two specialists independently propose the same ticket. Stable business identity and one approved executor prevent duplicate effects; two fresh random operation IDs would defeat the intended deduplication.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://www.anthropic.com/engineering/building-effective-agents",
+      "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if one worker fails after the other has committed an effect?",
+        "A": "Stop treating the run as an all-or-nothing computation. Reconcile the committed operation, preserve its audit and decide whether to continue or perform an explicitly authorized compensation; restarting every worker with fresh keys is unsafe."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "agent-orchestration"
   },
   {
     "Q": "How should orchestration state be modeled?",
