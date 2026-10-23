@@ -35,8 +35,9 @@
     ],
     "version": "1.0.0",
     "references": [
-      "https://developer.mozilla.org/en-US/docs/Web/HTTP",
-      "https://fastapi.tiangolo.com/tutorial/"
+      "https://fastapi.tiangolo.com/tutorial/body/",
+      "https://fastapi.tiangolo.com/tutorial/testing/",
+      "https://docs.pydantic.dev/latest/concepts/validators/"
     ],
     "outcomes": [
       "Trace an HTTP request from browser to application response",
@@ -74,21 +75,19 @@
     "visualizations": [
       {
         "alt": "HTTP request lifecycle boundaries",
-        "description": "Browser → DNS/TLS → Reverse proxy → Application (auth → validate → business → response). Each boundary can reject the request.",
+        "description": "Conceptual deployment path: browser → DNS/TLS → proxy → application checks → response. The downloadable pilot exercises only application validation through TestClient; it does not execute DNS/TLS, authentication or a persistent queue.",
         "svg": "<svg width=\"440\" height=\"180\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"20\" y=\"30\" width=\"120\" height=\"50\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"80\" y=\"60\" text-anchor=\"middle\" fill=\"var(--text)\">Browser</text><rect x=\"160\" y=\"30\" width=\"120\" height=\"50\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"220\" y=\"60\" text-anchor=\"middle\" fill=\"var(--text)\">DNS + TLS</text><rect x=\"300\" y=\"30\" width=\"120\" height=\"50\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"360\" y=\"60\" text-anchor=\"middle\" fill=\"var(--text)\">App</text><line x1=\"140\" y1=\"55\" x2=\"160\" y2=\"55\" stroke=\"var(--muted)\" stroke-width=\"2\" marker-end=\"url(#arrow)\"/><line x1=\"280\" y1=\"55\" x2=\"300\" y2=\"55\" stroke=\"var(--muted)\" stroke-width=\"2\" marker-end=\"url(#arrow)\"/><defs><marker id=\"arrow\" markerWidth=\"6\" markerHeight=\"6\" refX=\"6\" refY=\"3\" orient=\"auto\"><polygon points=\"0 0, 6 3, 0 6\" fill=\"var(--muted)\"/></marker></defs></svg>"
       }
     ],
     "assumed_knowledge": "You have made an HTTP request, read a JSON response, and understand that a server returns status codes.",
     "motivating_problem": "A FastAPI endpoint accepts a client's JSON payload, parses it, and acts on fields without checking that required fields exist or that values respect business limits.",
-    "underlying_mechanics": "The browser sends an HTTP request over HTTPS. DNS and TLS terminate at the edge; a reverse proxy forwards to the application. The application framework parses headers and body, runs authentication and dependency injection, validates input against a schema, invokes the business service, and serializes the response.",
+    "underlying_mechanics": "The browser sends an HTTP request over HTTPS. DNS and TLS terminate at the edge; a reverse proxy forwards to the application. The application framework parses headers and body, runs authentication and dependency injection, validates input against a schema, invokes the business service, and serializes the response. This describes a deployment architecture, not every step executed by the example: its TestClient bypasses real networking and the route implements validation only. A 202 demonstration ID is not evidence of durable acceptance.",
     "line_by_line": [
-      "Browser constructs an HTTP POST with a JSON body.",
-      "DNS resolves the host; TLS encrypts the connection.",
-      "The application reads the request line, headers, and body.",
-      "Authentication extracts the caller's identity from a token or cookie.",
-      "Validation checks required fields, types, and business constraints.",
-      "The business service performs the action and commits authoritative state.",
-      "The application serializes a JSON response with a status code."
+      "Create a FastAPI application and a Pydantic Question model with length/type constraints.",
+      "Reject whitespace-only questions with a field validator.",
+      "Register a POST route returning a fresh demonstration ID and status demo-accepted.",
+      "Use TestClient to assert valid input returns 202.",
+      "Assert missing, blank, oversized, wrong-type and malformed input returns 422."
     ],
     "edge_cases": [
       "The client sends malformed JSON.",
@@ -109,16 +108,21 @@
     ],
     "local_lab": "labs/request_lifecycle.py",
     "independent_tasks": [
-      "Add an authentication check before validation and verify unauthenticated requests are rejected with 401.",
-      "Add a size limit on the question field and test oversized payloads.",
-      "Measure validation overhead by timing requests with and without schema validation."
+      "Add a separate authentication dependency and test missing/invalid credentials and owner scope.",
+      "Extend the field size-limit boundary tests at exactly 1000 and 1001 characters.",
+      "Replace the demonstration ID response with a persistent transaction in a separate exercise; prove a lost response can be reconciled without duplicate acceptance."
     ],
     "review_and_answer_keys": {
-      "reviewer": "automated regression checks; independent SME review pending",
-      "reviewed_at": "2026-10-20",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23",
       "known_limitations": "Requires optional FastAPI and httpx packages. This is a validation pilot, not the complete authenticated transaction course requested in issue 3."
     },
-    "added": true
+    "added": true,
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23"
+    }
   },
   {
     "Q": "How do JavaScript, promises, and types make an API usable?",
