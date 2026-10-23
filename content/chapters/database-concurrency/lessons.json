@@ -31,8 +31,8 @@
   },
   {
     "Q": "How do you test a race deliberately?",
-    "explain": "Control when workers read and write using barriers or test hooks. Arrange the dangerous interleaving, then inspect durable state and each caller's outcome. Random sleep tests often pass without exercising the race.",
-    "example": "Pause both callers after reading pending, release them together, and assert one operation identity and one created record.",
+    "explain": "Control the boundary under test using a barrier rather than random sleeps. Here two independent connections target the same file-backed SQLite database and wait just before inserting one slot key. The unique constraint, not the preliminary availability check, guarantees one reservation. Inspect both caller outcomes and the committed row count; the test does not prescribe which thread wins or claim to reproduce every stale-read schedule.",
+    "example": "Synchronize two connections immediately before inserting the same primary key. Assert one reserved result, one integrity conflict and exactly one committed row; the winning thread is deliberately unspecified.",
     "takeaway": "A concurrency test should prove which race it exercised.",
     "estimated_time_minutes": 12,
     "prerequisites": [
@@ -42,7 +42,8 @@
     "version": "1.0.0",
     "references": [
       "https://sqlite.org/lang_transaction.html",
-      "https://docs.python.org/3/library/threading.html"
+      "https://sqlite.org/lang_createtable.html#the_primary_key",
+      "https://docs.python.org/3.12/library/threading.html#barrier-objects"
     ],
     "outcomes": [
       "Arrange a controlled interleaving between two callers",
@@ -76,24 +77,24 @@
     "visualizations": [
       {
         "alt": "Two threads racing on a shared slot",
-        "description": "Thread A and Thread B both read pending state, then both attempt to insert. The database lock serializes them; only one insert succeeds.",
+        "description": "Both threads reach a barrier before INSERT into the same file-backed database. The primary-key constraint permits one committed slot; the other attempt reports an integrity conflict. No pending-state read occurs.",
         "svg": "<svg width=\"400\" height=\"200\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"50\" y=\"50\" width=\"100\" height=\"80\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"100\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Thread A</text><rect x=\"250\" y=\"50\" width=\"100\" height=\"80\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"300\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Thread B</text><rect x=\"150\" y=\"140\" width=\"100\" height=\"40\" fill=\"var(--accent)\" stroke=\"var(--line)\"/><text x=\"200\" y=\"165\" text-anchor=\"middle\" fill=\"#fff\">One insert wins</text><line x1=\"100\" y1=\"130\" x2=\"200\" y2=\"160\" stroke=\"var(--muted)\" stroke-width=\"2\"/><line x1=\"300\" y1=\"130\" x2=\"200\" y2=\"160\" stroke=\"var(--muted)\" stroke-width=\"2\"/></svg>"
       }
     ],
     "assumed_knowledge": "You can read and run a small Python function, understand database transactions, and have seen the check-then-write race.",
     "motivating_problem": "A reservation service lets two agents book the same slot because the availability check and the write are not coordinated under test conditions.",
-    "underlying_mechanics": "Use threading barriers or asyncio test hooks to pause both callers after they read pending state, release them together, then inspect durable state. An in-memory SQLite database with a unique constraint can act as the authoritative store.",
+    "underlying_mechanics": "Two threads open independent SQLite connections to one temporary file, then wait at a barrier immediately before INSERT. SQLite serializes writers and the slot primary key rejects the second committed reservation. The test aligns attempts, not a predetermined winner or a stale-read interleaving. Separate :memory: connections would create different databases and invalidate this fixture.",
     "line_by_line": [
-      "Create two threads that each read pending state.",
-      "Pause both after reading but before writing.",
-      "Release both threads simultaneously.",
-      "Each thread attempts to insert the same reservation key.",
-      "Assert exactly one insert succeeded and the other received a conflict."
+      "Create a temporary file-backed database with a primary key on slot.",
+      "Open one connection per worker and synchronize before INSERT with a bounded barrier.",
+      "Insert the same slot; commit success or record the IntegrityError conflict.",
+      "Join both threads with timeouts and collect both outcomes.",
+      "Query the shared database and assert one committed row and one conflict."
     ],
     "edge_cases": [
-      "Both callers read the same stale pending value.",
-      "One caller is much slower than the other.",
-      "The database raises a serialization failure on retry."
+      "A worker fails before reaching the barrier: the barrier timeout fails the test.",
+      "Separate :memory: connections create different databases rather than a shared race.",
+      "The winner can be either owner; assert invariant outcomes rather than thread order."
     ],
     "tradeoffs": "Barriers make races reproducible but couple the test to timing. Property-based or randomized schedules explore more interleavings but may not reproduce a specific failure.",
     "security_implications": "A missed race can authorize duplicate actions. Test the boundary where authorization is checked, not just where data is written.",
@@ -108,16 +109,21 @@
     ],
     "local_lab": "labs/reservation_race.py",
     "independent_tasks": [
-      "Add a third concurrent caller and observe which two conflict.",
-      "Replace the barrier with random sleep delays and run the test 100 times; note how often the race fails to reproduce.",
-      "Implement a retry loop for the losing caller and measure total elapsed time."
+      "Add a third caller; adjust the barrier and assert two conflicts and one reservation.",
+      "Remove only the primary-key constraint in a temporary copy and show the row-count oracle rejects duplicate rows.",
+      "Add a pre-insert availability read in a separate exercise; explain why a stale read cannot replace the unique constraint."
     ],
     "review_and_answer_keys": {
-      "reviewer": "automated regression checks; independent SME review pending",
-      "reviewed_at": "2026-10-20",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23",
       "known_limitations": "SQLite serializes writers; this is not a PostgreSQL row-lock or isolation-level test. Winner identity is deliberately unspecified."
     },
-    "added": true
+    "added": true,
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23"
+    }
   },
   {
     "Q": "What is a lost update and how can a conditional write prevent it?",
