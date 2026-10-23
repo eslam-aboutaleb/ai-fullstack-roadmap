@@ -1,51 +1,63 @@
 [
   {
     "Q": "How should document identity and revision identity be modeled without forbidding multiple documents per owner?",
-    "spoken": "Give the document a stable identity and model revisions under that document, with a key such as document_id plus revision. Scope ownership through the document relationship. A uniqueness rule on owner_id and revision alone can incorrectly prevent two unrelated documents from both having revision one. Use constraints that encode the actual entity invariant.",
-    "A": "Give the document a stable identity and model revisions under that document, with a key such as document_id plus revision. Scope ownership through the document relationship. A uniqueness rule on owner_id and revision alone can incorrectly prevent two unrelated documents from both having revision one. Use constraints that encode the actual entity invariant.\n\nConcrete engineering case: An owner uploads a second document and its first revision fails a global owner/revision uniqueness rule.\n\nBoundary defense: It may hold flexible metadata, but it does not automatically enforce the relationship or revision identity. Choose explicit constraints or a deliberately tested alternative.",
-    "Why": "Give the document a stable identity and model revisions under that document, with a key such as document_id plus revision. Scope ownership through the document relationship. A uniqueness rule on owner_id and revision alone can incorrectly prevent two unrelated documents from both having revision one. Use constraints that encode the actual entity invariant.",
-    "Risk": "An owner uploads a second document and its first revision fails a global owner/revision uniqueness rule.",
-    "Trade": "It may hold flexible metadata, but it does not automatically enforce the relationship or revision identity. Choose explicit constraints or a deliberately tested alternative.",
-    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "spoken": "Model the document entity with a stable surrogate or UUID primary key and an owner reference, and model revisions in a child table whose primary key is the composite of document_id and revision_number. A naive uniqueness constraint on (owner_id, revision_number) catastrophically breaks when a user uploads a second document, because document two cannot have revision one. Compound keys and foreign keys model the true hierarchy.",
+    "A": "In multi-tenant content and knowledge systems, entity identity and revision history have different lifecycles and scopes.\n\nThe root entity—the document—must possess an immutable, stable identifier (such as a UUIDv7 or BIGINT identity) and an explicit owner_id / tenant_id column. Child revisions belong to that document and represent point-in-time immutable snapshots of content, embedding metadata, and author attribution.\n\nThe revision table must define a composite primary key PRIMARY KEY (document_id, revision_number) accompanied by a foreign key constraint FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE. If an application requires quick retrieval of the current active revision, either maintain a current_revision_id foreign key on the parent documents table (managed transactionally upon new revision creation) or create a partial unique index on revisions (document_id) WHERE is_current = TRUE.\n\nA common junior modeling pitfall is placing a unique constraint on (owner_id, revision_number). This erroneously conflates the owner's identity with the document's revision counter, causing an immediate SQL integrity conflict the moment the user attempts to create a second document with revision 1.",
+    "Why": "A parent documents table isolates identity and ownership authorization; a child document_revisions table isolates point-in-time content versions. Scoping revision uniqueness strictly within the document boundary allows independent version counters across arbitrary numbers of documents owned by the same user.",
+    "Risk": "Conflating ownership with revision counters prevents users from managing multiple documents. Conversely, omitting the foreign key or composite primary key allows revision numbering collisions and orphaned revisions that degrade search index integrity.",
+    "Trade": "Maintaining separate document and revision tables requires join queries or dual-write transactions to update the latest revision pointer, but preserves complete immutable audit trails and supports version rollback without destructive in-place updates.",
+    "Try": "Write the DDL for documents and document_revisions in PostgreSQL. Insert two distinct documents for owner_id = 1, each starting at revision = 1. Verify that both succeed and that an attempt to insert duplicate revision = 1 for the same document correctly raises an integrity error.",
     "domain": "backend",
     "subdomain": "database-modeling",
     "module": "database-modeling",
     "concept": "How should document identity and revision identity be modeled without forbidding multiple documents per owner?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: An owner uploads a second document and its first revision fails a global owner/revision uniqueness rule.",
+    "misconception_target": "Assuming revision counters are global across an owner rather than scoped strictly to a single document entity.",
     "definitions": [
       {
-        "term": "Boundary: database modeling",
-        "definition": "Give the document a stable identity and model revisions under that document, with a key such as document_id plus revision."
+        "term": "Surrogate Key",
+        "definition": "An artificial unique identifier (like a UUID or auto-incrementing integer) having no intrinsic business meaning, used to maintain stable relational identity."
+      },
+      {
+        "term": "Composite Primary Key",
+        "definition": "A primary key composed of two or more columns that together guarantee row uniqueness within a relational table."
+      },
+      {
+        "term": "Referential Integrity",
+        "definition": "A database constraint enforcing that foreign key values must reference existing, valid primary key rows in the target table."
       }
     ],
-    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "execution_timeline": "1. Verify tenant authorization on parent document -> 2. Acquire parent row lock -> 3. Calculate next revision number (COALESCE(MAX(revision_number), 0) + 1) -> 4. Insert child revision row with (document_id, revision_number) -> 5. Commit atomic transaction.",
     "example": {
-      "code": "{\n  \"scenario\": \"An owner uploads a second document and its first revision fails a global owner/revision uniqueness rule.\",\n  \"required_decision\": \"Give the document a stable identity and model revisions under that document, with a key such as document_id plus revision\"\n}",
-      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+      "code": "CREATE TABLE documents (\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n  tenant_id UUID NOT NULL,\n  title TEXT NOT NULL,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()\n);\n\nCREATE TABLE document_revisions (\n  document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,\n  revision_number INT NOT NULL CHECK (revision_number > 0),\n  content TEXT NOT NULL,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  PRIMARY KEY (document_id, revision_number)\n);\n\nCREATE INDEX idx_revisions_doc_created ON document_revisions (document_id, created_at DESC);",
+      "explanation": "Parent documents table stores identity and tenant ownership; document_revisions uses a composite primary key on (document_id, revision_number). Multiple documents owned by the same tenant can each have revision_number = 1 without conflict.",
+      "output": "CREATE TABLE\nCREATE TABLE\nCREATE INDEX"
     },
-    "production_case": "An owner uploads a second document and its first revision fails a global owner/revision uniqueness rule.",
+    "production_case": "A knowledge base system allows team members to upload technical runbooks. When User A uploads 'Incident Response' and 'Onboarding Guide', both documents start at revision 1. The composite key (document_id, revision_number) ensures independent version progression.",
     "alternatives": [
-      "It may hold flexible metadata, but it does not automatically enforce the relationship or revision identity. Choose explicit constraints or a deliberately tested alternative."
+      "Single denormalized documents table with an array or JSONB column containing all historical revisions (causes severe write bloat and limits queryability).",
+      "Event-sourced revision log table where document state is reconstructed entirely by replaying diff events."
     ],
     "pitfalls": [
-      "An owner uploads a second document and its first revision fails a global owner/revision uniqueness rule."
+      "Placing a unique constraint on (tenant_id, revision_number), which blocks creating any second document with revision 1.",
+      "Forgetting ON DELETE CASCADE or ON DELETE RESTRICT on the foreign key, leaving orphaned revisions or blocked deletions.",
+      "Calculating revision numbers in application code without a database row lock, causing duplicate revision conflicts under concurrent uploads."
     ],
-    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "complexity": "Primary key lookup on (document_id, revision_number) runs in O(log N) B-Tree seek time; fetching the latest revision via index scan on (document_id, created_at DESC) takes O(1) page access.",
     "follow_ups": [
       {
-        "Q": "Can a JSON field replace the relationship constraint?",
-        "A": "It may hold flexible metadata, but it does not automatically enforce the relationship or revision identity. Choose explicit constraints or a deliberately tested alternative."
+        "Q": "How do you efficiently query the latest revision for 100 documents without N+1 queries?",
+        "A": "Use PostgreSQL's DISTINCT ON expression: SELECT DISTINCT ON (document_id) * FROM document_revisions WHERE document_id = ANY($1) ORDER BY document_id, revision_number DESC, supported by an index on (document_id, revision_number DESC)."
       }
     ],
     "citations": [
-      "https://www.postgresql.org/docs/current/tutorial.html"
+      "https://www.postgresql.org/docs/current/ddl-constraints.html",
+      "https://www.postgresql.org/docs/current/queries-select-lists.html#QUERIES-DISTINCT"
     ],
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-23"
     }
   }
 ]

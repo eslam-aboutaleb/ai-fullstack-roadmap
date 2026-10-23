@@ -1,52 +1,63 @@
 [
   {
     "Q": "Why can checking an operation key before inserting still create duplicate tasks?",
-    "spoken": "Two transactions can both observe absence before either commits. Enforce identity with a database uniqueness rule and resolve the conflict against stored payload and ownership. Keep state changes and outbox intent in the required transaction. Retrying after a serialization or uniqueness conflict must preserve the logical operation identity.",
-    "A": "Two transactions can both observe absence before either commits. Enforce identity with a database uniqueness rule and resolve the conflict against stored payload and ownership. Keep state changes and outbox intent in the required transaction. Retrying after a serialization or uniqueness conflict must preserve the logical operation identity.\n\nConcrete engineering case: A read-then-insert race admits two matching requests from concurrent browser retries.\n\nBoundary defense: Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched.",
-    "Why": "Two transactions can both observe absence before either commits. Enforce identity with a database uniqueness rule and resolve the conflict against stored payload and ownership. Keep state changes and outbox intent in the required transaction. Retrying after a serialization or uniqueness conflict must preserve the logical operation identity.",
-    "Risk": "A read-then-insert race admits two matching requests from concurrent browser retries.",
-    "Trade": "Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched.",
-    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "spoken": "Because of the classic read-then-insert race condition under Read Committed isolation: two concurrent requests both query whether an idempotency key exists, both see zero rows because neither has committed yet, and both proceed to execute an INSERT. Application-level presence checks do not establish a database-level lock. Only a database UNIQUE constraint on (tenant_id, idempotency_key) paired with ON CONFLICT DO NOTHING or DO UPDATE enforces true idempotency.",
+    "A": "In high-throughput distributed APIs, network timeouts and automatic browser retries frequently result in identical requests hitting backend servers concurrently.\n\nWhy Application Checks Fail:\nA naive implementation attempts to enforce idempotency in application code:\n```python\nexisting = db.execute(\"SELECT id FROM tasks WHERE idempotency_key = %s\", (key,)).fetchone()\nif existing:\n    return get_task_response(existing.id)\ntask = db.execute(\"INSERT INTO tasks (...) RETURNING id\").fetchone()\n```\nUnder PostgreSQL's default `READ COMMITTED` isolation level, transactions only see changes that were committed before each individual statement began. When Request A and Request B arrive within milliseconds of each other, both execute the `SELECT` query before either has issued an `INSERT`. Both queries return None! Both threads conclude that the task does not yet exist, both proceed past the check, and both execute an `INSERT`.\n\nWithout a database-level UNIQUE constraint on `(tenant_id, idempotency_key)`, the database will create two distinct task records with two distinct IDs and trigger two external side effects (e.g. charging a card twice or calling an LLM twice).\n\nProduction Solution (UPSERT / ON CONFLICT):\n1. Define a strict database constraint: `ALTER TABLE tasks ADD CONSTRAINT uq_tasks_tenant_key UNIQUE (tenant_id, idempotency_key);`\n2. Execute an atomic upsert: `INSERT INTO tasks (tenant_id, idempotency_key, payload_hash, status) VALUES ($1, $2, $3, 'PENDING') ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET updated_at = NOW() RETURNING id, status, payload_hash;`\n3. Payload Integrity Verification: If an existing row is returned, verify that the incoming `payload_hash` exactly matches the stored `payload_hash`. If the request reused an idempotency key with a mutated payload, reject the request with HTTP 422 Unprocessable Entity (Idempotency Key Conflict) to prevent malicious key hijacking.",
+    "Why": "A database UNIQUE constraint forces PostgreSQL to serialize concurrent insert attempts using an index-level lock, guaranteeing that exactly one transaction succeeds while the second transaction either blocks and updates or raises a unique_violation (error 23505) that triggers replay logic.",
+    "Risk": "Failing to verify payload hashes on idempotent retries allows an attacker or buggy client to reuse an old idempotency key with completely different financial amounts or parameters, tricking the server into returning a cached receipt for an unexecuted action.",
+    "Trade": "Maintaining unique indexes on idempotency keys requires periodic cleanup of expired keys (e.g., partitioning by day or running a cron to delete keys older than 24-72 hours) to prevent unbounded table growth.",
+    "Try": "Simulate two concurrent threads attempting to insert the same idempotency key into a PostgreSQL table with a UNIQUE constraint using Python's concurrent.futures.ThreadPoolExecutor. Observe how one succeeds and the other receives an IntegrityError that can be caught and handled gracefully.",
     "domain": "backend",
     "subdomain": "database-concurrency",
     "module": "database-concurrency",
     "concept": "Why can checking an operation key before inserting still create duplicate tasks?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A read-then-insert race admits two matching requests from concurrent browser retries.",
+    "misconception_target": "Believing that checking for an existing record in application code before inserting prevents duplicate records under concurrent load.",
     "definitions": [
       {
-        "term": "Boundary: database concurrency",
-        "definition": "Two transactions can both observe absence before either commits."
+        "term": "Idempotency Key",
+        "definition": "A unique client-generated token (often a UUID) attached to an HTTP request that allows the server to recognize and safely deduplicate retried operations."
+      },
+      {
+        "term": "UPSERT (ON CONFLICT)",
+        "definition": "An atomic SQL construct that attempts an INSERT and, if a unique constraint violation occurs, performs an alternative UPDATE or DO NOTHING without failing the transaction."
+      },
+      {
+        "term": "Read Committed Isolation",
+        "definition": "The default PostgreSQL transaction isolation level where each statement sees a snapshot of data committed before that specific statement started, permitting non-repeatable reads and phantom reads between statements."
       }
     ],
-    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "execution_timeline": "1. Client generates UUID idempotency_key -> 2. Server receives POST request -> 3. Hash request payload (SHA-256) -> 4. Execute atomic INSERT ON CONFLICT DO NOTHING -> 5. If inserted, run business transaction; if conflict, verify payload hash and return cached result.",
     "example": {
-      "code": "{\n  \"scenario\": \"A read-then-insert race admits two matching requests from concurrent browser retries.\",\n  \"required_decision\": \"Two transactions can both observe absence before either commits\"\n}",
-      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+      "code": "def process_idempotent_task(db, tenant_id: str, idempotency_key: str, payload: dict):\n    payload_hash = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()\n    query = \"\"\"\n    INSERT INTO tasks (tenant_id, idempotency_key, payload_hash, status)\n    VALUES (%s, %s, %s, 'PROCESSING')\n    ON CONFLICT (tenant_id, idempotency_key) DO UPDATE\n    SET updated_at = NOW()\n    RETURNING id, payload_hash, status;\n    \"\"\"\n    row = db.execute(query, (tenant_id, idempotency_key, payload_hash)).fetchone()\n    if row['payload_hash'] != payload_hash:\n        raise ValueError('Idempotency conflict: key reused with different payload')\n    return {'task_id': row['id'], 'status': row['status']}",
+      "explanation": "Atomic SQL INSERT ON CONFLICT locks the unique index entry and guarantees single-row insertion while returning the existing row on conflict. Payload hash validation prevents accidental key collision with different payloads.",
+      "output": "{'task_id': '123e4567-e89b-12d3-a456-426614174000', 'status': 'PROCESSING'}"
     },
-    "production_case": "A read-then-insert race admits two matching requests from concurrent browser retries.",
+    "production_case": "A payment gateway client times out after 5000ms and automatically retries POST /v1/charges with idempotency_key='ik_9921'. Both requests reach different backend Kubernetes pods simultaneously. The database UNIQUE constraint ensures only one charge transaction executes, returning the same transaction ID to both callers.",
     "alternatives": [
-      "Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched."
+      "Redis distributed lock (SET key val NX EX 30) before database write (adds Redis operational dependency and fails if Redis crashes or key expires prematurely).",
+      "Pessimistic table lock (LOCK TABLE tasks IN EXCLUSIVE MODE) (completely destroys concurrent write throughput)."
     ],
     "pitfalls": [
-      "A read-then-insert race admits two matching requests from concurrent browser retries."
+      "Using an application-level mutex in a single server process, which fails completely the moment the application scales to 2 or more server replicas.",
+      "Omitting the tenant_id from the uniqueness scope, allowing Tenant A to accidentally block or hijack Tenant B's operations if both generate simple sequential keys.",
+      "Returning HTTP 200 OK with empty data on conflict instead of the completed task's authoritative result."
     ],
-    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "complexity": "Index insertion with unique constraint check runs in O(log N) B-Tree seek time, adding less than 1 millisecond overhead to the transaction.",
     "follow_ups": [
       {
-        "Q": "What if the same key arrives with changed content?",
-        "A": "Reject the conflict or use an explicit new operation contract. Do not silently return an unrelated task as if the payload matched."
+        "Q": "What happens if Request 1 crashes halfway through processing after creating the idempotency record?",
+        "A": "Store a lease or timeout on the task (e.g. lease_expires_at). If a retry arrives and status is 'PROCESSING' but lease_expires_at has elapsed, allow the retrying request to reclaim the lease and resume execution."
       }
     ],
     "citations": [
       "https://www.postgresql.org/docs/current/transaction-iso.html",
-      "https://www.postgresql.org/docs/current/explicit-locking.html"
+      "https://www.postgresql.org/docs/current/sql-insert.html#SQL-ON-CONFLICT"
     ],
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-23"
     }
   }
 ]

@@ -1,51 +1,63 @@
 [
   {
     "Q": "What can PostgreSQL row-level security fail to protect if connection roles are chosen incorrectly?",
-    "spoken": "Row policies operate within database role and session semantics. Owners or privileged roles may bypass ordinary policies unless configured appropriately; pooled connections can also retain stale caller context. Use the intended restricted role, bind and reset caller context safely, and test actual application queries with two identities rather than inspecting policy text alone.",
-    "A": "Row policies operate within database role and session semantics. Owners or privileged roles may bypass ordinary policies unless configured appropriately; pooled connections can also retain stale caller context. Use the intended restricted role, bind and reset caller context safely, and test actual application queries with two identities rather than inspecting policy text alone.\n\nConcrete engineering case: The application always connects as the table owner and assumes its row policy is restricting every read.\n\nBoundary defense: Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers.",
-    "Why": "Row policies operate within database role and session semantics. Owners or privileged roles may bypass ordinary policies unless configured appropriately; pooled connections can also retain stale caller context. Use the intended restricted role, bind and reset caller context safely, and test actual application queries with two identities rather than inspecting policy text alone.",
-    "Risk": "The application always connects as the table owner and assumes its row policy is restricting every read.",
-    "Trade": "Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers.",
-    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
-    "domain": "ai-rag",
+    "spoken": "PostgreSQL Row-Level Security (RLS) silently fails if the web application connects as a superuser or the table owner, because both bypass RLS policies by default unless FORCE ROW LEVEL SECURITY is set. Furthermore, setting tenant session variables across pooled connections without transaction-scoped SET LOCAL causes cross-tenant session bleeding where subsequent requests inherit the previous tenant's identity.",
+    "A": "PostgreSQL Row-Level Security (RLS) provides kernel-level data isolation by injecting policy predicates into SQL query plans, but it contains critical operational pitfalls:\n\n1. The Table Owner / Superuser Bypass Trap:\nBy default in PostgreSQL, the table owner (the role that executed `CREATE TABLE`), table creators, and superusers completely bypass RLS! If an application connects using the same database user that created the migration tables, PostgreSQL silently disables all `CREATE POLICY` filters. The query `SELECT * FROM tenant_documents` returns all documents from all tenants across the entire enterprise.\nRule: Always connect via a dedicated, unprivileged application role (e.g. `app_user`) that has `NOSUPERUSER` and `NOBYPASSRLS`. If the table owner must be used, explicitly enable `ALTER TABLE documents FORCE ROW LEVEL SECURITY;`.\n\n2. Connection Pooling and Context Bleeding (PgBouncer):\nIn modern multi-tenant architectures, applications inject the current tenant's ID into the session using `set_config('app.current_tenant_id', $1, true)`. If an application uses an external connection pooler (such as PgBouncer in transaction mode) or fails to scope the configuration, an un-scoped `SET app.current_tenant_id = 'tenant-A'` mutates the physical TCP connection state permanently. When the next HTTP request from Tenant B checks out that same connection, it inherits Tenant A's tenant ID, causing catastrophic cross-tenant data leakage.\nRule: Always set session variables with the third parameter set to true (`SET LOCAL app.current_tenant = $1` or `set_config('app.current_tenant_id', $1, true)`), which guarantees that PostgreSQL automatically discards the tenant setting the moment the transaction commits or aborts.\n\n3. Indexing RLS Predicates:\nRLS transparently rewrites every `SELECT`, `UPDATE`, and `DELETE` into `WHERE (<user_query>) AND (<rls_policy_predicate>)`. If the policy predicate references `tenant_id = current_setting('app.current_tenant_id')::uuid`, that `tenant_id` column MUST be the leading column in composite indexes; otherwise, every query forces an expensive full table sequential scan.",
+    "Why": "Table owners and superusers bypass RLS policies by default, and un-scoped session variables in connection pools bleed across requests. Secure RLS requires unprivileged connection roles, FORCE ROW LEVEL SECURITY, and transaction-scoped SET LOCAL configuration.",
+    "Risk": "Connecting as table owner renders all RLS security policies completely inactive, allowing any user to read or modify all records across all tenants without raising any errors.",
+    "Trade": "RLS centralizes authorization at the database engine level, but adds query planning overhead and requires careful connection pool management with SET LOCAL.",
+    "Try": "Create a table with RLS enabled as user 'postgres'. Insert rows with tenant_id 1 and 2. Query as 'postgres' and observe that all rows are visible. Re-run as an unprivileged user with SET LOCAL and observe strict isolation.",
+    "domain": "backend",
     "subdomain": "database-security",
     "module": "database-security",
     "concept": "What can PostgreSQL row-level security fail to protect if connection roles are chosen incorrectly?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: The application always connects as the table owner and assumes its row policy is restricting every read.",
+    "misconception_target": "Believing that simply enabling RLS on a table automatically restricts queries even when connecting as table owner or superuser.",
     "definitions": [
       {
-        "term": "Boundary: database security",
-        "definition": "Row policies operate within database role and session semantics."
+        "term": "Row-Level Security (RLS)",
+        "definition": "A PostgreSQL security feature that restricts which rows are visible or modifiable based on the security context of the current database user."
+      },
+      {
+        "term": "FORCE ROW LEVEL SECURITY",
+        "definition": "A table setting that forces RLS policies to apply even to the table owner who created the relation."
+      },
+      {
+        "term": "SET LOCAL",
+        "definition": "A SQL statement that alters a configuration parameter only for the duration of the current transaction, resetting automatically at COMMIT or ROLLBACK."
       }
     ],
-    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "execution_timeline": "1. Web server checks out pooled connection -> 2. Begin transaction -> 3. Execute `SELECT set_config('app.tenant_id', $1, true)` -> 4. Run application query -> 5. PostgreSQL engine injects RLS filter -> 6. Commit transaction -> 7. Variable reset; connection returned to pool.",
     "example": {
-      "code": "{\n  \"scenario\": \"The application always connects as the table owner and assumes its row policy is restricting every read.\",\n  \"required_decision\": \"Row policies operate within database role and session semantics\"\n}",
-      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-      "output": "No runtime or production measurement is inferred from this reasoning fixture."
+      "code": "-- Setup secure RLS for multi-tenant isolation\nALTER TABLE documents ENABLE ROW LEVEL SECURITY;\nALTER TABLE documents FORCE ROW LEVEL SECURITY;\n\nCREATE POLICY tenant_isolation_policy ON documents\nFOR ALL\nTO app_user\nUSING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::UUID)\nWITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::UUID);\n\n-- In FastAPI endpoint inside transaction:\n-- SELECT set_config('app.current_tenant_id', '123e4567-e89b-12d3-a456-426614174000', true);",
+      "explanation": "Enables and forces RLS for app_user using a transaction-scoped session variable with NULLIF fallback, preventing access if the tenant setting is missing.",
+      "output": "ALTER TABLE\nCREATE POLICY"
     },
-    "production_case": "The application always connects as the table owner and assumes its row policy is restricting every read.",
+    "production_case": "A SaaS healthtech platform enabled RLS but connected using the 'postgres' superuser. An auditor queried `/api/patients` and retrieved medical records for all 40 hospital tenants simultaneously, leading to immediate critical vulnerability disclosure.",
     "alternatives": [
-      "Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers."
+      "Application-level WHERE clauses: Injecting `WHERE tenant_id = $1` in all ORM queries (easier to implement, but vulnerable to developer oversight).",
+      "Schema-per-tenant: Creating a separate PostgreSQL schema for each tenant (strong isolation, but high DDL migration overhead at scale)."
     ],
     "pitfalls": [
-      "The application always connects as the table owner and assumes its row policy is restricting every read."
+      "Using `SET app.current_tenant_id = ...` without LOCAL (the third parameter 'true'), which persists the tenant ID on the connection across different HTTP requests.",
+      "Forgetting WITH CHECK on the policy, allowing users to update rows to a different tenant_id and exfiltrate data.",
+      "Writing RLS policies with subqueries on unindexed tables, causing 100x query slowdowns on every SELECT."
     ],
-    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "complexity": "RLS policy evaluation adds O(1) predicate filtering time when the tenant_id column is properly indexed in the composite B-Tree.",
     "follow_ups": [
       {
-        "Q": "Can application filters be removed after enabling RLS?",
-        "A": "Only under a deliberately verified authorization design. Defense in depth and correct role/session behavior still need tests, especially across pools and background workers."
+        "Q": "What happens if a query executes when app.current_tenant_id has not been set?",
+        "A": "The NULLIF expression returns NULL. Since NULL = tenant_id evaluates to UNKNOWN, PostgreSQL returns 0 rows, safely failing closed rather than exposing records."
       }
     ],
     "citations": [
-      "https://www.postgresql.org/docs/current/ddl-rowsecurity.html"
+      "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+      "https://www.postgresql.org/docs/current/sql-set.html"
     ],
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-23"
     }
   }
 ]
