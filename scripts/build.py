@@ -131,11 +131,10 @@ def rigorous_lesson(q):
 def interview(q):
   writer=AnswerWriter(q)
   body=writer.render(q['A'],reserve_followups=True)
-  # Source-backed conceptual cases belong in the single detailed answer.
   if q.get('answer_format')=='conceptual' and q.get('worked_case'):
-    body+='<section class="answer-section answer-mechanism"><h4>Worked scenario</h4><p>'+E(q['worked_case'])+'</p></section>'
+    body+=writer.section('Worked scenario',q['worked_case'],'answer-mechanism')
   body+=answer_diagram(q)
-  if normalize_answer(q['Why']) not in writer.followups:
+  if normalize_answer(q['Why']) not in writer.followups and not (q.get('answer_format') == 'conceptual' and normalize_answer(q['Why']) == normalize_answer(q.get('worked_case', ''))):
     body+=writer.section('Worked case' if q.get('answer_format')=='conceptual' else 'How it works',q['Why'],'answer-mechanism')
   body+=writer.section('Failure boundary',q['Risk'],'answer-warning')
   if normalize_answer(q['Trade']) not in writer.followups:
@@ -224,7 +223,7 @@ def rag_playground():
  return '''<section class="rag-playground" data-rag-playground><div class="section-title"><div><span class="micro-label">CHANGE ONE INPUT / OBSERVE THE CONSEQUENCE</span><h2>What can this evidence support?</h2></div></div><p>The customer's question stays the same: <strong>Can I get a refund for a sale item?</strong> Change what retrieval supplies and see why the next action changes.</p><label for="rag-scenario">Evidence returned by the search</label><select id="rag-scenario"><option value="supported">The actual sale-item rule</option><option value="irrelevant">An unrelated shipping article</option><option value="missing">No matching passage</option><option value="outage">Search service unavailable</option></select><div class="scenario-result" aria-live="polite"><span class="micro-label">THE READING PACKET</span><pre><code id="rag-packet"></code></pre><span class="micro-label">THE SUPPORTED NEXT ACTION</span><p id="rag-action"></p><p class="takeaway" id="rag-reason"></p></div><small>Deterministic teaching simulation. These outcomes illustrate an evidence policy; no model is being called.</small></section>'''
 
 def public_lab_ignore(directory,names):
- allowed={'.py','.js','.md','.json','.txt','.toml','.yaml','.yml','.sql','.html','.css','.csv','.ipynb'}
+ allowed={'.py','.js','.cjs','.md','.json','.txt','.toml','.yaml','.yml','.sql','.html','.css','.csv','.ipynb'}
  return [name for name in names if name.startswith('.') or name in {'__pycache__','node_modules'} or (Path(directory)/name).is_symlink() or ((Path(directory)/name).is_file() and (Path(name).suffix not in allowed))]
 
 

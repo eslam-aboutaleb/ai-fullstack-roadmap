@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inspect a local support-agent trace</title>
+<style>*{box-sizing:border-box}input{max-width:100%}h2{overflow-wrap:anywhere}body{font:1.1rem system-ui;max-width:65rem;margin:auto;padding:1.5rem;line-height:1.6}input,button{font:inherit;padding:.6rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}li{border-left:3px solid #526d82;padding:1rem;margin:1rem}button:focus-visible,input:focus-visible{outline:3px solid #005fcc}</style>
+<main><h1>Follow evidence through an agent effect</h1><p>Export a synthetic trace with <code>python3 research_support_project.py check --report trace.json</code>. Open that file below. The file stays in this browser; this reader sends no requests. Trace presence proves recorded events, so compare it with the independently committed ticket count too.</p>
+<label for="trace">Local JSON report (maximum 1 MB)</label> <input id="trace" type="file" accept=".json,application/json">
+<p id="status" role="status">Choose a trace to inspect its transitions.</p><ol id="events"></ol>
+<noscript><p>Read the exported JSON directly: capabilities → source → proposal → approval → committed effect → reconciled replay. A second call must keep the effect count at one.</p></noscript></main>
+<script>
+'use strict';
+const input=document.querySelector('#trace'),status=document.querySelector('#status'),events=document.querySelector('#events');
+input.addEventListener('change',async()=>{
+ events.replaceChildren();
+ try{
+  const file=input.files[0];if(!file)return;
+  if(file.size>1_000_000)throw new Error('Report exceeds 1 MB.');
+  const parsed=JSON.parse(await file.text()),rows=Array.isArray(parsed)?parsed:parsed.trace;
+  if(!Array.isArray(rows)||rows.length>1000)throw new Error('Expected a bounded trace array.');
+  for(const row of rows){
+   if(!row||typeof row!=='object'||!Number.isInteger(row.seq)||typeof row.kind!=='string')throw new Error('Invalid event identity.');
+   const li=document.createElement('li'),heading=document.createElement('h2'),body=document.createElement('pre');
+   heading.textContent=row.seq+'. '+row.kind;body.textContent=JSON.stringify(row.detail,null,2);li.append(heading,body);events.append(li);
+  }
+  status.textContent=rows.length+' events loaded. Check scope, approval expiry and the effect ledger separately.';
+ }catch(error){events.replaceChildren();status.textContent=error.message;}
+});
+</script></html>
