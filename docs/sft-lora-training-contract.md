@@ -60,3 +60,31 @@ are a narrowly controlled oracle and do not support production-quality claims.
 A pretrained-model SFT profile, broader safety/forgetting evaluation and genuine
 QLoRA/GPU measurements remain separate requirements; this report does not
 relabel the random base or a CPU result as any of those.
+
+## Executed pretrained profile — 23 October 2026
+
+The optional command now loads real pretrained EleutherAI/pythia-14m weights
+and tokenizer at immutable revision cf967c0a9a04383db6f7b1108d86b2962634b4ac
+(Apache-2.0). This CPU profile downloads model artifacts; it is distinct from
+the default offline random GPT-2 profile. Use the pinned model/PEFT requirements:
+
+```sh
+python3 -B labs/peft_causal_sft.py --pretrained --revision cf967c0a9a04383db6f7b1108d86b2962634b4ac --steps 6 --output pretrained-peft-sft.json
+```
+
+`docs/evidence/pretrained-peft-sft.json` records the executed baseline/adapter
+validation/test metrics, measured training time, versions and hardware. Both
+splits are original synthetic color-rule cases separated by item ID before
+training, not a representative language/safety benchmark. `label_accuracy`
+means first-response-token accuracy from prompt-only logits, not full generated
+answer correctness. The run checks response and padding masks, shifted loss,
+actual token-weighted accumulation, frozen weights, future-token invariance,
+manifest mismatch denial, serialized reload and merged-output equivalence.
+The tokenizer digest includes its backend rules and special/padding settings,
+not only the vocabulary. The temporary adapter directory is removed after checks;
+no service, account credential or deployed endpoint is used.
+
+This closes the missing *pretrained execution* evidence, not all of issue #46.
+Representative safety/forgetting studies, full course outcome/rubric mapping and
+actual QLoRA/GPU results remain unverified. No GPU or production-quality claim
+is inferred from the CPU fixture, and the issue remains open.

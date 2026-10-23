@@ -1,8 +1,8 @@
 """Actual Transformers + PEFT response-only causal-LM SFT on original synthetic text.
 
-No pretrained weights, network, provider or GPU. A tiny randomly initialized
-GPT-2 architecture is trained through real LoRA adapters. This verifies the
-training/artifact contract; it does not establish foundation-model quality.
+The default tiny GPT-2 profile is offline. --pretrained opts into an immutable
+Apache-2.0 Pythia checkpoint download; both profiles train real LoRA adapters on
+CPU. Contract checks and synthetic metrics do not establish production quality.
 """
 import argparse
 from copy import deepcopy
@@ -19,7 +19,7 @@ from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
-from transformers import GPT2Config, GPT2LMHeadModel, PreTrainedTokenizerFast
+from transformers import AutoModelForCausalLM, AutoTokenizer, GPT2Config, GPT2LMHeadModel, PreTrainedTokenizerFast
 
 WORDS = ['<pad>', '<eos>', '<unk>', 'classify', 'red', 'blue', 'green', 'yellow', 'result', 'warm', 'cool', 'neutral'] + [f'item{i}' for i in range(64)]
 VOCAB = {word: index for index, word in enumerate(WORDS)}
@@ -48,7 +48,7 @@ def batch(rows, tok):
     inputs, labels, masks = [], [], []
     for row in rows:
         prompt = tok.encode(row['prompt'], add_special_tokens=False)
-        response = tok.encode(row['answer'], add_special_tokens=False) + [tok.eos_token_id]
+        response = tok.encode(' ' + row['answer'], add_special_tokens=False) + [tok.eos_token_id]
         inputs.append(prompt + response)
         labels.append([-100] * len(prompt) + response)
     length = max(map(len, inputs))
@@ -68,8 +68,9 @@ def evaluate(model, rows, tok):
         # Score the first response token using only the prompt. Teacher-forced
         # target text is never supplied to this exact-label prediction.
         prompts = tok([row['prompt'] for row in rows], return_tensors='pt', padding=True)
-        logits = model(**prompts).logits[:, -1, :]
-        expected = torch.tensor([tok.encode(row['answer'], add_special_tokens=False)[0] for row in rows])
+        all_logits = model(**prompts).logits
+        logits = all_logits[torch.arange(len(rows)), prompts['attention_mask'].sum(dim=1) - 1]
+        expected = torch.tensor([tok.encode(' ' + row['answer'], add_special_tokens=False)[0] for row in rows])
         accuracy = float((logits.argmax(dim=-1) == expected).float().mean())
     return {'response_loss': loss, 'label_accuracy': accuracy, 'cases': len(rows)}
 
@@ -80,40 +81,56 @@ def verify_manifest(expected, observed):
             raise ValueError('incompatible adapter manifest: ' + key)
 
 
-def run(output=None, steps=100):
+def run(output=None, steps=100, pretrained=False, revision=None):
     torch.set_num_threads(1)
     torch.manual_seed(7)
     torch.use_deterministic_algorithms(True)
-    tok = tokenizer()
-    config = GPT2Config(vocab_size=len(tok), n_positions=32, n_ctx=32, n_embd=32, n_layer=2,
-                        n_head=2, resid_pdrop=0.0, embd_pdrop=0.0, attn_pdrop=0.0,
-                        bos_token_id=tok.eos_token_id, eos_token_id=tok.eos_token_id,
-                        pad_token_id=tok.pad_token_id, attn_implementation='eager')
-    base = GPT2LMHeadModel(config)
+    provenance = {'base_kind': 'random initialization; no pretrained model weights'}
+    if pretrained:
+        from huggingface_hub import model_info
+        info = model_info('EleutherAI/pythia-14m', revision=revision)
+        checkpoint = info.sha
+        tok = AutoTokenizer.from_pretrained('EleutherAI/pythia-14m', revision=checkpoint)
+        if tok.pad_token_id is None: tok.pad_token = tok.eos_token
+        base = AutoModelForCausalLM.from_pretrained('EleutherAI/pythia-14m', revision=checkpoint, attn_implementation='eager', dtype=torch.float32)
+        config = base.config
+        provenance = {'base_kind': 'pretrained EleutherAI Pythia checkpoint', 'model': 'EleutherAI/pythia-14m',
+                      'revision': checkpoint, 'model_license': 'apache-2.0',
+                      'license_source': 'https://huggingface.co/EleutherAI/pythia-14m'}
+    else:
+        tok = tokenizer()
+        config = GPT2Config(vocab_size=len(tok), n_positions=32, n_ctx=32, n_embd=32, n_layer=2,
+                            n_head=2, resid_pdrop=0.0, embd_pdrop=0.0, attn_pdrop=0.0,
+                            bos_token_id=tok.eos_token_id, eos_token_id=tok.eos_token_id,
+                            pad_token_id=tok.pad_token_id, attn_implementation='eager')
+        base = GPT2LMHeadModel(config)
     original = {name: value.detach().clone() for name, value in base.state_dict().items()}
     weights_hash = sha256(b''.join(original[key].numpy().tobytes() for key in sorted(original))).hexdigest()
     manifest = {'base_config_sha256': digest(config.to_dict()), 'base_weights_sha256': weights_hash,
-                'tokenizer_sha256': digest(VOCAB), 'template_sha256': digest(TEMPLATE),
-                'base_kind': 'random initialization; no pretrained model weights', 'seed': 7}
+                'tokenizer_sha256': digest({'backend': tok.backend_tokenizer.to_str(), 'special_tokens': tok.special_tokens_map, 'padding_side': tok.padding_side, 'truncation_side': tok.truncation_side}), 'template_sha256': digest(TEMPLATE),
+                **provenance, 'seed': 7}
     train, validation, test = examples(0, 16), examples(16, 20), examples(20, 24)
     assert not ({r['id'] for r in train} & {r['id'] for r in validation + test})
     baseline_validation = evaluate(base, validation, tok)
     baseline_test = evaluate(base, test, tok)
     model = get_peft_model(base, LoraConfig(task_type=TaskType.CAUSAL_LM, r=4, lora_alpha=8,
-                                          lora_dropout=0.0, target_modules=['c_attn', 'c_proj'], fan_in_fan_out=True))
+                                          lora_dropout=0.0, target_modules='all-linear' if pretrained else ['c_attn', 'c_proj'], fan_in_fan_out=not pretrained))
     trainable = [(name, parameter) for name, parameter in model.named_parameters() if parameter.requires_grad]
     assert trainable and all('lora_' in name for name, _ in trainable)
     optimizer = torch.optim.AdamW([parameter for _, parameter in trainable], lr=0.02, weight_decay=0.0)
     data = batch(train, tok)
-    assert torch.all(data['labels'][:, :4] == -100)
-    assert torch.all(data['labels'][:, 4:] != -100)
+    for index, row in enumerate(train):
+        prompt_length = len(tok.encode(row['prompt'], add_special_tokens=False))
+        length = int(data['attention_mask'][index].sum())
+        assert torch.all(data['labels'][index, :prompt_length] == -100)
+        assert torch.all(data['labels'][index, prompt_length:length] != -100)
     padded = batch([train[0], {**train[1], 'prompt': 'classify blue result'}], tok)
     assert padded['labels'][1, -1] == -100 and padded['attention_mask'][1, -1] == 0
     model.eval()
     with torch.no_grad():
         observed = model(**padded)
         expected_loss = torch.nn.functional.cross_entropy(
-            observed.logits[:, :-1, :].reshape(-1, len(tok)),
+            observed.logits[:, :-1, :].float().reshape(-1, observed.logits.shape[-1]),
             padded['labels'][:, 1:].reshape(-1), ignore_index=-100)
         assert torch.allclose(observed.loss, expected_loss, atol=1e-6)
     started = time.perf_counter()
@@ -121,11 +138,13 @@ def run(output=None, steps=100):
     losses = []
     for step in range(steps):
         optimizer.zero_grad(set_to_none=True)
-        # Two microbatches each supply half the supervised tokens; average before
-        # stepping once. Equal token counts make this equal to the batch mean.
+        # Weight each microbatch by its actual supervised-token count before
+        # stepping once, preserving the full-batch mean with variable tokenization.
         total = 0.0
+        target_count = int((data['labels'][:, 1:] != -100).sum())
         for part in (slice(0, 32), slice(32, 64)):
-            loss = model(**{key: value[part] for key, value in data.items()}).loss / 2
+            part_count = int((data['labels'][part, 1:] != -100).sum())
+            loss = model(**{key: value[part] for key, value in data.items()}).loss * (part_count / target_count)
             loss.backward(); total += float(loss.detach())
         torch.nn.utils.clip_grad_norm_([parameter for _, parameter in trainable], 1.0)
         optimizer.step(); losses.append(total)
@@ -133,8 +152,10 @@ def run(output=None, steps=100):
     assert losses[-1] < losses[0], losses
     # Every original base tensor is still exactly unchanged under LoRA.
     for name, before in original.items():
-        target = name.replace('.c_attn.', '.c_attn.base_layer.').replace('.c_proj.', '.c_proj.base_layer.')
-        current = model.base_model.model.state_dict()[target]
+        current_state = model.get_base_model().state_dict()
+        prefix, leaf = name.rsplit('.', 1)
+        target = name if name in current_state else prefix + '.base_layer.' + leaf
+        current = current_state[target]
         assert torch.equal(before, current), name
     adapted_validation = evaluate(model, validation, tok)
     adapted_test = evaluate(model, test, tok)
@@ -143,7 +164,7 @@ def run(output=None, steps=100):
     with torch.no_grad():
         reference = model(**probe).logits.detach().clone()
         # Appending future tokens cannot change an earlier causal prefix output.
-        extended = dict(input_ids=torch.cat([probe['input_ids'], torch.tensor([[VOCAB['cool']]])], dim=1))
+        extended = dict(input_ids=torch.cat([probe['input_ids'], torch.tensor([[tok.encode(' cool', add_special_tokens=False)[0]]])], dim=1))
         assert torch.allclose(model(**extended).logits[:, :probe['input_ids'].shape[1]], reference, atol=1e-5, rtol=1e-5)
     with tempfile.TemporaryDirectory() as folder:
         target = Path(folder)
@@ -155,7 +176,7 @@ def run(output=None, steps=100):
         try: verify_manifest(manifest, incompatible)
         except ValueError: pass
         else: raise AssertionError('incompatible adapter accepted')
-        fresh = GPT2LMHeadModel(config); fresh.load_state_dict(original)
+        fresh = AutoModelForCausalLM.from_config(config); fresh.load_state_dict(original)
         reloaded = PeftModel.from_pretrained(fresh, target / 'adapter'); reloaded.eval()
         with torch.no_grad():
             assert torch.allclose(reloaded(**probe).logits, reference, atol=1e-5, rtol=1e-5)
@@ -171,7 +192,7 @@ def run(output=None, steps=100):
               'initial_train_loss': losses[0], 'final_train_loss': losses[-1],
               'elapsed_training_seconds': training_seconds,
               'artifact_reload': 'pass', 'merge_equivalence': 'pass', 'base_immutable': True,
-              'limits': 'original deterministic color-rule data and random tiny base; not pretrained SFT, QLoRA, GPU or production generalization evidence'}
+              'limits': 'original deterministic color-rule data; CPU only; no QLoRA, GPU, representative safety or production generalization evidence'}
     if output: Path(output).write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))
     return result
@@ -180,6 +201,8 @@ def run(output=None, steps=100):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output'); parser.add_argument('--steps', type=int, default=100)
+    parser.add_argument('--pretrained', action='store_true', help='Opt in to downloading a small Apache-2.0 Pythia checkpoint')
+    parser.add_argument('--revision', help='Pinned model revision; resolved immutable SHA is recorded')
     args = parser.parse_args()
     if not 1 <= args.steps <= 1000: parser.error('steps must be 1..1000')
-    run(args.output, args.steps)
+    run(args.output, args.steps, args.pretrained, args.revision)
