@@ -3144,5 +3144,98 @@
         "kind": "warning"
       }
     ]
+  },
+  "1212": {
+    "title": "A proposed tool action is not an authorized effect",
+    "description": "The approval must be bound to the exact owner, operation and payload; a retry is reconciled through durable state, not by asking the model to guess.",
+    "steps": [
+      {
+        "title": "Agent proposes a tool effect",
+        "body": "The model suggests a refund with an amount and order ID; proposal text is not permission.",
+        "kind": "normal"
+      },
+      {
+        "title": "Trusted approval gate",
+        "body": "Authenticate the principal and bind approval to the canonical payload digest, scope, policy version and expiry.",
+        "kind": "decision"
+      },
+      {
+        "title": "Revalidate before dispatch",
+        "body": "Reject expired/revoked approvals or any changed argument, even if an untrusted page claims authorization.",
+        "kind": "warning"
+      },
+      {
+        "title": "Commit with effect identity",
+        "body": "Persist one authoritative (owner,operation,request digest) outcome and execute only the permitted effect.",
+        "kind": "state"
+      },
+      {
+        "title": "Lost response and retry",
+        "body": "Look up the durable operation result; replay returns it without submitting a second refund.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1213": {
+    "title": "Current, cited and authorized are separate tests",
+    "description": "A real quotation can still be stale. Evaluate document access, validity time and revision as retrieval and citation conditions.",
+    "steps": [
+      {
+        "title": "Resolve the user's question time",
+        "body": "Specify current-versus-historical policy context, the authenticated tenant and the requested claim.",
+        "kind": "normal"
+      },
+      {
+        "title": "Apply eligibility before ranking",
+        "body": "Filter active/archived revisions, validity intervals, deletion tombstones and authorized owner scope.",
+        "kind": "decision"
+      },
+      {
+        "title": "Retrieve and rank evidence",
+        "body": "BM25 and dense retrieval work only over eligible candidates; stale v1 cannot beat valid v2 by score alone.",
+        "kind": "state"
+      },
+      {
+        "title": "Resolve the cited source again",
+        "body": "Confirm the exact source revision/span and current ACL when preparing the user-visible citation.",
+        "kind": "decision"
+      },
+      {
+        "title": "Support or abstain",
+        "body": "Answer with relevant versioned citations; reject obsolete, deleted or unsupported evidence.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "1214": {
+    "title": "Trace a serving request across its independent latency stages",
+    "description": "Separate queue time, prefill, the first generated token and subsequent decoding; compare equivalent real workloads rather than toy step counts.",
+    "steps": [
+      {
+        "title": "Arrival and admission queue",
+        "body": "Record arrival time, request length, concurrency and waiting time before GPU work starts.",
+        "kind": "normal"
+      },
+      {
+        "title": "Prompt tokenization and prefill",
+        "body": "Compute the prompt representations and populate KV cache; measure prefill duration and memory.",
+        "kind": "state"
+      },
+      {
+        "title": "First streamed token",
+        "body": "Record the client's observed time-to-first-token under a clearly stated timestamp convention.",
+        "kind": "state"
+      },
+      {
+        "title": "Autoregressive decode",
+        "body": "Measure inter-token latency/TPOT, output length, cancellation and decode batch occupancy.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare user-facing reliability",
+        "body": "Report per-length p50/p95/p99, output tokens/s, error rate, GPU VRAM high-water and answer quality.",
+        "kind": "decision"
+      }
+    ]
   }
 }
