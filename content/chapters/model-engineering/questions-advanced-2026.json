@@ -1,0 +1,29 @@
+[
+  {
+    "Q": "How would you distinguish prefill, decode and queue bottlenecks in a real language-model serving benchmark?",
+    "A": "**A model-serving request has multiple clocks.** The client waits for admission to a server queue, prompt tokenization and prefill, first generated token, iterative decoding and network streaming. Time-to-first-token (TTFT) includes queue/preprocessing/prefill and the first decode step under the benchmark's precise timing convention; inter-token latency/TPOT describes generation cadence after the first token. Throughput counts requests or tokens per unit time over a declared workload. None of these alone characterizes interactive user experience; p95/p99 and differences by input/output length and concurrency matter.\n\n**Measure real phases independently.** Pin the exact engine/commit (e.g., supported vLLM version), model/tokenizer checksum, GPU type and VRAM, precision, cache configuration, prompt/output length distribution, concurrency profile and warm/cold state. Record arrival/admission timestamp, queue wait, prefill duration, first token, each subsequent token and completion. Normalize the endpoint streaming and cancellation policy. Use a stable held-out prompt set and deterministic seed where supported, but don't assume identical generated lengths if the model or decoding changes.\n\n**Capacity worked example.** A simplified grouped-query attention cache needs 2 × L × H_kv × d_head × T × bytes per scalar × live sequences. With 32 layers, 8 KV heads, head width 128, 4096 retained tokens and FP16 (2 bytes), one sequence consumes 536,870,912 bytes = 512 MiB of KV tensors, *before* weights, activations, allocator overhead and other workspace. Four equal sequences use roughly 2 GiB for their KV tensors in this simple accounting. A larger batch can raise generated tokens/s but also lengthen queue waiting, cause unfairness for short prompts or exceed VRAM.\n\n**Failure analysis.** If output tokens/s improves but p99 TTFT triples, inspect queue saturation and prefill admission for long prompts rather than proclaiming victory. If TTFT is fine but TPOT degrades, investigate decode scheduling and memory bandwidth; if both are fine but final latency is poor, look at length, server buffering, transport or client rendering. Compare GPU metrics to the application success/error budget and real answer quality when changing precision or model. A CPU simulator reporting artificial steps is a valuable scheduling exercise, **not** a measured GPU benchmark.",
+    "Why": "Prefill, queueing and token-by-token decode have different memory, compute and latency costs; conflating them hides product regressions.",
+    "Risk": "Treating simulated steps as milliseconds or reporting only throughput can mask p99 latency, capacity problems and real quality regressions.",
+    "Trade": "More simultaneous decode sequences may improve aggregate GPU utilization at the price of memory pressure, scheduler fairness and tail latency.",
+    "Try": "Benchmark two pinned serving configurations with identical prompt-length mixes; report observed TTFT/TPOT and p99, request counts, VRAM high-water and correctness.",
+    "worked_case": "Illustrative hypothetical comparison (not an executed benchmark): A candidate scheduler increases output throughput from 300 to 370 tokens/s while p99 TTFT grows from 700 ms to 2,200 ms under the same request mix. Compare admission and prefill traces, the interactive SLA and per-length slices before choosing either configuration.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://docs.vllm.ai/en/latest/design/metrics/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can you infer the performance of a real vLLM deployment from an offline CPU scheduling fixture?",
+        "A": "No. The toy model verifies dimension/capacity invariants and a chosen discrete scheduling policy, not real CUDA kernels, tokenizer overhead, prefill compute or measured network streaming. Use actual hardware, engine and workload to report latency and memory."
+      }
+    ],
+    "difficulty": "design",
+    "domain": "inference",
+    "subdomain": "model-engineering"
+  }
+]
