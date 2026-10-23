@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Accessible Button vs Clickable Div</title>
+  <style>
+    .btn { display: inline-block; padding: 10px 20px; background: #0066cc; color: #fff; cursor: pointer; border-radius: 4px; }
+    .btn:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <!-- 1. Semantic Native Button (Preferred):
+       - Automatically focusable via keyboard Tab key.
+       - Activated by both Enter and Space keys without custom JavaScript.
+       - Implicit role="button" exposed to screen readers and accessibility tree.
+       - Honors disabled attribute (prevents click, removes from tab order). -->
+  <button type="button" id="submit-btn" onclick="alert('Submitted!')">
+    Confirm Action
+  </button>
+
+  <!-- Form control with explicit <label for="field-id">
+       - Increases hit target size (clicking label focuses input).
+       - Announces accessible name to assistive technologies. -->
+  <div>
+    <label for="tenant-input">Tenant Organization:</label>
+    <input type="text" id="tenant-input" name="tenant" required aria-required="true">
+  </div>
+
+  <!-- 2. Non-Semantic Clickable Div (Anti-Pattern):
+       - Missing from keyboard navigation unless tabindex="0" is manually set.
+       - Silent to screen readers unless role="button" is provided.
+       - Requires custom keydown handlers for Enter and Space. -->
+  <div class="btn" tabindex="0" role="button" aria-pressed="false"
+       onclick="handleCustom()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleCustom();}">
+    Custom Div Control (High Maintenance)
+  </div>
+
+  <script>
+    function handleCustom() { console.log("Custom div activated via keyboard or pointer"); }
+  </script>
+</body>
+</html>

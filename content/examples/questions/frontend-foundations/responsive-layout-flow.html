@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsive Layout and DOM Reading Order</title>
+  <style>
+    /* CSS Grid layout that maintains logical DOM reading order while adapting responsively */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) 2fr;
+      gap: 1.5rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Wrap unbroken text strings (e.g. long URLs or hashes) to prevent horizontal overflow */
+    .content-card {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 1.25rem;
+      border-radius: 8px;
+      overflow-wrap: break-word; /* Prevents overflow clipping at 200% zoom */
+    }
+
+    /* Media query collapses to single column on mobile without altering keyboard tab order */
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-grid">
+    <!-- Primary navigation/context retains first position in DOM source order -->
+    <aside class="content-card" aria-label="Filters">
+      <h3>Active Filters</h3>
+      <p>Source order matches visual flow; avoiding CSS 'order: -1' which decouples focus order.</p>
+      <a href="#results">Jump to results</a>
+    </aside>
+
+    <main class="content-card" id="results">
+      <h2>Retrieved Results</h2>
+      <p class="citation">
+        DocHash: 0x4f8b9a12c4e67890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+      </p>
+    </main>
+  </div>
+</body>
+</html>
