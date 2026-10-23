@@ -103,10 +103,16 @@ def load(assign_ids=False):
             schema = LESSON_SCHEMA if group == 'lessons' else QUESTION_SCHEMA
             marker = 'conceptual_narrative' if group == 'lessons' else 'spoken'
             for question in rows:
-                legacy_fields = ('Q', 'explain', 'example', 'takeaway') if group == 'lessons' else ('Q', 'A', 'Why', 'Risk', 'Trade', 'Try')
-                for field in legacy_fields:
-                    if not isinstance(question.get(field), str) or not question[field].strip():
-                        raise ValueError(f'{slug}/{group}: missing text field {field}')
+                if group == 'lessons':
+                    legacy_fields = ('Q', 'A', 'Why', 'Risk', 'Trade', 'Try') if 'A' in question and 'explain' not in question else ('Q', 'explain', 'example', 'takeaway')
+                    for field in legacy_fields:
+                        if not isinstance(question.get(field), str) or not question[field].strip():
+                            raise ValueError(f'{slug}/{group}: missing text field {field}')
+                else:
+                    legacy_fields = ('Q', 'A', 'Why', 'Risk', 'Trade', 'Try')
+                    for field in legacy_fields:
+                        if not isinstance(question.get(field), str) or not question[field].strip():
+                            raise ValueError(f'{slug}/{group}: missing text field {field}')
                 if question.get('answer_format') == 'conceptual':
                     conceptual_schema = json.loads((CONTENT/'shared/conceptual-question-schema.json').read_text())
                     _check_schema(question, conceptual_schema, group, slug)

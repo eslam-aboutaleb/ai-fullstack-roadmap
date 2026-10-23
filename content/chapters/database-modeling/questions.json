@@ -1,57 +1,58 @@
 [
   {
-    "Q": "Why store support service requests in relational tables instead of only vector documents?",
-    "A": "Service requests have exact ownership, monetary amounts, lifecycle states, references, and transaction boundaries. A vector index optimizes similarity retrieval and does not replace those relational invariants. The same request can have an authoritative row and a derived search representation.",
-    "Why": "Keep authoritative ownership, state transitions, and relationships in constrained transactional records. Use vector indexes as derived search projections that can be rebuilt, not as the only source of business truth.",
-    "Risk": "Treating the vector record as the sole source of truth makes exact authorization, status transitions, and recovery dependent on a derived index. Search ranking cannot decide whether a service request exists or who owns it.",
-    "Trade": "Relational plus search modeling creates projection maintenance work but supports exact operations and flexible discovery. A text-only prototype is smaller and insufficient for authoritative workflows.",
-    "Try": "Mark every Claim column as identity, business fact, authority constraint, lifecycle metadata, or derived search data. Explain which can be rebuilt.",
-    "spoken": "Relational tables enforce structured identities, relationships, constraints and transactions for service requests. Vector documents support relevance lookup but do not replace the authoritative operation state. Model owned tasks, operation keys, revisions and effect intent explicitly, then derive searchable projections as needed.",
+    "Q": "Why store application transactional state in relational database tables instead of relying solely on vector databases or document stores?",
+    "A": "Mission-critical applications require strict ACID consistency, entity integrity, and deterministic state transitions that vector databases and NoSQL document stores cannot provide. Relational tables enforce primary key uniqueness, foreign key referential integrity with cascading guarantees, CHECK constraints, and row-level locks within ACID transaction boundaries. A vector index is optimized for approximate similarity searches (ANN), not for enforcing business invariants. The correct architecture uses relational tables as the single authoritative system of record, while deriving vector embeddings into search projections that can be dropped and rebuilt at any time.",
+    "Why": "Authoritative state transitions, accounting ledgers, and access control policies require immediate consistency and relational constraints. Vector stores provide eventually consistent heuristic retrieval, not transactional truth.",
+    "Risk": "Treating a vector database as the primary source of truth makes data consistency subject to heuristic ranking, prevents foreign key cascading, and creates race conditions where concurrent updates overwrite state silently.",
+    "Trade": "Maintaining both relational tables and derived vector indices requires synchronization pipelines (such as the Transactional Outbox pattern or Change Data Capture), but guarantees absolute transactional correctness while enabling high-recall semantic search.",
+    "Try": "Design a relational schema with an explicit state transition check constraint and a corresponding vector projection table, showing how the vector projection can be dropped and regenerated from relational records.",
+    "spoken": "Relational tables enforce structured identities, relationships, constraints, and ACID transactions for business entities. Vector stores provide similarity search but cannot enforce uniqueness, foreign keys, or atomic state transitions. Maintain authoritative state in relational tables and treat vector indices as derived, rebuildable search projections.",
     "domain": "backend",
     "subdomain": "database-modeling",
     "module": "database-modeling",
-    "concept": "Why store support service requests in relational tables instead of only vector documents",
+    "concept": "Why store application transactional state in relational database tables instead of relying solely on vector databases or document stores",
     "difficulty": "foundations",
-    "misconception_target": "More tables always means better design",
+    "misconception_target": "Vector databases can replace relational databases for operational business data",
     "definitions": [
       {
-        "term": "Normalization",
-        "definition": "Organizing tables to reduce redundancy and dependency"
+        "term": "ACID",
+        "definition": "Atomicity, Consistency, Isolation, Durability: transactional properties of relational databases"
       },
       {
-        "term": "Foreign key",
-        "definition": "Column that references a primary key in another table"
+        "term": "Referential integrity",
+        "definition": "Guarantee that relationships between tables remain consistent via foreign keys"
       },
       {
-        "term": "Constraint",
-        "definition": "Rule enforced by the database on column values"
+        "term": "Derived projection",
+        "definition": "A read-optimized, eventually consistent representation built from the authoritative system of record"
       }
     ],
-    "execution_timeline": "Identify entities → Define attributes → Choose primary keys → Map relationships → Add constraints → Review normal forms",
+    "execution_timeline": "Identify entities → Define relational constraints → Establish ACID transactions → Emit state events → Generate search embeddings in derived index",
     "example": {
-      "code": "CREATE TABLE documents (\n  id UUID PRIMARY KEY,\n  owner_id UUID NOT NULL REFERENCES users(id)\n);\nCREATE TABLE document_revisions (\n  document_id UUID NOT NULL REFERENCES documents(id),\n  revision INT NOT NULL CHECK (revision > 0),\n  content TEXT NOT NULL,\n  PRIMARY KEY (document_id, revision)\n);",
-      "explanation": "Document ownership is separate from per-document revision identity. Different documents owned by the same user can each have revision one. PostgreSQL fragment requires an existing users table and a disposable schema.",
-      "output": "Schema illustration; execute with its users dependency in a disposable PostgreSQL environment."
+      "code": "CREATE TABLE orders (\n  id UUID PRIMARY KEY,\n  tenant_id UUID NOT NULL REFERENCES tenants(id),\n  status VARCHAR(32) NOT NULL CHECK (status IN ('PENDING', 'PAID', 'CANCELLED')),\n  amount_cents BIGINT NOT NULL CHECK (amount_cents >= 0),\n  created_at TIMESTAMPTZ DEFAULT NOW()\n);\nCREATE TABLE order_search_embeddings (\n  order_id UUID PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,\n  embedding vector(1536) NOT NULL\n);",
+      "explanation": "Relational constraints enforce tenant isolation, status state machines, and non-negative amounts, while foreign key ON DELETE CASCADE keeps the derived vector index synchronized automatically.",
+      "output": "Relational DDL with derived vector projection."
     },
-    "production_case": "A user retries the same request after a timeout. UNIQUE(owner, operation_key) resolves it to the existing task, whereas similarity search cannot reliably decide whether two messages are the same logical operation.",
+    "production_case": "A payment gateway retries a charge notification. An authoritative unique constraint on (tenant_id, idempotency_key) guarantees exactly-once processing, whereas a vector search cannot reliably determine whether two requests represent the same financial transaction.",
     "alternatives": [
-      "Denormalized design for read-heavy workloads",
-      "Document store for unstructured content"
+      "Document store for unstructured payloads",
+      "Event sourcing for complete audit history"
     ],
     "pitfalls": [
-      "Missing foreign key constraints",
-      "Storing derived data redundantly",
-      "Over-normalizing for simple read patterns"
+      "Missing foreign key indexes causing table-level lock contention",
+      "Treating vector embeddings as primary business records",
+      "Failing to synchronize derived projections inside transactions"
     ],
-    "complexity": "Query cost depends on access path, selectivity, joins, indexes and concurrency. B-tree lookup is often logarithmic in tree height plus returned/filtered rows; an index does not make every query O(log n). Inspect real query plans.",
+    "complexity": "B-Tree primary key lookups are O(log N). HNSW vector search is O(log N) approximate graph traversal. Relational constraints guarantee zero consistency anomalies.",
     "follow_ups": [
       {
-        "Q": "Can a vector index be your transaction ledger?",
-        "A": "It is not a substitute for the uniqueness, ownership and atomic state-transition guarantees required by the operation contract."
+        "Q": "Can a vector database be used as an authoritative transaction ledger?",
+        "A": "No. Vector databases lack multi-table transactions, isolation levels, foreign key referential integrity, and row-level locking needed for authoritative state machines."
       }
     ],
     "citations": [
-      "https://www.postgresql.org/docs/current/ddl-constraints.html"
+      "https://www.postgresql.org/docs/current/ddl-constraints.html",
+      "https://www.postgresql.org/docs/current/transaction-iso.html"
     ],
     "reviewer_status": {
       "reviewer": "independent technical review pending",
@@ -61,9 +62,9 @@
     "added": true
   },
   {
-    "Q": "Why have both a UUID primary key and a human-readable request ID?",
+    "Q": "Why decouple internal surrogate primary keys (UUIDv7/BIGINT) from external public resource identifiers?",
     "A": "High-scale transactional architectures decouple the database primary key from the public external identifier.\n\nFor internal storage, standard random UUIDv4 identifiers cause catastrophic B-Tree index fragmentation under high write volume. Because UUIDv4 values are completely random, every INSERT lands in an arbitrary leaf page across the B-Tree, causing continuous disk page splits, poor buffer pool cache locality, and rapid WAL bloat. Modern architectures prefer time-ordered sequential identifiers such as UUIDv7 (RFC 9562) or ULID for internal primary keys and foreign key references. Because UUIDv7 embeds a millisecond Unix timestamp in its most significant bits, new records append monotonically to the rightmost B-Tree leaf pages, maximizing cache hits and minimizing write amplification.\n\nHowever, exposing raw 36-character hexadecimal UUIDs to end users and support teams creates poor user experience and high operational friction. A separate human-readable external identifier (such as 'req_8f7b2c' using Crockford Base32 or NanoID) provides a short, unambiguous reference for customer communications, search bars, and billing receipts. Crucially, neither identifier replaces authorization: knowing a public request ID must never grant access without verifying the authenticated tenant's session claims.",
-    "Why": "UUIDv7 provides time-ordered, cluster-safe internal uniqueness that optimizes B-Tree indexing and foreign key references; a human-readable prefixed identifier (e.g., req_3x9a) optimizes customer support and communication without leaking sequential database sequence numbers or business metrics to competitors.",
+    "Why": "UUIDv7 provides time-ordered, cluster-safe internal uniqueness that optimizes B-Tree indexing and foreign key references; a human-readable prefixed identifier (e.g., req_3x9a) optimizes customer communication without leaking sequential database sequence numbers or business metrics to competitors.",
     "Risk": "Short random identifiers have a non-zero probability of collision (birthday paradox). A production generator must catch uniqueness constraint violations on INSERT and retry with exponential backoff. Never use auto-incrementing sequential integers as public IDs, as they expose exact transaction volume and invite enumeration attacks.",
     "Trade": "Dual identifiers require maintaining two unique indexes (on id and public_id), increasing disk usage and write overhead by a small fraction in exchange for optimal B-Tree performance internally and clean support ergonomics externally.",
     "Try": "Generate 1,000 UUIDv4 values versus 1,000 UUIDv7 values in PostgreSQL. Inspect the sorting order and observe how UUIDv7 naturally sorts chronologically by creation timestamp without requiring a secondary sort key."
