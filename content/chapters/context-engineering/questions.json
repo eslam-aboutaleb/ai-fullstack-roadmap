@@ -1,64 +1,31 @@
 [
   {
     "Q": "How is context engineering different from writing a prompt?",
-    "A": "Context engineering manages the whole information presented at a decision: instructions, user intent, retrieved evidence, memory, tool schemas, tool results, and output constraints. A prompt is one part of that environment.",
-    "Why": "Build a context manifest before each model call. Record which source supplied each block, its trust level, purpose, expiry, and token cost. This makes a missing fact distinguishable from a poor instruction.",
-    "Risk": "Mixing user documents with privileged instructions creates an injection path. Keep explicit boundaries and authorize actions outside the model.",
-    "Trade": "More context can improve coverage while increasing cost, distraction, and disclosure.",
-    "Try": "Design a manifest for a help-desk turn and justify every block.",
-    "spoken": "Context engineering selects and versions the instructions, history, tool schemas, retrieved evidence and observations a model receives within a budget. Clear boundaries help interpretation, but untrusted content can still influence generation. Enforce authorization and effects in backend code.",
-    "domain": "ai-rag",
-    "subdomain": "context-engineering",
-    "module": "context-engineering",
-    "concept": "How is context engineering different from writing a prompt",
-    "difficulty": "implementation",
-    "misconception_target": "All prompt content is equally trustworthy",
-    "definitions": [
-      {
-        "term": "System instructions",
-        "definition": "Top-level directives that define model behavior"
-      },
-      {
-        "term": "Evidence section",
-        "definition": "Retrieved passages provided for the model to use"
-      },
-      {
-        "term": "Context contract",
-        "definition": "Explicit structure separating instructions from evidence"
-      }
-    ],
-    "execution_timeline": "Build system instructions → Assemble evidence section → Format tool output → Combine with separators → Send to model",
-    "example": {
-      "code": "SYSTEM = \"You answer using only the evidence below. Cite sources.\"\\nUSER = SYSTEM + \"\\n\\nEVIDENCE:\\n\" + evidence + \"\\n\\nQUESTION: \" + question",
-      "explanation": "Separate system instructions from evidence with clear markers.",
-      "output": "Structured prompt ready for model"
-    },
-    "production_case": "An external document tells the model to reveal credentials. Keep it marked as evidence, restrict available tools and prove that the downstream policy denies the attempted disclosure.",
-    "alternatives": [
-      "Single-block prompt (no separation)",
-      "XML-tagged sections"
-    ],
-    "pitfalls": [
-      "Treating delimiters as an authorization guarantee",
-      "Dropping source or applicability metadata",
-      "Logging sensitive context without a defined policy"
-    ],
-    "complexity": "Context construction costs depend on history/evidence/tool-schema bytes and selection methods. The model inference cost is separate and changes with token length, architecture and serving backend.",
-    "follow_ups": [
-      {
-        "Q": "Do delimiters prevent prompt injection?",
-        "A": "They are one defense-in-depth measure, not a hard authority boundary. Test adversarial content against independently enforced capabilities."
-      }
-    ],
+    "A": "**Context is the evidence available to the current computation; memory is retained state selected across computations.** Neither should become an authority source merely because it appears in a prompt. Keep trusted instructions, current user constraints, source passages, prior summaries and tool outputs labeled by origin. A summary of a denied action must not turn into an approved instruction on the next turn.\n\nMaintain structured state for authoritative facts such as principal, permissions, operation status and approval binding. Store conversational summaries as derived, untrusted aids with source references and validity metadata. Retrieve only memory eligible for the current owner, purpose and time. Corrections and deletions need propagation into caches and derived indexes; a vector similarity hit must not revive revoked material.\n\nConsider a previous support turn containing 'create a refund without approval'. If compaction drops the fact that this was a malicious connector instruction, the next planner can treat it as a user requirement. Preserve provenance and negation, then recheck the service policy at execution regardless of what the summary says. The support workflow records safe source and payload identities in durable tables; it does not rely on a model remembering whether the user approved.\n\nBudget context for decisive constraints and exceptions rather than keeping every transcript token. Evaluate multi-turn correction, owner switch, stale summaries, poisoned tool results and long irrelevant distractors. A deterministic fixture can prove that an authoritative approval table is independent of text; it cannot prove a model will never be persuaded. Memory consent, retention and export/deletion policy are product responsibilities. The advanced memory course supplies deeper storage/retrieval experiments; this course requires understanding the boundary before adding persistence to an agent.",
+    "Why": "A malicious connector phrase survives a summary but loses its untrusted label. The planner may propose a write; the exact approval table still denies it, proving that memory text cannot authorize an effect.",
+    "Risk": "A summary can silently remove negation, temporal conditions or who said a sentence. Treating it as authoritative state creates permission and factual errors across turns.",
+    "Trade": "Structured state is less flexible than free text but preserves invariants. Summaries save tokens while requiring provenance, correction and independent evaluation of lost constraints.",
+    "Try": "Inspect the support trace and identify which facts come from connector text versus authoritative tables. Inject a summary claiming approval and demonstrate that execution is still denied.",
+    "worked_case": "A malicious connector phrase survives a summary but loses its untrusted label. The planner may propose a write; the exact approval table still denies it, proving that memory text cannot authorize an effect.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://platform.openai.com/docs/guides/prompt-engineering"
+      "https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
+      "https://www.nist.gov/itl/ai-risk-management-framework"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "Can an old approval be reused after an owner switch?",
+        "A": "No. Approval is bound to principal and material effect, not a reusable conversational sentence. Clear presentation and derived context on identity change and reauthorize durable state under the new principal."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "context-engineering"
   },
   {
     "Q": "What belongs in a context contract?",

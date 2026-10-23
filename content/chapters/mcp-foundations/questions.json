@@ -1,63 +1,31 @@
 [
   {
     "Q": "What is MCP and which problem does it solve?",
-    "A": "Model Context Protocol standardizes how compatible hosts and clients discover and interact with server capabilities. It reduces custom integration glue for tools, resources, and reusable prompts.",
-    "Why": "A host manages model interaction and policy; a client communicates with a server that exposes capabilities. Consult the negotiated protocol revision rather than assuming every server supports the same features.",
-    "Risk": "Interoperability does not imply trust or authorization.",
-    "Trade": "A common protocol helps reuse while adding transport and lifecycle responsibilities.",
-    "Try": "Map a document-search integration into host, client, server, and underlying service.",
-    "spoken": "MCP standardizes how clients discover and use server tools, resources and prompts through compatible local or remote transports. It improves interface interoperability, while identity, authorization, consent and business validation still need explicit implementation.",
-    "domain": "agents",
-    "subdomain": "mcp",
-    "difficulty": "foundations",
-    "misconception_target": "MCP is only for connecting to LLMs",
-    "definitions": [
-      {
-        "term": "MCP",
-        "definition": "Model Context Protocol: standardized interface for AI-accessible tools and resources"
-      },
-      {
-        "term": "Capability discovery",
-        "definition": "Client queries server for available tools, resources, prompts"
-      },
-      {
-        "term": "Transport",
-        "definition": "Communication channel between MCP client and server"
-      }
-    ],
-    "execution_timeline": "Client connects -> Server lists capabilities -> Client invokes tool/resource -> Server returns result -> Client uses result",
-    "example": {
-      "code": "capabilities = client.list_capabilities()\nresult = client.invoke_tool(tool_name, args)",
-      "explanation": "Discover what the server offers, then invoke a tool.",
-      "output": "Tool result data"
-    },
-    "production_case": "A remote HTTP MCP server advertises a document search tool. The client verifies compatibility and credentials; the server scopes every search and document read to trusted caller permissions.",
-    "alternatives": [
-      "Custom API integration per tool",
-      "OpenAPI-based tool definitions"
-    ],
-    "pitfalls": [
-      "Over-exposing sensitive resources",
-      "No authorization boundary",
-      "Transport security gaps"
-    ],
-    "complexity": "Discovery can require multiple paginated network requests and authorization checks. Schema/context size affects model cost; tool execution has its own bounded resource and effect contract.",
-    "follow_ups": [
-      {
-        "Q": "Does discovering a tool authorize its use?",
-        "A": "No. Discovery describes capabilities. Scopes, caller policy, argument validation and current business state determine permitted execution."
-      }
-    ],
+    "A": "**MCP separates the host application, its client connections and capability servers.** The host owns the user experience, model interaction and policy decisions. A client implements a connection to a server; a server exposes supported primitives such as tools and resources. MCP is a protocol for context/capability exchange, not an agent planner, a complete identity system or a guarantee that a tool is safe.\n\nNegotiate a supported wire profile and discover capabilities before relying on them. Tool listing exposes names, descriptions and argument schemas; tool execution returns structured/content results or errors. Keep protocol/transport errors distinct from application-level tool failures. Version-pinned SDKs reduce ambiguity, but a package version is not proof that two peers negotiated the same protocol profile.\n\nSTDIO connects a local child process through streams; keep diagnostics off its protocol stdout and control the executable/environment. Streamable HTTP uses a remote HTTP boundary with its own session, origin, authentication and authorization requirements. A process launched locally is not automatically trustworthy, and a remote tool description is not permission to transmit confidential evidence. The broader OAuth interoperability issue adds requirements beyond this introductory course.\n\n`labs/protocol_interop.py` uses actual pinned Python MCP clients over STDIO and loopback HTTP, discovers read_policy, executes a public request and rejects private/malformed requests. It also exercises a separate A2A public agent interaction; A2A task delegation and MCP tool invocation are different contracts. The support project's in-process registry is deliberately not labeled MCP wire execution. Keep those evidence types distinct when designing an adapter. Test peer version, discovery, schema errors, cancellation and denial rather than treating a successful connection as conformance or production authorization.",
+    "Why": "A host discovers read_policy over actual STDIO and HTTP, then tries an invalid source ID. Discovery succeeds while execution is denied, demonstrating that advertised capability and allowed resource access are separate decisions.",
+    "Risk": "An untrusted local executable can read its inherited environment. Remote transport adds token/resource boundaries; neither transport makes a server safe by itself.",
+    "Trade": "Local STDIO simplifies deployment for one host but couples process lifecycle. HTTP can support remote peers while adding service identity, network failure and operational complexity.",
+    "Try": "Install requirements-advanced.txt in an isolated environment and run protocol_interop.py. Record negotiated profiles and separate valid execution, tool denial and malformed arguments in the trace.",
+    "worked_case": "A host discovers read_policy over actual STDIO and HTTP, then tries an invalid source ID. Discovery succeeds while execution is denied, demonstrating that advertised capability and allowed resource access are separate decisions.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://modelcontextprotocol.io/"
+      "https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture",
+      "https://a2a-protocol.org/latest/specification/"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true,
-    "concept": "What is MCP and which problem does it solve"
+    "follow_ups": [
+      {
+        "Q": "Does using A2A instead of MCP remove the need for tool authorization?",
+        "A": "No. A delegated agent still acts under an explicit identity, data-sharing and effect policy. Task lifecycle interoperability cannot grant access to a document or approve a payment."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "mcp-foundations"
   },
   {
     "Q": "How do tools, resources, and prompts differ?",
