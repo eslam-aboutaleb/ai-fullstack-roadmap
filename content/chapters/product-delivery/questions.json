@@ -1,11 +1,31 @@
 [
   {
     "Q": "What is the public SSE contract, and why should the browser not parse raw ADK internals?",
-    "A": "The API maps runtime events into text_delta, tool_call, tool_result, tool_error, error, and response_complete messages. A stable application contract lets the UI evolve independently of ADK and supports a future orchestrator adapter.",
-    "Why": "Map provider or framework events into a versioned public contract. Persist the answer before exposing its final message ID and keep internal tool arguments out of the public stream.",
-    "Risk": "Forwarding raw runtime objects can leak fields and break the UI after dependency changes. A stream ending at the network layer is not necessarily a successful response_complete event.",
-    "Trade": "An adapter adds code and preserves product stability. Direct runtime streaming is quicker for a demo and creates tighter coupling.",
-    "Try": "Capture a synthetic successful and failed stream. Verify event discriminators, JSON validity, and exactly one meaningful terminal outcome for the actual route path."
+    "A": "**The browser should consume an application-owned event contract**, such as task identity, sequence, progress, bounded text, citations, error and a terminal state. An adapter translates framework-specific events into that stable contract. Raw ADK internals can change version, expose tool arguments or leak private state; the frontend must not infer user success from an undocumented internal event. Define whether the actual wire framing is SSE or NDJSON and parse it accordingly.\n\n**An interface should make system state understandable while the server remains authoritative.** Distinguish pending, partial, completed, unsupported, failed and cancelled results. Show source provenance and limitations alongside fluent prose. A spinner cannot stand in for a task-state contract, and hiding another owner's record in the browser does not undo the disclosure if it already arrived over the network.\n\nAuthentication establishes identity; object-level authorization decides access to each task, source and effect. The workbench uses public synthetic fixture identities and is not a real login system. A production cookie session needs a CSRF policy for state-changing requests, secure cookie settings and server-side expiry/revocation. A bearer-token design needs safe storage, transport and issuer/audience validation. Never embed provider secrets in a static build or assume CORS is authentication.\n\nOn logout or owner change, clear visible answer/citation state, invalidate client caches and ignore old callbacks. Scope server caches and reads independently. Render model/source text as text, not trusted HTML; a content security policy is additional defense rather than a reason to use unsafe insertion. Do not put tokens in URLs or ordinary logs. Browser-only checks cannot authorize a tool operation.\n\nMeasure useful performance: build size, initial interaction, first visible response, final completion, render/update count and long tasks under a stated device/network/fixture. A fast localhost response is not evidence of fleet capacity. Run behavioral browser tests over the actual compiled UI and HTTP server, including malformed stream, unsupported query, cancellation, owner swap and literal HTML-looking text. Keep semantic accessibility review and real authentication integration as explicit extensions with their own evidence, rather than pretending a demo-token selector implements production security.",
+    "Why": "A hidden B citation still appears in the network response to A. The correct repair scopes the server query before returning data; clearing the UI or adding a client filter does not repair the confidentiality breach.",
+    "Risk": "Static frontend bundles and source maps are public. Embedding a provider key or treating a demo identity selector as authentication makes every visitor capable of impersonation.",
+    "Trade": "Rich HTML can improve presentation but increases sanitization and injection complexity. Text rendering plus explicit trusted components is a safer default for untrusted model/source output.",
+    "Try": "Inspect the workbench network response for an owner swap and literal HTML payload. Record first-response and completion separately, then state why the timing cannot predict concurrent production capacity.",
+    "worked_case": "A hidden B citation still appears in the network response to A. The correct repair scopes the server query before returning data; clearing the UI or adding a client filter does not repair the confidentiality breach.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Does a disabled Approve button protect a write endpoint?",
+        "A": "No. It is a usability control. The server must verify principal, exact operation arguments, business state and approval on every request, including requests sent outside the interface."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "product-delivery"
   },
   {
     "Q": "How should a browser parse streaming chunks correctly?",

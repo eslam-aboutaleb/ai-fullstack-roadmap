@@ -2,9 +2,9 @@
   "id": "data-engineering",
   "title": "Data engineering from contracts to trustworthy retrieval",
   "description": "Build an incremental ingestion pipeline with validated schemas, atomic progress, revision-aware state, event-time reasoning and auditable deletion.",
-  "version": "1.0.0",
-  "updated": "2026-10-20",
-  "review_status": "Authored and fixture-verified; independent technical review pending",
+  "version": "1.1.0",
+  "updated": "2026-10-22",
+  "review_status": "Per-unit Codex AI review status and content-specific evidence in content/reviews.json; no human endorsement claimed.",
   "units": [
     {
       "id": "data-contracts-modeling",
@@ -67,7 +67,7 @@
         {
           "question": "Is adding a nullable field always a backward-compatible schema change?",
           "spoken": "No. Compatibility depends on validators, serializers, query semantics and the meaning of missing versus null. Test the actual producer/consumer contracts.",
-          "deep": "A strict schema may reject extra fields, a generated client may assume an enum is exhaustive, and a migration may hold locks or rewrite large tables. Use expand/migrate/contract phases and observe consumer behavior before removing the old representation.",
+          "deep": "A strict schema may reject extra fields, a generated client may assume an enum is exhaustive, and a migration may hold locks or rewrite large tables. Use expand/migrate/contract phases and observe consumer behavior before removing the old representation.\n\nCompatibility depends on actual consumers and producers. A nullable added column can break positional SELECT-star unpacking or an old writer with a fixed insert shape. A renamed enum value can parse yet change business meaning. Define schema versions, defaults, nullability and transition rules; use expand/contract changes with old/new readers and writers exercised together.\n\nDatabase constraints protect identity and relationships while application validation gives useful errors. Neither substitutes for owner-scoped authorization. Parameterize values and preserve source/revision/profile lineage through transformations. Quarantine invalid records with bounded diagnostics and a replay policy; silently coercing a malformed timestamp can corrupt ordering. Run the data contract and CDC fixtures, then show a positive compatible change and an intentionally incompatible consumer. An interview answer should state the migration/backfill/rollback assumptions and expected row outcomes, not merely say that JSON is flexible or SQL is strongly typed.",
           "follow_up": {
             "question": "Where should tenant identity come from?",
             "answer": "From a trusted ingestion connection or validated authorization context, not an unchecked field in an arbitrary uploaded document."
@@ -79,7 +79,12 @@
           ]
         }
       ],
-      "study_id": 830
+      "study_id": 830,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "cdc-checkpoints-idempotency",
@@ -143,7 +148,7 @@
         {
           "question": "Your broker promises exactly-once delivery. Can the consumer charge a customer exactly once?",
           "spoken": "Only if the effect receiver and its identity/reconciliation contract support that end-to-end guarantee. Broker delivery semantics do not atomically commit an independent payment.",
-          "deep": "Use one durable operation key for all attempts, bind it to the payload and owner, persist intent before dispatch, and reconcile uncertain responses against receiver state. An at-least-once consumer can produce one logical effect with receiver deduplication; an exactly-once log can still cause duplicate external effects.",
+          "deep": "Use one durable operation key for all attempts, bind it to the payload and owner, persist intent before dispatch, and reconcile uncertain responses against receiver state. An at-least-once consumer can produce one logical effect with receiver deduplication; an exactly-once log can still cause duplicate external effects.\n\nA broker's delivery guarantee does not atomically include an external database or payment API. In a single database sink, commit the destination mutation, exact-event deduplication record and checkpoint together. A crash after commit but before acknowledgment then produces a safe duplicate delivery. Compare canonical material payload, not only operation key and offset.\n\nThe rollout contract rejects changed-payload replay at the same offset, gaps and unapproved tombstone restoration. Its checkpoint trigger fault proves that earlier document and consumed-event writes roll back. Owner belongs in every relevant key and query. For a remote effect, use receiver idempotency or reconciliation under the same business identity and document retention/uncertainty limits. Fresh UUIDs on retry defeat logical deduplication. A credible interview defense traces both the local transaction and the first external boundary that cannot participate in it, then predicts each crash point's committed state independently.",
           "follow_up": {
             "question": "What if the receiver has no idempotency or lookup capability?",
             "answer": "The uncertainty cannot be eliminated by a local transaction. Require a manual reconciliation or redesign the effect boundary."
@@ -163,7 +168,12 @@
         "recovery": "Rebuild/reconcile the affected revision from authoritative source state using the original operation identity, then resume only from verified progress.",
         "prevention": "Commit local projection and checkpoint atomically, retain payload-bound event identities and test every crash boundary."
       },
-      "assessment": "cdc-checkpoint-crash"
+      "assessment": "cdc-checkpoint-crash",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "event-time-quality",
@@ -226,7 +236,7 @@
         {
           "question": "Does a watermark guarantee that all older events have arrived?",
           "spoken": "No. It represents a system progress assumption or estimate. You still need an explicit policy for late or corrected data.",
-          "deep": "A source can reconnect with buffered events or a repair can replay history. The correctness contract includes window assignment, triggering, allowed lateness, duplicate handling and update/retraction behavior. Test an out-of-order sequence rather than relying only on an ordered happy path.",
+          "deep": "A source can reconnect with buffered events or a repair can replay history. The correctness contract includes window assignment, triggering, allowed lateness, duplicate handling and update/retraction behavior. Test an out-of-order sequence rather than relying only on an ordered happy path.\n\nA watermark expresses an estimate of event-time progress under the runner's assumptions. Delayed sources, disconnections and clock errors can still deliver older events. Define allowed lateness, windows, triggers and whether outputs are append-only changes or upserts/corrections. Processing time is when the pipeline handled data; it is not the business event time.\n\nAn early result followed by a late correction can double a downstream total if the consumer treats both as independent inserts. Carry stable window/entity/revision identity and make replacement semantics explicit. Use bounded queues/backpressure so sink slowdown cannot grow memory indefinitely. The local data fixture and optional real Beam lab provide different levels of evidence; label runner, version and observed outputs. Assess schema failures, nulls, duplicates, freshness and owner leakage separately. The learner must reproduce a late correction and explain the expected sink state, not merely repeat that streaming is faster than batch.",
           "follow_up": {
             "question": "Would increasing worker concurrency fix old queue age?",
             "answer": "Only if workers are the bottleneck. A saturated downstream service may become slower or fail more often under extra concurrency."
@@ -239,7 +249,12 @@
         }
       ],
       "study_id": 832,
-      "assessment": "watermark-late-event"
+      "assessment": "watermark-late-event",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "lineage-deletion-rebuild",
@@ -303,7 +318,7 @@
         {
           "question": "How do you prove an index rebuild is safe to promote?",
           "spoken": "Compare an immutable build manifest with expected identities and revisions, test tenant isolation and evaluate fixed quality slices before switching readers.",
-          "deep": "A job-success flag measures execution, not coverage. Check skipped/quarantined inputs, revoked sources, parser/embedding versions and citation provenance. Promote the tested manifest atomically and keep an authorized rollback route.",
+          "deep": "A job-success flag measures execution, not coverage. Check skipped/quarantined inputs, revoked sources, parser/embedding versions and citation provenance. Promote the tested manifest atomically and keep an authorized rollback route.\n\nA rebuild needs a declared source snapshot, transformation/embedding profile and catch-up position. Validate counts, values, scope, revisions and independent relevance cases before switching readers; matching row counts alone can conceal swapped owners or missing exception text. Publish an immutable generation or atomic pointer rather than exposing partially built state.\n\nDeletion intent remains authoritative while rebuild and restore occur. A restored backup may contain documents deleted after the snapshot, so replay revocation/tombstone events before serving traffic and verify caches/projections too. The restore drill demonstrates a bounded local copy and deletion replay, not full service RTO or physical erasure. Deliver source/profile hashes, eligible output IDs, negative results and a rollback/cutover plan. An interview defense distinguishes logical exclusion, physical cleanup, backup retention and historical access, instead of declaring deletion complete because one SQL row disappeared.",
           "follow_up": {
             "question": "Can you roll back to any older index?",
             "answer": "No. The rollback must still enforce current deletions, ACLs and retention rules."
@@ -316,7 +331,12 @@
         }
       ],
       "study_id": 833,
-      "assessment": "revision-tombstone-replay"
+      "assessment": "revision-tombstone-replay",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     }
   ]
 }

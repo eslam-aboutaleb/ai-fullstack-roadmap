@@ -54,7 +54,6 @@ def lesson_content(q, url, writer=None):
     parts.append('<h3>Expected output</h3><pre><code>'+E(q['expected_output'])+'</code></pre>')
     parts.append('<p><a href="'+url('examples/'+q['local_lab'])+'">Download the local lab</a>. '+E(q['review_and_answer_keys']['known_limitations'])+'</p>')
     parts.append('<h3>Independent tasks</h3><ol>'+''.join('<li>'+E(task)+'</li>' for task in q['independent_tasks'])+'</ol>')
-    parts.append('<p><strong>Technical review:</strong> '+E(q['review_and_answer_keys']['reviewer'])+'</p>')
     parts.append('<h3>Primary references</h3><ul>'+''.join('<li><a href="'+E(ref)+'">'+E(ref)+'</a></li>' for ref in q['references'])+'</ul></section>')
     return ''.join(parts)
 
