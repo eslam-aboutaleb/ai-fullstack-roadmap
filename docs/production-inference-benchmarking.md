@@ -16,7 +16,7 @@ GPU VRAM peak and quality regressions. Compare TGI / vLLM only on supported
 models/features using the same workload and explicit cancellation handling.
 
 Current official sources:
-- https://docs.vllm.cc/en/latest/
+- https://docs.vllm.ai/en/latest/
 - https://huggingface.co/docs/text-generation-inference/en/reference/metrics
 - https://huggingface.co/docs/text-generation-inference/index
 
