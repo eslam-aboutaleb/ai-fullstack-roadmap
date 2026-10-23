@@ -300,3 +300,5 @@ without JavaScript. Choose a concrete trace or decision boundary rather than
 copying the chapter overview into every answer. Existing nonconceptual questions
 still require their catalogued code. Conceptual questions may optionally gain a
 relevant executable example, with its declared output and scope.
+
+For the enforced new-content authoring contract, see [the complete interview-authoring guide](docs/interview-authoring-contract.md).
