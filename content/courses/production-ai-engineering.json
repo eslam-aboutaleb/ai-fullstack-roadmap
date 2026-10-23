@@ -2,9 +2,9 @@
   "id": "production-ai-engineering",
   "title": "Production AI engineering, SLOs and incident response",
   "description": "Connect immutable releases, capacity assumptions, privacy-preserving telemetry and recovery drills to independently checked quality and safety gates.",
-  "version": "1.0.0",
-  "updated": "2026-10-20",
-  "review_status": "Authored and fixture-verified; independent technical review pending",
+  "version": "1.1.0",
+  "updated": "2026-10-22",
+  "review_status": "Per-unit Codex AI review status and content-specific evidence in content/reviews.json; no human endorsement claimed.",
   "units": [
     {
       "id": "artifact-release-infrastructure",
@@ -69,7 +69,7 @@
         {
           "question": "Why is redeploying the same Git commit not always reproducible?",
           "spoken": "The build can select different dependencies, base images, model versions or configuration. Promote a tested immutable artifact and record the rest of the runtime manifest.",
-          "deep": "Pin dependency and image inputs, separate configuration from code and preserve evaluation/index versions. Migration and external model changes are independent release dimensions. A rollback of an application image does not reverse a destructive database migration or restore a revoked document.",
+          "deep": "Pin dependency and image inputs, separate configuration from code and preserve evaluation/index versions. Migration and external model changes are independent release dimensions. A rollback of an application image does not reverse a destructive database migration or restore a revoked document.\n\nA source commit does not pin base-image bytes, transitive package resolution or build-time downloads. Record lockfiles, build inputs, image digest, runtime configuration and model/index profiles. Separate secrets from artifacts and run with limited privileges. A movable tag cannot identify what actually served a request.\n\nThe workbench includes a Dockerfile and disposable-kind recovery exercise, while its compiled browser/API tests run locally without a container. Treat those as different evidence: valid configuration is not an executed image or cluster rollout. IaC also needs reviewed permissions, state storage and data lifecycle because a valid plan can expose or delete resources. Promote the exact tested artifact, check schema compatibility and retain provenance for rollback or forward repair. Explain why software rollback cannot reverse destructive data changes, and keep optional infrastructure execution explicitly pending until actual outputs are captured.",
           "follow_up": {
             "question": "Should readiness fail whenever any dependency has a transient error?",
             "answer": "Define it carefully. Failing every replica for a shared outage can remove all serving capacity and cause restart storms; use timeouts, degraded behavior and health policies appropriate to the dependency."
@@ -81,7 +81,12 @@
           ]
         }
       ],
-      "study_id": 839
+      "study_id": 839,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "capacity-slos-cost",
@@ -147,7 +152,7 @@
         {
           "question": "How many replicas would you provision for an AI endpoint?",
           "spoken": "First state the workload and service-time assumptions, estimate concurrency, divide by measured per-replica capacity with headroom, then validate tail latency and dependency limits under load.",
-          "deep": "For the fixture, 50 requests/s × 2 s means 100 mean in-flight requests; four slots at 70% target utilization gives 36 replicas after rounding. This number is not transferable to a GPU model server without measuring batching, memory and token distributions.",
+          "deep": "For the fixture, 50 requests/s × 2 s means 100 mean in-flight requests; four slots at 70% target utilization gives 36 replicas after rounding. This number is not transferable to a GPU model server without measuring batching, memory and token distributions.\n\nLittle's law gives mean in-flight work L=lambda*W under a stable workload. At 20 requests/s and two seconds occupancy, 40 mean slots are needed. Five eight-slot replicas is the full-utilization arithmetic floor, not a plan for bursts, tail latency or one failed replica. Measure service-time distributions and reserve N-1 and retry headroom before choosing a deployment size.\n\nBound admission and queued work; rate limits, concurrency limits and token/cost budgets solve different problems. Long generated answers can occupy model slots much longer than short ones. Cache only under scope/revision-valid contracts and monitor unsupported answers separately from speed. Whole-request percentiles must be measured rather than adding stage p95 values. State every assumed number, unit and quality gate in the design defense, and distinguish actual local timing from an analytic capacity estimate or GPU throughput that was never measured.",
           "follow_up": {
             "question": "Why can a good average latency hide a bad product experience?",
             "answer": "A small slow or error-prone slice can dominate affected users. Inspect p95/p99, request classes, failure states and queue age."
@@ -160,7 +165,12 @@
         }
       ],
       "study_id": 840,
-      "assessment": "capacity-mean-versus-tail"
+      "assessment": "capacity-mean-versus-tail",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "telemetry-privacy-triage",
@@ -227,7 +237,7 @@
         {
           "question": "What would you log for an AI request in production?",
           "spoken": "Enough safe context to explain timing, versions and outcomes, with a declared privacy and retention policy. Avoid raw prompts and secrets in routine telemetry.",
-          "deep": "Use spans for stages, low-cardinality metrics for rates/latency and minimal structured events for important decisions. Bind effects to durable operation IDs. Restricted diagnostic payload capture, if justified, needs separate access control, redaction and expiry.",
+          "deep": "Use spans for stages, low-cardinality metrics for rates/latency and minimal structured events for important decisions. Bind effects to durable operation IDs. Restricted diagnostic payload capture, if justified, needs separate access control, redaction and expiry.\n\nRecord safe request, run, attempt and operation identities, stage durations, stop reasons, source/profile revisions and reported usage categories. Logical requests and provider attempts differ when retries occur. A valid citation ID can be useful diagnostic metadata without retaining the entire private passage; raw prompts, credentials and connector text need a separate restricted retention policy.\n\nDuring an incident, compare queueing, retrieval, reranking, first token and completion, plus unsupported answers, false refusals and owner leakage. Do not infer service correctness from HTTP 200 or high trace volume. Use an explicit telemetry allowlist and test it with sensitive fixture fields. The production scorecard checks local decision rules; it does not establish a live provider bill or deployed SLO. An interview defense should connect a concrete symptom to authoritative state and describe what cannot be concluded when usage or trace evidence is missing.",
           "follow_up": {
             "question": "Can traces replace an effect ledger?",
             "answer": "No. Sampling or export loss can omit traces, while a business effect needs durable authoritative state and recovery semantics."
@@ -246,6 +256,11 @@
         "investigation": "Test whether the added latency comes from retry backoff or downstream saturation before increasing replicas. Examine the changed policy with a scripted rate-limit fixture.",
         "recovery": "Restore the known-good bounded policy or a deliberate degraded route, preserving stable operation identities for uncertain effects.",
         "prevention": "Gate request budgets and latency separately, alert on user impact and keep safe low-cardinality traces for diagnosis."
+      },
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
       }
     },
     {
@@ -311,7 +326,7 @@
         {
           "question": "A backup job reports success every night. What evidence would you still require?",
           "spoken": "An isolated restore drill proving data integrity, usable application behavior and the stated recovery objectives, including the dependencies needed to serve users.",
-          "deep": "Verify the restored artifact/configuration versions, access controls, indexes, secrets and reconciliation of effects committed after the recovery point. Document any unavoidable data loss and how uncertain external effects will be inspected.",
+          "deep": "Verify the restored artifact/configuration versions, access controls, indexes, secrets and reconciliation of effects committed after the recovery point. Document any unavoidable data loss and how uncertain external effects will be inspected.\n\nA backup success message does not prove the application can recover. Restore into isolation, verify integrity and business state, reapply post-backup deletion/revocation intent and test repeat-safe effects before traffic. State the actual recovered point and measured scope of recovery; target RTO/RPO and observed outcomes are different evidence.\n\nA release couples application, schema, model/tokenizer, index and configuration versions. A rollback can restore old code while leaving incompatible data or resurrected sources, so rehearse forward repair and compatible migrations. The local restore drill records a copy/integrity/tombstone sequence; the optional kind exercise injects an unavailable image and requires explicit rollout undo. Neither should be reported as executed production recovery without the environment/logs. Deliver a runbook, failure timeline, independent outcome checks and a short design defense explaining the highest-impact remaining uncertainty.",
           "follow_up": {
             "question": "Can you blindly replay all pending tool calls after a restore?",
             "answer": "No. Some receivers may already have committed effects; recover stable identities and reconcile before retrying."
@@ -324,7 +339,12 @@
         }
       ],
       "study_id": 842,
-      "assessment": "privacy-gate-over-average"
+      "assessment": "privacy-gate-over-average",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     }
   ]
 }

@@ -3092,5 +3092,57 @@
         "kind": "state"
       }
     ]
+  },
+  "877": {
+    "title": "One transaction owns projection progress",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Read",
+        "body": "Validate source position, owner and exact event digest.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mutate",
+        "body": "Update eligible revision/tombstone in the projection.",
+        "kind": "state"
+      },
+      {
+        "title": "Checkpoint",
+        "body": "Write consumed identity and progress in the same transaction.",
+        "kind": "state"
+      },
+      {
+        "title": "Fault",
+        "body": "Checkpoint failure rolls back all three; exact replay is safe.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "138": {
+    "title": "Trace capacity assumptions across the request",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Arrivals",
+        "body": "20 requests/s is a stated mean, not a measured peak.",
+        "kind": "normal"
+      },
+      {
+        "title": "Occupancy",
+        "body": "2 s mean occupancy yields 40 mean in-flight slots.",
+        "kind": "state"
+      },
+      {
+        "title": "Headroom",
+        "body": "Account for tails, retries, bursts and one failed replica.",
+        "kind": "decision"
+      },
+      {
+        "title": "Admission",
+        "body": "Bound queue/concurrency/cost while preserving correctness gates.",
+        "kind": "warning"
+      }
+    ]
   }
 }

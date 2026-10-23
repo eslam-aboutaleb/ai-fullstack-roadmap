@@ -1,12 +1,12 @@
 # Acceptance evidence: LLM/RAG, agents and full-stack
 
-Reviewed 22 October 2026. Scope in this resolved branch: issues #17, #18.
+Reviewed 22 October 2026. Scope in this resolved branch: issues #17, #18, #19.
 
 The user delegated the final technical/content verdict to Codex. Records identify AI-authored/self-reviewed work with content-specific digests; no independent human SME endorsement is claimed. Original issue requirements remain binding. The original projects explicitly allow local/mock connectors and optional external-model/cloud exercises. Real protocol and browser integrations below are additional executed evidence, not mandatory live-vendor dependencies imported from separate advanced issues.
 
 ## Learning coverage
 
-The chapter introduction, terminology and flow precede the existing foundation and deeper questions. 20 existing question IDs were expanded rather than copied into new hubs. 5 companion-unit interviews now contain complete explanations. 20 applied changed-assumption scenarios and 2 project rubrics are linked to practice/progress; self-review cannot grant an objective pass.
+The chapter introduction, terminology and flow precede the existing foundation and deeper questions. 30 existing question IDs were expanded rather than copied into new hubs. 17 companion-unit interviews now contain complete explanations. 30 applied changed-assumption scenarios and 3 project rubrics are linked to practice/progress; self-review cannot grant an objective pass.
 
 | Issue | Syllabus concepts | Stable topic / learner page | Assessment |
 |---|---|---|---|
@@ -30,6 +30,16 @@ The chapter introduction, terminology and flow precede the existing foundation a
 | #18 | context management, memory boundaries, untrusted tool outputs/prompt injection | [301](../content/chapters/context-engineering/questions.json), `context-engineering.html#q301` | `acceptance-18-301` |
 | #18 | tracing, trajectory evaluation, task success vs side effects, policy checks | [231](../content/chapters/agent-evaluation/questions.json), `agent-evaluation.html#q231` | `acceptance-18-231` |
 | #18 | multi-agent tradeoffs, costs, delegation, recovery ownership | [371](../content/chapters/agent-orchestration/questions.json), `agent-orchestration.html#q371` | `acceptance-18-371` |
+| #19 | semantic HTML/CSS layout, accessible forms, responsive design | [910](../content/chapters/frontend-foundations/questions.json), `frontend-foundations.html#q910` | `acceptance-19-910` |
+| #19 | JS event loop, TypeScript, React rendering/state/effects, fetch/streaming | [912](../content/chapters/frontend-foundations/questions.json), `frontend-foundations.html#q912` | `acceptance-19-912` |
+| #19 | auth UX, testing, performance, browser trust boundaries | [271](../content/chapters/product-delivery/questions.json), `product-delivery.html#q271` | `acceptance-19-271` |
+| #19 | ETL/ELT, batch/stream, schema evolution, validation, storage/SQL | [875](../content/chapters/data-engineering-foundations/questions.json), `data-engineering-foundations.html#q875` | `acceptance-19-875` |
+| #19 | CDC, lineage, data quality, deletion, checkpoint recovery | [877](../content/chapters/data-engineering-foundations/questions.json), `data-engineering-foundations.html#q877` | `acceptance-19-877` |
+| #19 | Docker, IaC, CI/CD, AWS concepts, Kubernetes, secrets management | [286](../content/chapters/deployment-reliability/questions.json), `deployment-reliability.html#q286` | `acceptance-19-286` |
+| #19 | model registries, serving, MLOps, release artifacts | [299](../content/chapters/model-engineering/questions.json), `model-engineering.html#q299` | `acceptance-19-299` |
+| #19 | queues, caching, partitioning, rate limiting, capacity estimates, AI latency/cost/correctness tradeoffs | [138](../content/chapters/fullstack/questions.json), `fullstack.html#q138` | `acceptance-19-138` |
+| #19 | consistency, transactions, security, typed APIs, idempotency | [161](../content/chapters/database-concurrency/questions.json), `database-concurrency.html#q161` | `acceptance-19-161` |
+| #19 | telemetry, cost, reliability, incident response, system design | [289](../content/chapters/deployment-reliability/questions.json), `deployment-reliability.html#q289` | `acceptance-19-289` |
 
 The machine-readable matrix is `content/shared/focused-acceptance.json`: source paths, outcome IDs, introduction/reader anchors, question IDs, unit outcomes, labs and assessments. Original instruction in the surrounding chapters remains available. Eight original accessible/printable ordered diagrams illustrate ingestion publication, chunk exceptions, ranking, release gating, approval/recovery, effects, CDC and capacity.
 
