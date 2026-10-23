@@ -110,11 +110,31 @@
   },
   {
     "Q": "How would you plan capacity and handle overload?",
-    "A": "Model request arrival, per-stage service time, concurrency, queue capacity, database pools, and provider quotas. Apply admission control before expensive work, bound jobs, and shed optional processing when appropriate. Interactive search and batch ingestion should not starve each other accidentally.",
-    "Why": "The executor semaphore, transport limiter, job store, and health signals are local building blocks. The host must coordinate quotas across replicas and enforce end-to-end budgets.",
-    "Risk": "Increasing worker count can increase throttling rather than throughput. An unbounded backlog hides overload until memory, storage, or freshness collapses.",
-    "Trade": "Separate worker pools and queues improve isolation but add infrastructure. A shared small deployment is economical until contention becomes measurable.",
-    "Try": "Estimate sustainable throughput from provider concurrency and observed call duration, then load-test around that estimate. Report queue age as well as requests per second."
+    "A": "**Capacity planning connects arrival rate, service time and constrained resources.** With a stable mean arrival rate lambda and mean time W in the system, Little's law gives mean in-flight work L=lambda*W. If 20 requests/s each occupy a model slot for 2 seconds on average, about 40 are in flight. With eight effective concurrent slots per replica, five replicas is only the arithmetic minimum at full utilization, not a resilient tail-latency plan.\n\nReserve headroom for bursts, retries, slow dependencies and an unavailable replica. Queue wait grows sharply near saturation, and real service times vary with input/output tokens. Bound admitted work and return a clear overload response rather than accepting an unlimited queue. Rate limiting controls arrival policy; concurrency limits control simultaneous work; a token/cost budget controls resource exposure. A user retry can consume another provider attempt even if the UI still shows one logical question.\n\nPartition only where invariants allow. Owner-sharded state can isolate workloads, while one hot tenant or shared model dependency remains a bottleneck. A cache reduces repeated work only when its key includes scope and relevant revisions; stale or cross-owner cache hits are correctness/security failures. Queue and cache layers need explicit deletion, cancellation and recovery rules, not just throughput graphs.\n\nBuild a system-design case with end-to-end request sequence, critical data/effect boundaries, storage consistency assumptions and capacity arithmetic. State what is measured versus assumed. Allocate a latency budget across queueing, retrieval, reranking, first token and completion, then measure whole-request percentiles; adding stage p95 values does not yield request p95. Compare simpler fixed workflows or smaller models against more autonomous designs under the same quality gate. The workbench and CDC fixtures expose several boundaries locally; they do not establish distributed production capacity.",
+    "Why": "Twenty requests per second times two seconds yields 40 mean in-flight requests. Five eight-slot replicas leaves no failure headroom, so a defensible design adds measured utilization/tail behavior, admission policy and an N-1 scenario.",
+    "Risk": "An unbounded queue turns overload into timeouts, retries and higher cost. Caching an incorrect or unauthorized answer can multiply the impact of one bad result.",
+    "Trade": "More replicas can reduce compute contention while increasing connection pressure and cost. Larger candidate pools or models may improve quality but consume the same latency and budget headroom.",
+    "Try": "Calculate the 40-slot example, design an N-1 headroom policy and trace an overload incident through UI, queue, retrieval and provider attempts. State which parameters need measurement before deployment.",
+    "worked_case": "Twenty requests per second times two seconds yields 40 mean in-flight requests. Five eight-slot replicas leaves no failure headroom, so a defensible design adds measured utilization/tail behavior, admission policy and an N-1 scenario.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://sre.google/sre-book/handling-overload/",
+      "https://sre.google/sre-book/monitoring-distributed-systems/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if most requests finish quickly but a few generate very long answers?",
+        "A": "Mean service time hides the tail and slot occupancy. Measure length-conditioned completion and queue latency, enforce output limits and consider separate admission classes without starving long legitimate requests."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "fullstack"
   },
   {
     "Q": "What portfolio project would demonstrate AI full-stack competence?",

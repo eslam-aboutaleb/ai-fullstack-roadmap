@@ -1,64 +1,31 @@
 [
   {
     "Q": "What are the phases of the ingestion workflow?",
-    "A": "The pipeline loads source documents, verifies load authority, computes a snapshot, checks whether it is unchanged, chunks, embeds, and validates. It then enters a critical session to recheck the snapshot, retire the old version, create a new version, and upsert chunks.",
-    "Why": "Slow provider work precedes the mutation-critical section. This reduces the time an internally owned session and advisory lock are held for version changes. The read-only initial snapshot check uses a short session when the caller did not supply one.",
-    "Risk": "A caller-supplied session may already have an open transaction throughout preparation. The library cannot undo that host decision, so do not claim remote calls are outside every possible transaction in all integrations.",
-    "Trade": "Preparation can be duplicated by concurrent workers, but database contention is lower. Serializing all work under a lock saves duplicate embeddings while holding scarce resources longer.",
-    "Try": "Instrument session entry, embedding start, lock acquisition, upsert, and commit. Compare internally owned and caller-owned session paths.",
-    "spoken": "Ingestion discovers source identities, fetches within trusted boundaries, extracts and validates content, adapts schemas, chunks/embeds and publishes a versioned projection. Commit destination progress and checkpoints consistently, quarantine explicit failures and test replay, deletion and stale revisions.",
-    "domain": "backend",
-    "subdomain": "ingestion",
-    "module": "ingestion",
-    "concept": "What are the phases of the ingestion workflow",
-    "difficulty": "implementation",
-    "misconception_target": "Ingestion can be safely re-run without side effects",
-    "definitions": [
-      {
-        "term": "Idempotent ingestion",
-        "definition": "Ingestion that produces the same result regardless of how many times it runs"
-      },
-      {
-        "term": "Revision check",
-        "definition": "Comparing document version before overwriting stored content"
-      },
-      {
-        "term": "Rollback",
-        "definition": "Returning to a previously known-good state"
-      }
-    ],
-    "execution_timeline": "Fetch document → Compare revision → Skip if unchanged → Write new revision → Save snapshot → Mark complete",
-    "example": {
-      "code": "existing = db.get(doc_id)\nif existing and existing.revision >= doc.revision:\n    return  # skip unchanged\ndb.upsert(doc)\ndb.save_snapshot(doc_id, existing)",
-      "explanation": "Skip unchanged documents, write new revisions, keep snapshots for rollback.",
-      "output": "Document updated or skipped"
-    },
-    "production_case": "A process crashes after writing a document but before advancing its source cursor. Replay must resolve the same revision without duplicate visible chunks or silently skipped data.",
-    "alternatives": [
-      "Full refresh on every run",
-      "Event-driven ingestion via webhooks"
-    ],
-    "pitfalls": [
-      "Missing revision comparison",
-      "No snapshot for rollback",
-      "Non-unique operation keys"
-    ],
-    "complexity": "Work depends on source bytes/pages, changed revisions, parsing, chunking, embedding and destination writes. Incremental runs should distinguish discovery cost from the subset actually reprocessed.",
-    "follow_ups": [
-      {
-        "Q": "Does keeping an old snapshot make rollback always safe?",
-        "A": "No. A rollback must still respect current deletions, ACL changes and retention rules."
-      }
-    ],
+    "A": "**Preparation creates candidate knowledge; activation makes it searchable.** Model ingestion as discover/fetch → extract → normalize → chunk → embed → validate → activate. A document identity is different from its revision, content digest and transformation profile. Store all of them with page/character or bounding-box provenance so a citation can be resolved back to the actual input. Hash bytes before transformation; record the parser/OCR/chunker version and parameters rather than pretending equal filenames imply equal content.\n\nFor born-digital documents, extract the text and layout you need. For scanned pages, optical character recognition (OCR) estimates characters from pixels; it can confuse digits, omit negation or mix columns. Preserve page dimensions, coordinate convention and recognition confidence, then assess text and region accuracy on labeled permitted pages. Low confidence is not a calibrated correctness probability. Never turn a fabricated transcript into an alleged OCR measurement. The optional OCR lab requires a local engine and synthetic approved image; the policy capstone uses authored text and labels that boundary explicitly.\n\n**Publish atomically.** Suppose revision 2 needs 100 chunks and a worker crashes after 90 embeddings. Keep revision 1 active until revision 2 is complete and validated. Reuse prepared artifacts only when their source digest and profiles match. At activation, compare the expected generation again: another worker may already have published revision 3. A short transaction or compare-and-swap controls that race; a preliminary check before remote work does not.\n\nTreat malformed files, incomplete scans and confirmed deletions differently. Quarantine a poison item with a bounded error record; an unavailable folder is not proof its documents were deleted. Confirmed revocation should exclude results promptly even if physical cleanup lags. Impose file/page/CPU limits and isolate untrusted parsers; extension checks alone are not a sandbox. Test a failed replacement, stale activation, duplicate source revision and latest-revision tombstone. The policy project's sentence offsets and byte digests provide a small inspectable lineage oracle, not a production PDF parser.",
+    "Why": "A replacement policy crashes before all chunks exist. Keeping the prior active generation avoids publishing partial knowledge; a confirmed tombstone must nevertheless prevent a backfill from reviving an older policy.",
+    "Risk": "An OCR error changing 30 to 90 or losing the word not can invert an answer while every downstream schema remains valid. Source validation and claim review must precede activation.",
+    "Trade": "Atomic full-generation replacement simplifies reads but temporarily duplicates storage. Incremental publication reduces work but requires explicit completeness, deletion and snapshot semantics.",
+    "Try": "Run policy_assistant_project.py --check; inspect each offset against its original sentence. Design a failed 90/100-chunk replacement and show the active revision before, during and after recovery.",
+    "worked_case": "A replacement policy crashes before all chunks exist. Keeping the prior active generation avoids publishing partial knowledge; a confirmed tombstone must nevertheless prevent a backfill from reviving an older policy.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://www.postgresql.org/docs/current/popups.html"
+      "https://www.postgresql.org/docs/current/mvcc-intro.html",
+      "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "What if an empty scan is actually an access outage?",
+        "A": "Mark the scan incomplete and retain the previous publication according to the stale-data policy. Only an authoritative complete scan or explicit deletion event can authorize removal; emit an alert rather than interpreting an exception as empty truth."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "ingestion"
   },
   {
     "Q": "Why is there a second snapshot check under the lock?",

@@ -1,59 +1,31 @@
 [
   {
     "Q": "Why is answer evaluation insufficient for an agent?",
-    "A": "An answer can sound correct after using the wrong tool, revealing unauthorized information, repeating an expensive action, or failing to commit the intended operation. Agent evaluation needs task success, tool choice and arguments, permissions, side effects, recovery, and final communication.",
-    "Why": "Define task outcomes and forbidden effects before choosing metrics. Evaluate tools and durable state as well as final text, then use traces to identify the failing layer.",
-    "Risk": "A model judge can reward a statement that a service request was submitted even when no claim exists. Conversely, a safely rejected operation may sound less helpful while being the correct outcome.",
-    "Trade": "Multi-layer evaluation needs more fixtures and gives actionable diagnosis. One aggregate answer score is easier to display and weaker as a release gate.",
-    "Try": "Create three cases with identical final text but different underlying tool and database histories. Define which pass and why.",
-    "reference": "https://adk.dev/evaluate/",
-    "spoken": "Evaluate the trajectory and independently committed effects as well as the final answer. Check caller scope, argument validity, approval order, task success, duplicate effects and resource limits. A convincing final answer cannot compensate for an unauthorized intermediate read.",
-    "domain": "agents",
-    "subdomain": "evaluation",
-    "difficulty": "foundations",
-    "misconception_target": "A correct final answer means the agent behaved correctly",
-    "definitions": [
-      {
-        "term": "Trajectory",
-        "definition": "The complete sequence of tool calls, arguments, results, and writes during an agent run"
-      },
-      {
-        "term": "Oracle",
-        "definition": "Independent specification of correct behavior used for evaluation"
-      }
-    ],
-    "execution_timeline": "Agent starts -> Tool calls recorded -> Effect ledger built -> Final state compared -> Invariants checked -> Pass/fail determined",
-    "example": {
-      "code": "effects = [call for call in agent.trace]\nassert len(duplicate_writes(effects)) == 0",
-      "explanation": "Record every tool call and assert no duplicate durable writes.",
-      "output": "Assertion passes if no duplicates"
-    },
-    "production_case": "An assistant produces the correct summary after reading an unauthorized customer record. The answer-quality score passes, but the authorization invariant must fail the run.",
-    "alternatives": [
-      "Answer-only evaluation (faster but misses side effects)",
-      "Human review (slower but captures nuance)"
-    ],
-    "pitfalls": [
-      "Final answer is fluent but trace contains unauthorized reads",
-      "Tool succeeds without business effect"
-    ],
-    "complexity": "Simple invariant scans can be linear in trace length with suitable indexed state, while semantic grading, effect queries and model-judge calls add independent cost. Keep the oracle separate from the candidate agent.",
-    "follow_ups": [
-      {
-        "Q": "Can a final-answer metric compensate for a privacy violation?",
-        "A": "No. Keep critical invariant violations separate from aggregate quality and reject the trajectory regardless of fluent output."
-      }
-    ],
+    "A": "**An agent trajectory is the ordered sequence of observations, proposals, tool calls and transitions.** Evaluate both its final task artifact and its actual effects. A pleasant answer saying 'ticket created' is not proof of a ticket, and a ticket alone is not proof it was authorized. A valid run needs supported source evidence, policy-compliant dispatch and the independently committed receiver state.\n\nGive a run stable request/owner/operation IDs and record safe step metadata: tool/schema version, argument digest, source revision, approval decision, attempt, stop reason and effect outcome. Redact credentials and unnecessary text. Connect events causally rather than inferring order from wall-clock timestamps alone. Trace collection failures need an explicit policy; regulated effects may require fail-closed durable audit, while a read-only observation can tolerate sampled telemetry.\n\nThe support project exports source → proposal → approval → effect-committed → reconciled events. Its local ticket table is an independent outcome oracle. The checker separately counts effects, races two connections, injects acknowledgment loss and aborts audit insertion. The static trace reader renders local JSON using text nodes and never executes a tool. A trace viewer is an inspection aid, not an authorization system or proof that omitted events never occurred.\n\nBuild a fixed task suite with supported queries, unsupported cases, malicious connector text, wrong owners, changed payloads and recovery incidents. Score task success, unsupported claims, denied writes, duplicate effects, unnecessary calls and budget use separately. Preserve critical policy failures as release blockers even if aggregate task success improves. A model-planning extension needs adjudicated expected outcomes and replayable tool fixtures; do not evaluate it only on its own explanation of why it succeeded.",
+    "Why": "The trace shows two executions after acknowledgment loss, while the ticket table contains one row. Evaluating call count alone would falsely report duplication; evaluating the final prose alone would miss unauthorized effects.",
+    "Risk": "A model-generated rationale is not an audit log. Missing or tampered events can hide failures, so compare traces with durable state and record the telemetry completeness assumption.",
+    "Trade": "Full traces improve diagnosis but add storage and privacy exposure. Store safe identifiers by default and make any sensitive-content retention explicit and bounded.",
+    "Try": "Export the support report and open agent_trace_reader.html. Independently count ticket effects and match source/operation identities, then explain the rollback behavior when the audit trigger fails.",
+    "worked_case": "The trace shows two executions after acknowledgment loss, while the ticket table contains one row. Evaluating call count alone would falsely report duplication; evaluating the final prose alone would miss unauthorized effects.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://langchain-ai.github.io/langgraph/tutorials/introduction/"
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/",
+      "https://www.nist.gov/itl/ai-risk-management-framework"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true,
-    "concept": "Why is answer evaluation insufficient for an agent"
+    "follow_ups": [
+      {
+        "Q": "Can a second model judge certify that a payment was authorized?",
+        "A": "No. It can help review language, but authorization and receiver state come from authoritative records. Use deterministic permission/effect checks plus adjudicated semantic assessment rather than replacing service invariants with a judge score."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "agent-evaluation"
   },
   {
     "Q": "How do reference trajectories and invariant-based trajectories differ?",
