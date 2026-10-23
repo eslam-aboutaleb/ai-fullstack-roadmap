@@ -1,64 +1,31 @@
 [
   {
     "Q": "How are Recall@K, Precision@K, and MRR calculated?",
-    "A": "Recall@K is the fraction of labeled relevant items found in the first K results. Precision@K is the fraction of those K positions that are relevant under the chosen denominator convention. Mean Reciprocal Rank averages one divided by the rank of the first relevant hit, using zero when none is found.",
-    "Why": "An evaluation runner evaluates an injected retrieval function against labeled chunk IDs and records latency and errors. Always inspect denominator and short-result handling in the implementation before comparing scores with another tool.",
-    "Risk": "Labels can be incomplete, and chunk IDs can change after reindexing. A correct passage may be marked wrong if labels are tied to obsolete physical chunks.",
-    "Trade": "Retrieval metrics are cheap and diagnostic but do not evaluate final answer faithfulness. Use them alongside source-span or document labels and answer-level evaluation.",
-    "Try": "For relevant IDs A and B and ranking C,A,D,B, calculate metrics at K=3. Then compare with the harness's exact conventions.",
-    "spoken": "Recall@k is recovered relevant items divided by all relevant items; Precision@k measures relevance among returned top-k items under a declared denominator convention. Reciprocal rank is the inverse rank of the first relevant hit; MRR averages it over queries. Specify units, duplicates, ties and empty-gold behavior.",
-    "domain": "ai-rag",
-    "subdomain": "evaluation",
-    "module": "evaluation",
-    "concept": "How are Recall@K, Precision@K, and MRR calculated",
-    "difficulty": "implementation",
-    "misconception_target": "High Recall@K means high Precision@K",
-    "definitions": [
-      {
-        "term": "Recall@K",
-        "definition": "Fraction of relevant items found in top K results"
-      },
-      {
-        "term": "Precision@K",
-        "definition": "Fraction of top K results that are relevant"
-      },
-      {
-        "term": "MRR",
-        "definition": "Mean Reciprocal Rank: average of 1/rank of first relevant result"
-      }
-    ],
-    "execution_timeline": "Build evaluation dataset → Run retrieval per query → Compare results to relevant set → Calculate Recall@K, Precision@K, MRR",
-    "example": {
-      "code": "def recall_at_k(retrieved, relevant, k):\n    return len(set(retrieved[:k]) & set(relevant)) / len(relevant)\n\ndef precision_at_k(retrieved, relevant, k):\n    return len(set(retrieved[:k]) & set(relevant)) / k",
-      "explanation": "Compute Recall@K and Precision@K for one query.",
-      "output": "Metric values between 0 and 1"
-    },
-    "production_case": "With gold {A,B} and top two [X,A], Recall@2 is 1/2, Precision@2 is 1/2 and reciprocal rank is 1/2. Score unanswerable queries through a separate abstention contract.",
-    "alternatives": [
-      "nDCG for graded relevance",
-      "MAP for multiple relevant items"
-    ],
-    "pitfalls": [
-      "Using the same data for training and evaluation",
-      "No known relevant items per query",
-      "Ignoring position in ranking"
-    ],
-    "complexity": "For a deduplicated top-k ranking with constant-time relevance membership, basic metric accumulation is O(k); preparing gold sets, sorting ranks and evaluating semantic support are separate costs.",
-    "follow_ups": [
-      {
-        "Q": "How do you avoid inflated retrieval metrics?",
-        "A": "Deduplicate ranked identities, keep labels independent, freeze query splits and report the evaluation unit and empty-result conventions."
-      }
-    ],
+    "A": "**Retrieval metrics describe a ranking relative to declared relevance labels.** For top-k unique retrieved IDs R and relevant IDs G, Recall@k=|R intersect G|/|G| and Precision@k=|R intersect G|/|R| when R is the returned top-k set. State whether a fixed-k denominator is used instead; do not switch conventions between systems. Reciprocal rank is 1/r for the first relevant hit at rank r, or zero if none. MRR averages reciprocal rank across a declared query set.\n\nFor graded relevance g_i at rank i, one common DCG is sum((2^g_i-1)/log2(i+1)); nDCG divides by the ideal DCG from the same labels. Declare the gain convention. With binary relevance, one relevant item at rank 2 has Recall=1, RR=1/2 and nDCG=1/log2(3), approximately 0.63093. If two gold items exist but only one is retrieved, recall is 1/2 even if that item ranks first. A duplicate relevant ID must not count twice.\n\n**Unanswerable queries need a different oracle.** An empty gold set makes recall undefined rather than automatically perfect. Report it as not applicable and evaluate correct abstention or unsupported-answer rate. Missing labels are not proof of irrelevance: pool candidate results from several methods, adjudicate scope/revision/claim applicability and record disagreement. Keep question IDs stable and group near-duplicates by document/customer/time when splitting data so copied examples do not leak across train, tuning and held-out evaluation.\n\n`policy_assistant_project.py` fixes case IDs and gold answer spans independently of prediction. Its arithmetic test checks rank-two nDCG against a hand-calculated constant, and its deliberate missing-exception regression must fail. The fixture is small and English-only; 8/8 is not an estimate of broad production accuracy. Report counts and per-case outcomes, not a misleading confidence claim. On a larger release set, compare paired old/new outcomes on identical queries, inspect critical regressions and use uncertainty methods appropriate to correlated cases rather than treating every paraphrase as an independent customer.",
+    "Why": "For ranking [noise,gold], binary relevance gives Recall=1, RR=0.5 and nDCG approximately 0.63093. The independent arithmetic oracle would catch an implementation that incorrectly uses rank zero or duplicate hits.",
+    "Risk": "A label set that ignores owner or revision can reward a forbidden result. Averaging unanswerable recall as one inflates quality without improving any answer.",
+    "Trade": "MRR emphasizes the first relevant hit, while nDCG captures position and graded relevance. Neither measures whether the final answer follows the evidence or whether latency is acceptable.",
+    "Try": "Write the three metric formulas before running the capstone. Change a prediction to rank the gold span second, then duplicate the ID and verify that malformed ranking is rejected rather than rewarded.",
+    "worked_case": "For ranking [noise,gold], binary relevance gives Recall=1, RR=0.5 and nDCG approximately 0.63093. The independent arithmetic oracle would catch an implementation that incorrectly uses rank zero or duplicate hits.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://nlp.stanford.edu/IR-book/"
+      "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.ndcg_score.html",
+      "https://trec.nist.gov/overview.html"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "What if experts disagree whether a passage is relevant?",
+        "A": "Record the disagreement, question conditions and adjudication rule. Evaluate sensitivity under plausible labels or graded relevance; do not hide uncertain labels behind a falsely exact benchmark score."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "evaluation"
   },
   {
     "Q": "How should I create a useful evaluation dataset?",
@@ -118,11 +85,31 @@
   },
   {
     "Q": "How do you roll out a retrieval change safely?",
-    "A": "Pin the corpus and configuration, evaluate the candidate offline, compare shadow traffic where permitted, deploy to a limited audience, and watch quality plus operational signals. Preserve a rollback path to the prior profile, generation, and strategy configuration.",
-    "Why": "Explicit snapshots, profiles, typed requests, and replaceable strategies make changes observable. They do not automatically implement feature flags, traffic splitting, or deployment rollback; the host supplies those controls.",
-    "Risk": "A model change can alter score distributions and invalidate thresholds, caches, and labels. A schema change can also break an older application version during rollback.",
-    "Trade": "Parallel operation costs resources but exposes regressions before broad impact. A direct cutover is simpler and appropriate only when risk and recovery are well understood.",
-    "Try": "Write a release plan for enabling reranking with acceptance thresholds, cost limits, denial tests, and a one-step configuration rollback."
+    "A": "**A retrieval rollout is a controlled change to a measurable evidence path.** Offline evaluation compares candidate and baseline on the same frozen corpus, scope rules and labeled questions before traffic exposure. Online evaluation observes real product outcomes under an explicit allocation and privacy policy. A click or thumbs-up is not automatically a correctness label, and live experimentation cannot justify knowingly exposing private data or unsafe policy decisions.\n\nCreate a run manifest with code/configuration, source snapshot, embedding/reranker profiles, gold-set version and threshold policy. Report paired per-case changes: which supported answers improved, which became false refusals, which lost decisive evidence and whether any forbidden source appeared. Keep critical owner/citation failures as hard blockers independently of average relevance. Tune on development data; reserve a held-out release set so repeated threshold adjustments cannot memorize the acceptance answers.\n\n**Trace the failure before changing the model.** A request timeline should distinguish queue wait, source search, reranking, context preparation, model first token and completion. Propagate request/attempt IDs and record safe source revision IDs, counts, stop reason and usage categories. Avoid raw prompts, document bodies and credentials in ordinary telemetry. Stage p95 values do not add into an end-to-end p95; measure the complete request distribution as well. A faster answer that omits the policy exception is a quality regression.\n\nDeploy a reversible configuration/index version, shadow where appropriate without effects, then a limited canary with scope-aware quality, latency, cost and error budgets. Define sample requirements and rollback triggers in advance. Keep old artifacts compatible long enough for rollback; a schema migration or deleted-source restoration can make a naive rollback unsafe. The local capstone's missing-exception mutant demonstrates a regression gate: baseline passes, the candidate fails and the repaired candidate restores the required span. It proves that bounded fixture behavior, not actual customer success or production latency.",
+    "Why": "A candidate returns faster because it excludes the final-sale exception. Baseline and candidate are scored on identical gold cases; the unsupported answer blocks release despite the latency improvement.",
+    "Risk": "A mean quality gain can hide a severe minority or permission regression. Logging sensitive text to diagnose that regression can itself create another disclosure.",
+    "Trade": "Shadow traffic avoids user-visible answers but still incurs cost and may send private data to a model. Canary exposure requires a safe task, explicit gates and a tested rollback path.",
+    "Try": "Run the capstone baseline, deliberate regression and repair. Produce a release note listing changed cases, critical blockers, manifest hashes and a rollback decision; keep measured and proposed latency evidence separate.",
+    "worked_case": "A candidate returns faster because it excludes the final-sale exception. Baseline and candidate are scored on identical gold cases; the unsupported answer blocks release despite the latency improvement.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://sre.google/sre-book/monitoring-distributed-systems/",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if online success improves while the held-out policy cases regress?",
+        "A": "Investigate metric mismatch and slice differences before promotion. Business engagement cannot overrule unauthorized disclosure or unsupported critical decisions; preserve the hard gate and obtain better representative labels."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "evaluation"
   },
   {
     "Q": "How should you investigate quality drift over time?",
