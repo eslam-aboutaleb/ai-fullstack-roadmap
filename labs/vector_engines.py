@@ -1,4 +1,4 @@
-"""Execute the same scoped CRUD contract through four actual local vector SDKs.
+"""Execute the same scoped CRUD contract through three currently enabled local vector SDKs.
 
 Original two-dimensional vectors isolate storage/filter semantics from embedding
 quality. Qdrant local mode is not a distributed Qdrant server. FAISS is an index
@@ -41,23 +41,6 @@ class Qdrant:
         self.client.delete('contract', points_selector=self.models.FilterSelector(filter=predicate), wait=True)
 
     def close(self): self.client.close()
-
-
-class Chroma:
-    def __init__(self, folder):
-        import chromadb
-        self.client = chromadb.PersistentClient(path=str(folder))
-        self.collection = self.client.get_or_create_collection('scoped-contract', embedding_function=None, metadata={'hnsw:space':'cosine'})
-
-    def upsert(self, rows):
-        self.collection.upsert(ids=[str(r['id']) for r in rows], embeddings=[r['vector'] for r in rows], metadatas=[{k:v for k,v in r.items() if k!='vector'} for r in rows])
-
-    def query(self, owner, profile, limit=1):
-        result=self.collection.query(query_embeddings=[QUERY], n_results=limit, where={'$and':[{'owner':owner},{'profile':profile},{'deleted':False}]}, include=['distances'])
-        return [int(identity) for identity in result['ids'][0]]
-
-    def delete(self, identity, owner): self.collection.delete(ids=[str(identity)], where={'owner':owner})
-    def close(self): pass
 
 
 class Faiss:
@@ -113,10 +96,12 @@ class Lance:
     def close(self): pass
 
 
-ENGINES={'qdrant':(Qdrant,'qdrant-client'),'chroma':(Chroma,'chromadb'),'faiss':(Faiss,'faiss-cpu'),'lance':(Lance,'lancedb')}
+ENGINES={'qdrant':(Qdrant,'qdrant-client'),'faiss':(Faiss,'faiss-cpu'),'lance':(Lance,'lancedb')}
 
 
 def run(selected, output=None):
+    if 'chroma' in selected:
+        raise ValueError('ChromaDB disabled pending a verified advisory-fixed release; do not install 1.5.9')
     results=[]
     for name in selected:
         factory,package=ENGINES[name]
@@ -149,7 +134,7 @@ def run(selected, output=None):
                                 'build_seconds':build_seconds,'query_samples_seconds':timings,
                                 'scope':'actual local SDK and original five-record synthetic vectors; no distributed/cloud or learned-embedding benchmark'})
             finally:engine.close()
-    report={'vector_engines':'PASS','results':results,'not_executed':['Pinecone managed service','Weaviate server','PostgreSQL pgvector server'],
+    report={'vector_engines':'PASS','results':results,'not_executed':['ChromaDB disabled: unresolved critical dependency advisories','Pinecone managed service','Weaviate server','PostgreSQL pgvector server'],
             'limits':'10 tiny warm queries per engine are raw observations, not representative tail-latency or HNSW tuning evidence'}
     if output:Path(output).write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))

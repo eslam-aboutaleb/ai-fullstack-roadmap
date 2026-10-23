@@ -203,3 +203,6 @@ subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"research_support_project.py
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.py")],check=True,capture_output=True,text=True,timeout=30)
 
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)
+
+from check_vector_dependency_boundary import check as check_vector_dependency_boundary
+check_vector_dependency_boundary()

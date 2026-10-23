@@ -59,3 +59,24 @@ Pinecone, Weaviate and PostgreSQL/pgvector service paths remain explicitly
 unexecuted here. This increment replaces four fictional adapters with actual
 SDK tests, while retaining the separate requirement for the remaining engines,
 engine-specific HNSW/hybrid experiments and a complete migration assessment.
+
+## Security correction — 23 October 2026
+
+The published ChromaDB release is still 1.5.9. GitHub advisories
+GHSA-f4j7-r4q5-qw2c and GHSA-36p7-vc44-83pf identify critical code injection;
+GHSA-2wm9-hf6c-p5cr and GHSA-xph7-9rjv-w5fr identify tenant/RBAC flaws.
+The advisory API reports no patched release. The optional requirements and runner
+therefore remove Chroma entirely rather than waive dependency review. Explicit
+programmatic requests for Chroma fail before any import; CLI choices omit it.
+
+The earlier four-engine execution described above is historical evidence only.
+The current runner and refreshed evidence execute **three** local SDKs: Qdrant,
+FAISS and LanceDB. Chroma is blocked until an upstream fix can be verified and
+retested. Pinecone, Weaviate and PostgreSQL/pgvector execution, representative
+HNSW/hybrid measurements and a complete migration assessment also remain pending.
+Issue #40 must stay open; removing an unsafe dependency does not waive its scope.
+
+Advisories: https://github.com/advisories/GHSA-f4j7-r4q5-qw2c
+https://github.com/advisories/GHSA-36p7-vc44-83pf
+https://github.com/advisories/GHSA-2wm9-hf6c-p5cr
+https://github.com/advisories/GHSA-xph7-9rjv-w5fr
