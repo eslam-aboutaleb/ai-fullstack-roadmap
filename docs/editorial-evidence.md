@@ -1,57 +1,52 @@
-# Source-derived editorial review and release gates (#20)
+# Source-derived editorial evidence and release acceptance (#20)
 
-The report at `questions/editorial-evidence.json` is generated with each static
-build. It makes the limits of automated quality visible chapter by chapter:
-short primary answers, missing question-level citations, unanswered interview
-follow-ups and content not independently approved. Legacy counts are **triage
-signals**, not automatic judgments that every short answer is incorrect.
+Every build emits `questions/editorial-evidence.json`. Version 2 inventories every
+chapter lesson, interview and companion unit, including source path, stable ID,
+content digest, primary references, lab, assessment IDs, review status, reviewer
+and date. A claimed review is verified against the content-specific registry;
+missing or stale attestations fail the build. `verified_review_records` counts
+only matching reviewed/approved records. Legacy and draft content remains clearly
+itemized; the report does not convert structural checks into semantic approval.
 
-`scripts/editorial_evidence.py` enforces stricter requirements for all newly
-appended interview IDs above the frozen October 21, 2026 baseline (1211):
-substantial answer, HTTPS source reference, substantive answered follow-up,
-honest review state and no obvious placeholder prose.
+The existing editorial report and same-page chapter practice sections provide
+navigation. Removed question-bank/course/coverage dashboards are not restored.
+`content/shared/authoring-acceptance.json` supplies three representative reviewed
+lessons and ten reviewed questions; `content/shared/focused-acceptance.json` maps
+the previously completed LLM/RAG, agent and full-stack outcomes to reviewed
+answers/units, code, diagrams and assessments.
 
-Unlike a “draft means blocked” model, draft learning content can still publish
-with its accurate status; **reviewed/approved** content must satisfy the existing
-SHA-256 attestation check from `scripts/editorial.py`. The repository currently
-has no independent approvals, and no automated check can certify factual
-correctness, dataset representativeness, absence of plagiarism, compliance with
-third-party licenses, or semantic duplicates.
+## Required checks
 
-### Reviewer acceptance procedure
-1. Pick a flagged answer, establish its assumptions and primary source versions.
-2. Check the substantive explanation and verify every important term and claim.
-3. Execute applicable code with the declared dependencies and check exact output.
-4. Trace a counterexample, failure mode, alternative, and answered follow-up.
-5. Inspect citation accuracy, original diagram accessibility and security/privacy.
-6. Only after independent review, record the matching content digest, reviewer,
-   date and review notes in the existing attestation registry.
-7. Rebuild, run all checks, inspect Pages subpath output, and publish with known
-   limitations. Failing or missing independent checks remain **pending**.
+- `make check`: schemas, malformed fields, literal quotes, executable expected
+  outputs, source/example identity, local artifact links, assessment mapping,
+  duplicate/near-duplicate prompts, stable IDs, root/subpath builds and source
+  equality of the published report.
+- `scripts/revised_content_gate.py --base <base> --require-review`: every authored
+  or revised record, including legacy stable IDs, lesson edits, question
+  moves/renames and companion units, needs matching review. PR and release jobs
+  use the pinned event base and fail closed without it.
+- Claimed reviewed units are validated in preview builds too; this PR preserves
+  main's stricter implementation, rather than reverting it to release-only checks.
+- Browser CI covers mobile/no-JS, keyboard, search, progress/notes, single answers,
+  sidebar defaults and root/subpath links. Static content needs no secrets/backend.
 
-New requirements do not silently rewrite historical study identities, progress,
-or the existing single detailed-answer reader. This is an incremental QA factory,
-not a declaration that all existing content already meets its final standard.
+## Review evidence and limits
 
-## Release acceptance correction — 22 October 2026
+The maintainer explicitly delegated technical acceptance to Codex. Each resulting
+attestation identifies AI review; no independent human review, learner research,
+exhaustive link freshness or semantic plagiarism certification is inferred.
+Primary sources, code mechanics, negative cases, limitations and worked examples
+are assessed before that record's digest is attested. A changed record invalidates
+the old attestation. Reviewed is a content-specific claim, not a global statement
+that the entire historical curriculum is complete. Unchanged legacy content remains
+an honestly inventoried backlog; its presence does not bypass new/edited gates.
 
-The revised-content check now compares the complete source record, including
-Why, Risk, Trade, Try, worked cases, review metadata and companion-course units.
-It uses the stable registry ID across question renames and shard moves, validates
-new source records regardless of the historical numeric baseline, and checks
-all answered follow-ups. Length checks are a structural minimum, not proof of
-teaching quality or source correctness.
+## Acceptance mapping
 
-Drafts may be built for PR review, but publication of authored or materially
-revised learning records now requires independent, content-digest-matched review.
-The main-branch editorial job runs `--require-review` against the pinned push
-base, and the deployment quality gate depends on it. An absent release base
-fails closed. Manual publishing must provide a valid event base rather than
-silently bypass review. Existing unmodified legacy records are inventoried
-honestly; they do not acquire approval from this change.
-
-A reviewed companion unit uses the identity `course/<course-id>/<unit-id>` in
-`content/reviews.json`; its digest covers the entire narrative, interviews,
-examples, outcomes, exercises and rubrics. No reviewer or sign-off is generated.
-The preceding paragraph that allowed unreviewed drafts to publish is historical
-and superseded by this release policy.
+Malformed/uncited content and missing/stale reviews → revised-record negative
+fixtures and source schema tests. Verified versus draft coverage → version-2
+per-record report and source equality/counter assertions. Practice/source/quote
+fidelity → existing assessment, example, rich lesson and quote suites. Accessible
+static reading → browser CI at both paths. Delegated technical verdict → matching
+attestations for every changed lesson/question/unit; report-only changes introduce
+no unreviewed teaching record. No runtime service or paid account is introduced.

@@ -82,6 +82,16 @@ def check():
     assert sum(row['total_interview_questions'] for row in evidence['chapters']) == len(all_questions)
     published = json.loads((ROOT/'_site/questions/editorial-evidence.json').read_text())
     assert published == evidence, 'Published editorial evidence does not match current sources'
+    expected_units = sum(len(json.loads(path.read_text())['units']) for path in (CONTENT/'courses').glob('*.json'))
+    records = evidence['records']
+    assert sum(row['kind'] == 'lesson' for row in records) == sum(len(chapter['lessons']) for chapter in chapters)
+    assert sum(row['kind'] == 'interview' for row in records) == len(all_questions)
+    assert sum(row['kind'] == 'unit' for row in records) == expected_units
+    assert len({row['identity'] for row in records}) == len(records)
+    assert evidence['verified_review_records'] == sum(row['review_verified'] for row in records)
+    assert evidence['record_review_status'].get('legacy-unreviewed', 0) > 0
+    assert evidence['verified_review_records'] >= 56
+
     synthetic = {'id': 999999, 'Q': 'How should we verify?', 'A': 'TODO: write',
                  'citations': ['http://example.com'],
                  'follow_ups': [], 'reviewer_status': {'status': 'draft'}}
