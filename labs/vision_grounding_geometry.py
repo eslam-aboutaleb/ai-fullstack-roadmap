@@ -82,6 +82,7 @@ def check():
     assert mask_edit([[1,2],[3,4]],[[9,9],[9,9]],[[0,1],[1,0]])==[[1,9],[9,4]]
     for fn in [lambda:iou(Box(0,0,0,1),a),
                lambda:nms(detections,threshold=1.2),
+               lambda:nms([Detection(a,1.1,"invoice-total","page1")],threshold=.5),
                lambda:mask_edit([[1,2]],[[1]],[[1,1]])]:
         try:fn()
         except ValueError:pass
