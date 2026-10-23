@@ -41,9 +41,13 @@ def build(out,write,chapters,curriculum,url):
                    for chapter in chapters for q in chapter['questions'])
     report={'version':1,'question_review_states':dict(states),
             'automated_checks':'Schemas, source fidelity, local executable fixtures, links, duplicates and browser behavior are checked in CI. These do not establish factual accuracy.',
-            'limitations':['Independent technical review pending', 'External reference freshness is not exhaustively checked', 'Near-duplicate matching is lexical, not a semantic correctness proof'],
+            'limitations':['Legacy unreviewed records remain itemized', 'External reference freshness is not exhaustively checked', 'Near-duplicate matching is lexical, not a semantic correctness proof'],
             'review_policy':'Reviewed/approved question labels require a matching reviewer, date, notes and SHA-256 content attestation. Drafts remain visibly marked.'}
     (out/'questions/editorial-report.json').write_text(json.dumps(report,indent=2)+'\n')
+    # Public, reproducible evidence report; publishing draft source never implies SME approval.
+    from editorial_evidence import evidence_report
+    (out/'questions/editorial-evidence.json').write_text(
+        json.dumps(evidence_report(chapters), ensure_ascii=False, indent=2)+'\n')
     write('editorial-report.html','Editorial evidence and review state',
           '<h1>Editorial evidence and review state</h1><p>Counts below come from source records. A draft label identifies material awaiting independent technical review.</p><ul>'+
           ''.join('<li>'+E(state)+': '+str(count)+'</li>' for state,count in sorted(states.items()))+
@@ -76,10 +80,14 @@ def build(out,write,chapters,curriculum,url):
             'companion_units':curriculum['chapters'][chapter['slug']].get('course_units',[]),
             'same_page_answers':len(chapter['lessons'])+len(chapter['questions']),
             'conceptual_worked_cases':sum(q.get('answer_format')=='conceptual' for q in chapter['questions']),
-            'review_state':'Authored material; independent technical review pending'})
+            'review_state':'See per-record digest-backed editorial evidence'})
     if any(not row['lessons'] or not row['interview_topics'] or not any(q['answered_followups'] for q in row['interview_topics']) for row in coverage):
         raise ValueError('Every chapter needs teaching, interview questions and an answered boundary defense')
     payload={'version':1,'question_count_limit':None,'full_answers_per_chapter':None,'question_data_shard_size':40,
              'scope':'Topic and artifact inventory, not certification of semantic completeness or independent approval',
              'chapters':coverage}
+    from editorial_evidence import evidence_report
+    evidence = evidence_report(chapters)
+    (out/'questions/editorial-evidence.json').write_text(
+        json.dumps(evidence,ensure_ascii=False,indent=2)+'\n')
     (out/'questions/topic-coverage.json').write_text(json.dumps(payload,ensure_ascii=False,indent=2)+'\n')

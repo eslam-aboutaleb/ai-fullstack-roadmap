@@ -70,11 +70,24 @@
   },
   {
     "Q": "Why do bounding boxes and page references matter?",
-    "A": "They connect recognized text to a location in the original document, enabling source review and visual verification. A plain text answer loses that spatial traceability.",
-    "Why": "Store page number, normalized coordinates, extraction version, and source revision with relevant spans.",
+    "A": "**Pixel text is not yet an auditable fact.** Optical character recognition (OCR) predicts text; document intelligence must also bind a field to its image region, page number, source revision and semantic role. For example, the digit “100” in a scanned claim may be a quantity, tax amount, or subtotal. A model that extracts the correct digits from the wrong row still gives a factually incorrect answer.\n\n**Represent geometry precisely.** A bounding box in continuous original-image coordinates is `(x_min,y_min,x_max,y_max)`, using the convention that width is x_max−x_min and height is y_max−y_min. If a model resizes the original 1000×500 image to 500×250, convert predictions back by the original x/y scale; a crop adds an origin offset. Normalize x to [0,1] only after recording the reference image dimensions. Rotations, padding, orientation/EXIF and PDF page transforms require explicit reversible metadata. Do not compare coordinates expressed in different frames.\n\n**Evaluation arithmetic.** Intersection-over-Union (IoU) is intersection area divided by union area; boxes of area 100 overlapping in a 5×5 region have IoU = 25/(100+100−25) = **1/7 ≈ 0.1429**. Object detection often applies per-class non-maximum suppression (NMS) to reduce overlapping duplicates and uses one-to-one IoU matching to compute precision/recall at specified confidence thresholds. Unlike a single IoU number, mean average precision (mAP) depends on ranked confidence, matching, class aggregation and the selected IoU thresholds; do not call a single toy match mAP.\n\n**Runnable lab.** `labs/vision_grounding_geometry.py` implements exact box geometry, per-class NMS, one-to-one grounding counts and a binary masked image edit. The mask exercise changes selected pixels only; it does not run a diffusion model or guarantee regenerated content preserves identity. Incorrect box shapes, out-of-range confidence and mismatched image dimensions are negative tests. All outputs come from tiny authored arrays, not a pretrained VLM, object detector or image API.\n\n**Production case.** An invoice assistant selects the wrong “Total” from a nearby column after an OCR pipeline changes its resizing rules. The text-confidence score can remain high while region grounding is wrong. Inspect page-frame transforms, caption/box correspondence, one-to-one gold annotations and relevant class/region slices. Protect names, faces and document contents before sending to a hosted model.\n\n**Broader vision context and changed assumption.** Image classification predicts image-level labels; detection localizes objects; segmentation predicts pixels; visual-language models (VLMs) associate image tokens with language, with grounding/hallucination risks. Contrastive image/text embeddings support retrieval, while diffusion image-generation/inpainting changes pixels under conditioning and mask constraints. **If an image is rotated or cropped**, transform the gold/predicted boxes to a shared coordinate frame before computing IoU, or the evaluation is invalid regardless of apparent precision.",
+    "Why": "Region geometry and source/page provenance are required to distinguish a correct token from a correct grounded document fact.",
     "Risk": "Re-rendering or cropping without updating coordinates can make citations point to the wrong region.",
     "Trade": "Spatial metadata increases storage and supports reliable review.",
-    "Try": "Open a cited field in the source viewer and highlight the exact recognized region."
+    "Try": "Reproduce the IoU=1/7 overlap, run NMS and binary mask tests, then change the image coordinate scale and explain the required transform.",
+    "citations": [
+      "https://docs.pytorch.org/vision/stable/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can an OCR field be counted as correct when its digits match but its bounding box points to another table row?",
+        "A": "No. Field correctness requires the value and semantically correct source region/page. Transform all boxes into a shared image coordinate frame, use one-to-one matches under a declared IoU and role criterion, and evaluate ambiguous or multiple totals separately from text recognition accuracy."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
   },
   {
     "Q": "How should tables be extracted?",

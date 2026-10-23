@@ -72,6 +72,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Why does a mutable default argument leak state across requests, and how do you correct it?",
+          "spoken": "Python evaluates a function default at function definition time; mutable defaults are reused between calls. Use None or an immutable sentinel, allocate per request, and distinguish shallow from deep copy.",
+          "deep": "**Language mechanics.** Python executes each default-value expression when defining the function, not each time a caller omits that argument. A function `def record(event, events=[]): events.append(event); return events` therefore has one shared list object stored in its function metadata. The call `record(\"A\")` produces [\"A\"]; a later `record(\"B\")` can produce [\"A\",\"B\"], even if the calls belong to different HTTP requests. This is observable shared state, not an asyncio-specific race. It may become a privacy bug if the list holds caller-specific data.\n\n**Correct boundary.** Use `def record(event, events=None): events = [] if events is None else events; events.append(event); return events` when the default is an independent new list. This pattern preserves intentionally supplied list ownership, so callers should still document whether the function mutates an argument or returns a new copy. A shallow `list(existing)` copies the outer list, but nested dictionaries remain shared; use explicit serialization/data-model reconstruction when crossing untrusted or tenant boundaries. Do not reach for deepcopy indiscriminately because it may copy large graphs or objects with external resource identity.\n\n**Production example.** An API accepts a policy query with a mutable default `filters={}`. A handler adds `filters[\"owner\"]=principal.id`. Another request with no filters inherits the previous owner. This can poison a cache key or database predicate. The server must build new scoped filters per request from a trusted principal, validate the effective query, and enforce row-level permissions at the database layer, not only in a dictionary.\n\n**Negative tests.** Call the function sequentially with two identities and assert no content from the first appears in the second's state. Then use two concurrent calls and verify independent request-local objects. Test explicit external mutable arguments separately, and check that Python type annotations do not automatically guarantee deep immutability or runtime validation.\n\n**Follow-up.** If two objects contain identical values, that does not establish that they have distinct identities. Use `is` for identity and `==` for value equality, and inspect nested aliases when investigating unexpected mutations.",
+          "follow_up": {
+            "question": "Does a default tuple guarantee immutable nested data?",
+            "answer": "No. A tuple is immutable as a container, but can hold references to mutable lists or dictionaries that still change between calls. An immutable, validated data model or per-request copy policy is required for true isolation."
+          },
+          "rubric": [
+            "Explains the exact mechanism and trusted request-state boundary",
+            "Works a quantitative example or precise resource lifecycle",
+            "Shows an independent failure test and an answered change-of-assumption follow-up"
+          ]
         }
       ]
     },
@@ -145,6 +159,20 @@
             "Defines assumptions and key terms",
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "How do async generators, iteration and context managers determine the lifetime of database connections?",
+          "spoken": "A generator suspends with live local variables and resources. Use an explicit async context manager and finally cleanup, and make cancellation/restart behavior part of the public contract.",
+          "deep": "**Fundamentals.** An iterator implements next-value retrieval; a generator is a suspended frame that resumes at each yield, preserving its local state between values. An async generator uses `async for` and may yield while awaiting asynchronous I/O. A database cursor, socket or file bound inside that suspended frame can remain open until the generator is exhausted or explicitly closed. Merely constructing an iterator or breaking from a loop does not constitute a durable resource-lifetime contract.\n\n**Safe lifecycle.** Use `async with acquire_connection() as conn` or `try/finally` inside the async generator so its cleanup code runs on normal exhaustion, error and explicit closure. Consumers that stop early should close with `aclose()` where appropriate. Cancellation is raised at an await boundary; don't swallow `CancelledError` and falsely treat an incomplete transaction as committed. If the generator emits data after committing an irreversible write, a client disconnect cannot retroactively undo that write. Return the original committed result on a stable idempotency key.\n\n**Worked failure.** An endpoint streams a large result set and yields only two records to a browser before the client navigates away. If the generator holds the same database transaction and never closes on disconnect, connection-pool capacity is gradually exhausted. The health endpoint may remain 200 while p99 requests block waiting for a connection. Add a cleanup counter and simulate early termination, backpressure and cancellations under a bounded pool.\n\n**HTTP choice.** Streaming improves perceived latency and memory for large results but complicates partial errors, buffering, cache intermediaries and exact completion semantics. For small bounded result sets, ordinary JSON responses may be simpler. An async generator does not make CPU-intensive serialization nonblocking; move blocking work to a suitable execution pool or restructure the workload.\n\n**Changed assumption.** If the consumer is a background worker instead of a browser, require durable checkpoint/resume of the source offset independently from generator locals; process restarts discard suspended Python frames.",
+          "follow_up": {
+            "question": "Is finally guaranteed to execute immediately when an async generator is abandoned?",
+            "answer": "No. Cleanup timing depends on explicit aclose(), exhaustion or event-loop finalization. Design the consumer to close generators deterministically rather than relying on garbage collection."
+          },
+          "rubric": [
+            "Explains the exact mechanism and trusted request-state boundary",
+            "Works a quantitative example or precise resource lifecycle",
+            "Shows an independent failure test and an answered change-of-assumption follow-up"
           ]
         }
       ]
@@ -220,6 +248,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Why can an O(1) cache lookup still cause slow p99 HTTP requests?",
+          "spoken": "Asymptotic complexity describes scaling with an input variable, not a real system's queueing, network latency, lock contention, memory locality or tail distribution.",
+          "deep": "**Algorithmic vs system cost.** A hash-table lookup is expected O(1) with respect to entries under common hash assumptions, but that does not mean zero or constant wall-clock latency across all hardware and load. Cache misses may trigger disk or network fetches; memory access may stall on cache-line fetches; locks and thread scheduling add waiting. A web request often crosses DNS, TCP/TLS, proxy, app queue, connection pools, database and downstream model/provider calls. The slowest/most variable stage can dominate the tail even if each local lookup is efficient.\n\n**Worked queueing example.** A server receives λ=90 requests/s and serves μ=100 requests/s under an idealized M/M/1 model. Utilization is ρ=λ/μ=.9, while the idealized mean time in system is 1/(μ−λ)=0.1 seconds. If arrivals rise to 99/s with the same 100/s capacity, utilization becomes .99 and the idealized mean grows to 1 second. The tenfold growth does not reflect a worse hash algorithm; it follows queueing near saturation. Real services depart from the Poisson/exponential assumptions, so verify observed histograms rather than presenting this estimate as a production measurement.\n\n**Debugging.** Break p95/p99 latency into queue wait, connect, TLS, app CPU, lock contention, database, tool/model and response streaming. Use per-stage traces, bounded high-cardinality identifiers and load tests. Confirm that timeouts propagate through all dependencies rather than allowing abandoned work to consume backend capacity. A larger worker count may initially reduce queueing but can increase context switching or exceed database connections, worsening tails.\n\n**Trade-offs.** A local dictionary cache is fast but not durable and can leak unscoped user data. A distributed cache adds network latency, serializing/deserializing and invalidation requirements. Prefer measuring correctness and cache hit eligibility before tuning throughput.\n\n**Changed assumption.** If service time is heavy-tailed or tasks include long LLM completions, a simple M/M/1 mean is inadequate; use actual request-length mix, concurrency limits and empirical latency percentiles.",
+          "follow_up": {
+            "question": "Does Little's Law directly guarantee p99 latency from average arrival rate?",
+            "answer": "No. Little's Law relates long-run average number of items in a stable system to throughput and average time. It does not determine tail percentiles or hold under unbounded unstable queues."
+          },
+          "rubric": [
+            "Explains the exact mechanism and trusted request-state boundary",
+            "Works a quantitative example or precise resource lifecycle",
+            "Shows an independent failure test and an answered change-of-assumption follow-up"
+          ]
         }
       ]
     },
@@ -255,7 +297,8 @@
         "Run the pilot and identify which checks use events rather than timing luck.",
         "Add a per-owner admission policy without making the queue unbounded.",
         "Move a blocking parser out of the loop and measure responsiveness.",
-        "Explain the difference between job failure, deadline expiry and caller cancellation."
+        "Explain the difference between job failure, deadline expiry and caller cancellation.",
+        "Run python3 -B labs/async_backend_failure.py and document one failed assumption and its corrected invariant."
       ],
       "debugging": "A hanging join usually means missing task_done or workers that exited before draining required items. Swallowed cancellation can leave the caller waiting while effects continue.",
       "tradeoffs": "Fail-fast groups are useful for coupled tasks; independent jobs may need isolated failures. Bound retry count and total deadline as well as concurrent worker count.",
@@ -295,6 +338,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "A worker is cancelled after a database write but before its HTTP acknowledgment. What happens to the business effect?",
+          "spoken": "Cancellation does not roll back an already committed database transaction. Reconcile by stable operation identity, preserve the effect ledger and return the prior result on retry.",
+          "deep": "**Direct answer.** In Python's asyncio, cancellation is a cooperative request delivered as `CancelledError` at an await point. It does not travel backwards in time to undo a successful database commit. Separate the scope of the coroutine, the transaction and any external effect. The database's authoritative result must outlive a connection, process and client retry.\n\n**Execution timeline.** (1) An authenticated owner submits operation ID pay-17 and a payload. (2) The service enters an atomic transaction and enforces a unique (owner, operation_id) invariant. (3) Business state and the effect/result record commit. (4) The socket closes before the acknowledgment is delivered. (5) Client retries with pay-17. The handler reads the previously committed result and returns it; it must not create a second payment. A changed payload with the same operation ID is a conflict, not a new request. By contrast, if the commit outcome was unknown, reconcile it before trying again.\n\n**Structured concurrency.** `TaskGroup` binds child lifetimes to the parent scope and propagates failures; worker cancellation should release resources in `finally`. Do not swallow `CancelledError` casually. A timeout is a bound on caller patience, not guaranteed global undo of a remote API or payment. For durable distributed effects, use a transactional outbox, idempotent consumer and reconciliation process, not only an asyncio lock.\n\n**Code and test.** The repository's `labs/async_backend_failure.py` uses SQLite plus an async worker to simulate commit-then-lost-response, cancellation and replay. It asserts only one durable row for repeated same-owner requests and rejects changed-payload replay; no remote provider is involved. In a real FastAPI handler the principal must be established from validated authentication, and SQL owner filtering must be enforced at the authoritative query boundary.\n\n**Performance and pitfalls.** Cooperative async improves I/O concurrency only when work yields; CPU-heavy tasks block the loop unless moved to suitable executors/processes. Unbounded task creation or queues create tail latency and memory pressure. Use bounded admission, concurrency caps, shutdown/cancellation cleanup, and test slow callers and expired deadlines.\n\n**Follow-up — what if the retry arrives on another replica?** The operation key and its outcome must be persisted in a shared authoritative database with correct transactional locking, not a process-local dictionary or asyncio.Lock.",
+          "follow_up": {
+            "question": "Does TaskGroup guarantee exactly-once external delivery?",
+            "answer": "No. TaskGroup structures local task lifetime; an acknowledgment can be lost after a durable or external effect. Guarantee at-most-one business effect through persisted unique identities, idempotent downstream semantics or reconciliation, and test crash boundaries."
+          },
+          "rubric": [
+            "Explains the underlying system mechanism and trust boundary, not merely syntax",
+            "Uses an independent failure oracle, with exact assumptions and a changed-condition recovery path",
+            "Distinguishes a locally observed test from production distribution/reliability claims"
+          ]
         }
       ]
     },
@@ -329,7 +386,8 @@
       "practice": [
         "Run the transaction pilot in a disposable PostgreSQL cluster.",
         "Add a malformed or missing idempotency key test.",
-        "Test another owner’s read and mutation without exposing whether private content exists."
+        "Test another owner’s read and mutation without exposing whether private content exists.",
+        "Run python3 -B labs/async_backend_failure.py and document one failed assumption and its corrected invariant."
       ],
       "debugging": "If malformed input reaches the business service, inspect validation configuration. If a different owner can access a known ID, inspect the authoritative query and trusted identity source.",
       "tradeoffs": "Returning consistent 404 responses reduces object enumeration; operational diagnostics must still record enough authorized context to investigate failures.",
@@ -369,6 +427,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Why is a Pydantic-valid request still unsafe without object-level authorization?",
+          "spoken": "Pydantic validates the shape of untrusted input, not the caller's ownership or authority. Authorize using server-established identity at each object read and write boundary.",
+          "deep": "**Direct answer.** A Pydantic model can reject malformed fields, coerce declared types and enforce syntactic constraints. It cannot prove that the caller may read an invoice, confirm another tenant's request or use a tool with elevated authority. **Authentication** establishes who the caller is; **authorization** decides which particular objects or actions that principal may access.\n\n**Request timeline.** The ASGI server receives HTTP bytes; FastAPI routes and parses the body; dependency injection establishes a trusted principal from an authenticated mechanism. The handler then performs domain validation and an owner-scoped database query or conditional write inside the appropriate transaction. E.g. `UPDATE requests SET status='confirmed' WHERE id=:id AND owner_id=:trusted_actor AND status='pending' RETURNING id`. If zero rows are updated, the caller is unauthorized or the state changed; do not perform a separate unguarded write after a UI-side ownership check.\n\n**Security failure.** An attacker with a valid JWT tries `GET /requests/B-17`; a `SELECT WHERE id=:id` can disclose owner B's data. A Pydantic model allowing only UUID strings does not change that risk. The owner ID must come from the trusted authentication context, not an optional request-body field. ORM relationships, cache hits, vector retrieval and resumed streams need the same scoped evaluation.\n\n**Failure and retry.** If a connection drops after committing confirmation, the original result must be recoverable by owner-scoped idempotency key. Catch integrity conflicts explicitly and return consistent HTTP semantics; avoid relying on sleep/random backoff to fix write races. Validate response serialization, bound payloads and streaming cancellation separately.\n\n**Worked boundary exercise.** Compare a happy-path scoped update with the same request ID under a different authenticated owner. Then simulate two concurrent confirmations: at most one transition should win. The local `labs/async_backend_failure.py` demonstrates the unique operation identity principle; the existing `labs/transaction_api.py` illustrates API/transaction boundaries.\n\n**Trade-off.** Strict server-side checks and serialization add database work, but are essential for safe multi-tenant APIs. FastAPI dependencies make policy reusable but not automatically correct.",
+          "follow_up": {
+            "question": "If the frontend hides another owner's record, can the API skip the database owner predicate?",
+            "answer": "No. The browser is controlled by the caller. Every authoritative lookup, mutation, cache hit, vector search, and stream replay needs trusted owner scope. A hidden button provides no permission guarantee."
+          },
+          "rubric": [
+            "Explains the underlying system mechanism and trust boundary, not merely syntax",
+            "Uses an independent failure oracle, with exact assumptions and a changed-condition recovery path",
+            "Distinguishes a locally observed test from production distribution/reliability claims"
+          ]
         }
       ]
     },
@@ -403,7 +475,8 @@
       "practice": [
         "Use two callers and a barrier to reproduce acceptance of the same operation.",
         "Trigger the pre-commit failure and inspect both task and outbox state.",
-        "Document receiver deduplication and what happens when an acknowledgment is lost."
+        "Document receiver deduplication and what happens when an acknowledgment is lost.",
+        "Run python3 -B labs/async_backend_failure.py and document one failed assumption and its corrected invariant."
       ],
       "debugging": "Deadlocks and serialization failures require bounded retries of the whole transaction with fresh reads. Do not retry a transaction containing an unprotected remote effect.",
       "tradeoffs": "Pessimistic locks serialize contention; optimistic predicates may avoid waits but require conflict handling. At-least-once dispatch is practical, while exactly-once business effects require an explicitly scoped protocol.",
@@ -443,6 +516,20 @@
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
           ]
+        },
+        {
+          "question": "Why can a committed outbox event be delivered twice, and how should consumers recover?",
+          "spoken": "The outbox atomically persists intent with business state, but dispatch acknowledgments can be lost. Consumers need durable deduplication and idempotent effects rather than assuming exactly-once delivery.",
+          "deep": "**Direct answer.** A transactional outbox solves the **dual-write problem** between a local business transaction and its dispatch intent. Within one database transaction, update the business row and insert an outbox record. This ensures there cannot be a committed business write without its durable notification intent (or vice versa), assuming the same authoritative database transaction.\n\n**Execution.** (1) Confirm operation with a unique owner/request ID and write business state. (2) Insert outbox row with event ID, payload, schema revision and aggregate version in the same commit. (3) A dispatcher reads unpublished rows, publishes to a broker, then marks progress. (4) If it crashes after publishing but before saving the acknowledgment, it can publish the row again. This is not a database consistency failure; it is an inevitable ambiguous distributed acknowledgment unless the complete broker/consumer system has stronger scoped semantics.\n\n**Consumer invariant.** On receipt, atomically record a unique consumed event ID together with the intended business effect, or make a natural business key unique. Duplicate deliveries then produce one durable effect. Reject out-of-order versions when the aggregate requires ordering; handle tombstones and schema evolution. Process crashes and redelivery must be in the automated test matrix.\n\n**Example.** An invoice-confirmed event triggers creation of one shipping label. Consumer A commits the shipping record but loses its ack. Consumer B receives the same event; it sees the persisted event/operation identity and skips the duplicate label. A process-local set of IDs cannot survive another replica or a restart.\n\n**Trade-offs.** Polling outboxes add latency and scanning costs; CDC-based dispatch adds infrastructure but may reduce polling. Broker exactly-once options have precise boundaries and do not make arbitrary email, card charge or HTTP side effects exactly once. Use a compensation/reconciliation design for irreversible external systems.\n\n**Follow-up — what if the outbox data is schema-incompatible with the new consumer?** Fail or quarantine safely, preserve the source event identity and version, offer controlled replay/migration and do not mark progress until the business effect is durable.",
+          "follow_up": {
+            "question": "Is an asyncio.Lock sufficient when two replicas deliver the same outbox row?",
+            "answer": "No. It coordinates only tasks in one event loop/process. Enforce deduplication through a shared database invariant or an equivalent transactional sink, then exercise crash and redelivery from separate workers."
+          },
+          "rubric": [
+            "Explains the underlying system mechanism and trust boundary, not merely syntax",
+            "Uses an independent failure oracle, with exact assumptions and a changed-condition recovery path",
+            "Distinguishes a locally observed test from production distribution/reliability claims"
+          ]
         }
       ]
     },
@@ -477,7 +564,8 @@
       "practice": [
         "Replace an unconditional True oracle check with an observed invariant.",
         "Create one intentional regression and prove a relevant test fails.",
-        "Write a handoff containing a clean-start command, expected result and known limits."
+        "Write a handoff containing a clean-start command, expected result and known limits.",
+        "Run python3 -B labs/async_backend_failure.py and document one failed assumption and its corrected invariant."
       ],
       "debugging": "A flaky concurrency test often depends on timing rather than an arranged interleaving. A passing example with console.assert may still exit successfully after failed assertions; throwing or explicit exit status is required.",
       "tradeoffs": "End-to-end checks verify boundaries but cost more to run. Keep a fast deterministic core and add integration checks for the database, browser and protocol behaviors that substitutes cannot prove.",
@@ -516,6 +604,20 @@
             "Defines assumptions and key terms",
             "Shows a calculation or observable failure",
             "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "What regression tests prove a bounded async API works under cancellation, tenant swaps and duplicate messages?",
+          "spoken": "Test the externally observable invariants: owner scope, bounded in-flight work, one business effect per operation key and cleanup on cancellation; inject errors at commit and acknowledgment boundaries.",
+          "deep": "**Direct answer.** A valuable async API regression suite tests outcomes and failure boundaries, not just functions returning 200. Define an **oracle** (an independently checked invariant) for each scenario: no owner-A read returns owner-B data, at most one effect per owner/operation, cancellation releases local resources, queue size never exceeds configured capacity, and a retry after committed-but-lost acknowledgment finds the existing result.\n\n**Fixture design.** Use two distinct synthetic owners, a bounded queue with two workers and more jobs than capacity, one slow/cancelled task, a duplicate request key with identical data and a changed payload, and a synthetic socket loss after commit. Record active workers, queue peak, durable row count, response IDs and authorization decisions. Seed IDs and clocks to make the run repeatable.\n\n**Execution.** Add ordinary unit tests for type and data contracts; add realistic database integration tests to expose locking/isolation, HTTP tests to capture streamed disconnect behavior, and browser E2E tests for UI state. If a test uses an in-memory dictionary, state clearly that it does not verify durability across replicas or restarts. A passing fixture does not prove the absence of production concurrency races under a new scheduler.\n\n**Example.** `labs/async_backend_failure.py` runs a bounded TaskGroup worker pool and a SQLite effect ledger with explicit owner/operation constraints. It checks active worker limits, detects a changed-payload replay, resumes after a lost acknowledgment and propagates cancellation. For real PostgreSQL outbox correctness, run an actual database integration fixture and restart workers across process boundaries.\n\n**Diagnostics.** Compare independent effect counts and storage state against the returned HTTP events; don't count an exception thrown after commit as a rolled-back write. Collect task IDs, revision, principal scope and error type, redacting private payloads.\n\n**Follow-up — what if all requests pass serial tests but fail under a burst?** Add adversarial concurrency and property-based schedules, check max queue wait and p99 behavior, use authoritative database transactions and insist on negative tenant/cancellation cases before deployment.",
+          "follow_up": {
+            "question": "Can passing four browser lab cases certify correctness for arbitrary traffic?",
+            "answer": "No. Those cases establish only their declared input/output behavior. Add concurrency, crash, timing, schema and authorization tests with a real database and workload before claiming service-level reliability."
+          },
+          "rubric": [
+            "Explains the underlying system mechanism and trust boundary, not merely syntax",
+            "Uses an independent failure oracle, with exact assumptions and a changed-condition recovery path",
+            "Distinguishes a locally observed test from production distribution/reliability claims"
           ]
         }
       ]

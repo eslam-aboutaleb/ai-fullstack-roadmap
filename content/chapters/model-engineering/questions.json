@@ -95,11 +95,24 @@
   },
   {
     "Q": "How do quantization, batching, and caching affect serving differently?",
-    "A": "Quantization changes numerical precision, batching groups execution, and caching reuses prior results under a valid identity. They optimize different costs and can change quality, waiting latency, privacy, and freshness differently.",
-    "Why": "Measure quantization, batching, caching, and serving concurrency on representative hardware and tasks. Report quality, throughput, tail latency, and memory together.",
+    "A": "**Begin with the request timeline.** A tokenizer emits input IDs. Prefill processes the prompt and computes per-layer attention key/value (KV) state. Autoregressive decoding generates subsequent tokens, one step at a time. A server must admit requests, allocate memory, schedule prefill/decode and stream data back. A fast model alone cannot compensate for head-of-line queueing, long prompts or a saturated GPU.\n\n**Why the levers differ.** Weight quantization shrinks or changes arithmetic for model parameters; it does not automatically reduce runtime KV cache, activations or host overhead. Continuous batching admits newly arrived decode requests instead of waiting for a whole fixed batch to finish. Prefix caching reuses eligible, identical prefill results only under a valid prompt/model/permission cache key. Paged attention avoids requiring a contiguous cache allocation for each sequence. Each optimization changes a different bottleneck, so measure it separately.\n\n**Memory calculation.** Simplified KV bytes = 2 × layers × KV heads × head dimension × live tokens × bytes per element × simultaneous sequences. With 32 layers, 8 KV heads, dimension 128, 4096 live tokens and 2-byte elements, one sequence requires 536,870,912 bytes = 512 MiB for the KV tensors alone. Eight such sequences imply ~4 GiB before model weights, transient activations, workspace, allocator fragmentation and headroom. Multi-query/grouped-query attention changes the KV head count; never infer fit from model parameter bytes alone.\n\n**Scheduling experiment.** Run `python3 -B labs/inference_capacity.py`. Its bounded discrete-event toy scheduler measures queue delay and simulated first-token/completion steps for competing requests; it rejects sequences that exceed configured memory and checks a nearest-rank p99. These are **illustrative step counts, not real milliseconds**. A production benchmark requires the actual GPU, model, tokenizer, hardware driver and serving engine, warm/cold runs, concurrent request mixes, TTFT, TPOT/inter-token latency, end-to-end p50/p95/p99 and GPU memory high-water marks.\n\n**Serving systems.** vLLM documents PagedAttention, continuous batching, chunked prefill and prefix caching. Hugging Face Text Generation Inference (TGI) exposes per-request and batch metrics; Hugging Face now calls TGI maintenance mode. Pin actual engine/model revision and verify which endpoint features are supported rather than assuming drop-in parity. References: https://docs.vllm.cc/en/latest/ and https://huggingface.co/docs/text-generation-inference/en/reference/metrics .\n\n**Failure and recovery.** When a long prompt arrives in a near-full batch, admission delays first token for shorter requests. Raising batch size may improve throughput but worsen tail latency or trigger OOM. Apply explicit queue/memory budgets and cancellation cleanup, replay a measured workload, then evaluate quality after a precision or quantization change.\n\n**Follow-up.** If throughput rises but the 99th-percentile time-to-first-token triples, do not call that an unqualified improvement: check request-length fairness, admission, cache hits, SLA slices and capacity limits and compare the same workload under each configuration.",
+    "Why": "Quantization, batching and caching target different resources; throughput alone can conceal queueing and tail-latency regressions.",
     "Risk": "Cached answers may be stale after policy or permission changes. Aggressive batching can delay interactive requests, and quantization may change task quality.",
     "Trade": "Optimizations reduce resources and add operational complexity. Measure successful task cost and tail latency rather than throughput alone.",
-    "Try": "List what each optimization changes or reuses, its invalidation identity, and the quality tests it requires."
+    "Try": "Run the offline scheduler with capacity one and two; compute KV memory on paper and explain why real GPU p99 must be measured separately.",
+    "citations": [
+      "https://docs.vllm.ai/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "When throughput increases but p99 time-to-first-token deteriorates, what should serving engineers investigate first?",
+        "A": "Inspect admission and queue wait per request-length/concurrency slice, token-budget saturation and prefix-cache hit rates. Compare the identical real workload under both schedulers, report TTFT/TPOT and memory peaks, and do not confuse toy step counts with GPU milliseconds."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
   },
   {
     "Q": "Why separate model quality from inference-system reliability?",
