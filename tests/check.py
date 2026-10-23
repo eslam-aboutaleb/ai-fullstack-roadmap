@@ -123,6 +123,9 @@ for memory_lab, args in (('agent_memory_lifecycle.py', []), ('memory_project.py'
                             capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, (memory_lab, result.stdout, result.stderr)
     assert 'PASS' in result.stdout, (memory_lab, result.stdout)
+rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
+assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
+assert 'PASS' in rag_pipeline_result.stdout
 
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
@@ -192,3 +195,14 @@ portfolio = (SITE/'portfolio-capstone.html').read_text()
 for identity in ('async-engine', 'transaction-api', 'rag-quality', 'durable-agent'):
     assert 'capstone-'+identity+'.html' in portfolio
 print('Single learning journey: retired duplicate pages absent; every unit, project and simulation remains reachable')
+
+from check_focused_acceptance import check as check_focused_acceptance
+check_focused_acceptance()
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"policy_assistant_project.py"),"--check"],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"research_support_project.py"),"check"],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.py")],check=True,capture_output=True,text=True,timeout=30)
+
+subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)
