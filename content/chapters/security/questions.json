@@ -66,7 +66,7 @@
   {
     "Q": "How should telemetry avoid becoming a data leak?",
     "A": "Prefer counts, durations, sanitized error categories, and controlled identifiers. Raw questions, passages, credentials, and user identifiers can expose private knowledge through logs, traces, and analytics systems even when retrieval itself is authorized.",
-    "Why": "A redaction policy defaults raw query, document text, user identifiers, and unmasked errors to disabled. Event construction sanitizes errors and supports host-controlled redaction. This does not imply that every ordinary logger in the reference design or host is automatically covered.",
+    "Why": "A security-first redaction policy defaults raw user queries, retrieved document passages, user PII, and unmasked error strings to disabled. Telemetry emitters must sanitize structured error codes and enforce PII masking before dispatching spans to external collectors (Datadog, OpenTelemetry, LangSmith).",
     "Risk": "Exception strings, URLs, and custom metadata can carry secrets. A redacted event sink cannot sanitize unrelated logs or a provider's own diagnostics.",
     "Trade": "Less raw data makes debugging harder and reduces exposure. Use temporary, controlled debugging fixtures rather than permanently recording production passages.",
     "Try": "Raise an error containing an API key, source URL, and query text. Inspect events and ordinary logs separately and document remaining exposure paths."
@@ -74,7 +74,7 @@
   {
     "Q": "What security acceptance tests matter most for this integration?",
     "A": "Prioritize cross-tenant access, unsupported mandatory filters, source lookup after revocation, management permissions, malicious source instructions, SSRF redirects, and backend failures. These test authority boundaries rather than merely validating that a happy-path search returns text.",
-    "Why": "The reference design has focused tests around retrieval constraints, connectors, tool bridges, and sync. A host must extend those checks to its own identity provider, deployment routes, and durable adapters.",
+    "Why": "A comprehensive security test suite must verify multi-tenant isolation, mandatory attribute-based access control (ABAC) filters, token revocation invalidation, tool authorization boundaries, and SSRF prevention before deployment.",
     "Risk": "A mock that always applies filters can conceal an actual backend mismatch. Include tests against the deployed adapter combination and inspect what leaves the process for reranking or telemetry.",
     "Trade": "Boundary tests take setup but prevent high-impact failures. Duplicating every implementation branch with brittle tests is less valuable than exercising the invariants users depend on.",
     "Try": "Write five adversarial scenarios with expected denial and one authorized control case for each. Specify whether denial must occur before any external provider receives document text."
