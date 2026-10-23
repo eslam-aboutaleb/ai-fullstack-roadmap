@@ -1,25 +1,35 @@
 [
   {
-    "explain": "Structure-aware chunks keep complete rule units instead of arbitrary fragments. The synthetic section delimiter stands in for a real document parser.",
-    "steps": "Split on known section boundaries. || Preserve the exception in the same passage as the rule it qualifies.",
-    "expect": "['Returns: allowed except final-sale items.', 'Shipping: 3 days.']",
-    "name": "chunk-boundaries",
+    "name": "recursive-character-splitter",
+    "filename": "recursive-character-splitter.py",
     "language": "python",
-    "filename": "chunk-boundaries.py",
+    "explain": "Implement recursive character chunking from first principles. Evaluates hierarchical delimiters (paragraphs, sentences, words) in order to keep complete conceptual and heading units together within a token budget.",
+    "steps": "Attempt splitting on high-level paragraph boundaries before falling back to sentence or word breaks. || Merge adjacent text segments up to the chunk size while keeping section headers attached to their introductory text.",
+    "expect": "Recursive splitting verified: chunk_count=2, chunk_sizes=[158, 149]",
     "questions": [
       541,
-      542,
       31,
       35
     ]
   },
   {
-    "explain": "This window counts words, repeats overlap, and rejects an overlap that prevents forward progress. It makes units and duplication explicit.",
-    "steps": "Validate that size is positive and overlap is smaller than size. || Advance by size minus overlap rather than by the whole window.",
-    "expect": "['a b c', 'c d e', 'e f']",
-    "name": "sliding-windows",
+    "name": "semantic-chunking-distance",
+    "filename": "semantic-chunking-distance.py",
     "language": "python",
-    "filename": "sliding-windows.py",
+    "explain": "Implement Semantic Chunking using embedding cosine distance variance across consecutive sentences. Dynamically places chunk boundaries at statistical topic transition spikes rather than arbitrary token counts.",
+    "steps": "Compute cosine distances between adjacent sentence embeddings across the document. || Detect statistical distance spikes exceeding the percentile threshold and create dynamic chunk boundaries.",
+    "expect": "Semantic chunking verified: chunk_count=2, transition_distance=0.9855, threshold=0.9855",
+    "questions": [
+      542
+    ]
+  },
+  {
+    "name": "token-sliding-window",
+    "filename": "token-sliding-window.py",
+    "language": "python",
+    "explain": "Implement token-aware sliding window chunking with strict stride invariants. Validates that overlap is strictly smaller than chunk_size to guarantee forward progress, and preserves token start/end coordinates for citations.",
+    "steps": "Validate that chunk size is positive and overlap is strictly less than size. || Advance by size minus overlap (stride) and track exact token spans for citation highlight mapping.",
+    "expect": "Sliding window verified: total_chunks=4, stride=3, invalid_overlap_rejected=True",
     "questions": [
       543,
       32,
@@ -28,12 +38,12 @@
     ]
   },
   {
-    "explain": "Source bytes and processing profile jointly determine representation identity. Changing chunk size or embedding profile requires compatibility handling even when the source is unchanged.",
-    "steps": "Serialize both source identity and transformation settings. || Compare fingerprints after changing only the chunk size.",
-    "expect": "True",
-    "name": "processing-fingerprint",
+    "name": "content-fingerprint-cache",
+    "filename": "content-fingerprint-cache.py",
     "language": "python",
-    "filename": "processing-fingerprint.py",
+    "explain": "Implement cryptographic content fingerprinting and chunk cache invalidation. Incorporates source text, position, and chunker configuration (size, overlap, tokenizer) into the hash, ensuring parameter changes invalidate stale embeddings.",
+    "steps": "Compute SHA-256 fingerprint from document content and pipeline transformation settings. || Verify that tuning chunker parameters deterministically invalidates the chunk cache even when source text is unchanged.",
+    "expect": "Content fingerprint verified: fp_v1=e704e6c381c8163f..., fp_v2=75ba2cb9c5f5ca8c..., invalidated=True",
     "questions": [
       544,
       37,
@@ -43,12 +53,12 @@
     ]
   },
   {
-    "explain": "Compare chunk configurations on the same labeled queries and include context cost. A recall gain alone does not decide which configuration fits the product.",
-    "steps": "Keep the dataset identity fixed. || Compare evidence coverage together with rendered context tokens.",
-    "expect": "0.9 1200",
-    "name": "chunk-experiment",
+    "name": "late-chunking-global-context",
+    "filename": "late-chunking-global-context.py",
     "language": "python",
-    "filename": "chunk-experiment.py",
+    "explain": "Demonstrate Late Chunking vs Early Chunking in long-context embedding models. Early chunking embeds isolated fragments losing cross-sentence context; Late chunking passes full document context through self-attention before pooling chunk spans.",
+    "steps": "Demonstrate semantic dilution and missing referents when ambiguous chunks are embedded in isolation. || Apply Late Chunking by pooling token hidden states that have attended across full document context, boosting retrieval similarity.",
+    "expect": "Late chunking verified: early_sim=0.9419, late_sim=0.9991, context_gain=0.0573",
     "questions": [
       545,
       737,
@@ -56,35 +66,34 @@
     ]
   },
   {
-    "explain": "A deterministic chunk identity can include source revision, processing profile, and position. This demonstrates one identity policy, not a claim that all backends use it.",
-    "steps": "Build the identity from explicit stable components. || Change the processing profile and observe a different chunk identity.",
-    "expect": "True",
-    "name": "stable-chunk-id",
+    "name": "deterministic-chunk-id",
+    "filename": "deterministic-chunk-id.py",
     "language": "python",
-    "filename": "stable-chunk-id.py",
+    "explain": "Generate deterministic, idempotent chunk UUIDs using document namespaces and content hashes. Enables idempotent database upserts and prevents orphan duplicate vectors across pipeline reruns.",
+    "steps": "Construct deterministic UUIDv5 scoped to a stable document namespace and chunk position. || Re-run chunking on identical documents and assert 100% chunk ID stability across pipeline executions.",
+    "expect": "Deterministic chunk IDs verified: chunk_0=9e25d03a-c852-520e-8902-6c8ea23f005a, chunk_1=ea4be463-c7e6-54e6-8c46-9d32d3080ff9, idempotent=True",
     "questions": [
       36
     ]
   },
   {
-    "explain": "Search a small child passage but recover the bounded parent context needed to interpret it. Parent retrieval must retain the same access and revision scope.",
-    "steps": "Resolve the child's parent identity. || Fetch the matching parent text rather than concatenating arbitrary neighboring results.",
-    "expect": "Returns allowed. Exception: final sale.",
-    "name": "parent-child",
+    "name": "hierarchical-parent-child-retrieval",
+    "filename": "hierarchical-parent-child-retrieval.py",
     "language": "python",
-    "filename": "parent-child.py",
+    "explain": "Implement Hierarchical Parent-Child chunking. Indexes small child passages for high vector similarity matching while returning the expanded parent context to LLM generation prompts to prevent context truncation.",
+    "steps": "Index fine-grained child passages mapped to a parent section identifier. || Match the child passage via vector search and expand to full parent context for generation.",
+    "expect": "Parent-child retrieval verified: matched_child=sla_section_4_c1, parent_length=351 chars",
     "questions": [
       38
     ]
   },
   {
-    "name": "journey-862",
-    "filename": "journey-862.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "chunk-overlap-evaluation",
+    "filename": "chunk-overlap-evaluation.py",
+    "language": "python",
+    "explain": "Evaluate retrieval recall under chunk overlap without miscounting duplicate hits as extra evidence. Deduplicates overlapping results from the same source passage before measuring criteria coverage.",
+    "steps": "Demonstrate how overlapping chunk windows create false high hit counts while crowding out distinct policy exceptions. || Deduplicate by source section identity to evaluate true criteria coverage rate.",
+    "expect": "Chunk overlap evaluation verified: naive_hits=4/5, true_criteria_coverage=50.0%, missing={'exception_clause'}",
     "questions": [
       862
     ]
