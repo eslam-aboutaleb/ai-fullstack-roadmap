@@ -80,3 +80,23 @@ Advisories: https://github.com/advisories/GHSA-f4j7-r4q5-qw2c
 https://github.com/advisories/GHSA-36p7-vc44-83pf
 https://github.com/advisories/GHSA-2wm9-hf6c-p5cr
 https://github.com/advisories/GHSA-xph7-9rjv-w5fr
+
+## Actual isolated PostgreSQL/pgvector server path
+
+`labs/vector_engines.py --engine pgvector --output pgvector-server.json` creates
+its own temporary cluster using locally installed PostgreSQL binaries and the
+matching vector extension. Set POSTGRES_BIN to the binary directory when needed.
+On this run PostgreSQL 17 and pgvector 0.8.7 executed; exact versions, query samples
+and scoped CRUD outcomes are in `docs/evidence/pgvector-server.json`. The runner
+starts only its own loopback cluster on a temporary port, never accepts an existing
+DSN, uses synthetic vectors, stops its server and removes the temporary directory.
+It does not change any existing database. Local trust authentication is suitable
+only for this disposable no-secret fixture, not a production authorization claim.
+
+The native SQL query filters owner/profile/deletion before cosine ranking; a
+parameterized owner predicate also protects deletion. Cases exercise repeated
+upsert/delete, foreign-owner writes, profile migration and missing-owner reads.
+This is exact search over five vectors, not an HNSW performance or production
+RLS proof. PostgreSQL/pgvector is opt-in; the default three SDKs need no server.
+Pinecone, Weaviate, the blocked Chroma path and broader assessed experiments
+remain outstanding.
