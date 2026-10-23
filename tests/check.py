@@ -205,3 +205,11 @@ subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"research_support_project.py
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.py")],check=True,capture_output=True,text=True,timeout=30)
 
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)
+
+from check_interview_contract import check_fixtures as check_interview_contract_fixtures
+check_interview_contract_fixtures()
+from interview_contract import check as check_interview_contract
+print('Interview authoring contract:', check_interview_contract())
+
+from check_interview_contract import check_acceptance_samples
+check_acceptance_samples()

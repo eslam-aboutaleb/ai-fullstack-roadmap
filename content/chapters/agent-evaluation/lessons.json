@@ -35,8 +35,8 @@
     ],
     "version": "1.0.0",
     "references": [
-      "https://www.microsoft.com/en-us/research/blog/rag-evaluation/",
-      "https://langchain-ai.github.io/langgraph/tutorials/introduction/"
+      "https://docs.langchain.com/oss/python/langgraph/durable-execution",
+      "https://www.sqlite.org/lang_createtable.html#unique_constraints"
     ],
     "outcomes": [
       "Define a deterministic oracle for an agent task",
@@ -51,7 +51,7 @@
       },
       {
         "term": "Effect ledger",
-        "definition": "A complete record of every tool call, its arguments, its result, and every durable write made during an agent trajectory."
+        "definition": "An authoritative record of attempted/committed effects and their identities. This example assumes its supplied event list is complete; a list alone cannot prove that property."
       },
       {
         "term": "Task success",
@@ -76,13 +76,13 @@
     ],
     "assumed_knowledge": "You have read an agent evaluation question and understand the difference between an answer and a side effect.",
     "motivating_problem": "An agent produces a fluent, confident answer but actually read another customer's record and wrote an unauthorized update. Answer-level evaluation would mark it correct.",
-    "underlying_mechanics": "Capture the effect ledger: every tool call, its arguments, its result, and every durable write. Compare the final database state against an expected state. For open-ended quality, use a calibrated human or model judge with a rubric, clearly separated from the agent under test.",
+    "underlying_mechanics": "Capture the effect ledger: every tool call, its arguments, its result, and every durable write. Compare the final database state against an expected state. For open-ended quality, use a calibrated human or model judge with a rubric, clearly separated from the agent under test. The example consumes already-recorded fixture events; it does not run an agent, authenticate their producer or prove ledger completeness. Production capture must be trusted and complete, and approvals must bind the actual payload.",
     "line_by_line": [
-      "Run the agent task against synthetic fixtures.",
-      "Record every tool call, argument, result, and durable write.",
-      "Compare final database state to the expected state.",
-      "Assert required invariants: eligibility verified, review before write, no duplicate effects.",
-      "For open-ended quality, present the trace to a reviewer with a rubric."
+      "Extract final row IDs and write-event positions from the supplied trusted fixture ledger.",
+      "Require exactly the corrected row, one write and authorization on every supplied event.",
+      "Inspect the prefix before that write for passed eligibility and approval records.",
+      "Return the conjunction plus individually named checks.",
+      "Run positive and negative fixtures for missing checks, reversed order, duplicate rows and unauthorized reads."
     ],
     "edge_cases": [
       "The agent chooses a valid but different sequence of tools.",
@@ -107,11 +107,16 @@
       "Measure evaluation time for deterministic vs. reviewed-judgment approaches."
     ],
     "review_and_answer_keys": {
-      "reviewer": "automated regression checks; independent SME review pending",
-      "reviewed_at": "2026-10-20",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23",
       "known_limitations": "Trusted synthetic complete ledger only. The oracle does not prove that an untrusted runtime logged all its effects."
     },
-    "added": true
+    "added": true,
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23"
+    }
   },
   {
     "Q": "How do I test flexible paths without accepting unsafe behavior?",
