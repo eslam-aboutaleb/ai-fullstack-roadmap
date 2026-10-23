@@ -1,55 +1,31 @@
 [
   {
     "Q": "Why is schema compatibility a semantic contract rather than only a field-name check?",
-    "spoken": "A structurally valid event can change units, meaning, nullability or identity rules without renaming a field. Version adapters must preserve declared semantics, and unsupported input needs a quarantine or rejection policy. Validate at the source boundary and attach lineage so an apparent model regression can be traced back to data interpretation.",
-    "A": "A structurally valid event can change units, meaning, nullability or identity rules without renaming a field. Version adapters must preserve declared semantics, and unsupported input needs a quarantine or rejection policy. Validate at the source boundary and attach lineage so an apparent model regression can be traced back to data interpretation.\n\nEngineering case: An amount field changes from dollars to cents while retaining its numeric type. Every record still parses and downstream thresholds become wrong.\n\nReasoning under a changed assumption: No. It can enforce declared structural compatibility rules. Unit, authority and interpretation changes require explicitly reviewed contracts and tests.",
-    "Why": "A structurally valid event can change units, meaning, nullability or identity rules without renaming a field. Version adapters must preserve declared semantics, and unsupported input needs a quarantine or rejection policy. Validate at the source boundary and attach lineage so an apparent model regression can be traced back to data interpretation.",
-    "Risk": "An amount field changes from dollars to cents while retaining its numeric type. Every record still parses and downstream thresholds become wrong.",
-    "Trade": "No. It can enforce declared structural compatibility rules. Unit, authority and interpretation changes require explicitly reviewed contracts and tests.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
-    "domain": "data-engineering",
-    "subdomain": "data-engineering-foundations",
-    "module": "data-engineering-foundations",
-    "concept": "Why is schema compatibility a semantic contract rather than only a field-name check?",
-    "difficulty": "interview",
-    "misconception_target": "Missing the stated semantic schema contract boundary: An amount field changes from dollars to cents while retaining its numeric type. Every record still parses and downstream thresholds become wrong.",
-    "definitions": [
-      {
-        "term": "Semantic schema contract",
-        "definition": "A structurally valid event can change units, meaning, nullability or identity rules without renaming a field."
-      }
-    ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
-    "example": {
-      "code": "{\n  \"case\": \"An amount field changes from dollars to cents while retaining its numeric type. Every record still parses and downstream thresholds become wrong.\",\n  \"decision\": \"A structurally valid event can change units, meaning, nullability or identity rules without renaming a field\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
-      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
-    },
-    "production_case": "An amount field changes from dollars to cents while retaining its numeric type. Every record still parses and downstream thresholds become wrong.",
-    "alternatives": [
-      "No. It can enforce declared structural compatibility rules. Unit, authority and interpretation changes require explicitly reviewed contracts and tests."
-    ],
-    "pitfalls": [
-      "An amount field changes from dollars to cents while retaining its numeric type. Every record still parses and downstream thresholds become wrong."
-    ],
-    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
-    "follow_ups": [
-      {
-        "Q": "Can a schema registry prove the business meaning stayed unchanged?",
-        "A": "No. It can enforce declared structural compatibility rules. Unit, authority and interpretation changes require explicitly reviewed contracts and tests."
-      }
-    ],
+    "A": "**A data pipeline turns source events into validated, queryable state.** Extract-transform-load (ETL) validates/transforms before loading the destination; extract-load-transform (ELT) first stores raw input and transforms inside the destination environment. Neither name guarantees quality or privacy. Decide which raw data may be retained, who can query it and how transformations are versioned and reproduced.\n\nDefine a data contract: identity, owner, schema version, event/source time, operation, revision and payload constraints. Validate at ingestion and at the authoritative write boundary. SQL types, NOT NULL, uniqueness, foreign keys and checks protect different invariants; an application validator alone can be bypassed by another producer. Parameterize values rather than constructing SQL from source text. Quarantine malformed items with bounded diagnostics and an explicit replay path.\n\nBatch processes a bounded snapshot; streaming processes an ongoing sequence and needs checkpoint, ordering and late-data policy. Event time describes when the business event happened; processing time describes when the system handled it. A watermark is a progress estimate, not proof no older event can arrive. Backpressure bounds in-flight work when the sink cannot keep up; unlimited buffering only moves the failure into memory.\n\n**Reason about compatibility.** Adding a nullable column can be compatible for named-column readers yet break positional SELECT-star consumers or an old writer with a fixed insert list. Use an expand/contract migration: introduce compatible fields, deploy readers/writers, backfill under versioned rules, verify then retire old fields. `data_contract_pipeline.py` exercises schema and transformation behavior; `data_rollout_contract.py` adds transactional CDC failure paths. A passing synthetic pipeline establishes its declared fixtures, not arbitrary production schemas. Save input/profile hashes, output rows, rejected records and reconstruction instructions so a learner can independently inspect lineage and quality.",
+    "Why": "An old consumer unpacks SELECT-star into three values after a fourth nullable column is added. The database change is legal but the consumer contract breaks; compatibility must be evaluated across actual readers and writers.",
+    "Risk": "Permissive parsing can silently coerce invalid timestamps or identifiers and corrupt downstream joins. Retaining raw data without purpose/retention controls can also violate privacy expectations.",
+    "Trade": "ELT preserves flexible raw evidence but expands access and storage obligations. ETL can minimize sensitive raw retention while making transformation recovery dependent on source availability.",
+    "Try": "Run data_contract_pipeline.py and data_rollout_contract.py. Design an expand/contract change with an old reader and writer, then show a negative compatibility case and a replayable quarantine decision.",
+    "worked_case": "An old consumer unpacks SELECT-star into three values after a fourth nullable column is added. The database change is legal but the consumer contract breaks; compatibility must be evaluated across actual readers and writers.",
+    "answer_format": "conceptual",
     "citations": [
       "https://beam.apache.org/documentation/programming-guide/",
-      "https://kafka.apache.org/quickstart/",
-      "https://www.postgresql.org/docs/current/transaction-iso.html",
-      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+      "https://www.postgresql.org/docs/current/ddl-constraints.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
-    }
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can a watermark justify deleting all older raw events?",
+        "A": "Not by itself. It describes processing progress under assumptions, not a retention authorization or guarantee of no late corrections. Apply explicit correction, retention and deletion policies with reconstructable lineage."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "data-engineering-foundations"
   },
   {
     "Q": "How do ETL, ELT and incremental updates change where failures are repaired?",
@@ -105,55 +81,31 @@
   },
   {
     "Q": "Why must a CDC checkpoint and destination state have a recovery contract?",
-    "spoken": "A checkpoint that advances before the destination is durable can lose an update. A destination commit before acknowledgment can cause redelivery after a crash. Use an atomic local checkpoint with projection writes when possible and payload-bound receipts or idempotent destination operations for replay. State the source-partition scope of the guarantee.",
-    "A": "A checkpoint that advances before the destination is durable can lose an update. A destination commit before acknowledgment can cause redelivery after a crash. Use an atomic local checkpoint with projection writes when possible and payload-bound receipts or idempotent destination operations for replay. State the source-partition scope of the guarantee.\n\nEngineering case: A worker dies after storing revision three but before acknowledging the broker. Recovery must not apply the same logical update as a second business effect.\n\nReasoning under a changed assumption: Checkpoint each topic/partition and handle assignment or rebalance ownership. One global contiguous integer is not a valid substitute for multiple independent source positions.",
-    "Why": "A checkpoint that advances before the destination is durable can lose an update. A destination commit before acknowledgment can cause redelivery after a crash. Use an atomic local checkpoint with projection writes when possible and payload-bound receipts or idempotent destination operations for replay. State the source-partition scope of the guarantee.",
-    "Risk": "A worker dies after storing revision three but before acknowledging the broker. Recovery must not apply the same logical update as a second business effect.",
-    "Trade": "Checkpoint each topic/partition and handle assignment or rebalance ownership. One global contiguous integer is not a valid substitute for multiple independent source positions.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
-    "domain": "data-engineering",
-    "subdomain": "data-engineering-foundations",
-    "module": "data-engineering-foundations",
-    "concept": "Why must a CDC checkpoint and destination state have a recovery contract?",
-    "difficulty": "interview",
-    "misconception_target": "Missing the stated recoverable checkpoint boundary: A worker dies after storing revision three but before acknowledging the broker. Recovery must not apply the same logical update as a second business effect.",
-    "definitions": [
-      {
-        "term": "Recoverable checkpoint",
-        "definition": "A checkpoint that advances before the destination is durable can lose an update."
-      }
-    ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
-    "example": {
-      "code": "{\n  \"case\": \"A worker dies after storing revision three but before acknowledging the broker. Recovery must not apply the same logical update as a second business effect.\",\n  \"decision\": \"A checkpoint that advances before the destination is durable can lose an update\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
-      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
-    },
-    "production_case": "A worker dies after storing revision three but before acknowledging the broker. Recovery must not apply the same logical update as a second business effect.",
-    "alternatives": [
-      "Checkpoint each topic/partition and handle assignment or rebalance ownership. One global contiguous integer is not a valid substitute for multiple independent source positions."
-    ],
-    "pitfalls": [
-      "A worker dies after storing revision three but before acknowledging the broker. Recovery must not apply the same logical update as a second business effect."
-    ],
-    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
-    "follow_ups": [
-      {
-        "Q": "What changes with multiple partitions?",
-        "A": "Checkpoint each topic/partition and handle assignment or rebalance ownership. One global contiguous integer is not a valid substitute for multiple independent source positions."
-      }
-    ],
+    "A": "**Change data capture (CDC) carries source mutations to a derived view.** The source event identity, source position and business revision are different concepts. A retry repeats the same event; a correction is a new event that may update a prior business fact. Store enough lineage to distinguish them and preserve owner scope in both progress and document keys.\n\nApply destination mutation, deduplication record and checkpoint in one transaction when they share a database. If the process crashes after commit but before broker acknowledgment, replay should recognize the exact same event without applying it again. Compare a canonical digest of all material fields: accepting the same operation/offset with changed payload hides corruption. A broker's delivery guarantee cannot make an unrelated HTTP effect atomic with a database commit.\n\nIn `data_rollout_contract.py`, owner A and B can use the same document ID without sharing state. A gap or out-of-order sequence is rejected, not skipped. A tombstone excludes a deleted document and blocks an unapproved stale restoration. The checker deliberately aborts checkpoint insertion and verifies that neither the document nor consumed-event row remains. This tests transaction behavior rather than checking only a final checkpoint value.\n\nLineage connects source revision, transformation profile, derived rows/chunks and consumer output. During an index rebuild, snapshot the source, catch up changes, reconcile tombstones and validate quality before switching readers. A restored backup can contain records deleted after the backup; reapply authoritative deletion intent before serving traffic. Define freshness, null/duplicate rates, schema failures and owner leakage as separate quality signals. A count match alone can conceal swapped owners or incorrect values. Keep recovery evidence with exact input/output manifests and a rubric that requires both normal results and fault behavior.",
+    "Why": "A consumer commits a projection and crashes before acknowledgment. Exact replay must do no new work; a replay with the same offset but changed payload must fail rather than being silently treated as the original event.",
+    "Risk": "Advancing the checkpoint before durable destination state loses data. Restoring an old snapshot without reapplying deletion intent can resurrect confidential records.",
+    "Trade": "Atomic local checkpoints simplify recovery but constrain storage design. Cross-system sinks require receiver idempotency or reconciliation, with the uncertainty explicitly documented.",
+    "Try": "Run data_rollout_contract.py. Inspect the changed-payload replay and injected checkpoint failure, then explain why each catches a bug that an ordinary duplicate-event test misses.",
+    "worked_case": "A consumer commits a projection and crashes before acknowledgment. Exact replay must do no new work; a replay with the same offset but changed payload must fail rather than being silently treated as the original event.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://beam.apache.org/documentation/programming-guide/",
-      "https://kafka.apache.org/quickstart/",
-      "https://www.postgresql.org/docs/current/transaction-iso.html",
-      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+      "https://www.sqlite.org/lang_transaction.html",
+      "https://kafka.apache.org/documentation/#semantics"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
-    }
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if an old database has deduplication keys but no payload digests?",
+        "A": "Do not infer equality from the key alone. Preserve history, reject unverifiable replay and reconcile against authoritative source evidence or rebuild under a controlled migration policy."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "data-engineering-foundations"
   },
   {
     "Q": "How do event time, watermarks and accumulating panes affect a dashboard total?",

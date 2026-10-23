@@ -126,10 +126,11 @@ def build(out,write,url,controls=lambda q:""):
         (folder/(identity+'-starter.py')).write_text(starter)
     bundle=out/'examples/local-projects.zip'
     with zipfile.ZipFile(bundle,'w',compression=zipfile.ZIP_DEFLATED) as archive:
-        for source in (ROOT/'labs').glob('*.py'):
-            archive.write(source,'labs/'+source.name)
-        for source in (ROOT/'labs').glob('*.html'):
-            archive.write(source,'labs/'+source.name)
+        public_extensions={'.py','.html','.js','.cjs','.md','.json','.txt','.sql','.csv'}
+        for source in sorted((ROOT/'labs').iterdir()):
+            if (source.is_file() and not source.is_symlink() and not source.name.startswith('.')
+                    and source.suffix in public_extensions):
+                archive.write(source,'labs/'+source.name)
         if not (ROOT/'labs/__init__.py').exists():
             archive.writestr('labs/__init__.py','')
         for name in ('LICENSE','requirements-labs.txt','requirements-models.txt','requirements-advanced.txt','requirements-dev.txt'):
