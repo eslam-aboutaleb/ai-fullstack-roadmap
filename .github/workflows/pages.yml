@@ -43,15 +43,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
       - name: Set up Node.js for example checks
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           package-manager-cache: false
@@ -66,12 +66,13 @@ jobs:
       - name: Install browser and local integration test dependencies
         run: |
           python -m pip install -r requirements-dev.txt
-          python -m playwright install --with-deps chromium
+          python scripts/install_test_browser.py
       - name: Verify browser interactions and local FastAPI pilot
         run: |
           python tests/check_browser.py
           python tests/check_learning_browser.py
           python tests/check_accessibility.py
+          python tests/check_agent_trace_reader.py
           python tests/check_scale_browser.py
           python labs/request_lifecycle.py
           python scripts/test_postgres_pilot.py
@@ -91,7 +92,7 @@ jobs:
           python tests/check_scale_browser.py --base-path /ai-fullstack-roadmap/
       - name: Upload public Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
           retention-days: 7
@@ -100,10 +101,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
       - name: Verify NumPy and CPU autograd bridge
@@ -118,10 +119,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
       - name: Install pinned optional engineering dependencies
@@ -161,29 +162,20 @@ jobs:
           PYCODE
 
   editorial-revisions:
-    name: Revised-answer editorial gate
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
-      - name: Checkout complete diff history
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Set up Python for content diff
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - name: Validate authored revisions against event base
+      - name: Validate all changed published learning records and review evidence
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
-        run: |
-          if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
-            python3 -B scripts/revised_content_gate.py --base "$BASE_SHA"
-          else
-            python3 -B scripts/revised_content_gate.py
-            echo "No event base SHA: fixture tests run; historical diff gate not applicable"
-          fi
+          REVIEW_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/revised_content_gate.py --base "$REVIEW_BASE" --require-review
 
   gate:
     name: Quality gate
@@ -218,7 +210,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure Pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Deploy verified artifact
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

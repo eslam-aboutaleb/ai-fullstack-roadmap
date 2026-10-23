@@ -214,8 +214,8 @@ prerequisites, definitions, independent exercises and primary references.
 
 Question source can be split into `questions-<name>.json` beside `questions.json`.
 All records still require registered study IDs and explicit example assignments.
-The generated bank uses 40 full answers per page; search uses static per-track
-shards. `tests/check_question_bank.py` and `tests/check_scale_browser.py` build and
+All full answers live on their chapter page; JSON data uses 40-record shards
+and search uses static per-track shards. `tests/check_question_data.py` and `tests/check_scale_browser.py` build and
 navigate 1,200 test records without adding filler to public content.
 
 ```sh
@@ -266,8 +266,8 @@ pending; it does not imply the question attestation gate covers every content ty
 
 ## Authoring interview-led chapters
 
-All main chapter answers are rendered on their chapter page; do not slice the
-chapter at the separate question bank's page size. Add as many distinct questions
+All main chapter answers are rendered on their canonical chapter page; do not
+create a second paginated question bank or truncate the chapter. Add as many distinct questions
 as a subject needs, including more than 100 where justified. Prefer a mechanism,
 worked example, failure, design choice or meaningful follow-up over paraphrases.
 Use `questions-*.json` for additional editable source shards and register new IDs

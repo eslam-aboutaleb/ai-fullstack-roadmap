@@ -61,72 +61,59 @@
   },
   {
     "Q": "How should stop conditions be designed?",
-    "A": "Stop on verified completion, denied action, exhausted budget, cancellation, unrecoverable failure, or a request for necessary clarification. Completion must reference observable results.",
-    "Why": "Check limits before each model and tool operation. Detect repeated equivalent calls and preserve a final reason code.",
-    "Risk": "Natural-language declarations of done can precede actual persistence.",
-    "Trade": "Conservative stopping reduces runaway work and may interrupt recoverable tasks.",
-    "Try": "Trigger each terminal state in a synthetic run and inspect its user-facing explanation.",
-    "spoken": "Stop conditions should include task completion, deadline, token/spend limits, step and loop bounds, cancellation and unrecoverable policy or tool failures. Define the terminal state and cleanup for each reason; a recoverable tool error need not end every workflow.",
-    "domain": "agents",
-    "subdomain": "harness",
-    "module": "agent-harness",
-    "concept": "How should stop conditions be designed",
-    "difficulty": "foundations",
-    "misconception_target": "The model decides when to stop by itself",
-    "definitions": [
-      {
-        "term": "Harness",
-        "definition": "The loop that drives an agent: model call, tool execution, result feedback"
-      },
-      {
-        "term": "Stop condition",
-        "definition": "Rule that ends the agent loop, such as max steps or final answer"
-      },
-      {
-        "term": "Human approval",
-        "definition": "Gate that pauses execution before side-effecting actions"
-      }
-    ],
-    "execution_timeline": "Model proposes action -> Harness validates -> Approval gate if needed -> Tool executes -> Result fed back -> Repeat until stop",
-    "example": {
-      "code": "while step < max_steps:\n    action = model.propose(state)\n    if action.is_final: break\n    result = tool.execute(action)\n    state = update(state, result)",
-      "explanation": "Loop until final answer or max steps exceeded.",
-      "output": "Final answer or stop reason"
-    },
-    "production_case": "A tool alternates two equivalent arguments while making no progress. Detect repeated state, stop under a finite budget and report an incomplete task with its durable operation identity.",
-    "alternatives": [
-      "Fixed pipeline (no agent loop)",
-      "Unbounded agent loop (risk of runaway)"
-    ],
-    "pitfalls": [
-      "Max steps too low for complex tasks",
-      "No approval gate for destructive tools",
-      "Infinite loops"
-    ],
-    "complexity": "Bound model/tool attempts, elapsed time, tokens and retained state separately. A max-step limit bounds loop iterations but does not bound an individual tool wait or the cost of one large-context model call.",
-    "follow_ups": [
-      {
-        "Q": "What should cancellation promise?",
-        "A": "That the caller stopped waiting and requested cooperative cancellation; it cannot promise to undo an effect already committed elsewhere."
-      }
-    ],
+    "A": "**Stopping is a policy decision over task state and resource limits.** A model saying 'done' is one observation, not the sole completion oracle. Define success from the requested artifact and authoritative effects. Distinguish normal completion, no supporting evidence, exhausted budget, awaiting approval, cancellation, tool failure and uncertain remote outcome. A finite step count alone does not bound one hanging call or a huge tool response.\n\nReserve time, tokens and cost for attempts and nested tools; pass deadlines and cancellation down to each child. Limit response bytes and admitted concurrency. Reserve enough capacity for cleanup and a final safe status, and do not create extra unbudgeted summarization calls after the limit is exhausted. A coordinator owns shared budget accounting so parallel workers cannot each spend the entire allowance.\n\nFor an effectful step, pause before dispatch and present the exact owner, operation and material arguments for approval. Expiry applies before the first commit; changing the proposal invalidates the grant. In the support project, awaiting-approval is persisted, and a cancelled proposal cannot execute. If execution already committed but its acknowledgment was lost, replay reconciles the existing ticket instead of demanding a new approval to create another one.\n\nAvoid treating cancellation as rollback. Cancelling a browser or planner can stop future work but cannot erase a dispatched external payment. Record pending/unknown effects and reconcile them. Test a tool that times out, a loop that keeps proposing, an approval expiring while queued, cancellation racing completion and a nested worker exhausting the shared budget. Choose a deterministic workflow when the only possible plan is already known; more stop logic is not evidence that more autonomy is valuable.",
+    "Why": "An approval expires at time 110. Execution at exactly 110 is denied before a write; a ticket already committed at 121 can be reconciled after expiry without creating a second ticket.",
+    "Risk": "A maximum of ten steps still permits one unbounded call or ten huge outputs. Cancellation that merely changes a label can leave a live worker executing effects.",
+    "Trade": "Aggressive limits reduce runaway cost but can stop legitimate investigations. Expose the stop reason and a resumable safe checkpoint instead of silently pretending the answer is complete.",
+    "Try": "Run the support check, inspect the expired-approval and cancelled cases, then define a shared budget for two parallel read tools and one final response under a single deadline.",
+    "worked_case": "An approval expires at time 110. Execution at exactly 110 is denied before a write; a ticket already committed at 121 can be reconciled after expiry without creating a second ticket.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://python.langchain.com/docs/"
+      "https://docs.python.org/3/library/asyncio-task.html",
+      "https://modelcontextprotocol.io/specification/2026-07-28/server/tools"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "What if the user cancels after a remote effect commits?",
+        "A": "Report that cancellation stopped future work while the effect may already exist. Query the receiver with the original operation key, record the result and use an explicitly authorized compensation process if reversal is supported."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "agent-harness"
   },
   {
     "Q": "How should tool dispatch enforce policy?",
-    "A": "Validate the requested tool against the run's permitted registry, parse arguments, bind trusted identity, check resource access, and apply a deadline before execution.",
-    "Why": "Record a typed outcome and operation identifier. Treat the model's arguments as proposals rather than trusted execution parameters.",
-    "Risk": "A schema validator cannot establish ownership or approval.",
-    "Trade": "Centralized dispatch adds a consistent policy boundary and can become a bottleneck.",
-    "Try": "Submit a valid tool schema with another user's record ID and verify denial."
+    "A": "**A tool call is a typed proposal to cross an authority boundary.** Tool discovery tells a client what operations and argument shapes are advertised; it does not establish that the current principal may execute every operation. Keep authentication, schema validation, authorization, business preconditions and approval as separate checks. The dispatcher must derive owner and allowed capabilities from trusted context, not model-supplied fields.\n\nFor create_ticket, accept exactly one bounded nonempty summary. Reject extra keys and invalid types, then check the run belongs to the principal, its material arguments match the pending proposal and a valid approval exists. A read-only search cannot create a ticket. A generic execute command would combine many permissions into a harder-to-audit surface; narrow domain tools make negative cases and outcomes clear.\n\nThe support fixture registry lists search_policy and create_ticket with their different effect semantics. Proposal records the source ID and canonical payload. Execution compares those exact values to approval at the write boundary. A model-visible instruction saying 'approved=true' is data, not an entry in the trusted approval table. Structural validity is necessary but insufficient: valid arguments can still name an unauthorized destination or violate current business state.\n\nVersion schemas deliberately and validate tool results too. Bound response size, handle missing/unknown tools and distinguish transport failure from a tool-level error. An adapter should not silently coerce an unknown enum into an effectful default. Tests should include valid calls, extra keys, wrong argument type, owner swaps, expired approval and a changed payload under a reused operation key. Log safe identities and denial reasons, not raw secrets or private connector contents.",
+    "Why": "The schema accepts a bounded ticket summary, but no amount of valid JSON can substitute for the owner-scoped pending proposal and approval record checked immediately before commit.",
+    "Risk": "Authorizing only at tool discovery lets revoked permissions remain usable. The service must recheck authority at execution, including after a queue delay.",
+    "Trade": "A narrow tool API requires more explicit domain design but reduces accidental power. A universal shell or SQL tool needs much stronger isolation and cannot inherit safety from JSON validation.",
+    "Try": "Pass an extra owner field and a non-string summary into the support canonical validator. Then show a valid proposal denied without approval; name the different boundary each test protects.",
+    "worked_case": "The schema accepts a bounded ticket summary, but no amount of valid JSON can substitute for the owner-scoped pending proposal and approval record checked immediately before commit.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+      "https://json-schema.org/draft/2020-12/json-schema-validation"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can tool discovery results be cached indefinitely?",
+        "A": "No. Bind caches to the peer/schema profile and permission epoch, refresh when capabilities change, and reauthorize execution. A cached descriptor is a description of an interface, not a durable access grant."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "agent-harness"
   },
   {
     "Q": "How should shell or code execution be sandboxed?",
@@ -138,11 +125,31 @@
   },
   {
     "Q": "How should budgets be implemented across nested calls?",
-    "A": "Use a shared task budget with reservations for model calls, tools, elapsed time, and estimated spend. Reconcile estimated and actual usage after each operation.",
-    "Why": "Children inherit remaining limits and cannot reset the parent's budget. Stop scheduling new work when the deadline or capacity is exhausted.",
-    "Risk": "Per-agent counters do not bound a fleet of nested agents.",
-    "Trade": "Accurate accounting adds complexity and prevents hidden cost multiplication.",
-    "Try": "Simulate two children competing for the final allowed model call."
+    "A": "**Nested calls must reserve from one authoritative parent budget before dispatch, with per-child limits and a common deadline.** Two workers cannot each receive a copy of the full remaining allowance. Count retries, tool response size and final response capacity too, release only safely unused reservations, and leave unknown external usage unresolved. Cancellation must propagate and cleanup must be awaited.\n\n**Concurrent agents share scarce resources and may race on the same business effect.** Use bounded fan-out for independent reads, but serialize or coordinate conflicting writes at an authoritative boundary. An in-memory lock protects only one process; a stable owner/operation key and database uniqueness constraint survive multiple workers. Deduplication must compare material payload and source identity, not merely notice that a key exists.\n\nPersist intent and workflow state before dispatching work that may outlive the process. Distinguish an unattempted proposal, committed effect, failed call and unknown acknowledgment. Retry with the same logical effect identity; generating a new UUID after a timeout can create a second effect. If the receiver supports idempotency, verify its scope, payload matching and retention. Otherwise use reconciliation and accept that a local ledger cannot manufacture remote exactly-once semantics.\n\nThe support project puts its mock ticket effect, completed run state and audit event in one SQLite transaction. Two connections racing the same approval result in one ticket. A trigger that aborts audit insertion rolls back the ticket too. This is a genuine local atomicity guarantee because all three records share the database; it does not extend across an external payment API. The separate durable-agent lab models the lost-ack receiver boundary explicitly.\n\nCompensation is a new business action, not time travel. Reserving stock then failing payment may require release; an already sent email cannot be unsent. Define which steps are reversible, who may authorize compensation and how its own replay key works. Test crash points before commit, after commit/before acknowledgment, concurrent replay, changed payload and cancellation. For parallel reads, cancel sibling tasks on critical failure and await cleanup so orphaned work cannot continue spending or writing after the workflow stops.",
+    "Why": "Two independent SQLite connections execute one approved ticket concurrently. The transaction and owner/operation key allow both callers to reconcile Completed while the ticket table still contains exactly one effect.",
+    "Risk": "A local success flag can diverge from a remote receiver. Retrying with a new key turns acknowledgment uncertainty into duplicate business effects.",
+    "Trade": "Serializing writes simplifies invariants but limits throughput; partition by independent owner/resource only when the business rule allows it. Compensation requires additional permissions and failure handling.",
+    "Try": "Run research_support_project.py check and durable_agent.py. Draw the local transaction versus remote receiver boundary and explain why only the former can atomically include the audit row.",
+    "worked_case": "Two independent SQLite connections execute one approved ticket concurrently. The transaction and owner/operation key allow both callers to reconcile Completed while the ticket table still contains exactly one effect.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://www.sqlite.org/lang_transaction.html",
+      "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if a provider forgets idempotency keys after 24 hours?",
+        "A": "Treat retention as part of the contract. After the window, reconcile using a durable business identifier or stop for review; blind retry cannot claim duplicate prevention once receiver deduplication expires."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "agent-harness"
   },
   {
     "Q": "How should harness state survive restarts?",
@@ -161,8 +168,9 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     }
   },
   {

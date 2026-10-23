@@ -132,11 +132,31 @@
   },
   {
     "Q": "What advanced topics should follow the core journey?",
-    "A": "Study temporal retrieval, reranker training, calibration, multimodal extraction, secure workflow persistence, distributed agent tasks, serving economics, privacy-aware evaluation, and failure-oriented operations. Add each through a concrete benchmark or product need.",
-    "Why": "Choose advanced topics from measured weaknesses: multilingual retrieval, model adaptation, efficient serving, multimodal grounding, privacy, fairness, or distributed agent recovery. Run controlled experiments rather than adding every available framework.",
-    "Risk": "Collecting techniques without mastering ownership, transactions, and evidence creates complexity with weak guarantees. Reading an API tutorial is not operational experience.",
-    "Trade": "Deep understanding of complete workflows builds judgment; broad exploration is useful when tied to falsifiable experiments.",
-    "Try": "Pick one advanced track and define prerequisites, a toy experiment, a held-out metric, a failure test, and a stopping condition."
+    "A": "**After the core journey, study reproducible model releases, adaptation, inference scheduling and evaluation-linked operations through measured projects.** Add domain or multimodal specializations when a task justifies them, rather than collecting framework names. Each extension should identify prerequisites, a held-out success oracle, a failure case and the hardware or vendor boundary it actually exercised.\n\n**A model release couples weights with the code and data contracts needed to interpret them.** Register the base/model revision, tokenizer, prompt/template, feature and embedding profiles, training-data lineage, evaluation set, adapter configuration and serving runtime. A weights filename or a registry entry marked Production is not evidence of quality, compatibility or authorization to use the data.\n\nCI should validate source/schema contracts, execute bounded code examples, train or load the declared local reference where appropriate, and compare candidate against baseline on held-out cases. Prevent train/evaluation leakage by grouping duplicated entities or source documents across splits. A lower training loss can coexist with worse held-out quality or catastrophic forgetting. Keep fixed evaluation IDs and task-specific regression gates, not a leaderboard optimized by repeated tuning on the release set.\n\nServing introduces batching, queueing, token limits, cancellation, memory and concurrency constraints. Separate first-token latency from completion latency and report hardware/runtime/version when measuring performance. A local analytic capacity estimate or a tiny CPU model run cannot certify GPU production throughput. An adapter must be compatible with its exact base/tokenizer/template; reject a mismatch before loading or answering.\n\nPromote an immutable release bundle only after compatibility, safety, quality and recovery checks. Roll out under an explicit exposure policy, watch request/attempt usage and per-slice failures, and retain a tested rollback path. Monitor source/data drift separately from model/runtime errors. The production course's scorecard and policy fixtures make the decision rules inspectable; optional real infrastructure exercises require their own execution evidence. Model registry, orchestration and telemetry systems support this process but do not supply the missing judgment or independent labels automatically.",
+    "Why": "A LoRA adapter is loaded with a tokenizer that assigns different IDs to the same text. The weights load successfully but behavior is invalid; the release bundle must bind tokenizer and base revisions, not only tensor shapes.",
+    "Risk": "A registry promotion can publish an incompatible or leaked evaluation result. Administrative status and green build metadata do not prove held-out task quality.",
+    "Trade": "Strict release bundles improve reproducibility but require artifact storage and compatibility maintenance. Hot-swapping loosely identified components is convenient until an incident cannot be reproduced.",
+    "Try": "Use the local production scorecard and model requirements to define a release manifest. Mark each field as observed, derived or pending and show the rejection path for an incompatible tokenizer/template.",
+    "worked_case": "A LoRA adapter is loaded with a tokenizer that assigns different IDs to the same text. The weights load successfully but behavior is invalid; the release bundle must bind tokenizer and base revisions, not only tensor shapes.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://mlflow.org/docs/latest/ml/model-registry/",
+      "https://sre.google/workbook/canarying-releases/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if the new model is faster but refuses more supported policy questions?",
+        "A": "Treat latency and false refusal as separate acceptance dimensions. Compare paired held-out cases and declared thresholds; do not exchange a critical correctness regression for an unqualified average speed gain."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "model-engineering"
   },
   {
     "Q": "What demonstrates completion of the full AI full-stack learning journey?",
