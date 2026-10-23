@@ -69,3 +69,25 @@ def check_fixtures():
 
 if __name__=='__main__':
     check_fixtures()
+
+
+def check_acceptance_samples():
+    import json
+    from course_data import load
+    from editorial import validate_review
+    root = Path(__file__).resolve().parent.parent
+    samples = json.loads((root/'content/shared/authoring-acceptance.json').read_text())
+    records = {}
+    for chapter in load():
+        for kind, group in [('lesson', 'lessons'), ('interview', 'questions')]:
+            for record in chapter[group]:
+                records[f'{kind}/{chapter["slug"]}/{record["Q"]}'] = record
+    assert len(samples['lessons']) >= 3 and len(samples['questions']) >= 10
+    for sample in samples['lessons'] + samples['questions']:
+        record = records[sample['identity']]
+        assert record['id'] == sample['study_id']
+        assert record.get('reviewer_status', {}).get('status') in ('reviewed', 'approved')
+        validate_review(record, sample['identity'])
+        if sample['lab']:
+            assert (root/sample['lab']).read_text() == record['syntax_highlighted_source']
+    print('Three reviewed lessons and ten varied reviewed interview samples: pass')

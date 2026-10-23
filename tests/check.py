@@ -205,3 +205,6 @@ from check_interview_contract import check_fixtures as check_interview_contract_
 check_interview_contract_fixtures()
 from interview_contract import check as check_interview_contract
 print('Interview authoring contract:', check_interview_contract())
+
+from check_interview_contract import check_acceptance_samples
+check_acceptance_samples()
