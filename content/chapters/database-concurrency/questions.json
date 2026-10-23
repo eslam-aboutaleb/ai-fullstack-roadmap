@@ -1,59 +1,32 @@
 [
   {
     "Q": "How does SELECT FOR UPDATE prevent duplicate confirmation?",
-    "A": "Confirmation locks the pending submission selected by token, owner, and pending status. A second transaction targeting the same row waits; after the first commits, the second must observe the updated state under the actual isolation rules. The lock protects a database transition, not the browser button.",
-    "Why": "Select the pending operation by trusted owner and token, acquire the appropriate row lock, recheck expiry and state, then apply the effect and final state in one transaction.",
-    "Risk": "An internal commit would release the lock before the pending row changes, enabling duplicate creation. A request timeout or double click is expected behavior to test, not evidence that the client will never retry.",
-    "Trade": "Pessimistic locking simplifies this contested transition but makes lock duration important. Keep remote model work out of the locked transaction.",
-    "Try": "Start two confirmations simultaneously in separate database sessions. Assert one logical claim and one consumed submission, then inspect the losing request's result.",
-    "reference": "https://www.postgresql.org/docs/current/explicit-locking.html",
-    "spoken": "SELECT FOR UPDATE serializes access to an existing row within the transaction. Recheck pending state after acquiring the lock, then write confirmation and outbox intent atomically. Keep a unique operation/effect key as an invariant. The row lock cannot by itself deduplicate an independent external effect.",
-    "domain": "backend",
-    "subdomain": "concurrency",
-    "difficulty": "foundations",
-    "misconception_target": "Async/await prevents races by itself",
-    "definitions": [
-      {
-        "term": "Race condition",
-        "definition": "A bug where correctness depends on timing of uncontrollable events"
-      },
-      {
-        "term": "Check-then-write",
-        "definition": "Reading a condition then acting on it without holding a lock across both steps"
-      }
-    ],
-    "execution_timeline": "Caller A reads pending -> Caller B reads pending -> A writes -> B writes -> Both believe they succeeded",
-    "example": {
-      "code": "barrier.wait()\ntry:\n    insert(slot, owner)\nexcept IntegrityError:\n    handle_conflict()",
-      "explanation": "Barrier synchronizes both callers, then only one insert succeeds due to unique constraint.",
-      "output": "One caller gets 'ok', the other gets 'conflict'"
-    },
-    "production_case": "Two workers confirm one pending task concurrently. The first transitions it and creates one outbox row; the second observes confirmed state after waiting and returns the existing result.",
-    "alternatives": [
-      "Optimistic concurrency with version checks",
-      "Pessimistic locking with SELECT FOR UPDATE"
-    ],
-    "pitfalls": [
-      "Random sleep tests miss races",
-      "Application locks do not coordinate across replicas"
-    ],
-    "complexity": "Unique-index operations depend on index structure and conflicts; they are not universally O(1). Lock wait time and transaction duration can dominate confirmation latency under contention.",
-    "follow_ups": [
-      {
-        "Q": "What if there is no row to lock yet?",
-        "A": "Use a unique constraint and an insert/upsert protocol or another suitable serialization boundary; locking a nonexistent result does not magically reserve its identity."
-      }
-    ],
+    "A": "**In PostgreSQL, SELECT FOR UPDATE locks selected rows until transaction end.** A confirmation transaction selects the owner-scoped request row, checks pending status while holding its lock, writes confirmation/outbox state and commits. A second concurrent caller waits for the lock, then must inspect the current row and return the existing confirmation rather than repeat the effect. Under other isolation levels it may instead need a serialization retry. Locking an absent row does not lock a future matching insert; use a unique owner/idempotency constraint for creation. A conditional UPDATE with RETURNING can be a simpler alternative when its predicate captures the whole invariant.\n\n**A transaction protects a declared invariant over authoritative state.** Begin by naming the business rule: one confirmation per request, one effect per owner/operation or one projection update with its checkpoint. A read-then-write sequence is not automatically safe when two clients can read the same old state. Use uniqueness, conditional updates, locks or an appropriate isolation level and handle their actual conflict behavior.\n\nA typed HTTP request improves representation, but runtime validation and object-level authorization still belong at the service boundary. Derive owner from trusted identity, scope reads/writes by that owner and reject changed material payload under a reused idempotency key. A successful network response is not the only possible committed outcome: the database can commit before the acknowledgment is lost. Reconciliation must use stable business identity rather than creating a new operation on every retry.\n\nThe CDC contract commits document mutation, consumed-event digest and checkpoint together. The support project commits ticket, run state and audit event together. Their fault tests abort the final write and verify the earlier writes roll back. These are local atomicity examples because all state shares one SQLite database. They do not imply atomicity across PostgreSQL, a message broker and an external tool provider; that boundary needs outbox/inbox patterns, receiver deduplication or explicit reconciliation.\n\nConsistency is a product decision, not simply choosing a database label. An eventually updated search index may lag source truth, so source eligibility must still be checked when resolving sensitive citations. An owner-sharded key avoids collisions but cannot enforce a cross-owner global invariant without coordination. Test concurrent confirmation, duplicate/changed replay, rollback, stale reads and access revocation. Explain which invariant the transaction protects and which remaining side effects lie outside it before claiming the workflow is safe.",
+    "Why": "An injected failure occurs while saving the checkpoint after a document update. The transaction rolls back both, so replay sees neither a falsely advanced cursor nor an untracked mutation.",
+    "Risk": "Two individually correct services can disagree after partial failure. Calling each operation idempotent does not prove their combined business workflow is atomic.",
+    "Trade": "Stronger coordination simplifies some invariants but increases contention and availability costs. Eventual projections can scale reads when stale-data and source-validation policies are explicit.",
+    "Try": "Run the CDC and support fault suites. Draw every transaction boundary and identify the first external effect that could not participate in that same commit.",
+    "worked_case": "An injected failure occurs while saving the checkpoint after a document update. The transaction rolls back both, so replay sees neither a falsely advanced cursor nor an untracked mutation.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://sqlite.org/lang_transaction.html"
+      "https://www.sqlite.org/lang_transaction.html",
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true,
-    "concept": "How does SELECT FOR UPDATE prevent duplicate confirmation"
+    "follow_ups": [
+      {
+        "Q": "Can a client timeout be interpreted as a failed transaction?",
+        "A": "No. The commit may have succeeded before the reply was lost. Look up the original owner/operation identity and reconcile authoritative state; a fresh write with a new identity can duplicate the business action."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "database-concurrency"
   },
   {
     "Q": "What is the difference between flush, commit, and rollback?",

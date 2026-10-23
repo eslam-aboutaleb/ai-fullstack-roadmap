@@ -1,72 +1,31 @@
 [
   {
     "Q": "What is the ReAct pattern?",
-    "A": "ReAct interleaves model decisions with external actions and observations. The host executes permitted tools and returns outcomes so the next decision can use actual evidence.",
-    "Why": "Bound the loop and retain typed observations. Evaluate whether the agent chooses suitable tools and reacts correctly to failures.",
-    "Risk": "A loop can repeat unproductive actions or mistake a proposed call for completion.",
-    "Trade": "Flexible exploration costs more than a fixed path.",
-    "Try": "Implement a three-step read-only loop and stop when the evidence contract is satisfied.",
-    "spoken": "ReAct interleaves model-directed tool proposals with observations. It can adapt to intermediate results but needs bounded steps, tool policy and observable state. Prefer a deterministic workflow when the steps are known, and evaluate the complete trajectory rather than interpreting a reasoning narrative as evidence.",
-    "domain": "agents",
-    "subdomain": "patterns",
-    "module": "agent-patterns",
-    "concept": "What is the ReAct pattern",
-    "difficulty": "design",
-    "misconception_target": "One agent pattern fits all tasks",
-    "definitions": [
-      {
-        "term": "ReAct",
-        "definition": "Reasoning and acting interleaved in one loop"
-      },
-      {
-        "term": "Router",
-        "definition": "Routes requests to the most appropriate specialist"
-      },
-      {
-        "term": "Planner",
-        "definition": "Creates a multi-step plan before executing"
-      },
-      {
-        "term": "Supervisor",
-        "definition": "Delegates work to worker agents and reviews results"
-      },
-      {
-        "term": "Evaluator-optimizer",
-        "definition": "Iterates: generates answer, evaluates, improves"
-      }
-    ],
-    "execution_timeline": "Analyze task structure -> Choose pattern -> Configure pattern -> Run agent -> Monitor and adjust",
-    "example": {
-      "code": "if task_type == \"research\":\n    agent = ReActAgent(tools=[search, browse])\nelif task_type == \"routing\":\n    agent = RouterAgent(specialists=[billing, support, sales])",
-      "explanation": "Select agent pattern based on task type.",
-      "output": "Configured agent instance"
-    },
-    "production_case": "A support case needs a policy lookup before deciding whether a permitted action is available. The agent may choose another read based on evidence, but cannot expand its own privileges or continue indefinitely.",
-    "alternatives": [
-      "Single monolithic agent",
-      "Fixed pipeline without agent patterns"
-    ],
-    "pitfalls": [
-      "Using ReAct for simple lookups",
-      "No pattern selection logic",
-      "Pattern mismatch for task structure"
-    ],
-    "complexity": "Count model/tool invocations, token lengths, concurrency and retries for the chosen pattern. Pattern selection has no useful universal Big-O claim; compare measured success, latency and spend against a simpler workflow.",
-    "follow_ups": [
-      {
-        "Q": "When should a fixed workflow replace ReAct?",
-        "A": "When the required steps and recovery rules are known and the model-driven loop adds cost and variance without improving task success."
-      }
-    ],
+    "A": "**ReAct interleaves reasoning about the next step, an action such as a tool call, and an observation of the result.** The next action depends on that observation rather than executing a fully fixed plan. Store inspectable tool/state events and concise decision summaries; private chain-of-thought is neither required for an audit nor an authoritative safety check. The executor still validates every proposed action.\n\n**A workflow follows application-defined transitions; an agent chooses some steps from observations.** Both need explicit inputs, completion conditions and authority. A model is useful when the next information-gathering action is not known in advance, not merely because a product has a chat box. A lookup with fixed validation is usually a simpler workflow; an investigation may justify bounded planning over a narrow tool set.\n\nSeparate proposal from execution. A planner may suggest search → compare → create ticket. The executor validates tool name, argument schema, permission, remaining budget and current state before each step. Record accepted transitions rather than trusting a prose plan to describe what happened. Define terminal states for completed, awaiting approval, cancelled, failed and unknown effect; unknown is not success and should not trigger a fresh write.\n\nIn the support project, the planner is deliberately deterministic. It discovers an application registry, reads owner-scoped policy, records a proposed ticket and waits for an explicit approval command. An injected connector instruction cannot alter the registry or authorize the ticket. This isolates the execution contract so a future model planner can be swapped in and evaluated without changing permission enforcement.\n\nStart with a baseline fixed workflow, then justify additional autonomy by task success under the same effect and cost constraints. Measure unnecessary tool calls, loops, false completion and unsafe proposals separately. Bound elapsed time, steps, output bytes, attempts and concurrent work. A more elaborate planner can reduce user effort while introducing nondeterminism, latency and recovery states; the implementation must make those costs observable.",
+    "Why": "A return-policy lookup needs a predictable read, while an ambiguous receipt incident may need investigation. The project holds the execution boundary fixed so adding a planner cannot silently grant new powers.",
+    "Risk": "A plan can claim completion without any committed effect. Evaluate receiver state and task evidence independently of the planner transcript.",
+    "Trade": "Fixed workflows are easier to replay and audit. Agent-selected tools can handle unfamiliar tasks but add uncertainty, cost and evaluation requirements.",
+    "Try": "Run research_support_project.py tools, then propose a ticket without approving it. Draw the state machine and show that planning alone created no ticket.",
+    "worked_case": "A return-policy lookup needs a predictable read, while an ambiguous receipt incident may need investigation. The project holds the execution boundary fixed so adding a planner cannot silently grant new powers.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://arxiv.org/abs/2210.03629"
+      "https://www.anthropic.com/engineering/building-effective-agents",
+      "https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "When should a router choose a deterministic workflow instead?",
+        "A": "When the task maps reliably to a known bounded procedure, route to it and preserve its validation. Escalate ambiguous cases explicitly; a routing model must not turn uncertainty into extra authorization."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "agent-patterns"
   },
   {
     "Q": "When should you use a router pattern?",
