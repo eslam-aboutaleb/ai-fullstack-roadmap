@@ -91,6 +91,19 @@ def check():
     assert evidence['verified_review_records'] == sum(row['review_verified'] for row in records)
     assert evidence['record_review_status'].get('legacy-unreviewed', 0) > 0
     assert evidence['verified_review_records'] >= 56
+    from copy import deepcopy
+    forged = deepcopy(chapters[0])
+    forged['lessons'][0]['reviewer_status'] = {'status': 'reviewed', 'reviewer': 'invented', 'reviewed_at': '2026-10-23'}
+    try:
+        evidence_report([forged])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('A report counted a fabricated lesson review')
+    from revised_content_gate import validate_unit
+    forged_unit = {'references': ['https://docs.python.org/3/'], 'reviewer_status': {'status': 'reviewed', 'reviewer': 'invented'}}
+    assert validate_unit(forged_unit, 'course/fixture/forged', require_review=False)
+
 
     synthetic = {'id': 999999, 'Q': 'How should we verify?', 'A': 'TODO: write',
                  'citations': ['http://example.com'],
