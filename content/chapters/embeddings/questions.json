@@ -1,64 +1,31 @@
 [
   {
     "Q": "What is an embedding, and why is its dimension not enough to identify it?",
-    "A": "An embedding maps input text to a vector whose geometry supports a similarity task. Dimension is the number of coordinates, not an identity for the learned space. Two providers can both return 1,536 numbers while placing meanings in incompatible coordinate systems.",
-    "Why": "An embedding profile records provider, endpoint, model, revision, dimension, normalization, metric, task mode, and preprocessing configuration. Its canonical hash gives the indexing configuration a stable identity that can be carried into snapshots and caches.",
-    "Risk": "Mixing incompatible document and query vectors can produce plausible but meaningless nearest neighbors without a shape error. Dimension validation catches only one class of incompatibility.",
-    "Trade": "Rich profile identity makes model migrations safer but requires reindexing discipline and additional metadata. Reusing an index based only on equal dimension is cheaper and unreliable.",
-    "Try": "Define two profiles with the same dimension and different models. Explain why a successful database insert would not prove they can share one search space.",
-    "spoken": "An embedding is a learned representation defined by the model, revision, tokenizer, pooling, normalization and task. Equal dimensions do not imply compatible vector spaces. Keep query and document encoders compatible and evaluate similarity and retrieval behavior before mixing or migrating embeddings.",
-    "domain": "mathematics",
-    "subdomain": "embeddings",
-    "module": "embeddings",
-    "concept": "What is an embedding, and why is its dimension not enough to identify it",
-    "difficulty": "foundations",
-    "misconception_target": "Embedding dimensions have inherent human-interpretable meaning",
-    "definitions": [
-      {
-        "term": "Embedding",
-        "definition": "Dense vector representation of text, image, or other data"
-      },
-      {
-        "term": "Cosine similarity",
-        "definition": "Measure of similarity between two vectors based on angle"
-      },
-      {
-        "term": "Vector space",
-        "definition": "Mathematical space where items are points and similarity is distance"
-      }
-    ],
-    "execution_timeline": "Tokenize text → Run through embedding model → Get dense vector → Store in index → Query with similarity search",
-    "example": {
-      "code": "import numpy as np\na = np.array([1.0, 0.0])\nb = np.array([0.0, 1.0])\nsim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))\nprint(sim)",
-      "explanation": "Compute cosine similarity between two orthogonal vectors.",
-      "output": "0.0"
-    },
-    "production_case": "A replacement model also emits 768 dimensions, but its vector geometry differs. Build a separate versioned index and compare fixed query slices instead of writing new vectors into the old space.",
-    "alternatives": [
-      "Sparse vectors (BM25, TF-IDF)",
-      "Binary embeddings for memory efficiency"
-    ],
-    "pitfalls": [
-      "Assuming dimensions are interpretable",
-      "Not normalizing before cosine similarity",
-      "Using wrong similarity metric"
-    ],
-    "complexity": "A direct cosine/dot-product comparison of two d-dimensional vectors is O(d); exact search over N vectors is O(Nd). Model inference, batching, token length and ANN configuration determine system cost.",
-    "follow_ups": [
-      {
-        "Q": "Does high cosine similarity establish factual support?",
-        "A": "No. It is a ranking signal under a representation, not proof of authorization, applicability or semantic entailment."
-      }
-    ],
+    "A": "**An embedding maps an input into a numerical vector intended to preserve some learned notion of similarity.** A bi-encoder embeds queries and documents separately, enabling precomputed document vectors. A cross-encoder scores a query-document pair jointly and is usually more expensive per candidate. Neither similarity nor a model score proves a passage is true, current, authorized or sufficient to answer the question.\n\nUse one compatible embedding profile: model/revision, query/document instructions, normalization, dimension and distance metric. Changing the model while keeping the same vector dimension does not preserve the geometry. Index and query vectors from incompatible spaces can produce plausible numbers with meaningless rankings. Reject a profile mismatch or build a new index and compare it before switching; do not silently coerce dimensions.\n\n**Calculate a simple case.** For q=(1,1), a=(1,0), cosine is dot(q,a)/(norm(q)norm(a))=1/sqrt(2), about 0.7071. For b=(0,1) the score is identical. This tie says nothing about whether a is an applicable refund policy or b belongs to another tenant. Filter by trusted principal, active revision and deletion status before candidates leave the retrieval boundary. A high score from a foreign owner remains forbidden.\n\nLearned dense retrieval can recover paraphrases with little lexical overlap, but can miss exact identifiers, negation and domain-specific distinctions. Lexical search can complement it. Compare against a fixed corpus and independently labeled queries; report per-slice recall rather than announcing that dense always wins. `grounded_policy_pipeline.py` uses hand-authored two-dimensional vectors to demonstrate cosine and fusion. `policy_assistant_project.py` uses lexical and coverage rankers and explicitly has no learned embeddings. To add a real model, pin its license/revision and normalization, regenerate both sides, save corpus/profile hashes and rerun owner, revision, paraphrase and refusal cases. A toy score is never evidence of real-model quality.",
+    "Why": "Two unit-axis document vectors tie at cosine 0.7071 for query (1,1). The eligibility filter and evidence meaning must decide what can be used; changing the owner must never be solved by similarity.",
+    "Risk": "An embedding migration can silently mix coordinate systems. Similar dimensions and valid floating-point values do not make profiles interchangeable.",
+    "Trade": "Precomputed bi-encoder vectors make broad search efficient; cross-encoders can improve pairwise relevance but add inference latency and cannot recover candidates that were never retrieved.",
+    "Try": "Run foundation_bridge.py and grounded_policy_pipeline.py. Recalculate the cosine tie by hand, then change a vector profile and demonstrate a fail-closed compatibility policy.",
+    "worked_case": "Two unit-axis document vectors tie at cosine 0.7071 for query (1,1). The eligibility filter and evidence meaning must decide what can be used; changing the owner must never be solved by similarity.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://arxiv.org/abs/1301.3781"
+      "https://arxiv.org/abs/1908.10084",
+      "https://faiss.ai/cpp_api/struct/structfaiss_1_1IndexFlatIP.html"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "Does normalization make dot product and cosine interchangeable?",
+        "A": "For nonzero unit-normalized vectors their rankings coincide. Without that contract, dot product also reflects vector magnitude; zero vectors and implementation conventions need explicit handling and tests."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "embeddings"
   },
   {
     "Q": "Why distinguish document and query embedding modes?",

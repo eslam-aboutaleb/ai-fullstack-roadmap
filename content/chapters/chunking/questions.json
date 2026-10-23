@@ -1,64 +1,31 @@
 [
   {
     "Q": "Why chunk documents at all?",
-    "A": "Chunking creates retrieval units small enough to match a question and fit a context budget. A whole manual can contain many unrelated topics; embedding it as one vector blends signals and returning all of it wastes context. A tiny fragment can lose the conditions that make its meaning correct.",
-    "Why": "The retrieval service injects a Chunker into ingestion. This makes chunking a replaceable strategy whose version and configuration participate in snapshot comparison, rather than an untracked preprocessing script.",
-    "Risk": "A boundary can separate a rule from its exception or a table heading from its values. Overlap and section-aware parsing mitigate some boundary loss, but only corpus-specific evaluation reveals whether the chosen units preserve meaning.",
-    "Trade": "Smaller chunks improve targeting and increase index size; larger chunks preserve context and can dilute relevance. There is no universally best chunk size.",
-    "Try": "Split the same policy into small and large chunks. Use questions about exceptions and compare whether each retrieved unit contains enough information to answer safely.",
-    "spoken": "Chunking creates retrieval units small enough to rank and fit in context while retaining evidence and provenance. Compare fixed, structural and semantic boundaries on real queries. Overlap can recover boundary context but adds duplication and does not guarantee that an exception remains with its rule.",
-    "domain": "ai-rag",
-    "subdomain": "chunking",
-    "module": "chunking",
-    "concept": "Why chunk documents at all",
-    "difficulty": "foundations",
-    "misconception_target": "Smaller chunks always improve retrieval",
-    "definitions": [
-      {
-        "term": "Chunking",
-        "definition": "Splitting documents into passages for indexing and retrieval"
-      },
-      {
-        "term": "Overlap",
-        "definition": "Shared content between adjacent chunks to preserve boundary context"
-      },
-      {
-        "term": "Semantic chunking",
-        "definition": "Chunking that respects sentence and paragraph boundaries"
-      }
-    ],
-    "execution_timeline": "Read document → Split into sentences → Group into chunks of target size → Add overlap → Index each chunk with metadata",
-    "example": {
-      "code": "chunks = []\nfor i in range(0, len(text), chunk_size - overlap):\n    chunks.append(text[i:i + chunk_size])",
-      "explanation": "Slide a window of chunk_size over text with overlap between windows.",
-      "output": "List of overlapping text chunks"
-    },
-    "production_case": "A policy exception falls in the next chunk after a general deadline. Test queries requiring both clauses, deduplicate overlap and preserve source/span IDs so citations can be checked.",
-    "alternatives": [
-      "Fixed-size without overlap",
-      "Paragraph-based chunking"
-    ],
-    "pitfalls": [
-      "Splitting mid-sentence",
-      "Too much overlap wastes index space",
-      "Too little overlap loses context"
-    ],
-    "complexity": "A simple pass over text can be linear in input length, but tokenization, semantic scoring, document parsing and overlap expansion add their own work. Measure indexed chunk count and duplicated tokens.",
-    "follow_ups": [
-      {
-        "Q": "Would maximum overlap maximize quality?",
-        "A": "No. It increases index size and duplicate candidates, can waste context, and still needs relevance and applicability evaluation."
-      }
-    ],
+    "A": "**A chunk is an evidence retrieval unit, not an arbitrary slice of characters.** Start with document structure: headings, paragraphs, tables, lists and exception clauses. Preserve enough surrounding meaning to interpret the passage, while keeping chunks small enough for selective retrieval. Tokenize with the target model when enforcing hard model limits; a word-count estimate is only a planning aid. Retain the original source span and transformation profile so copied text can be audited.\n\nA fixed-window splitter is predictable but can separate 'returns within 30 days' from 'except final-sale items'. Overlap improves boundary recall at the cost of duplicate candidates, storage and context tokens. Heading-aware splitting keeps sections intact but may produce oversized tables. A parent/child strategy retrieves small children and resolves a permitted parent; recheck access and budgets at expansion. Do not expand a visible paragraph into a confidential parent section.\n\n**Work the evidence budget.** If the model permits 4,096 tokens, reserve 512 output, 384 system/tool instructions and 256 conversation tokens: 2,944 remain for retrieved evidence and separators. This is arithmetic under stated assumptions, not a provider capability claim. Packing five 700-token passages does not fit. Select evidence for marginal claim coverage, remove repeated overlap, and retain both the general rule and decisive exception. Prefer abstention to silently dropping the clause that changes the answer.\n\nEvaluate chunking jointly with retrieval and citation quality. Compare fixed, structural and overlapping policies on the same revision-specific gold spans; record candidate recall, duplicate rate, final-context coverage and total tokens. A bigger chunk can improve recall while lowering precision or hiding the exception in a long context. The policy capstone uses lossless sentence chunks to expose spans and a deliberately removed exception; it does not assert that sentence chunking wins on scanned tables or multilingual documents. Revisit splitting when the parser, embedding model or source layout changes.",
+    "Why": "The general return rule and final-sale exception are separate spans. A top-k answer that includes only the general rule can be wrong even with a valid citation; the assessment must require decisive exception coverage.",
+    "Risk": "Overlap can make one fact appear repeatedly and dominate ranking, while stripping headings can erase conditions needed to interpret a table or list.",
+    "Trade": "Small chunks improve targeting but require context reconstruction. Large chunks reduce fragmentation while increasing irrelevant tokens and privacy exposure to downstream models.",
+    "Try": "Compute the 2,944-token evidence allowance independently. Design three chunk boundaries for a rule plus exception, then identify which policy preserves source spans and decisive evidence under a smaller budget.",
+    "worked_case": "The general return rule and final-sale exception are separate spans. A top-k answer that includes only the general rule can be wrong even with a valid citation; the assessment must require decisive exception coverage.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://python.langchain.com/docs/modules/data_connection/document_transformers/"
+      "https://arxiv.org/abs/2005.11401",
+      "https://www.w3.org/TR/annotation-model/"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "What changes for a table split across scanned pages?",
+        "A": "Preserve row/column headers, page coordinates and continuation relationships. OCR and layout reconstruction become part of the versioned transformation; a text-only sentence splitter is insufficient, so evaluate labeled table questions separately."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "chunking"
   },
   {
     "Q": "Does a sliding-window chunker count tokens, words, or characters?",
