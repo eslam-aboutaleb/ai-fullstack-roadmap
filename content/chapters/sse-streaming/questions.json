@@ -1,64 +1,31 @@
 [
   {
     "Q": "When should an AI application use SSE?",
-    "A": "Server-Sent Events suit a server-to-browser stream of text or task progress over HTTP. Use a separate request to submit work or cancel a task when bidirectional messaging is unnecessary.",
-    "Why": "Define a stable event schema and stream the safe projection of run state. SSE is a transport for events, not a durable task engine.",
-    "Risk": "An open connection does not prove that work is persisted or authorized.",
-    "Trade": "SSE fits HTTP infrastructure and offers only one-way messaging on that connection.",
-    "Try": "Compare a chat answer stream with a collaborative voice interaction.",
-    "spoken": "SSE suits server-to-client events when its browser/HTTP constraints fit. Implement proper event framing, explicit terminal states and durable replay if promised. EventSource reconnection and Last-Event-ID only help when the server honors a valid replay contract. Bound server queues and handle slow readers.",
-    "domain": "frontend",
-    "subdomain": "sse",
-    "module": "sse-streaming",
-    "concept": "When should an AI application use SSE",
-    "difficulty": "implementation",
-    "misconception_target": "SSE connections never drop and need no recovery",
-    "definitions": [
-      {
-        "term": "SSE",
-        "definition": "Server-Sent Events: one-way streaming from server to client"
-      },
-      {
-        "term": "Last-Event-ID",
-        "definition": "Header clients send to resume from a specific event"
-      },
-      {
-        "term": "Backpressure",
-        "definition": "A policy/mechanism limiting admitted or buffered work for a slower consumer; EventSource itself exposes no application-level backpressure API."
-      }
-    ],
-    "execution_timeline": "Client connects -> Server streams events -> Connection drops -> Client reconnects with Last-Event-ID -> Server resumes",
-    "example": {
-      "code": "const es = new EventSource(\"/events\");\\nes.onmessage = e => append(e.data);\\nes.onerror = () => { es.close(); setTimeout(reconnect, 1000); };",
-      "explanation": "Connect to SSE stream, handle messages, reconnect on error.",
-      "output": "Events streamed to client with reconnection"
-    },
-    "production_case": "A client reconnects after event 42. The server authenticates it again and replays permitted events after the cursor, while business effects remain deduplicated by their operation identity.",
-    "alternatives": [
-      "WebSocket for bidirectional streaming",
-      "Polling for updates"
-    ],
-    "pitfalls": [
-      "No reconnection logic",
-      "Ignoring Last-Event-ID",
-      "No backpressure handling"
-    ],
-    "complexity": "Parsing and delivery scale with event bytes and client fan-out; retained buffers and replay history add memory/storage. Slow readers require a bounded policy rather than an O(1) event-cost assumption.",
-    "follow_ups": [
-      {
-        "Q": "Does EventSource expose automatic application-level backpressure?",
-        "A": "No. Define bounded server buffering, disconnect/drop policy and replay behavior; do not assume the browser API solves overload."
-      }
-    ],
+    "A": "**Choose SSE when the browser needs a one-way stream of server events over HTTP**, such as task progress or an answer transcript. Ordinary HTTP can submit/cancel the task; use WebSocket when genuine bidirectional realtime messaging justifies its additional lifecycle. A public SSE contract names the events, payload schema, identity, cursor, terminal states and reconnection policy.\n\n**Streaming is a delivery mode, not evidence of completion.** HTTP byte chunks are arbitrary transport pieces: one UTF-8 character or JSON event may span several chunks, and one chunk may contain several events. A correct client uses an incremental decoder and the declared framing grammar. Server-sent events (SSE) end an event at a blank line and combine data fields; the workbench project instead uses newline-delimited JSON and deliberately documents that difference.\n\nA useful application contract distinguishes accepted, running, partial, completed, failed and cancelled. Bind every frame to a task/request identity and monotonic sequence; accept an identical replay at most once and reject a conflicting replay. Only a valid terminal frame permits Complete. EOF after plausible text is an incomplete answer. Expose that state to sighted and assistive-technology users rather than making an interrupted paragraph look authoritative.\n\n**Walk a boundary failure.** The server sends half a JSON line, the network disconnects, and the UI already shows 'Returns are allowed'. The parser must retain the fragment until a delimiter, then reject the unfinished stream; it must not manufacture the missing citation or terminal event. On identity switch, abort the fetch, advance a generation ID and discard queued callbacks with the old identity/generation. Abort alone cannot recall a callback already queued, and cancelling presentation cannot undo a committed backend effect.\n\nUse bounded frame and total-output sizes, deadlines and backpressure. A slow browser should not accumulate an unlimited transcript. If resumption is supported, authenticate every reconnect, define retention and cursor gaps, and replay from authoritative history. An SSE id is a cursor, not authorization or business idempotency. Test split multibyte characters, multiple frames per read, stale callbacks, malformed JSON, missing final state and cancellation. `projects/evidence-workbench` compiles the actual React/TypeScript client and exercises these failures over loopback HTTP; `labs/streaming_app.py` supplies a separate optional SSE service. Neither fixture proves a provider's token-generation behavior.",
+    "Why": "An old Owner A response arrives after switching to Owner B. Aborting and clearing the screen is insufficient if a queued callback still appends A text; a generation check prevents that stale write.",
+    "Risk": "Rendering partial text as final can turn a network failure into a wrong business decision. Logging raw frames can also retain private material beyond the UI lifetime.",
+    "Trade": "Buffering reduces UI work but delays first visible text. Announcing every token overwhelms screen readers; announce meaningful status changes and provide a readable final transcript.",
+    "Try": "Build the evidence-workbench, run its browser checker, and preserve a failure trace for disconnect-before-final and identity-switch-during-slow-response. Explain which state is authoritative.",
+    "worked_case": "An old Owner A response arrives after switching to Owner B. Aborting and clearing the screen is insufficient if a queued callback still appends A text; a generation check prevents that stale write.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://developer.mozilla.org/en-US/docs/Web/API/EventSource"
+      "https://html.spec.whatwg.org/multipage/server-sent-events.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "Can a reconnect safely repeat the original request?",
+        "A": "Only under an explicit request/effect contract. Resume a retained stream with its cursor where supported; creating a fresh model request may duplicate cost or tools. Reauthorize the task and deduplicate durable effects independently of presentation replay."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "sse-streaming"
   },
   {
     "Q": "How is an SSE message framed?",

@@ -2,9 +2,9 @@
   "id": "frontend-engineering",
   "title": "Frontend engineering for trustworthy AI interfaces",
   "description": "Build semantic interfaces, reason about JavaScript and React state, consume partial streams, and defend browser security and performance boundaries.",
-  "version": "1.0.0",
-  "updated": "2026-10-20",
-  "review_status": "Authored and fixture-verified; independent technical review pending",
+  "version": "1.1.0",
+  "updated": "2026-10-22",
+  "review_status": "Per-unit Codex AI review status and content-specific evidence in content/reviews.json; no human endorsement claimed.",
   "units": [
     {
       "id": "web-semantics-accessibility",
@@ -65,7 +65,7 @@
         {
           "question": "How do you make a streaming AI interface accessible?",
           "spoken": "Use semantic controls and labels, preserve focus, announce meaningful status changes and let users inspect partial content without treating it as a final result.",
-          "deep": "Separate the response text from the live status region. Test keyboard order, reflow, error recovery and cancellation. Automated checks catch many semantic and contrast problems, but manual keyboard and screen-reader checks are still needed for whether announcements and focus movement are useful. A fluent answer does not excuse an inaccessible approval flow.",
+          "deep": "Separate the response text from the live status region. Test keyboard order, reflow, error recovery and cancellation. Automated checks catch many semantic and contrast problems, but manual keyboard and screen-reader checks are still needed for whether announcements and focus movement are useful. A fluent answer does not excuse an inaccessible approval flow.\n\nUse native form, label, input and button semantics, visible focus and error text associated with the relevant field. A placeholder or red border alone cannot replace a persistent accessible name or understandable error. Preserve logical DOM reading order as CSS rearranges the presentation, and test long source IDs, zoom and narrow viewports rather than only a desktop happy path.\n\nFor streaming, announce meaningful transitions such as Working, Incomplete or Complete, not every token. Keep cancellation reachable and retain the final transcript without stealing focus. The workbench browser suite exercises the actual compiled UI and local HTTP server, including owner switching and interrupted output. Automated axe checks cover a useful subset, while screen-reader experience remains a manual task. A learner should implement from a blank component under the fixed public contract, provide keyboard/mobile evidence and explicitly record any manual checks not performed. A green reference run alone is not an independent implementation.",
           "follow_up": {
             "question": "Should every new token enter an aria-live region?",
             "answer": "Usually no. Prefer coarse status updates or deliberate bounded announcements; constant interruption makes the interface harder to use."
@@ -77,7 +77,12 @@
           ]
         }
       ],
-      "study_id": 826
+      "study_id": 826,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "javascript-types-react-state",
@@ -141,7 +146,7 @@
         {
           "question": "Why can TypeScript code still fail on valid-looking API JSON?",
           "spoken": "Types are compile-time expectations; the response is external data. Validate its runtime shape and domain constraints before storing or rendering it.",
-          "deep": "An interface cannot enforce authorization, permitted state transitions or maximum response length. A typed reducer should receive only decoded events, while the decoder rejects malformed frames and a backend enforces caller scope. React state closures create an additional temporal boundary: a response can be structurally valid and still belong to an obsolete request.",
+          "deep": "An interface cannot enforce authorization, permitted state transitions or maximum response length. A typed reducer should receive only decoded events, while the decoder rejects malformed frames and a backend enforces caller scope. React state closures create an additional temporal boundary: a response can be structurally valid and still belong to an obsolete request.\n\nThe HTTP response exists outside TypeScript's compile-time trust. Parse it as unknown and narrow the actual discriminant, required fields, types, sizes and state transitions before constructing an internal value. A cast changes what the compiler assumes; it does not inspect the received object or establish business permission.\n\nReact callbacks capture a render snapshot and may run after identity or request state changes. An Effect cleanup can abort work but cannot remove every already queued callback or undo a committed remote effect. The workbench advances a request generation and rejects stale updates after an owner switch, while the server independently scopes data. Walk the slow A-to-B test through snapshot, promise continuation, abort, generation check and rendering. Keep submissions in event handlers and use Effects for synchronization/cleanup; do not create writes merely because rendering happened. Runtime schema safety and object authorization are distinct interview requirements.",
           "follow_up": {
             "question": "Does AbortController alone solve stale responses?",
             "answer": "No. Check request ownership as well; cancellation is cooperative and cannot retract callbacks already delivered."
@@ -154,7 +159,12 @@
         }
       ],
       "study_id": 827,
-      "assessment": "frontend-stale-response"
+      "assessment": "frontend-stale-response",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "stream-framing-replay",
@@ -218,7 +228,7 @@
         {
           "question": "A streaming response looks complete, but the connection dropped. Can you show Success?",
           "spoken": "Only if the protocol delivered and validated its authoritative completion event. Text that looks finished is insufficient evidence.",
-          "deep": "Separate transport connection, presentation progress, model completion and business operation status. A replayed completion frame must not dispatch a second business action. On cancellation or disconnect, preserve the operation key and reconcile any committed effect through the backend.",
+          "deep": "Separate transport connection, presentation progress, model completion and business operation status. A replayed completion frame must not dispatch a second business action. On cancellation or disconnect, preserve the operation key and reconcile any committed effect through the backend.\n\nAn HTTP read is not an application event. Decode UTF-8 incrementally and parse the declared framing grammar; SSE and NDJSON have different delimiters and metadata. The workbench uses bounded NDJSON frames and deliberately does not call them SSE. A chunk may contain half an event or several events.\n\nRequire request identity, ordered sequence and a valid terminal frame before reporting Complete. Identical replay can be ignored, conflicting replay must fail, and EOF before terminal state leaves an incomplete result even if prose looks finished. Resume only under an explicit cursor/retention/authentication contract. A stream cursor does not make a business effect idempotent. Demonstrate malformed JSON, split multibyte input, cancellation, conflicting replay and disconnect-before-final over the real server. Explain how the user's partial display differs from authoritative task status and why a client abort cannot reverse a provider write.",
           "follow_up": {
             "question": "What happens if an event is larger than your parser buffer?",
             "answer": "Reject it with a clear limit error; do not keep buffering indefinitely or truncate JSON into a different meaning."
@@ -238,7 +248,12 @@
         "recovery": "Keep partial content labeled incomplete, resume from an authorized durable cursor or let the user start a new operation under a declared policy.",
         "prevention": "Add Unicode fragmentation, conflicting replay, missing-final, cancellation and stale-generation regressions."
       },
-      "assessment": "stream-without-terminal"
+      "assessment": "stream-without-terminal",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     },
     {
       "id": "browser-security-performance",
@@ -302,7 +317,7 @@
         {
           "question": "Can a frontend hide a restricted document by filtering the search response?",
           "spoken": "The backend must filter unauthorized data before sending it. Hiding a received document in the UI still discloses it to the browser.",
-          "deep": "Apply caller scope at retrieval and document-read boundaries, use user-scoped cache identities and deny cross-owner object access independently of whether a link is visible. CSP and sanitization help with script injection, not with overbroad data responses.",
+          "deep": "Apply caller scope at retrieval and document-read boundaries, use user-scoped cache identities and deny cross-owner object access independently of whether a link is visible. CSP and sanitization help with script injection, not with overbroad data responses.\n\nOnce private data reaches an unauthorized browser, presentation filtering cannot restore confidentiality. The authoritative API must scope every source/task/effect query using trusted identity. Clear UI and client caches on identity changes, invalidate stale callbacks and independently scope server caches. Public demo tokens in the project illustrate identity flow; they are not a production authentication system.\n\nRender untrusted answer/source content through text nodes. Keep provider secrets out of static bundles and URLs. For real cookies, define CSRF, expiry and revocation policy; for bearer tokens, define secure handling and issuer/audience verification. Measure build size, input responsiveness, first response and terminal completion on a stated device/fixture. A quick localhost demo cannot establish concurrent production capacity. The interview defense must distinguish frontend safety, server authorization and measured performance rather than assuming a faster or more polished interface is safer.",
           "follow_up": {
             "question": "How would you prove the boundary?",
             "answer": "Query with two synthetic owners, inspect network payloads and assert that the other owner’s source never arrives."
@@ -314,7 +329,12 @@
           ]
         }
       ],
-      "study_id": 829
+      "study_id": 829,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+        "reviewed_at": "2026-10-22"
+      }
     }
   ]
 }
