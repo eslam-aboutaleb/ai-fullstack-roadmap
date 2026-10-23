@@ -214,3 +214,5 @@ print('Interview authoring contract:', check_interview_contract())
 
 from check_interview_contract import check_acceptance_samples
 check_acceptance_samples()
+
+subprocess.run([sys.executable, '-B', str(ROOT/'labs/memory_adversarial.py')], check=True, capture_output=True, text=True, timeout=20)
