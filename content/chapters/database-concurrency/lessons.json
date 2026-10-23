@@ -31,7 +31,7 @@
   },
   {
     "Q": "How do you test a race deliberately?",
-    "explain": "Control when workers read and write using barriers or test hooks. Arrange the dangerous interleaving, then inspect durable state and each caller's outcome. Random sleep tests often pass without exercising the race.",
+    "explain": "Control the boundary under test using a barrier rather than random sleeps. Here two independent connections target the same file-backed SQLite database and wait just before inserting one slot key. The unique constraint, not the preliminary availability check, guarantees one reservation. Inspect both caller outcomes and the committed row count; the test does not prescribe which thread wins or claim to reproduce every stale-read schedule.",
     "example": "Synchronize two connections immediately before inserting the same primary key. Assert one reserved result, one integrity conflict and exactly one committed row; the winning thread is deliberately unspecified.",
     "takeaway": "A concurrency test should prove which race it exercised.",
     "estimated_time_minutes": 12,
