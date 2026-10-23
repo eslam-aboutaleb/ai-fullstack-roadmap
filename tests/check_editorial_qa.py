@@ -73,6 +73,47 @@ def check():
 
     assert not link_errors, ('Broken reference links', link_errors[:10])
 
+    from course_data import load
+    from editorial_evidence import evidence_report, inspect_new_question, validate_new_records
+    chapters = load()
+    assert validate_new_records(chapters) >= 0
+    evidence = evidence_report(chapters)
+    assert len(evidence['chapters']) == len(chapters)
+    assert sum(row['total_interview_questions'] for row in evidence['chapters']) == len(all_questions)
+    published = json.loads((ROOT/'_site/questions/editorial-evidence.json').read_text())
+    assert published == evidence, 'Published editorial evidence does not match current sources'
+    expected_units = sum(len(json.loads(path.read_text())['units']) for path in (CONTENT/'courses').glob('*.json'))
+    records = evidence['records']
+    assert sum(row['kind'] == 'lesson' for row in records) == sum(len(chapter['lessons']) for chapter in chapters)
+    assert sum(row['kind'] == 'interview' for row in records) == len(all_questions)
+    assert sum(row['kind'] == 'unit' for row in records) == expected_units
+    assert len({row['identity'] for row in records}) == len(records)
+    assert evidence['verified_review_records'] == sum(row['review_verified'] for row in records)
+    assert evidence['record_review_status'].get('legacy-unreviewed', 0) > 0
+    assert evidence['verified_review_records'] >= 56
+    from copy import deepcopy
+    forged = deepcopy(chapters[0])
+    forged['lessons'][0]['reviewer_status'] = {'status': 'reviewed', 'reviewer': 'invented', 'reviewed_at': '2026-10-23'}
+    try:
+        evidence_report([forged])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('A report counted a fabricated lesson review')
+    from revised_content_gate import validate_unit
+    forged_unit = {'references': ['https://docs.python.org/3/'], 'reviewer_status': {'status': 'reviewed', 'reviewer': 'invented'}}
+    assert validate_unit(forged_unit, 'course/fixture/forged', require_review=False)
+
+
+    synthetic = {'id': 999999, 'Q': 'How should we verify?', 'A': 'TODO: write',
+                 'citations': ['http://example.com'],
+                 'follow_ups': [], 'reviewer_status': {'status': 'draft'}}
+    problems = inspect_new_question(synthetic)
+    assert len(problems) >= 3 and inspect_new_question({'id': 1}) == []
+    from revised_content_gate import check_fixtures as revised_check_fixtures
+    revised_check_fixtures()
+    print('Editorial evidence report: source counts, published artifact, and negative gates pass')
+
     print(json.dumps({
         'issue': 20,
         'total_questions': len(all_questions),
