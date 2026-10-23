@@ -1,102 +1,76 @@
 # Vector store integration learning module — issue #40
 
-Introduction: vector databases make semantic similarity search practical, but
-they do not automatically enforce authorization, version consistency or
-deletion. Teach exact cosine first, then filtered approximate retrieval,
-HNSW tuning, hybrid search and index migrations.
+Start with exact cosine, owner eligibility, source revision and deletion before
+comparing approximate search. `python3 -B labs/vector_index_migration.py` is a
+standard-library reference oracle for those rules and fail-closed index cutover.
+Its assertions do not constitute vendor execution or ANN performance evidence.
 
-Run: python3 -B labs/vector_index_migration.py
+## Actual SDK and SQL execution
 
-This offline reference verifies dimension checking, owner eligibility before
-ranking, revision filtering, tombstones and cutover completeness. It is not
-a successful vendor connection.
-
-Seven-engine practical adapter checklist:
-- Qdrant: payload filters and named-vector collections (real server test pending).
-- Chroma: persistent collection, metadata filters, deletion (pending).
-- Pinecone: namespace, metadata filters and managed account (pending).
-- Weaviate: collection predicate and client/server version (pending).
-- FAISS: index/search plus external authoritative owner filtering (pending).
-- pgvector: transactionally scoped SQL WHERE and index planner tests (pending).
-- LanceDB: table snapshots, versioned embeddings and predicate (pending).
-
-Each optional adapter needs pinned dependencies, actual server or cloud
-access, negative owner/deletion tests, identical gold recall queries and
-documented resources/cost/cleanup. Never label a mocked client as verified.
-
-## Actual local SDK contract execution
-
-Install `requirements-vector-engines.txt` in a fresh Python 3.12 environment:
+Create a fresh Python 3.12 environment and install the pinned
+`requirements-vector-engines.txt`. Run:
 
 ```sh
-python3.12 -m venv .venv-vector
-.venv-vector/bin/python -m pip install -r requirements-vector-engines.txt
-.venv-vector/bin/python labs/vector_engines.py --output vector-results.json
+python3 -B labs/vector_engines.py --output vector-engines.json
+python3 -B labs/vector_engines.py --engine pgvector --output pgvector-server.json
 ```
 
-The same original five-record, two-dimensional vector corpus now runs through
-actual Qdrant local, persistent Chroma, FAISS and LanceDB APIs. Positive checks
-assert the independently specified eligible ID. Negative checks place a more
-similar other-owner record, an obsolete embedding profile and a tombstoned
-record ahead of the eligible result. Missing-owner reads return nothing; an
-owner-A delete cannot remove owner B's record. Repeated upsert, profile change,
-old-profile exclusion, repeated delete and post-delete query are executed.
+The default runs actual Qdrant local, FAISS and LanceDB APIs. The opt-in pgvector
+path additionally needs installed PostgreSQL binaries and their matching vector
+extension; set POSTGRES_BIN to the binary directory when necessary. Recorded
+versions/hardware are authoritative for the executed run, rather than a claim
+that any installed version has been tested.
 
-FAISS is an index library: the wrapper selects the eligible owner/profile rows
-before constructing its native exact index, rather than post-filtering a global
-top-k. It does not claim native server ACLs. Qdrant's local SDK mode does not
-exercise a distributed Qdrant server or HNSW graph. No adapter here provides an
-HTTP authentication service or proves secure multi-tenant deployment by itself.
-LanceDB and Chroma receive their actual prefilter predicates in their own APIs.
+Each adapter receives the same original five-record, two-dimensional corpus.
+The expected eligible ID is fixed before execution. More-similar foreign-owner,
+obsolete-profile and tombstoned vectors must not displace it. Tests cover a
+missing owner, repeated upsert/delete, profile replacement, old-profile exclusion,
+cross-owner deletion denial and preservation of the other owner's record.
+`docs/evidence/vector-engines.json` and `docs/evidence/pgvector-server.json` record
+actual SDK/server/extension versions, contract outcomes and raw query samples.
+Five vectors and ten warm samples are not representative latency/recall results.
 
-`docs/evidence/vector-engines.json` records observed SDK versions, raw build
-and ten-query timings and the successful contract checks. Five vectors and ten
-warm samples are not a representative p99, index-memory or ANN quality benchmark.
-No embedding model is downloaded. Each profile uses a disposable local directory;
-no existing database or production collection is touched.
+Qdrant uses local mode, not a distributed server or an HNSW graph benchmark.
+FAISS builds its native exact index over eligible rows; it is not a native ACL
+service. LanceDB receives a real prefilter predicate. PostgreSQL uses
+parameterized owner/profile/deletion SQL predicates before cosine ranking and
+an owner predicate on deletion. None proves remote authentication or production
+row-level-security deployment.
 
-Pinecone, Weaviate and PostgreSQL/pgvector service paths remain explicitly
-unexecuted here. This increment replaces four fictional adapters with actual
-SDK tests, while retaining the separate requirement for the remaining engines,
-engine-specific HNSW/hybrid experiments and a complete migration assessment.
+## Isolated PostgreSQL lifecycle
 
-## Security correction — 23 October 2026
+The pgvector adapter creates its own temporary cluster, binds loopback on a
+temporary port and accepts no existing DSN. It uses synthetic data only, stops
+its owned server and deletes its temporary directory. It never changes an
+existing database. Local trust authentication is only for this disposable,
+no-secret fixture; it is not production identity isolation. The observed run
+used PostgreSQL 17 with pgvector 0.8.7; the evidence gives the exact server build.
 
-The published ChromaDB release is still 1.5.9. GitHub advisories
-GHSA-f4j7-r4q5-qw2c and GHSA-36p7-vc44-83pf identify critical code injection;
-GHSA-2wm9-hf6c-p5cr and GHSA-xph7-9rjv-w5fr identify tenant/RBAC flaws.
-The advisory API reports no patched release. The optional requirements and runner
-therefore remove Chroma entirely rather than waive dependency review. Explicit
-programmatic requests for Chroma fail before any import; CLI choices omit it.
+## Chroma security boundary — checked 23 October 2026
 
-The earlier four-engine execution described above is historical evidence only.
-The current runner and refreshed evidence execute **three** local SDKs: Qdrant,
-FAISS and LanceDB. Chroma is blocked until an upstream fix can be verified and
-retested. Pinecone, Weaviate and PostgreSQL/pgvector execution, representative
-HNSW/hybrid measurements and a complete migration assessment also remain pending.
-Issue #40 must stay open; removing an unsafe dependency does not waive its scope.
+The current PyPI ChromaDB release is 1.5.9. GitHub advisories report unresolved
+critical code injection and tenant/RBAC flaws; the advisory API lists no patched
+release. Chroma is removed from the requirements and runner, CLI choices omit
+it, and an explicit programmatic request fails before import. No dependency-risk
+exception or vulnerable downgrade is used. A future fix needs advisory review,
+a pinned release and fresh actual execution before enabling this path.
 
-Advisories: https://github.com/advisories/GHSA-f4j7-r4q5-qw2c
-https://github.com/advisories/GHSA-36p7-vc44-83pf
-https://github.com/advisories/GHSA-2wm9-hf6c-p5cr
-https://github.com/advisories/GHSA-xph7-9rjv-w5fr
+- https://github.com/advisories/GHSA-f4j7-r4q5-qw2c
+- https://github.com/advisories/GHSA-36p7-vc44-83pf
+- https://github.com/advisories/GHSA-2wm9-hf6c-p5cr
+- https://github.com/advisories/GHSA-xph7-9rjv-w5fr
 
-## Actual isolated PostgreSQL/pgvector server path
+The earlier Chroma run is historical and is not counted as a supported current
+adapter. `tests/check_vector_dependency_boundary.py` protects this exclusion.
 
-`labs/vector_engines.py --engine pgvector --output pgvector-server.json` creates
-its own temporary cluster using locally installed PostgreSQL binaries and the
-matching vector extension. Set POSTGRES_BIN to the binary directory when needed.
-On this run PostgreSQL 17 and pgvector 0.8.7 executed; exact versions, query samples
-and scoped CRUD outcomes are in `docs/evidence/pgvector-server.json`. The runner
-starts only its own loopback cluster on a temporary port, never accepts an existing
-DSN, uses synthetic vectors, stops its server and removes the temporary directory.
-It does not change any existing database. Local trust authentication is suitable
-only for this disposable no-secret fixture, not a production authorization claim.
+## Remaining acceptance
 
-The native SQL query filters owner/profile/deletion before cosine ranking; a
-parameterized owner predicate also protects deletion. Cases exercise repeated
-upsert/delete, foreign-owner writes, profile migration and missing-owner reads.
-This is exact search over five vectors, not an HNSW performance or production
-RLS proof. PostgreSQL/pgvector is opt-in; the default three SDKs need no server.
-Pinecone, Weaviate, the blocked Chroma path and broader assessed experiments
-remain outstanding.
+Actual Pinecone and Weaviate paths, a safely patched Chroma path, engine-specific
+filtered HNSW/hybrid comparisons and the complete reviewed syllabus/migration
+assessment remain outstanding. Seven-engine acceptance is not waived by these
+four working local paths. Keep issue #40 and this PR open until that evidence
+and the final integrated checks pass. No model, existing collection, external
+service credential or runtime course backend is needed for these local tests.
+
+Primary mechanics: https://github.com/pgvector/pgvector
+https://qdrant.tech/documentation/guides/optimize/
