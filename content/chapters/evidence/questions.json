@@ -1,64 +1,31 @@
 [
   {
     "Q": "Why does evidence assembly deserve a separate module?",
-    "A": "Search ranking and prompt construction optimize different things. Ranking selects likely relevant hits; assembly must remove redundancy, preserve source identity, fit a budget, and communicate whether usable evidence exists. A list of raw top-k records does not meet all those needs.",
-    "Why": "An evidence assembler coerces supported hit shapes, deduplicates, merges eligible spans, balances source diversity, selects items, and renders stable citation labels. This deterministic layer can be tested independently of an unpredictable generator.",
-    "Risk": "Assuming all retrieved text is safe prompt instruction invites source-driven manipulation. The bundle treats text as evidence and escapes selected delimiters, while host prompt policy and tool permissions remain necessary.",
-    "Trade": "An extra layer adds types and decisions but centralizes budgeting and attribution. Ad hoc prompt concatenation is shorter and easier to get subtly wrong.",
-    "Try": "Feed duplicate and overlapping hits from two sources into the assembler. Inspect both selected text and the counters explaining what was removed or merged.",
-    "spoken": "Evidence assembly owns scope, applicability, source revision, deduplication, ordering and context budget before generation. It supplies checkable citations and explicit gaps. Instructing a model to use only this evidence does not guarantee it will comply; validate output and measure unsupported claims.",
-    "domain": "ai-rag",
-    "subdomain": "evidence",
-    "module": "evidence",
-    "concept": "Why does evidence assembly deserve a separate module",
-    "difficulty": "implementation",
-    "misconception_target": "More evidence always means better answers",
-    "definitions": [
-      {
-        "term": "Evidence packet",
-        "definition": "Bounded set of passages with citations sent to the model"
-      },
-      {
-        "term": "Citation fidelity",
-        "definition": "How accurately each answer claim maps to its cited source"
-      },
-      {
-        "term": "Abstention",
-        "definition": "Declining to answer when evidence is insufficient"
-      }
-    ],
-    "execution_timeline": "Retrieve passages → Score relevance → Sort by relevance → Fill token budget → Attach citations → Send to model",
-    "example": {
-      "code": "evidence = []\nfor passage in ranked[:budget]:\n    evidence.append({\"text\": passage.text, \"citation\": passage.id})\nresponse = model.generate(question, evidence=evidence)",
-      "explanation": "Select top passages within budget, attach citations, send to model.",
-      "output": "Answer with source citations"
-    },
-    "production_case": "Two similar policy passages apply to different dates. The assembler keeps applicability metadata and selects the correct revision before the generator sees the evidence.",
-    "alternatives": [
-      "Full-context approach (no budget)",
-      "Summary-based evidence compression"
-    ],
-    "pitfalls": [
-      "Exceeding token budget",
-      "Missing citations on claims",
-      "Answering without sufficient evidence"
-    ],
-    "complexity": "Filtering and token accounting scale with inspected passages and text. Ranking may sort candidates or invoke a model. Preserve applicability and deduplicate before spending the context budget.",
-    "follow_ups": [
-      {
-        "Q": "Does source-ID membership prove a citation is faithful?",
-        "A": "No. Check that the cited span supports the specific claim and applies to this case, as well as remaining authorized."
-      }
-    ],
+    "A": "**A separate evidence-assembly module makes source eligibility, context budgeting and claim provenance explicit before generation.** It accepts permitted ranked passages, preserves their revisions/spans, selects a bounded sufficient set and returns a traceable evidence packet. Retrieval ranking and answer wording can then change without silently changing these invariants.\n\n**Evidence is information supporting a specific claim under a scope and time.** A citation names a source; grounding requires that the cited span actually supports the answer. Correctness asks whether the answer is right for the task. Faithfulness asks whether its claims follow from the supplied evidence. Relevance asks whether it addresses the question. These can disagree: faithfully quoting an obsolete policy can still give a wrong current answer.\n\nCarry a stable document/revision/span identity, content digest and trusted eligibility metadata through retrieval to the answer. At citation resolution, check owner access, active revision and deletion status again when stores or caches may have changed. Compare the generated claim with the span's actual conditions and exceptions. Citation membership is an important structural check, but cannot establish entailment. The capstone's exact sentence comparison is an intentionally narrow independent support oracle for authored policy answers; it is not a general natural-language judge.\n\n**Work the exception.** The general rule permits returns within 30 days; the final-sale clause forbids returns for final-sale items. For a final-sale question, citing the real general-policy sentence is insufficient. Dropping the exception is a critical wrong answer even if retrieval recall across other questions is high. Require decisive conditions in the answer or abstain with a useful explanation of missing evidence. Do not answer 'ineligible' merely because retrieval was empty.\n\nScore supported answer, unsupported answer, correct abstention and false refusal separately. False refusal is abstaining on a genuinely answerable case; unsupported answering is giving a substantive answer without the required evidence. Denominators must be stated: answerable versus unanswerable cases are different populations. Include cross-owner requests, outdated revisions, contradictions and unsupported questions in the gold set. A release gate can reject any owner leak or critical unsupported policy decision while still reporting average quality. Optional generative adapters must use the same scoped evidence and be evaluated against independently adjudicated claims, not just JSON validity.",
+    "Why": "A final-sale customer receives the real 30-day general rule with a valid URL. The citation exists but does not support that customer eligibility; the independent expected span makes this an explicit failed case.",
+    "Risk": "A fluent answer can hide unsupported conditions; an overly cautious system can refuse answerable requests. One average accuracy number obscures both failure modes.",
+    "Trade": "Strict extractive answers are auditable for narrow policies but less conversational and incomplete for multi-source reasoning. Generative synthesis needs additional claim-level evaluation and privacy controls.",
+    "Try": "Run the policy project, then grade a learner prediction with the general rule substituted for the final-sale answer. Explain why source existence, recall and claim support produce different conclusions.",
+    "worked_case": "A final-sale customer receives the real 30-day general rule with a valid URL. The citation exists but does not support that customer eligibility; the independent expected span makes this an explicit failed case.",
+    "answer_format": "conceptual",
     "citations": [
-      "https://arxiv.org/abs/2005.11401"
+      "https://arxiv.org/abs/2005.11401",
+      "https://www.nist.gov/itl/ai-risk-management-framework"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-22"
     },
-    "added": true
+    "follow_ups": [
+      {
+        "Q": "What if two currently authorized sources contradict each other?",
+        "A": "Do not silently choose the higher similarity score. Check effective dates and source precedence rules; if no authoritative resolution exists, expose the conflict and abstain from the disputed decision while citing both permitted spans."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "evidence"
   },
   {
     "Q": "How is the context budget calculated?",
