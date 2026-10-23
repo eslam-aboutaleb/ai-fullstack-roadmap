@@ -1,7 +1,7 @@
 """Validate all authored/revised learning content against a pinned Git base.
 
 Draft previews are allowed. --require-review blocks publication until matching
-content-specific independent review exists. Passing structure never grants it.
+content-specific review exists. Passing structure never grants it.
 """
 import argparse
 from copy import deepcopy
@@ -63,7 +63,7 @@ def validate_record(record, identity, kind='interview', require_review=False):
         except ValueError as exc:
             problems.append(str(exc))
         if require_review and review['status'] not in {'reviewed', 'approved'}:
-            problems.append('release blocked: independent content-specific review pending')
+            problems.append('release blocked: content-specific review pending')
     return [f'{identity}: {problem}' for problem in problems]
 
 
@@ -124,15 +124,14 @@ def validate_unit(unit, identity, require_review=False):
             failures.append(identity + ': independent interview rubric required')
     if not _sources(unit.get('references')):
         failures.append(identity + ': course unit needs explicit primary references')
-    if require_review:
-        from editorial import validate_review
-        if unit.get('reviewer_status', {}).get('status') not in {'reviewed', 'approved'}:
-            failures.append(identity + ': release blocked: independent unit review pending')
-        else:
-            try:
-                validate_review(unit, identity)
-            except ValueError as exc:
-                failures.append(identity + ': ' + str(exc))
+    from editorial import validate_review
+    if unit.get('reviewer_status', {}).get('status') in {'reviewed', 'approved'}:
+        try:
+            validate_review(unit, identity)
+        except ValueError as exc:
+            failures.append(identity + ': ' + str(exc))
+    elif require_review:
+        failures.append(identity + ': release blocked: unit review pending')
     return failures
 
 
@@ -186,13 +185,13 @@ def check_fixtures():
     assert validate_unit(unit, 'course/security/ownership', require_review=True)
     unit['interviews'][0]['deep'] = 'TODO: write'
     assert validate_unit(unit, 'course/security/ownership')
-    print('Revised-content gate: complete fields, stable-ID rename/move, additions, companion units and independent release review PASS')
+    print('Revised-content gate: complete fields, stable-ID rename/move, additions, companion units and attested release review PASS')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', help='Pinned Git base commit/ref')
-    parser.add_argument('--require-review', action='store_true', help='Block publication without independent content-specific review')
+    parser.add_argument('--require-review', action='store_true', help='Block publication without content-specific review')
     args = parser.parse_args()
     check_fixtures()
     if args.require_review and not args.base:
