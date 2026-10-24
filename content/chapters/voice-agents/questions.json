@@ -49,11 +49,25 @@
   },
   {
     "Q": "How should audio latency be measured?",
-    "A": "Measure capture-to-transcript, end-of-turn-to-first-response-audio, tool delay, synthesis delay, jitter, and playback buffering. User-perceived latency spans all stages.",
-    "Why": "Correlate monotonic timestamps across client and server where possible, and report p95 delays under realistic networks.",
+    "A": "**Latency is a timeline, not just a round-trip HTTP number.** In a cascaded voice agent, microphone capture, voice-activity detection (VAD), automatic speech recognition (ASR), final transcript decision, reasoning/tool calls, first synthesized speech and playback buffers contribute distinct delays. Track start-of-user-speech, end-of-turn, ASR-final, response decision, first synthesized audio, first audible playback and end-to-end time. Percentiles over task/concurrency/language slices reveal delays hidden by mean latency.\n\n**Video adds a separate clock problem.** Video frames and audio samples often use different rational presentation timestamp (PTS) *timebases*. A frame PTS of 90,000 ticks with timebase 1/90,000 represents 1 second. Do not assume the Nth encoded video frame plays at N/frame_rate seconds when the source has variable frame rate, dropped frames, B-frames or discontinuities. Normalize times using presentation timestamps; decode order and display order can differ. An audio transcript has a start/end segment and speaker/channel identity; use explicit alignment to cite a video clip where both the words and visible event occurred.\n\n**Worked alignment.** If a transcript says “driver opens door” during [1,3) seconds, the frame at 1 second and the one at 2 seconds are candidates for evidence, while the frame at 3 seconds is outside the half-open interval. A fixed two-second frame sampler could skip the moment of contact at 1 second; adaptive frame sampling or shot-boundary expansion may recover it at additional embedding and indexing cost. Temporal ordering is not causation: a model seeing a person near an object does not prove that person caused an action.\n\n**Drift computation.** Let `offset_start = audio_time_start - video_time_start` and `offset_end = audio_time_end - video_time_end`. Drift over the segment is `offset_end-offset_start`. A 0.05-second initial offset that becomes a 1.0-second offset indicates 0.95 seconds of accumulated drift, not a constant synchronization offset. In production measure timing uncertainty, discontinuities, resampling and buffering; do not “fix” all drift by shifting every subtitle by one constant.\n\n**Offline verification.** Run `python3 -B labs/video_temporal_alignment.py`. It models integer PTS with `fractions.Fraction`, uniform frame sampling, owner-scoped transcript alignment, exact segment citations and drift/invalid-time cases. It does **not** actually decode video, run FFmpeg, ASR, a VLM or a multimodal embedding model. Optional real-media exercises must pin codecs/FFmpeg and use source-owned or licensed media and verified timestamp results.\n\n**Privacy, safety and follow-up.** A clip may expose bystanders/faces or injected subtitles; the source video remains lower-trust data, and access must be checked per asset. Prevent cross-owner retrieval even when a transcript semantically matches. **If the source is variable frame rate and two frames share an apparent index interval**, use their real PTS rather than synthetic frame numbers to ground citations; prove event recall by annotated intervals and report missing segments separately from hallucinated summaries.",
+    "Why": "AV pipelines contain multiple independent queues and clocks, so single-roundtrip metrics or frame-number approximations cannot establish synchronized temporal evidence.",
     "Risk": "A fast model token metric can hide slow endpoint detection or playback buffering.",
     "Trade": "More instrumentation increases complexity and identifies the real bottleneck.",
-    "Try": "Build a timing waterfall for one interrupted spoken conversation."
+    "Try": "Run rational-PTS frame sampling, force a 0.95-second sync drift and verify clips cannot be cited from another owner.",
+    "citations": [
+      "https://ffmpeg.org/ffmpeg-formats.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why can using frame index divided by nominal FPS produce false temporal citations on variable-frame-rate video?",
+        "A": "Encoded decode order and presentation times can differ, and frame durations need not be constant. Use each frame's rational presentation timestamp and source timebase, align transcript intervals on a common clock, and check dropped/discontinuous frames before claiming an event occurred in a cited clip."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How do WebRTC and WebSockets differ for voice?",

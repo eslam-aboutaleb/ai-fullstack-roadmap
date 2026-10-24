@@ -2071,6 +2071,82 @@
       "independent": true
     },
     {
+      "id": "async-cpu-starvation",
+      "chapter": "computer-science-foundations",
+      "topic": 1215,
+      "title": "Diagnose a blocked event loop",
+      "kind": "debugging",
+      "objective": "backend.asyncio.cpu-starvation",
+      "difficulty": "applied",
+      "scenario": "A FastAPI endpoint executes a synchronous, CPU-intensive Python loop for 500 ms without await. Other async I/O endpoints share that worker's event loop. Which change directly addresses the mechanism while preserving bounded capacity?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Wrap the CPU loop in create_task() without changing its internals.",
+          "feedback": "create_task schedules a coroutine, but its blocking CPU code still monopolizes the event-loop thread."
+        },
+        {
+          "id": "2",
+          "text": "Move the CPU-heavy work to an appropriately bounded process/worker pool and propagate deadlines.",
+          "feedback": "Correct: offloading the CPU work prevents it from blocking that loop; admission and deadlines control overload."
+        },
+        {
+          "id": "3",
+          "text": "Increase the browser's fetch timeout to 60 seconds.",
+          "feedback": "Longer patience does not restore event-loop scheduling or prevent queue starvation."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Asyncio is cooperative; a coroutine without a suspension point blocks other tasks sharing its thread. Process/worker isolation can free the event loop, but adds serialization, memory and cancellation/recovery obligations. Test p99 and event-loop lag under concurrent traffic.",
+      "hints": [
+        "Distinguish task scheduling from executing CPU work in parallel.",
+        "Identify where control returns to the event loop."
+      ],
+      "references": [
+        "https://docs.python.org/3/library/asyncio-task.html",
+        "https://docs.python.org/3/library/concurrent.futures.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "backend-queue-saturation",
+      "chapter": "computer-science-foundations",
+      "topic": 1216,
+      "title": "Reason about queue saturation",
+      "kind": "quiz",
+      "objective": "backend.capacity.queueing",
+      "difficulty": "advanced",
+      "scenario": "In an idealized M/M/1 model with one server at μ=100 requests/second, arrival rate rises from λ=90 to λ=99 requests/second. Which interpretation correctly describes mean time in system, and what should a production team do next?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Mean time stays 10 ms because each lookup is O(1); only code complexity matters.",
+          "feedback": "Algorithmic O(1) lookup work says nothing about waiting near server saturation."
+        },
+        {
+          "id": "2",
+          "text": "Idealized mean grows from 100 ms to 1 second; then measure actual request distributions and percentiles instead of treating the model as a measured p99.",
+          "feedback": "Correct: 1/(μ−λ) yields .1 and 1 seconds under M/M/1 assumptions, not observed production p99."
+        },
+        {
+          "id": "3",
+          "text": "Mean increases from 10 ms to 11 ms; use Little's Law to calculate exact p99.",
+          "feedback": "The queueing denominator is remaining capacity (μ−λ), and Little's Law relates averages, not tail percentiles."
+        }
+      ],
+      "correct": "2",
+      "explanation": "The ideal M/M/1 result is 1/(100−90)=0.1 s and 1/(100−99)=1 s. This estimate assumes a stable Poisson/exponential single-server queue. Real LLM-backed workloads require observed p95/p99, queue wait, service-time distributions, cancellations, timeout/error handling and fair admission controls.",
+      "hints": [
+        "Write λ for arrival rate and μ for service capacity.",
+        "Evaluate 1/(μ−λ); then distinguish expectations from measured percentiles."
+      ],
+      "references": [
+        "https://sre.google/sre-book/handling-overload/",
+        "https://docs.python.org/3/library/asyncio-queue.html"
+      ],
+      "independent": true
+    },
+    {
       "id": "acceptance-17-128",
       "chapter": "models",
       "topic": 128,
