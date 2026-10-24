@@ -127,6 +127,20 @@ for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py'
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
 
+# Agent-memory reference and assessment capstone (PR #53).
+for memory_lab, args in (('agent_memory_lifecycle.py', []), ('memory_project.py', ['check'])):
+    result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/memory_lab), *args],
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, (memory_lab, result.stdout, result.stderr)
+    assert 'PASS' in result.stdout, (memory_lab, result.stdout)
+
+# Bounded asyncio task lifecycle and persistent effect retry (#15).
+backend_result = subprocess.run([sys.executable, '-B', str(ROOT/'labs/async_backend_failure.py')],
+                                capture_output=True, text=True, timeout=30)
+assert backend_result.returncode == 0, (backend_result.stdout, backend_result.stderr)
+assert 'PASS' in backend_result.stdout
+assert 'Complete interview answer' in (SITE/'course-asyncio-lifecycle.html').read_text()
+
 finops_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/finops_budget_ledger.py')],
                               capture_output=True,text=True,timeout=15)
 assert finops_result.returncode==0,(finops_result.stdout,finops_result.stderr)
