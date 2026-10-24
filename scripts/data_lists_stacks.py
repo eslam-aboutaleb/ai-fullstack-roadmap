@@ -1,0 +1,261 @@
+"""16 Linked List and Stack Algorithmic Questions."""
+
+QUESTIONS = [
+    {
+        "Q": "How do you reverse a singly linked list iteratively in-place?",
+        "A": "**Direct answer:** Reverse Linked List (LeetCode 206) inverts the pointers of a singly linked list so the tail becomes the new head. The optimal solution uses three pointers (`prev`, `curr`, `next_node`) traversing the list in a single pass, updating each node's `next` reference in-place.\n\n```python\nfrom typing import Optional\n\nclass ListNode:\n    def __init__(self, val: int = 0, next: Optional['ListNode'] = None):\n        self.val = val\n        self.next = next\n\ndef reverse_list(head: Optional[ListNode]) -> Optional[ListNode]:\n    prev: Optional[ListNode] = None\n    curr = head\n    while curr:\n        next_node = curr.next\n        curr.next = prev\n        prev = curr\n        curr = next_node\n    return prev\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes in the list. Each node's `next` pointer is updated exactly once.\n- **Space Complexity:** $O(1)$ auxiliary space because pointers are updated in-place without recursion stack allocations.\n\n**Algorithmic mechanics and edge cases:**\nAt each step, saving `curr.next` into `next_node` prevents losing the remainder of the list before severing the link. Pointing `curr.next = prev` reverses the direction of the edge. Advancing `prev = curr` and `curr = next_node` steps forward until `curr` becomes `None`, at which point `prev` references the new head. Edge cases include empty list `head = None`, single-node list `[1]`, and two-node lists.",
+        "Why": "Three-pointer traversal updates links in-place with O(1) memory, avoiding O(n) call stack overhead from recursion.",
+        "Risk": "Updating curr.next before saving curr.next in a temporary variable severs the chain and loses the rest of the list.",
+        "Trade": "Iterative pointer updates use O(1) space; recursive reversal is mathematically elegant but risks recursion depth limits.",
+        "Try": "Trace 1 -> 2 -> 3 -> None and confirm that pointer reversal outputs 3 -> 2 -> 1 -> None with new head pointing to 3.",
+        "worked_case": "head: 1 -> 2 -> None. Loop 1: next_node=2, 1.next=None, prev=1, curr=2. Loop 2: next_node=None, 2.next=1, prev=2, curr=None. Returns prev (node 2).",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you reverse a sublist between position left and right (Reverse Linked List II)?",
+                "A": "Navigate to position left - 1, retain references to the sublist head and predecessor, and reverse the sublist segment in-place."
+            }
+        ]
+    },
+    {
+        "Q": "How do you merge two sorted linked lists using a sentinel dummy head?",
+        "A": "**Direct answer:** Merge Two Sorted Lists (LeetCode 21) merges two sorted linked lists into a single sorted list. The optimal solution uses a sentinel dummy head node and a tail pointer, iteratively appending the smaller of the two head nodes in-place.\n\n```python\nfrom typing import Optional\n\ndef merge_two_lists(list1: Optional[ListNode], list2: Optional[ListNode]) -> Optional[ListNode]:\n    dummy = ListNode(0)\n    tail = dummy\n    while list1 and list2:\n        if list1.val <= list2.val:\n            tail.next = list1\n            list1 = list1.next\n        else:\n            tail.next = list2\n            list2 = list2.next\n        tail = tail.next\n    tail.next = list1 if list1 else list2\n    return dummy.next\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n + m)$ where $n$ and $m$ are the lengths of the two lists. Each comparison splices one node.\n- **Space Complexity:** $O(1)$ auxiliary space because existing node references are rearranged without allocating new nodes.\n\n**Algorithmic mechanics and edge cases:**\nA sentinel dummy node eliminates boundary conditions when initializing the merged head. When one list runs out of nodes, `tail.next = list1 if list1 else list2` splices the remaining sorted tail in $O(1)$ time without further looping. Edge cases include both lists being empty (`None, None`), one list empty (`None, [1]`), and lists with duplicate values.",
+        "Why": "A sentinel dummy head provides a fixed reference anchor that eliminates special-case logic for the first node.",
+        "Risk": "Creating new ListNode objects inside the loop wastes memory; in-place node relinking takes O(1) auxiliary space.",
+        "Trade": "Iterative splicing uses O(1) space, whereas recursive merging uses O(n + m) call stack frames.",
+        "Try": "Merge list1: 1 -> 2 -> 4 and list2: 1 -> 3 -> 4, confirming output 1 -> 1 -> 2 -> 3 -> 4 -> 4.",
+        "worked_case": "list1=[1,2,4], list2=[1,3,4]. dummy->tail. tail.next=list1 (1). tail.next=list2 (1). tail.next=list1 (2). tail.next=list2 (3). tail.next=list1 (4). tail.next=list2 (4). Returns dummy.next.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you merge k sorted linked lists in O(N log k) time?",
+                "A": "Use a min-heap of size k to extract the smallest node across all k lists, or use divide-and-conquer pair merges."
+            }
+        ]
+    },
+    {
+        "Q": "How do you reorder a linked list to alternate first and last nodes in-place?",
+        "A": "**Direct answer:** Reorder List (LeetCode 143) rearranges $L_0 \\to L_1 \\to \\dots \\to L_{n-1} \\to L_n$ into $L_0 \\to L_n \\to L_1 \\to L_{n-1} \\to L_2 \\dots$ in-place. The optimal solution uses a three-step algorithm: 1) find the middle using fast and slow pointers; 2) reverse the second half; 3) merge the two halves alternately.\n\n```python\nfrom typing import Optional\n\ndef reorder_list(head: Optional[ListNode]) -> None:\n    if not head or not head.next:\n        return\n    # Step 1: Find middle using slow and fast pointers\n    slow, fast = head, head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n    # Step 2: Reverse second half starting at slow.next\n    prev = None\n    curr = slow.next\n    slow.next = None  # Cut list into two halves\n    while curr:\n        next_node = curr.next\n        curr.next = prev\n        prev = curr\n        curr = next_node\n    # Step 3: Alternating merge of first half (head) and second half (prev)\n    first, second = head, prev\n    while second:\n        tmp1, tmp2 = first.next, second.next\n        first.next = second\n        second.next = tmp1\n        first = tmp1\n        second = tmp2\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes. Finding middle, reversing half, and merging each take linear time.\n- **Space Complexity:** $O(1)$ auxiliary space because all pointer adjustments occur in-place.\n\n**Algorithmic mechanics and edge cases:**\nSevering `slow.next = None` partitions the list into two disjoint chains. Reversing the second half prepares nodes to be spliced in reverse order. Interleaving updates pointers using temporary next references. Edge cases include lists with odd vs even node counts, two-node lists (`1 -> 2`), and single nodes.",
+        "Why": "Combining middle-splitting, sublist reversal, and alternating merge reorders the list in-place in O(1) space.",
+        "Risk": "Failing to sever slow.next creates a cycle between the first and second halves during the alternating merge.",
+        "Trade": "In-place pointer manipulation avoids copying nodes to an array, preserving O(1) memory guarantees.",
+        "Try": "Trace 1 -> 2 -> 3 -> 4: middle splits 1->2 and 3->4; reverse 2nd -> 4->3; merge -> 1 -> 4 -> 2 -> 3 -> None.",
+        "worked_case": "head: 1 -> 2 -> 3 -> 4 -> 5. slow reaches 3. Second half starts at 4, reversed to 5 -> 4. First half: 1 -> 2 -> 3. Interleaving: 1 -> 5 -> 2 -> 4 -> 3 -> None.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you test if a linked list is a palindrome using these exact building blocks?",
+                "A": "Find the middle, reverse the second half, compare values of the first and second halves, and optionally restore the second half."
+            }
+        ]
+    },
+    {
+        "Q": "How do you remove the nth node from the end of a linked list in a single pass?",
+        "A": "**Direct answer:** Remove Nth Node From End of List (LeetCode 19) deletes the $n$-th node from the end in a single pass. The optimal solution uses two pointers (`fast` and `slow`) separated by $n + 1$ steps, anchored with a sentinel dummy node.\n\n```python\nfrom typing import Optional\n\ndef remove_nth_from_end(head: Optional[ListNode], n: int) -> Optional[ListNode]:\n    dummy = ListNode(0, head)\n    fast = dummy\n    slow = dummy\n    # Advance fast pointer by n + 1 steps\n    for _ in range(n + 1):\n        fast = fast.next\n    # Advance both pointers until fast reaches the end\n    while fast:\n        fast = fast.next\n        slow = slow.next\n    # Delete target node\n    slow.next = slow.next.next\n    return dummy.next\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(L)$ where $L$ is the length of the linked list. A single pass visits each node at most once.\n- **Space Complexity:** $O(1)$ auxiliary space as it only maintains two pointer references and a dummy node.\n\n**Algorithmic mechanics and edge cases:**\nBy advancing `fast` by $n + 1$ steps ahead of `slow`, when `fast` drops off the end (`fast = None`), `slow` lands on the node immediately preceding the target node to be deleted. Splicing `slow.next = slow.next.next` deletes the target node cleanly. The dummy node handles the case where the very first node (the head) must be deleted. Edge cases include deleting the head ($n = L$), deleting the tail ($n = 1$), and single-node lists.",
+        "Why": "A fixed gap of n+1 steps between two pointers positions the slow pointer directly before the deletion target.",
+        "Risk": "Attempting to delete without a dummy head node requires special if n == length branching to re-anchor the head.",
+        "Trade": "Two pointers with a gap require a single pass rather than two passes (one to count length, one to delete).",
+        "Try": "Trace list 1 -> 2 -> 3 -> 4 -> 5 with n=2: fast advances 3 steps to node 3; both advance until fast is None; slow is at node 3; deletes node 4.",
+        "worked_case": "head=[1], n=1. dummy(0)->1. fast advances 2 steps to None. while fast loop skipped. slow is at dummy. slow.next = slow.next.next = None. Returns dummy.next which is None.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "What if n is greater than the total number of nodes in the list?",
+                "A": "Add a defensive check during the initial loop if not fast: to catch invalid n values and raise ValueError."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the starting node of a cycle in a linked list using Floyd's algorithm?",
+        "A": "**Direct answer:** Linked List Cycle II (LeetCode 142) detects if a cycle exists and returns the node where the cycle begins. The optimal solution uses Floyd's Tortoise and Hare algorithm: find intersection point using slow and fast pointers, then reset one pointer to head and advance both at speed 1 until they meet.\n\n```python\nfrom typing import Optional\n\ndef detect_cycle(head: Optional[ListNode]) -> Optional[ListNode]:\n    slow, fast = head, head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n        if slow == fast:\n            # Cycle detected: find entry node\n            p1 = head\n            p2 = slow\n            while p1 != p2:\n                p1 = p1.next\n                p2 = p2.next\n            return p1\n    return None\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes. The meeting point is reached within $n$ steps, and finding entry takes $< n$ steps.\n- **Space Complexity:** $O(1)$ auxiliary space because pointers navigate node references directly without storing visited addresses.\n\n**Algorithmic mechanics and edge cases:**\nLet $L_1$ be distance from head to cycle entrance, and $L_2$ be distance from entrance to meeting point. Fast pointer travels $2 \\times \\text{slow}$. Mathematical derivation yields $L_1 = k \\cdot C - L_2$, meaning advancing one pointer from `head` and one from the meeting point at identical 1x speeds guarantees they meet at the cycle entry node. Edge cases include no cycle (returns `None`), circular lists starting at head ($L_1 = 0$), and single-node loops.",
+        "Why": "The distance from the head to cycle entry is mathematically equal to the distance from meeting point to cycle entry modulo cycle length.",
+        "Risk": "Using a hash set to record seen node IDs consumes O(n) memory, which violates the strict O(1) space constraint.",
+        "Trade": "Floyd's algorithm uses two pointer phases to achieve O(1) space without modifying node structures or values.",
+        "Try": "Trace 3 -> 2 -> 0 -> -4 with loop from -4 to 2: slow/fast meet at -4; reset p1=3, p2=-4; both advance 1 step to node 2, detecting entry at 2.",
+        "worked_case": "head: 1 -> 2 -> loop to 1. slow reaches 2, fast reaches 1 (loop), slow reaches 1, fast reaches 1 -> meet at 1. p1=1, p2=1 -> p1==p2 immediately, returns node 1.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you calculate the exact length of the cycle once detected?",
+                "A": "Hold slow pointer fixed at the meeting point and advance fast pointer by 1 step at a time, counting steps until fast meets slow again."
+            }
+        ]
+    },
+    {
+        "Q": "How do you merge k sorted linked lists in optimal O(N log k) time?",
+        "A": "**Direct answer:** Merge k Sorted Lists (LeetCode 23) merges $k$ sorted linked lists into one sorted list. The optimal solution uses a min-heap (priority queue) of size $k$ to continuously extract the minimum node across all lists and insert its successor.\n\n```python\nimport heapq\nfrom typing import Optional\n\ndef merge_k_lists(lists: list[Optional[ListNode]]) -> Optional[ListNode]:\n    dummy = ListNode(0)\n    tail = dummy\n    heap: list[tuple[int, int, ListNode]] = []\n    for i, node in enumerate(lists):\n        if node:\n            heapq.heappush(heap, (node.val, i, node))\n    while heap:\n        val, i, node = heapq.heappop(heap)\n        tail.next = node\n        tail = tail.next\n        if node.next:\n            heapq.heappush(heap, (node.next.val, i, node.next))\n    return dummy.next\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(N \\log k)$ where $N$ is total nodes across all lists and $k$ is number of linked lists. Each node insertion and extraction takes $O(\\log k)$.\n- **Space Complexity:** $O(k)$ auxiliary space to maintain the min-heap containing at most one node per linked list.\n\n**Algorithmic mechanics and edge cases:**\nIncluding the index `i` in the heap tuple `(node.val, i, node)` prevents Python `TypeError` when two nodes have identical values, since Python falls back to comparing `i` before inspecting `node`. Merging lists one by one serially takes $O(k N)$, which is too slow. Edge cases include empty list `lists = []`, lists with empty heads `[None, None]`, and lists of drastically differing lengths.",
+        "Why": "A min-heap prioritizes the smallest node across k active list heads in O(log k) time per step.",
+        "Risk": "Pushing (node.val, node) into heapq raises TypeError on duplicate values because ListNode does not define __lt__.",
+        "Trade": "Heap merge takes O(k) memory; divide-and-conquer pair merging takes O(1) extra space and identical O(N log k) time.",
+        "Try": "Merge [[1,4,5],[1,3,4],[2,6]]: heap starts with [1, 1, 2]; nodes are popped in order: 1, 1, 2, 3, 4, 4, 5, 6.",
+        "worked_case": "Input: [[]]. Heap remains empty. Loop does not execute. Returns dummy.next = None. Correct for empty inner list.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/heapq.html"],
+        "follow_ups": [
+            {
+                "Q": "How does divide-and-conquer pair merging achieve this without heap overhead?",
+                "A": "Pair up lists and merge each pair using merge_two_lists in O(N); repeat for log k rounds until 1 list remains."
+            }
+        ]
+    },
+    {
+        "Q": "How do you reverse nodes in k-group in a linked list in-place?",
+        "A": "**Direct answer:** Reverse Nodes in k-Group (LeetCode 25) reverses nodes of a linked list $k$ at a time. If the number of nodes is not a multiple of $k$, left-out nodes remain in their original order. The optimal solution counts $k$ nodes ahead; if available, it reverses the $k$-node subsegment and links it to the previous group.\n\n```python\nfrom typing import Optional\n\ndef reverse_k_group(head: Optional[ListNode], k: int) -> Optional[ListNode]:\n    dummy = ListNode(0, head)\n    group_prev = dummy\n    while True:\n        # Check if there are k nodes remaining\n        kth = group_prev\n        for _ in range(k):\n            kth = kth.next\n            if not kth:\n                return dummy.next\n        group_next = kth.next\n        # Reverse k nodes: between group_prev and group_next\n        prev = group_next\n        curr = group_prev.next\n        while curr != group_next:\n            tmp = curr.next\n            curr.next = prev\n            prev = curr\n            curr = tmp\n        tmp = group_prev.next\n        group_prev.next = kth\n        group_prev = tmp\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is total nodes in the list. Each node is visited twice (once to verify count, once to reverse).\n- **Space Complexity:** $O(1)$ auxiliary space because all pointer rearrangements occur in-place.\n\n**Algorithmic mechanics and edge cases:**\n`kth` advances $k$ steps to verify that a complete group exists. If `kth` hits `None`, the loop terminates and the remaining nodes are left unmodified. The segment between `group_prev.next` and `kth` is reversed, with `prev` initialized to `group_next` so the reversed segment's tail connects seamlessly to the next group. Edge cases include $k = 1$ (no change), $k = n$ (reverses entire list), and list lengths smaller than $k$.",
+        "Why": "Verifying k nodes ahead before in-place reversal leaves trailing incomplete segments unchanged without recursion.",
+        "Risk": "Reversing before checking for k nodes requires backtracking or reversing back if the segment is shorter than k.",
+        "Trade": "In-place pointer reversal avoids O(n) memory allocation or array copying.",
+        "Try": "Trace 1 -> 2 -> 3 -> 4 -> 5 with k=2: group 1 reverses to 2->1; group 2 reverses to 4->3; 5 remains -> 2 -> 1 -> 4 -> 3 -> 5.",
+        "worked_case": "head=[1,2,3,4,5], k=3. First group has 3 nodes (1,2,3). Reversed to 3->2->1. Remaining is [4,5], which has length 2 < 3. Stops. Result: [3,2,1,4,5].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you solve this recursively?",
+                "A": "Check for k nodes; reverse the first k nodes; head.next = reverse_k_group(next_head, k); return new_head."
+            }
+        ]
+    },
+    {
+        "Q": "How do you deep-copy a linked list with random pointers in O(1) extra space?",
+        "A": "**Direct answer:** Copy List with Random Pointer (LeetCode 138) clones a linked list where each node has a `next` pointer and a `random` pointer. The optimal solution avoids a hash map by interleaving cloned nodes directly alongside original nodes: $A \\to A' \\to B \\to B' \\to C \\to C'$, copying random pointers, then decoupling the two lists.\n\n```python\nclass Node:\n    def __init__(self, val: int, next: 'Node' = None, random: 'Node' = None):\n        self.val = val\n        self.next = next\n        self.random = random\n\ndef copy_random_list(head: 'Node') -> 'Node':\n    if not head:\n        return None\n    # Phase 1: Create cloned nodes interleaved directly after original nodes\n    curr = head\n    while curr:\n        clone = Node(curr.val, curr.next)\n        curr.next = clone\n        curr = clone.next\n    # Phase 2: Assign random pointers for cloned nodes\n    curr = head\n    while curr:\n        if curr.random:\n            curr.next.random = curr.random.next\n        curr = curr.next.next\n    # Phase 3: Decouple original and cloned lists\n    dummy = Node(0)\n    copy_curr = dummy\n    curr = head\n    while curr:\n        clone = curr.next\n        curr.next = clone.next\n        copy_curr.next = clone\n        copy_curr = clone\n        curr = curr.next\n    return dummy.next\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is number of nodes. Three passes iterate through the list.\n- **Space Complexity:** $O(1)$ auxiliary space (ignoring cloned nodes) because no hash map is used.\n\n**Algorithmic mechanics and edge cases:**\nInterleaving node $A'$ after $A$ means $A.\\text{random}.\\text{next}$ is exactly the clone of $A.\\text{random}$. This eliminates the need for an $O(n)$ hash table mapping `original -> clone`. Phase 3 restores the original list's `next` pointers while stitching the clones together. Edge cases include `head = None`, nodes with `random = None`, and self-referencing nodes (`node.random = node`).",
+        "Why": "Interleaving cloned nodes inside the original list embeds clone mapping directly into the node structure in O(1) extra space.",
+        "Risk": "Failing to restore original node next pointers in Phase 3 mutates caller data and breaks external invariants.",
+        "Trade": "Interleaving requires three passes and temporary mutation of the list; hash map approach is two passes with O(n) memory.",
+        "Try": "Trace node A with A.random=A: clone A' placed after A; A.next.random = A.random.next = A.next (A'); decouples A and A'.",
+        "worked_case": "Input: [[7,null],[13,0]]. Clone creates 7->7'->13->13'. Assign random: 13'.random = 13.random.next = 7.next = 7'. Decouple yields separate cloned list.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you clone an arbitrary directed graph with cycles?",
+                "A": "Use DFS/BFS with a visited hash map mapping original node pointers to newly instantiated cloned node instances."
+            }
+        ]
+    },
+    {
+        "Q": "How do you add two numbers represented by linked lists in reverse order?",
+        "A": "**Direct answer:** Add Two Numbers (LeetCode 2) adds two non-empty linked lists representing two non-negative integers stored in reverse order. The optimal solution uses a sentinel dummy head, traversing both lists simultaneously while propagating a running `carry` digit.\n\n```python\nfrom typing import Optional\n\ndef add_two_numbers(l1: Optional[ListNode], l2: Optional[ListNode]) -> Optional[ListNode]:\n    dummy = ListNode(0)\n    curr = dummy\n    carry = 0\n    while l1 or l2 or carry:\n        val1 = l1.val if l1 else 0\n        val2 = l2.val if l2 else 0\n        total = val1 + val2 + carry\n        carry = total // 10\n        curr.next = ListNode(total % 10)\n        curr = curr.next\n        l1 = l1.next if l1 else None\n        l2 = l2.next if l2 else None\n    return dummy.next\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(\\max(m, n))$ where $m$ and $n$ are lengths of `l1` and `l2`.\n- **Space Complexity:** $O(\\max(m, n))$ for the new linked list output.\n\n**Algorithmic mechanics and edge cases:**\nBecause digits are stored in reverse order (least significant digit first), traversal mirrors column addition directly from units to tens to hundreds. The condition `while l1 or l2 or carry` guarantees that a final carry digit (e.g. $5 + 5 = 10$) creates a trailing node without special post-loop logic. Edge cases include lists of differing lengths (e.g., adding `999` and `1`), single-digit zeros, and carries propagating across multiple digits.",
+        "Why": "Reverse-order storage allows streaming column addition directly with single-digit carry propagation.",
+        "Risk": "Converting linked lists to Python integers using loops risks exceeding integer string conversion limits on lists with 100,000 nodes.",
+        "Trade": "Streaming node-by-node construction requires O(max(m, n)) allocations for the result list.",
+        "Try": "Add l1=[2, 4, 3] (342) and l2=[5, 6, 4] (465): 2+5=7; 4+6=10 (0, carry 1); 3+4+1=8 -> [7, 0, 8] (807).",
+        "worked_case": "l1=[9,9,9,9], l2=[9,9]. Digits: 9+9=18 (8, c=1); 9+9+1=19 (9, c=1); 9+0+1=10 (0, c=1); 9+0+1=10 (0, c=1); carry 1 -> [8,9,0,0,1].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you solve Add Two Numbers II where digits are stored in forward most-significant order?",
+                "A": "Push digits of both lists onto two stacks, then pop from stacks to perform addition from least significant digit forward."
+            }
+        ]
+    },
+    {
+        "Q": "How do you calculate the number of days until a warmer temperature using a monotonic stack?",
+        "A": "**Direct answer:** Daily Temperatures (LeetCode 739) computes an array `answer` where `answer[i]` is the number of days you have to wait after the $i$-th day to get a warmer temperature. The optimal solution uses a monotonic decreasing stack storing indices of temperatures that have not yet found a warmer day.\n\n```python\ndef daily_temperatures(temperatures: list[int]) -> list[int]:\n    n = len(temperatures)\n    res = [0] * n\n    stack: list[int] = []  # Monotonic decreasing stack of indices\n    for i, temp in enumerate(temperatures):\n        while stack and temperatures[stack[-1]] < temp:\n            prev_index = stack.pop()\n            res[prev_index] = i - prev_index\n        stack.append(i)\n    return res\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `temperatures`. Each index is pushed and popped at most once.\n- **Space Complexity:** $O(n)$ auxiliary space in the worst case where temperatures are monotonically decreasing.\n\n**Algorithmic mechanics and edge cases:**\nThe stack maintains indices of unresolved days in strictly decreasing temperature order. When the current temperature `temp` exceeds the temperature at `stack[-1]`, `temp` is the *next warmer temperature* for that day. We pop the index and record the distance `i - prev_index`. Edge cases include monotonically decreasing arrays (all answers remain `0`), monotonically increasing arrays (every answer is `1`), and all identical temperatures.",
+        "Why": "A monotonic decreasing stack resolves the nearest greater element for each item in amortized O(1) operations.",
+        "Risk": "Brute-force nested loops inspect O(n^2) pairs, timing out on arrays with 100,000 elements.",
+        "Trade": "Storing indices rather than temperature values allows calculating distance intervals directly upon pop.",
+        "Try": "Trace temperatures=[73, 74, 75, 71, 69, 72, 76, 73] and observe stack pops resolving earlier days.",
+        "worked_case": "T=[30, 40, 50, 60]. i=0 (30): stack=[0]. i=1 (40 > 30): pop 0, res[0]=1-0=1, stack=[1]. i=2 (50 > 40): pop 1, res[1]=2-1=1, stack=[2]. i=3 (60 > 50): pop 2, res[2]=3-2=1, stack=[3]. Result: [1, 1, 1, 0].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you solve Next Greater Element II where the array is circular?",
+                "A": "Iterate through the array twice (from 0 to 2n - 1) using index modulo i % n with the same monotonic stack."
+            }
+        ]
+    },
+    {
+        "Q": "How do you implement a stack that supports push, pop, top, and retrieving the minimum element in O(1) time?",
+        "A": "**Direct answer:** Min Stack (LeetCode 155) designs a stack supporting `push`, `pop`, `top`, and `getMin` operations in $O(1)$ time. The optimal solution maintains a secondary minimum stack (or stores tuples `(val, current_min)` on a single stack) tracking the running minimum associated with each stack level.\n\n```python\nclass MinStack:\n    def __init__(self):\n        self.stack: list[int] = []\n        self.min_stack: list[int] = []\n\n    def push(self, val: int) -> None:\n        self.stack.append(val)\n        # Push onto min_stack if it's the new minimum\n        if not self.min_stack or val <= self.min_stack[-1]:\n            self.min_stack.append(val)\n\n    def pop(self) -> None:\n        val = self.stack.pop()\n        if val == self.min_stack[-1]:\n            self.min_stack.pop()\n\n    def top(self) -> int:\n        return self.stack[-1]\n\n    def getMin(self) -> int:\n        return self.min_stack[-1]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(1)$ for all four operations (`push`, `pop`, `top`, `getMin`).\n- **Space Complexity:** $O(n)$ where $n$ is the number of elements pushed onto the stack.\n\n**Algorithmic mechanics and edge cases:**\nBecause stack operations are LIFO (Last-In, First-Out), the minimum element of the stack cannot change unless an element is pushed or popped. By pushing onto `min_stack` only when `val <= min_stack[-1]` (note `<=`, not `<`), we preserve duplicate minimums. When popping, if the removed value equals `min_stack[-1]`, it is popped from `min_stack` as well. Edge cases include pushing duplicate minimums, popping the current minimum, and negative numbers.",
+        "Why": "LIFO stack semantics guarantee that the minimum element among all current elements is monotonic with stack depth.",
+        "Risk": "Using strictly less < instead of <= when pushing to min_stack causes premature eviction of duplicate minimums.",
+        "Trade": "A secondary min_stack pushes only when min updates, saving memory compared to storing (val, min) on every entry.",
+        "Try": "Push -2, 0, -3. getMin() -> -3. pop(). top() -> 0. getMin() -> -2. Confirm both stacks remain in sync.",
+        "worked_case": "push(2), min_stack=[2]. push(0), min_stack=[2, 0]. push(3), min_stack=[2, 0]. push(0), min_stack=[2, 0, 0]. pop() -> pops 0, min_stack=[2, 0]. getMin()=0.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How can you achieve this in O(1) space per element without a secondary stack?",
+                "A": "Store the difference val - current_min on the stack; when the difference is negative, current_min updates and can be restored on pop."
+            }
+        ]
+    },
+    {
+        "Q": "How do you evaluate an arithmetic expression in Reverse Polish Notation (postfix)?",
+        "A": "**Direct answer:** Evaluate Reverse Polish Notation (LeetCode 150) evaluates an arithmetic expression in postfix notation containing `+`, `-`, `*`, `/`. The optimal solution uses an operand stack: push numbers, and when an operator is encountered, pop the top two operands, evaluate, and push the result back.\n\n```python\ndef eval_rpn(tokens: list[str]) -> int:\n    stack: list[int] = []\n    for token in tokens:\n        if token in {\"+\", \"-\", \"*\", \"/\"}:\n            b = stack.pop()\n            a = stack.pop()\n            if token == \"+\":\n                stack.append(a + b)\n            elif token == \"-\":\n                stack.append(a - b)\n            elif token == \"*\":\n                stack.append(a * b)\n            elif token == \"/\":\n                stack.append(int(a / b))  # Truncate towards zero\n        else:\n            stack.append(int(token))\n    return stack[0]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of tokens. Each token is pushed and popped at most once.\n- **Space Complexity:** $O(n)$ auxiliary space to store operands on the stack.\n\n**Algorithmic mechanics and edge cases:**\nIn Reverse Polish Notation, operators appear immediately after their operands, completely eliminating the need for parentheses or operator precedence rules. Note that the first popped value is operand `b` (the right operand) and the second popped value is `a` (the left operand), which is critical for non-commutative operations like `-` and `/`. In Python, `int(a / b)` correctly truncates toward zero (e.g. `int(-6 / 132) == 0`), whereas `a // b` rounds down towards negative infinity (`-6 // 132 == -1`). Edge cases include single-token expressions `[\"18\"]` and negative numbers.",
+        "Why": "Postfix notation orders operations explicitly so an operand stack evaluates operators immediately upon arrival.",
+        "Risk": "Popping in wrong order (a then b instead of b then a) inverts division a / b to b / a and subtraction a - b to b - a.",
+        "Trade": "Using int(a / b) rather than a // b guarantees compliance with LeetCode truncation toward zero requirements.",
+        "Try": "Evaluate tokens=['4', '13', '5', '/', '+']: 13/5=2; 4+2=6; verify stack terminates with [6].",
+        "worked_case": "Evaluation walkthrough: For tokens=['2', '1', '+', '3', 'x']: stack pushes 2 then 1; on '+' pops 1 and 2, evaluates 2+1=3, pushes 3; pushes 3; on multiplication operator pops 3 and 3, evaluates 3 multiplied by 3 = 9, pushes 9. Result returned is 9.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you convert standard infix expressions (e.g., 3 + 4 * 2) into Reverse Polish Notation?",
+                "A": "Use Dijkstra's Shunting-Yard algorithm using an operator stack and precedence comparisons to reorder tokens into postfix."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the largest rectangular area in a histogram in linear time?",
+        "A": "**Direct answer:** Largest Rectangle in Histogram (LeetCode 84) finds the area of the largest rectangle that can be formed within a histogram. The optimal solution uses a monotonic increasing stack storing `(index, height)` pairs, calculating rectangular areas when encountering a height drop.\n\n```python\ndef largest_rectangle_area(heights: list[int]) -> int:\n    stack: list[tuple[int, int]] = []  # (index, height)\n    max_area = 0\n    for i, h in enumerate(heights):\n        start = i\n        while stack and stack[-1][1] > h:\n            idx, height = stack.pop()\n            max_area = max(max_area, height * (i - idx))\n            start = idx  # Extend start index backward\n        stack.append((start, h))\n    for idx, height in stack:\n        max_area = max(max_area, height * (len(heights) - idx))\n    return max_area\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of bars in `heights`. Each bar is pushed and popped at most once.\n- **Space Complexity:** $O(n)$ auxiliary space for the monotonic stack.\n\n**Algorithmic mechanics and edge cases:**\nWhen current height `h` is smaller than `stack[-1][1]`, the popped bar cannot extend any further to the right. Its width is bounded on the right by `i` and on the left by its stored `start` index. Because the popped bar was taller than `h`, the current bar `h` can extend its own left boundary backward to `idx`. A cleanup pass evaluates all bars remaining in the stack extending to the end of the histogram. Edge cases include empty list, monotonically increasing bars, and single-bar histograms.",
+        "Why": "A monotonic increasing stack computes the maximal span for each bar as soon as a rightward boundary drop occurs.",
+        "Risk": "Brute-force testing all pairs of bars takes O(n^2) time, which times out on histograms with 100,000 bars.",
+        "Trade": "Tracking start indices directly during pop eliminates the need for two separate left/right boundary arrays.",
+        "Try": "Trace heights=[2, 1, 5, 6, 2, 3] and observe that bars 5 and 6 form a 2x5 rectangle of area 10.",
+        "worked_case": "heights=[2, 4]. i=0: stack=[(0,2)]. i=1: 4 > 2 -> stack=[(0,2), (1,4)]. Cleanup: bar 4 extends len 2-1=1 -> area 4; bar 2 extends len 2-0=2 -> area 4. Max=4.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you use this to solve Maximal Rectangle (LeetCode 85) in a 2D binary matrix?",
+                "A": "Treat each row of the matrix as the base of a histogram, accumulating consecutive 1s down columns, and run largest_rectangle_area on each row."
+            }
+        ]
+    },
+    {
+        "Q": "How do you simulate asteroid collisions using a stack?",
+        "A": "**Direct answer:** Asteroid Collision (LeetCode 735) simulates asteroids moving along a line where positive values move right and negative values move left, colliding when they meet. The optimal solution uses a stack to simulate collisions: an asteroid only collides if it moves left (`< 0`) and the top of the stack moves right (`> 0`).\n\n```python\ndef asteroid_collision(asteroids: list[int]) -> list[int]:\n    stack: list[int] = []\n    for ast in asteroids:\n        while stack and ast < 0 and stack[-1] > 0:\n            diff = ast + stack[-1]\n            if diff < 0:\n                stack.pop()  # Right-moving asteroid explodes, left continues\n            elif diff > 0:\n                ast = 0      # Left-moving asteroid explodes\n                break\n            else:\n                stack.pop()  # Both asteroids explode\n                ast = 0\n                break\n        if ast != 0:\n            stack.append(ast)\n    return stack\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of asteroids. Each asteroid is pushed and popped at most once.\n- **Space Complexity:** $O(n)$ auxiliary space to store remaining asteroids on the stack.\n\n**Algorithmic mechanics and edge cases:**\nCollisions occur only when `ast < 0` and `stack[-1] > 0` (moving towards each other). If both move in the same direction or move away from each other (`stack[-1] < 0` and `ast > 0`), no collision is possible and `ast` is appended. When masses match (`diff == 0`), both explode. Edge cases include all asteroids moving in the same direction, all asteroids exploding (`[8, -8] -> []`), and negative asteroids preceding positive asteroids (`[-2, -1, 1, 2] -> [-2, -1, 1, 2]`).",
+        "Why": "A stack models sequential localized physical collisions because newly arriving asteroids only collide with the most recent survivor.",
+        "Risk": "Assuming negative asteroids always collide; negative asteroids at the front of the array move left into empty space and never collide.",
+        "Trade": "Setting ast = 0 and breaking acts as an in-place annihilation flag without requiring complex boolean variables.",
+        "Try": "Test with [5, 10, -5] -> 10 and -5 collide, 10 survives -> output [5, 10].",
+        "worked_case": "asteroids=[10, 2, -5]. stack=[10, 2]. ast=-5: collides with 2 (2 explodes, popped). collides with 10 (diff = 10-5=5 > 0, -5 explodes, ast=0). stack=[10].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "What happens when multiple consecutive asteroids explode simultaneously?",
+                "A": "The while loop naturally chains pops until either the incoming asteroid explodes, stack is empty, or stack top is moving left."
+            }
+        ]
+    },
+    {
+        "Q": "How do you remove k digits from a number string to form the smallest possible number?",
+        "A": "**Direct answer:** Remove K Digits (LeetCode 402) removes `k` digits from a non-negative integer string `num` so that the remaining digits form the smallest possible number. The optimal solution uses a monotonic increasing stack: greedily remove the previous digit whenever the current digit is smaller.\n\n```python\ndef remove_kdigits(num: str, k: int) -> str:\n    stack: list[str] = []\n    for digit in num:\n        while k > 0 and stack and stack[-1] > digit:\n            stack.pop()\n            k -= 1\n        stack.append(digit)\n    # If k removals remain, truncate from the right\n    final_stack = stack[:-k] if k > 0 else stack\n    # Strip leading zeros\n    res = \"\".join(final_stack).lstrip(\"0\")\n    return res if res else \"0\"\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `num`. Each digit is pushed and popped at most once.\n- **Space Complexity:** $O(n)$ auxiliary space to store characters on the stack.\n\n**Algorithmic mechanics and edge cases:**\nTo make a number as small as possible, digits in higher place values (leftmost) should be as small as possible. If `stack[-1] > digit`, replacing `stack[-1]` with `digit` strictly decreases the number's magnitude. If all digits are in non-decreasing order (e.g. `\"12345\"`), we truncate the remaining `k` digits from the tail `stack[:-k]`. Leading zeros are stripped using `.lstrip('0')`. Edge cases include $k = n$ (returns `\"0\"`), numbers with trailing zeros (`\"10200\", k=1 -> \"200\"`), and strictly ascending digits.",
+        "Why": "A monotonic increasing stack greedily minimizes leading high-place digits to produce the minimal numerical magnitude.",
+        "Risk": "Failing to remove remaining k digits when the string is already ascending (e.g., '12345', k=3) produces a larger number.",
+        "Trade": "Using list stack avoids string immutability reallocations during iterative popping.",
+        "Try": "Trace num='1432219', k=3: 4 pops for 3; 3 pops for 2; 2 pops for 1; leaves '1219'.",
+        "worked_case": "num='10200', k=1. i=0 ('1'): stack=['1']. i=1 ('0'): '1' > '0', pop '1', k=0, stack=['0']. Next digits '2','0','0' append. stack=['0','2','0','0']. lstrip('0') -> '200'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you find the largest possible number by removing k digits?",
+                "A": "Invert the condition to a monotonic decreasing stack: while k > 0 and stack and stack[-1] < digit: stack.pop()."
+            }
+        ]
+    },
+    {
+        "Q": "How do you decode an encoded string with nested repetition brackets?",
+        "A": "**Direct answer:** Decode String (LeetCode 394) decodes strings formatted like `k[encoded_string]`, where the `encoded_string` inside square brackets is repeated exactly `k` times. The optimal solution uses a stack storing tuples of `(previous_string, multiplier)` to resolve arbitrarily nested bracket expressions.\n\n```python\ndef decode_string(s: str) -> str:\n    stack: list[tuple[str, int]] = []\n    curr_str = \"\"\n    curr_num = 0\n    for char in s:\n        if char.isdigit():\n            curr_num = curr_num * 10 + int(char)\n        elif char == '[':\n            stack.append((curr_str, curr_num))\n            curr_str = \"\"\n            curr_num = 0\n        elif char == ']':\n            prev_str, num = stack.pop()\n            curr_str = prev_str + curr_str * num\n        else:\n            curr_str += char\n    return curr_str\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(N)$ where $N$ is the length of the final decoded string. Every character in the output is generated and concatenated.\n- **Space Complexity:** $O(N)$ to hold intermediate and final string buffers on the stack.\n\n**Algorithmic mechanics and edge cases:**\nEncountering `'['` pushes the currently accumulated string context and the repetition multiplier onto the stack, resetting both for the nested scope. Encountering `']'` pops the enclosing context, multiplies the current inner string by `num`, and prepends the outer `prev_str`. Edge cases include multi-digit numbers (e.g. `100[leetcode]`), multiple sibling brackets (`2[a]3[b]`), and deeply nested brackets (`2[a3[b]]`).",
+        "Why": "A stack naturally isolates nested variable scopes, restoring parent string buffers upon matching closing brackets.",
+        "Risk": "Resetting curr_num without parsing multi-digit numbers (num = num * 10 + int(c)) corrupts counts >= 10.",
+        "Trade": "Stack iteration is simpler and avoids the maximum recursion depth limit associated with recursive parsing.",
+        "Try": "Trace '3[a2[c]]': stack pushes ('', 3) on first '[', pushes ('a', 2) on second '['; 'c' repeats 2x -> 'acc'; repeats 3x -> 'accaccacc'.",
+        "worked_case": "s='2[abc]3[cd]ef'. 2[abc] decodes to 'abcabc'. 3[cd] decodes to 'cdcdcd'. 'ef' appends. Result: 'abcabccdcdcdef'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "Can this be implemented as a recursive descent parser?",
+                "A": "Yes, pass an index pointer; on '[' call decode_subproblem recursively and return when ']' is met."
+            }
+        ]
+    }
+]
+

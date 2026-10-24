@@ -1,0 +1,261 @@
+"""16 Trees, Heaps, and Graphs Algorithmic Questions."""
+
+QUESTIONS = [
+    {
+        "Q": "How do you invert a binary tree recursively and iteratively?",
+        "A": "**Direct answer:** Invert Binary Tree (LeetCode 226) swaps the left and right child subtrees for every node in a binary tree. The optimal recursive solution visits each node in post-order or pre-order, swaps its children, and recursively inverts both branches.\n\n```python\nfrom typing import Optional\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef invert_tree(root: Optional[TreeNode]) -> Optional[TreeNode]:\n    if not root:\n        return None\n    root.left, root.right = invert_tree(root.right), invert_tree(root.left)\n    return root\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes in the tree. Each node is visited exactly once.\n- **Space Complexity:** $O(h)$ where $h$ is the height of the tree, representing the recursion call stack ($O(\\log n)$ for balanced trees, $O(n)$ worst-case for degenerate linked lists).\n\n**Algorithmic mechanics and edge cases:**\nAt every node, swapping `root.left` and `root.right` inverts the current level. Python's tuple unpacking `root.left, root.right = invert_tree(root.right), invert_tree(root.left)` evaluates both recursive calls before assignment, avoiding intermediate variables. Alternatively, a queue-based Breadth-First Search (BFS) inverts the tree level-by-level without recursion stack limits. Edge cases include empty tree (`root = None`), single-node trees, and asymmetric trees.",
+        "Why": "Swapping child pointers at every level mirrors the tree structure across its vertical axis in linear time.",
+        "Risk": "Deeply unbalanced linear trees with 10,000 nodes cause Python RecursionError unless sys.setrecursionlimit is raised or BFS is used.",
+        "Trade": "Recursive post-order traversal is extremely concise; BFS queue traversal requires O(w) memory where w is maximum tree width.",
+        "Try": "Trace root=[4, 2, 7, 1, 3, 6, 9]: left child 2 and right child 7 swap, and their descendants mirror to yield [4, 7, 2, 9, 6, 3, 1].",
+        "worked_case": "root=[2, 1, 3]. root.left (1) and root.right (3) swap -> root.left becomes 3, root.right becomes 1. Leaves have no children. Returns root=[2, 3, 1].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you invert the tree iteratively using a queue (BFS)?",
+                "A": "Use collections.deque; pop node, swap node.left and node.right, and push non-null children into the queue until empty."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the maximum depth (height) of a binary tree?",
+        "A": "**Direct answer:** Maximum Depth of Binary Tree (LeetCode 104) finds the number of nodes along the longest path from the root down to the farthest leaf node. The optimal solution uses Depth-First Search (DFS) post-order recursion: the height of any node is $1 + \\max(\\text{height}(\\text{left}), \\text{height}(\\text{right}))$.\n\n```python\nfrom typing import Optional\n\ndef max_depth(root: Optional[TreeNode]) -> int:\n    if not root:\n        return 0\n    return 1 + max(max_depth(root.left), max_depth(root.right))\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes, visiting each node once.\n- **Space Complexity:** $O(h)$ where $h$ is tree height, matching recursion call stack depth ($O(\\log n)$ balanced, $O(n)$ skewed).\n\n**Algorithmic mechanics and edge cases:**\nThe base case returns 0 when reaching an empty subtree (`None`). Each parent node aggregates the maximum depths of its two subtrees and adds 1 for itself. Alternatively, level-order BFS traversal counts the total number of level iterations before the queue empties. Edge cases include empty tree (`root = None`, depth 0), single-node tree (depth 1), and completely skewed linked-list trees.",
+        "Why": "Post-order tree traversal aggregates subtree heights bottom-up in a single pass without extra state.",
+        "Risk": "Assuming balanced tree depth O(log n); degenerate trees degrade space complexity to O(n) call stack frames.",
+        "Trade": "DFS recursion is one line of code; BFS queue iteration requires O(w) heap memory but avoids stack overflow.",
+        "Try": "Trace root=[3, 9, 20, null, null, 15, 7]: left branch has depth 2 (3->9); right branch has depth 3 (3->20->15); max is 3.",
+        "worked_case": "root=[1, null, 2]. Left is None (0). Right is node 2, which has left None (0) and right None (0) -> depth 1. Root returns 1 + max(0, 1) = 2.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you find the minimum depth to a leaf node (Minimum Depth of Binary Tree)?",
+                "A": "If a node has only one child, you cannot take min(0, child_depth); you must return the depth of the non-empty child branch."
+            }
+        ]
+    },
+    {
+        "Q": "How do you determine if two binary trees are identical in structure and node values?",
+        "A": "**Direct answer:** Same Tree (LeetCode 100) checks if two binary trees are structurally identical and have identical node values. The optimal solution uses simultaneous recursive traversal, asserting that both current nodes are null or both have identical values, followed by recursive left and right checks.\n\n```python\nfrom typing import Optional\n\ndef is_same_tree(p: Optional[TreeNode], q: Optional[TreeNode]) -> bool:\n    if not p and not q:\n        return True\n    if not p or not q or p.val != q.val:\n        return False\n    return is_same_tree(p.left, q.left) and is_same_tree(p.right, q.right)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the minimum number of nodes between the two trees. Traversal terminates early on the first discrepancy.\n- **Space Complexity:** $O(h)$ where $h$ is the height of the trees, representing recursion stack depth.\n\n**Algorithmic mechanics and edge cases:**\nThe three base cases are: 1) both nodes are `None` (returns `True`); 2) one node is `None` while the other is not (structural mismatch, returns `False`); 3) node values differ (value mismatch, returns `False`). If all pass, both subtrees are verified recursively. Edge cases include two empty trees (True), one empty tree and one non-empty tree (False), and trees with identical values but mirrored structures.",
+        "Why": "Simultaneous tree traversal compares structure and node values lockstep with immediate short-circuiting on mismatch.",
+        "Risk": "Comparing p.val == q.val without first verifying that neither node is None triggers an AttributeError: 'NoneType' object has no attribute 'val'.",
+        "Trade": "Lockstep DFS recursion short-circuits on the first mismatch, minimizing unnecessary subtree visits.",
+        "Try": "Test with p=[1, 2] and q=[1, null, 2]: structural check at p.left (node 2) vs q.left (None) returns False immediately.",
+        "worked_case": "p=[1,2,3], q=[1,2,3]. Roots match (1==1). Left nodes match (2==2), their children are None -> True. Right nodes match (3==3) -> True. Returns True.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you check if a single tree is symmetric around its vertical center (Symmetric Tree)?",
+                "A": "Run is_mirror(t1.left, t2.right) and is_mirror(t1.right, t2.left) comparing mirrored child pairs."
+            }
+        ]
+    },
+    {
+        "Q": "How do you determine if a binary tree contains another binary tree as a subtree?",
+        "A": "**Direct answer:** Subtree of Another Tree (LeetCode 572) checks if tree `root` contains a subtree identical in structure and node values to tree `subRoot`. The optimal solution uses Depth-First Search: at each node in `root`, check if `is_same_tree(root, subRoot)` is true, or recursively check left and right subtrees.\n\n```python\nfrom typing import Optional\n\ndef is_subtree(root: Optional[TreeNode], subRoot: Optional[TreeNode]) -> bool:\n    if not subRoot:\n        return True  # An empty tree is always a subtree\n    if not root:\n        return False # Non-empty subRoot cannot be in an empty root\n    if is_same_tree(root, subRoot):\n        return True\n    return is_subtree(root.left, subRoot) or is_subtree(root.right, subRoot)\n\ndef is_same_tree(s: Optional[TreeNode], t: Optional[TreeNode]) -> bool:\n    if not s and not t:\n        return True\n    if not s or not t or s.val != t.val:\n        return False\n    return is_same_tree(s.left, t.left) and is_same_tree(s.right, t.right)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(|root| \\cdot |subRoot|)$ in the worst case where many nodes share identical values with `subRoot`.\n- **Space Complexity:** $O(h)$ where $h$ is the maximum tree height, corresponding to recursion stack frames.\n\n**Algorithmic mechanics and edge cases:**\nA subtree must match identically all the way down to the leaf nodes; matching an intermediate subset of nodes is not sufficient. `is_subtree` traverses every candidate node in `root`, calling `is_same_tree` whenever the node value matches `subRoot.val`. Edge cases include `subRoot` being identical to `root`, `subRoot` having identical values but extra child nodes, and duplicate node values across the parent tree.",
+        "Why": "Traversing candidate roots and verifying complete subtree equality guarantees exact topological matching.",
+        "Risk": "Assuming value match at root is sufficient; a valid subtree must match all descendant child pointers down to null leaves.",
+        "Trade": "Naive recursive search takes O(N * M); tree serialization with KMP string matching or Merkle hashing achieves O(N + M) linear time.",
+        "Try": "Test with root=[3,4,5,1,2,null,null,null,null,0] and subRoot=[4,1,2]: note that node 2 has an extra child 0 in root, so returns False.",
+        "worked_case": "root=[3,4,5,1,2], subRoot=[4,1,2]. root(3) != subRoot(4). Recurse left to root(4): is_same_tree(node 4, subRoot) returns True. Final result is True.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you achieve strictly linear O(|root| + |subRoot|) runtime for subtree matching?",
+                "A": "Serialize both trees using preorder traversal with explicit null delimiters (e.g. '^4,1,#,#,2,#,#'$) and run KMP pattern matching."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the Lowest Common Ancestor (LCA) in a Binary Search Tree?",
+        "A": "**Direct answer:** Lowest Common Ancestor of a BST (LeetCode 235) finds the lowest node in a BST that has both nodes `p` and `q` as descendants. The optimal solution exploits the BST ordering property: if both values are smaller than the current node, search left; if both are larger, search right; the split point is the LCA.\n\n```python\nfrom typing import Optional\n\ndef lowest_common_ancestor_bst(root: 'TreeNode', p: 'TreeNode', q: 'TreeNode') -> 'TreeNode':\n    curr = root\n    while curr:\n        if p.val < curr.val and q.val < curr.val:\n            curr = curr.left\n        elif p.val > curr.val and q.val > curr.val:\n            curr = curr.right\n        else:\n            # Split point: either p and q lie on opposite sides, or curr is p or q\n            return curr\n    return root\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(h)$ where $h$ is the height of the BST ($O(\\log n)$ for balanced trees, $O(n)$ for skewed trees). At most one path from root to leaf is traversed.\n- **Space Complexity:** $O(1)$ auxiliary space because the search executes iteratively without recursion stack frames.\n\n**Algorithmic mechanics and edge cases:**\nIn a BST, all values in the left subtree are $< \\text{root.val}$, and all values in the right subtree are $> \\text{root.val}$. If both `p.val` and `q.val` are strictly less than `curr.val`, the LCA must lie in the left subtree. If both are strictly greater, the LCA must lie in the right subtree. The moment `p.val` and `q.val` diverge (one is $\\le \\text{curr.val}$ and one is $\\ge \\text{curr.val}$), `curr` is the lowest common ancestor. Edge cases include `p` being the direct ancestor of `q`, or `p` and `q` lying in opposite subtrees.",
+        "Why": "The BST ordering property guarantees that the first node where p and q diverge in search direction is their unique LCA.",
+        "Risk": "Using general binary tree LCA post-order traversal on a BST wastes the sorted ordering invariant and takes O(n) instead of O(h).",
+        "Trade": "Iterative BST search uses O(1) space and avoids recursion call stack overhead.",
+        "Try": "Trace root=[6, 2, 8, 0, 4, 7, 9] with p=2, q=8: 2 < 6 and 8 > 6 -> split point is root 6.",
+        "worked_case": "root=[6, 2, 8, 0, 4, 7, 9], p=2, q=4. At root 6: both 2,4 < 6 -> curr moves to 2. At node 2: p.val == 2 (diverges/matches) -> returns node 2.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How does this change if the tree is an arbitrary Binary Tree without the BST ordering property?",
+                "A": "Use post-order DFS checking if left or right subtrees return non-null nodes; when both return non-null, the current root is the LCA."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the Lowest Common Ancestor (LCA) in an arbitrary Binary Tree?",
+        "A": "**Direct answer:** Lowest Common Ancestor of a Binary Tree (LeetCode 236) finds the lowest node in a general binary tree that has both `p` and `q` as descendants. The optimal solution uses post-order DFS: recurse on both subtrees, returning `root` if the current node is `p` or `q`, or if `p` and `q` are found in different subtrees.\n\n```python\nfrom typing import Optional\n\ndef lowest_common_ancestor(root: Optional[TreeNode], p: TreeNode, q: TreeNode) -> Optional[TreeNode]:\n    if not root or root == p or root == q:\n        return root\n    left = lowest_common_ancestor(root.left, p, q)\n    right = lowest_common_ancestor(root.right, p, q)\n    if left and right:\n        return root  # p and q found in separate subtrees; root is the LCA\n    return left if left else right  # Return the non-null result (propagates LCA up)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes in the binary tree, visiting every node in the worst case.\n- **Space Complexity:** $O(h)$ where $h$ is tree height, matching recursion call stack depth.\n\n**Algorithmic mechanics and edge cases:**\nIf `root` is `p` or `q`, we return `root` immediately. Otherwise, we search the left and right subtrees. If both `left` and `right` return non-null values, it means `p` was found in one subtree and `q` in the other; therefore, `root` is their lowest common ancestor. If only one side returns non-null, both nodes lie in that subtree, so we propagate that result up. Edge cases include `p` being the parent of `q` (returns `p`), nodes in opposite subtrees, and degenerate linear trees.",
+        "Why": "Post-order bottom-up traversal identifies the unique junction node where search results from left and right meet.",
+        "Risk": "Assuming p and q have distinct values; if duplicate values exist in the tree, pointer reference equality root == p must be used.",
+        "Trade": "Bottom-up DFS eliminates the need to build and store explicit root-to-node path arrays for p and q.",
+        "Try": "Trace root=[3, 5, 1, 6, 2, 0, 8] with p=5, q=1: left returns 5, right returns 1; since both are non-null, returns root 3.",
+        "worked_case": "root=[3, 5, 1, 6, 2, 0, 8], p=5, q=4 (child of 5). When root reaches 5, root == p returns 5 immediately without exploring its subtrees. 5 propagates to top as LCA.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you solve LCA if nodes have parent pointers (node.parent)?",
+                "A": "Store all ancestors of p in a hash set, then traverse up from q until finding the first ancestor present in the set."
+            }
+        ]
+    },
+    {
+        "Q": "How do you traverse a binary tree level by level using Breadth-First Search (BFS)?",
+        "A": "**Direct answer:** Binary Tree Level Order Traversal (LeetCode 102) returns the level-order traversal of its nodes' values (i.e. from left to right, level by level). The optimal solution uses a queue (`collections.deque`), processing nodes in batches corresponding to the number of elements present at the start of each level.\n\n```python\nfrom collections import deque\nfrom typing import Optional\n\ndef level_order(root: Optional[TreeNode]) -> list[list[int]]:\n    if not root:\n        return []\n    res: list[list[int]] = []\n    queue: deque[TreeNode] = deque([root])\n    while queue:\n        level_size = len(queue)\n        level_vals: list[int] = []\n        for _ in range(level_size):\n            node = queue.popleft()\n            level_vals.append(node.val)\n            if node.left:\n                queue.append(node.left)\n            if node.right:\n                queue.append(node.right)\n        res.append(level_vals)\n    return res\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes in the tree. Each node is enqueued and dequeued exactly once.\n- **Space Complexity:** $O(w)$ where $w$ is the maximum width of the tree ($O(n / 2) = O(n)$ in a complete binary tree), storing one level in the queue.\n\n**Algorithmic mechanics and edge cases:**\nTaking `level_size = len(queue)` at the start of the while loop snapshots the exact number of nodes belonging to the current depth level. Inner loop iterations pop only those `level_size` nodes, while their child nodes are appended to the back of the queue to be processed in the subsequent level iteration. Edge cases include empty tree (`root = None`, returns `[]`), single-node tree `[[1]]`, and skewed trees.",
+        "Why": "Snap-shotting len(queue) isolates level boundaries, enabling 2D level grouping in a single queue.",
+        "Risk": "Popping from a standard Python list with pop(0) takes O(n) per pop, degrading total traversal to O(n^2); collections.deque popleft() is O(1).",
+        "Trade": "Queue batching groups nodes by level without needing to store depth integers alongside each node.",
+        "Try": "Trace root=[3, 9, 20, null, null, 15, 7]: Level 1 -> [3]; Level 2 -> [9, 20]; Level 3 -> [15, 7].",
+        "worked_case": "root=[1]. queue=[1]. level_size=1. node 1 popped, no children. res=[[1]]. queue empty. Loop terminates. Result: [[1]].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you implement Zigzag Level Order Traversal (LeetCode 103)?",
+                "A": "Add a boolean flag left_to_right toggled each level; if false, reverse level_vals before appending to res."
+            }
+        ]
+    },
+    {
+        "Q": "How do you validate whether a binary tree is a valid Binary Search Tree (BST)?",
+        "A": "**Direct answer:** Validate Binary Search Tree (LeetCode 98) determines if a binary tree is a valid BST. A valid BST requires that all nodes in the left subtree have values strictly less than the node's value, and all nodes in the right subtree have values strictly greater than the node's value. The optimal solution uses DFS range propagation, passing valid open intervals `(min_val, max_val)` down the tree.\n\n```python\nfrom typing import Optional\n\ndef is_valid_bst(root: Optional[TreeNode]) -> bool:\n    def validate(node: Optional[TreeNode], min_val: float, max_val: float) -> bool:\n        if not node:\n            return True\n        if not (min_val < node.val < max_val):\n            return False\n        return (validate(node.left, min_val, node.val) and\n                validate(node.right, node.val, max_val))\n    return validate(root, float(\"-inf\"), float(\"inf\"))\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes in the tree, visiting each node once.\n- **Space Complexity:** $O(h)$ where $h$ is tree height, representing recursion call stack depth.\n\n**Algorithmic mechanics and edge cases:**\nChecking only that `node.left.val < node.val < node.right.val` locally is incorrect, because it fails to catch violations where a node deep in the left subtree is greater than an ancestor. Range propagation enforces global bounds: branching left tightens `max_val` to `node.val`, while branching right tightens `min_val` to `node.val`. Alternatively, an in-order traversal of a valid BST must yield strictly ascending values. Edge cases include duplicate node values (invalid in strict BSTs), values equal to `INT_MIN` or `INT_MAX`, and single-node trees.",
+        "Why": "Propagating open boundary intervals (min_val, max_val) down subtrees validates ancestor constraints globally.",
+        "Risk": "Comparing only immediate child nodes node.left < node < node.right accepts invalid trees like [5, 1, 6, null, null, 3, 7] (where 3 is in right subtree of 5).",
+        "Trade": "Range propagation validates bounds in a single DFS pass; in-order traversal achieves identical O(n) time by comparing with prev_val.",
+        "Try": "Test root=[5, 1, 4, null, null, 3, 6]: at node 4, condition min_val (5) < 4 < max_val (inf) fails (4 is not > 5), returning False.",
+        "worked_case": "root=[2, 1, 3]. validate(2, -inf, inf): True. validate(1, -inf, 2): True. validate(3, 2, inf): True. All return True -> valid BST.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you validate a BST using iterative in-order traversal?",
+                "A": "Use a stack to traverse in-order; assert that each popped node's value is strictly greater than prev_val, then update prev_val = node.val."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the kth smallest element in a Binary Search Tree?",
+        "A": "**Direct answer:** Kth Smallest Element in a BST (LeetCode 230) finds the $k$-th smallest value (1-indexed) in a BST. The optimal solution uses an iterative in-order traversal with a stack, terminating as soon as the $k$-th element is popped without traversing the remainder of the tree.\n\n```python\nfrom typing import Optional\n\ndef kth_smallest(root: Optional[TreeNode], k: int) -> int:\n    stack: list[TreeNode] = []\n    curr = root\n    while curr or stack:\n        while curr:\n            stack.append(curr)\n            curr = curr.left\n        curr = stack.pop()\n        k -= 1\n        if k == 0:\n            return curr.val\n        curr = curr.right\n    return -1\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(h + k)$ where $h$ is tree height and $k$ is the target index. It traverses down to the leftmost leaf in $O(h)$ and pops $k$ elements.\n- **Space Complexity:** $O(h)$ auxiliary space to store at most $h$ ancestors in the stack.\n\n**Algorithmic mechanics and edge cases:**\nAn in-order traversal (`Left -> Node -> Right`) of a Binary Search Tree visits node values in strictly sorted ascending order. By using an explicit stack rather than full recursion or array generation, the traversal halts immediately when `k == 0`, avoiding unnecessary traversal of the remaining $n - k$ nodes. Edge cases include $k = 1$ (the leftmost leaf), $k = n$ (the rightmost node), and single-node trees.",
+        "Why": "In-order traversal visits BST nodes in sorted ascending order; early termination at step k achieves O(h + k) runtime.",
+        "Risk": "Extracting full in-order traversal into an array takes O(n) memory and time, wasting work when k is small.",
+        "Trade": "Iterative stack traversal stops early at step k with O(h) memory, while full recursion traverses all nodes.",
+        "Try": "Trace root=[3, 1, 4, null, 2], k=1: stack pushes 3, 1; pops 1; k becomes 0, returns 1 immediately.",
+        "worked_case": "root=[5,3,6,2,4,null,null,1], k=3. Stack goes left: 5, 3, 2, 1. Pop 1 (k=2). Pop 2 (k=1). Node 2 has no right. Pop 3 (k=0) -> returns 3.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you optimize this if the BST is modified frequently and kth smallest queries are repeated often?",
+                "A": "Augment each TreeNode with a count of nodes in its left subtree, enabling O(h) binary search lookups like an Order Statistic Tree."
+            }
+        ]
+    },
+    {
+        "Q": "How do you construct a binary tree from preorder and inorder traversal arrays?",
+        "A": "**Direct answer:** Construct Binary Tree from Preorder and Inorder Traversal (LeetCode 105) reconstructs the unique binary tree given its preorder and inorder traversal sequences. The optimal solution uses a hash map storing the indices of values in the inorder array, recursively partitioning subtrees in $O(n)$ time.\n\n```python\nfrom typing import Optional\n\ndef build_tree(preorder: list[int], inorder: list[int]) -> Optional[TreeNode]:\n    inorder_map = {val: idx for idx, val in enumerate(inorder)}\n    pre_idx = 0\n    def helper(left: int, right: int) -> Optional[TreeNode]:\n        nonlocal pre_idx\n        if left > right:\n            return None\n        root_val = preorder[pre_idx]\n        pre_idx += 1\n        root = TreeNode(root_val)\n        mid = inorder_map[root_val]\n        root.left = helper(left, mid - 1)\n        root.right = helper(mid + 1, right)\n        return root\n    return helper(0, len(inorder) - 1)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes. Building the index hash map takes $O(n)$, and each tree node is created in $O(1)$ time.\n- **Space Complexity:** $O(n)$ space for the `inorder_map` plus $O(h)$ for the recursion call stack.\n\n**Algorithmic mechanics and edge cases:**\nIn preorder traversal, the first element is always the root of the current subtree. Finding that root value in the inorder traversal splits the inorder array into the left subtree (`left` to `mid - 1`) and the right subtree (`mid + 1` to `right`). Using a hash map achieves $O(1)$ root index lookups. Recursing on `root.left` before `root.right` mirrors the preorder traversal order. Edge cases include single-node trees, left-skewed trees, and right-skewed trees.",
+        "Why": "Preorder identifies root values sequentially, while an inorder hash map partitions left and right subtrees in O(1) time.",
+        "Risk": "Using inorder.index(root_val) or list slicing inside recursion adds O(n) per call, degrading total construction time to O(n^2).",
+        "Trade": "Precomputing the inorder hash map consumes O(n) auxiliary space to achieve strict linear O(n) runtime.",
+        "Try": "Trace preorder=[3, 9, 20, 15, 7], inorder=[9, 3, 15, 20, 7]: root=3; inorder splits [9] (left) and [15, 20, 7] (right).",
+        "worked_case": "preorder=[-1], inorder=[-1]. Map={-1:0}. pre_idx=0 -> root=-1, mid=0. left=0, right=0. left child: helper(0, -1) -> None. right child: helper(1, 0) -> None. Returns TreeNode(-1).",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "Can a binary tree be uniquely reconstructed from preorder and postorder traversals alone?",
+                "A": "No, unless every non-leaf node has exactly two children (Full Binary Tree); otherwise, single-child branch direction is ambiguous."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the maximum path sum in a binary tree across any sequence of nodes?",
+        "A": "**Direct answer:** Binary Tree Maximum Path Sum (LeetCode 124) finds the maximum path sum in a non-empty binary tree along any path connecting any two nodes (not necessarily passing through the root). The optimal solution uses post-order DFS: each node computes the maximum path sum passing *through* itself, while returning its maximum single-branch contribution to its parent.\n\n```python\nfrom typing import Optional\n\ndef max_path_sum(root: Optional[TreeNode]) -> int:\n    max_sum = float(\"-inf\")\n    def max_gain(node: Optional[TreeNode]) -> int:\n        nonlocal max_sum\n        if not node:\n            return 0\n        # Max gain from left and right subtrees (ignore negative gains)\n        left_gain = max(max_gain(node.left), 0)\n        right_gain = max(max_gain(node.right), 0)\n        # Price of current path with node as highest turn-point\n        current_path_sum = node.val + left_gain + right_gain\n        max_sum = max(max_sum, current_path_sum)\n        # Return max single-branch gain to parent\n        return node.val + max(left_gain, right_gain)\n    max_gain(root)\n    return int(max_sum)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of nodes in the tree, visiting each node once.\n- **Space Complexity:** $O(h)$ where $h$ is tree height, representing recursion call stack depth.\n\n**Algorithmic mechanics and edge cases:**\nA valid path cannot split: it can pass through a node and go down both subtrees, but it can only extend upward to its parent through *one* subtree branch. Therefore, `max_gain` returns `node.val + max(left_gain, right_gain)` to its parent. If a child's gain is negative, `max(gain, 0)` clamps it to 0 (ignoring that branch). Edge cases include trees where all node values are negative (e.g. `[-3]`), single-node trees, and zigzag paths.",
+        "Why": "Post-order DFS calculates the inverted-V path sum at each node while propagating only the best linear branch to ancestors.",
+        "Risk": "Initializing max_sum to 0 fails on trees where all node values are negative; it must be initialized to float('-inf').",
+        "Trade": "Bottom-up dynamic programming on trees calculates both local turning paths and linear branch gains in a single linear pass.",
+        "Try": "Trace root=[-10, 9, 20, null, null, 15, 7]: at node 20, path sum is 20 + 15 + 7 = 42; max_sum records 42.",
+        "worked_case": "root=[1, 2, 3]. node 2 returns 2 (left=0, right=0). node 3 returns 3. node 1 evaluates path 1 + 2 + 3 = 6. max_sum=6. Returns 6.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you return the actual list of nodes forming the maximum path?",
+                "A": "Store the best left and right child references whenever max_sum updates, and reconstruct the path from the apex node down both branches."
+            }
+        ]
+    },
+    {
+        "Q": "How do you design an algorithm to serialize and deserialize a binary tree?",
+        "A": "**Direct answer:** Serialize and Deserialize Binary Tree (LeetCode 297) converts a binary tree into a string and deserializes that string back to the original tree structure. The optimal solution uses preorder DFS traversal with comma delimiters and a designated null symbol (e.g., `'#'`).\n\n```python\nfrom typing import Optional\n\nclass Codec:\n    def serialize(self, root: Optional[TreeNode]) -> str:\n        \"\"\"Encodes a tree to a single string.\"\"\"\n        vals: list[str] = []\n        def dfs(node: Optional[TreeNode]) -> None:\n            if not node:\n                vals.append(\"#\")\n                return\n            vals.append(str(node.val))\n            dfs(node.left)\n            dfs(node.right)\n        dfs(root)\n        return \",\".join(vals)\n\n    def deserialize(self, data: str) -> Optional[TreeNode]:\n        \"\"\"Decodes encoded data to tree.\"\"\"\n        tokens = iter(data.split(\",\"))\n        def dfs() -> Optional[TreeNode]:\n            val = next(tokens)\n            if val == \"#\":\n                return None\n            node = TreeNode(int(val))\n            node.left = dfs()\n            node.right = dfs()\n            return node\n        return dfs()\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ for both serialization and deserialization, visiting each node and null leaf once.\n- **Space Complexity:** $O(n)$ to store the serialized string buffer and recursion call stacks.\n\n**Algorithmic mechanics and edge cases:**\nPreorder traversal outputs `Root -> Left -> Right`. Because null pointers are explicitly recorded as `'#'`, the tree structure is uniquely preserved without needing a secondary inorder array. During deserialization, using a Python iterator `iter(tokens)` allows `next(tokens)` to consume tokens sequentially in $O(1)$ time. Edge cases include empty tree (`root = None -> \"#\"`), single-node trees, and trees with negative numbers.",
+        "Why": "Recording explicit null delimiters preserves tree topology, allowing preorder traversal to uniquely reconstruct the tree.",
+        "Risk": "Using split(',') and list.pop(0) during deserialization causes an O(n^2) bottleneck; iter(tokens) ensures linear O(n) decoding.",
+        "Trade": "Preorder DFS with null delimiters produces a larger string than BFS binary packing, but code is compact and human-readable.",
+        "Try": "Serialize root=[1, 2, 3, null, null, 4, 5]: outputs '1,2,#,#,3,4,#,#,5,#,#'; deserialize reconstructs identical tree.",
+        "worked_case": "root=None. serialize outputs '#'. deserialize splits ['#'], next() is '#' -> returns None. Round-trip verified.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you serialize the tree using level-order BFS traversal?",
+                "A": "Enqueue nodes; pop and record value or '#' for nulls, appending comma-separated strings; during decoding, use a queue to link left/right children."
+            }
+        ]
+    },
+    {
+        "Q": "How do you clone an undirected connected graph with cycles?",
+        "A": "**Direct answer:** Clone Graph (LeetCode 133) creates a deep copy of a connected undirected graph where each node contains a value and a list of neighbors. The optimal solution uses DFS (or BFS) with a hash map mapping each original node to its newly instantiated clone, handling cycles seamlessly.\n\n```python\nfrom typing import Optional\n\nclass Node:\n    def __init__(self, val = 0, neighbors = None):\n        self.val = val\n        self.neighbors = neighbors if neighbors is not None else []\n\ndef clone_graph(node: Optional['Node']) -> Optional['Node']:\n    if not node:\n        return None\n    visited: dict['Node', 'Node'] = {}\n    def dfs(curr: 'Node') -> 'Node':\n        if curr in visited:\n            return visited[curr]\n        copy = Node(curr.val)\n        visited[curr] = copy\n        for neighbor in curr.neighbors:\n            copy.neighbors.append(dfs(neighbor))\n        return copy\n    return dfs(node)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(V + E)$ where $V$ is the number of vertices (nodes) and $E$ is the number of edges. Each vertex and edge is traversed once.\n- **Space Complexity:** $O(V)$ auxiliary space to store the cloned nodes in the `visited` dictionary and recursion stack.\n\n**Algorithmic mechanics and edge cases:**\nGraph cycles would cause infinite recursion if not intercepted. By storing `copy` in `visited` *before* iterating over its neighbors, any cycle back to `curr` returns `visited[curr]` immediately without recursing. Edge cases include empty graph (`node = None`), single isolated node with no neighbors (`[[]]`), and fully connected complete graphs.",
+        "Why": "Registering the cloned node in visited before traversing neighbors terminates cycles immediately upon back-edge detection.",
+        "Risk": "Appending dfs(neighbor) before recording visited[curr] leads to infinite recursion on cyclic graphs.",
+        "Trade": "Recursion takes O(V) call stack memory; BFS queue iteration takes O(V) heap memory with identical time complexity.",
+        "Try": "Trace a triangle graph 1-2-3-1: node 1 clones, traverses 2, 2 clones and traverses 3, 3 connects back to 1 (returns visited[1]).",
+        "worked_case": "node=Node(1). No neighbors. visited[1]=Node(1). Loop over neighbors is empty. Returns cloned Node(1). Correct.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you implement graph cloning iteratively using BFS?",
+                "A": "Use collections.deque; when dequeuing node, iterate over neighbors, create and enqueue unvisited neighbors, and append clones to copy.neighbors."
+            }
+        ]
+    },
+    {
+        "Q": "How do you detect cycles and find valid course orderings using topological sort?",
+        "A": "**Direct answer:** Course Schedule (LeetCode 207) determines whether it is possible to finish all courses given prerequisite pairs `[a, b]` (where course `b` must be taken before course `a`). The optimal solution uses Kahn's algorithm for topological sorting: compute in-degrees for all vertices and use a BFS queue to process courses with 0 in-degrees.\n\n```python\nfrom collections import deque\n\ndef can_finish(num_courses: int, prerequisites: list[list[int]]) -> bool:\n    adj: list[list[int]] = [[] for _ in range(num_courses)]\n    in_degree = [0] * num_courses\n    for dest, src in prerequisites:\n        adj[src].append(dest)\n        in_degree[dest] += 1\n    queue = deque([i for i in range(num_courses) if in_degree[i] == 0])\n    processed = 0\n    while queue:\n        curr = queue.popleft()\n        processed += 1\n        for neighbor in adj[curr]:\n            in_degree[neighbor] -= 1\n            if in_degree[neighbor] == 0:\n                queue.append(neighbor)\n    return processed == num_courses\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(V + E)$ where $V = \\text{num\\_courses}$ and $E = \\text{len}(\\text{prerequisites})$. Building the graph and processing vertices takes linear time.\n- **Space Complexity:** $O(V + E)$ space to store the adjacency list and in-degree counts.\n\n**Algorithmic mechanics and edge cases:**\nA valid course ordering exists if and only if the directed graph is a Directed Acyclic Graph (DAG). Courses with in-degree 0 have no prerequisites and can be taken immediately. When a course is processed, we decrement the in-degree of its dependent courses. If any cycle exists, nodes in the cycle never reach in-degree 0, causing `processed < num_courses`. Edge cases include no prerequisites (returns True), self-loops (`[0, 0]`), and disconnected DAG components.",
+        "Why": "Kahn's BFS in-degree reduction identifies directed cycles by proving whether all vertices can be topologically ordered.",
+        "Risk": "Building the graph with reversed edge directions (dest -> src instead of src -> dest) inverts dependency prerequisites.",
+        "Trade": "Kahn's algorithm handles disconnected components and cycle detection cleanly without managing 3-state DFS recursion colors.",
+        "Try": "Test num_courses=2, prerequisites=[[1, 0], [0, 1]]: both in-degrees are 1; queue starts empty; processed=0 != 2 -> False.",
+        "worked_case": "num_courses=2, prerequisites=[[1,0]]. in_degree: [0, 1]. queue=[0]. Pop 0, processed=1. in_degree[1] decrements to 0, enqueue 1. Pop 1, processed=2 == 2. Returns True.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you return the actual course sequence (Course Schedule II)?",
+                "A": "Append curr to an order list when popped from queue; if processed == num_courses return order, else return []."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find all grid coordinates that can flow water to both the Pacific and Atlantic oceans?",
+        "A": "**Direct answer:** Pacific Atlantic Water Flow (LeetCode 417) finds all grid cells from which rain water can flow to both the Pacific and Atlantic oceans, where water flows from a cell to adjacent cells of equal or lower elevation. The optimal solution reverses the flow: run BFS (or DFS) inward from the Pacific borders and Atlantic borders separately, then return the intersection of reachable cells.\n\n```python\ndef pacific_atlantic(heights: list[list[int]]) -> list[list[int]]:\n    if not heights:\n        return []\n    m, n = len(heights), len(heights[0])\n    pacific: set[tuple[int, int]] = set()\n    atlantic: set[tuple[int, int]] = set()\n    def dfs(r: int, c: int, visited: set[tuple[int, int]]) -> None:\n        visited.add((r, c))\n        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:\n            nr, nc = r + dr, c + dc\n            if 0 <= nr < m and 0 <= nc < n and (nr, nc) not in visited:\n                # Reverse flow: water flows uphill or equal\n                if heights[nr][nc] >= heights[r][c]:\n                    dfs(nr, nc, visited)\n    for r in range(m):\n        dfs(r, 0, pacific)         # Pacific left\n        dfs(r, n - 1, atlantic)    # Atlantic right\n    for c in range(n):\n        dfs(0, c, pacific)         # Pacific top\n        dfs(m - 1, c, atlantic)    # Atlantic bottom\n    return [[r, c] for r, c in pacific & atlantic]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(m \\cdot n)$ where $m$ and $n$ are grid dimensions. Each cell is visited at most twice (once for Pacific, once for Atlantic).\n- **Space Complexity:** $O(m \\cdot n)$ to store visited sets and recursion call stack.\n\n**Algorithmic mechanics and edge cases:**\nSimulating flow from every individual cell outward to the ocean takes $O((m \\cdot n)^2)$ which times out. Inverting the problem flows water *uphill* from ocean boundaries into the island: starting at the Pacific border (top and left edges) and Atlantic border (bottom and right edges). Any cell present in both `pacific` and `atlantic` sets can reach both oceans. Edge cases include $1 \\times 1$ grids (reaches both oceans), flat grids, and isolated mountain ridges.",
+        "Why": "Reversing flow from ocean borders inward reduces a quadratic O((m*n)^2) search to linear O(m*n) multi-source reachability.",
+        "Risk": "Searching outward from every cell causes redundant traversals and easily exceeds time limits.",
+        "Trade": "Using set intersection pacific & atlantic finds overlapping cells in O(m * n) time.",
+        "Try": "Trace a 1x1 grid [[1]]: cell (0,0) is visited from both borders; returns [[0, 0]].",
+        "worked_case": "heights=[[1,2,2,3,5],[3,2,3,4,4],[2,4,5,3,1],[6,7,1,4,5],[5,1,1,2,4]]. Pacific borders start from top/left. Atlantic borders start from bottom/right. Intersection captures peak coordinates like [0,4], [1,3], [1,4], [2,2], [3,0], [3,1], [4,0].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you implement this using Breadth-First Search (BFS)?",
+                "A": "Initialize a queue with all Pacific boundary cells; run BFS expanding to neighbors with height >= current; repeat for Atlantic."
+            }
+        ]
+    },
+    {
+        "Q": "How do you calculate the minimum minutes until all fresh oranges rot using multi-source BFS?",
+        "A": "**Direct answer:** Rotting Oranges (LeetCode 994) calculates the minimum minutes until all fresh oranges (`1`) turn rotten, where rotten oranges (`2`) infect adjacent 4-directional fresh oranges every minute. The optimal solution uses multi-source BFS: enqueue all initially rotten oranges, count fresh oranges, and expand minute-by-minute until no fresh oranges remain.\n\n```python\nfrom collections import deque\n\ndef oranges_rotting(grid: list[list[int]]) -> int:\n    m, n = len(grid), len(grid[0])\n    queue: deque[tuple[int, int]] = deque()\n    fresh = 0\n    for r in range(m):\n        for c in range(n):\n            if grid[r][c] == 2:\n                queue.append((r, c))\n            elif grid[r][c] == 1:\n                fresh += 1\n    if fresh == 0:\n        return 0\n    minutes = 0\n    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n    while queue and fresh > 0:\n        minutes += 1\n        for _ in range(len(queue)):\n            r, c = queue.popleft()\n            for dr, dc in directions:\n                nr, nc = r + dr, c + dc\n                if 0 <= nr < m and 0 <= nc < n and grid[nr][nc] == 1:\n                    grid[nr][nc] = 2\n                    fresh -= 1\n                    queue.append((nr, nc))\n    return minutes if fresh == 0 else -1\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(m \\cdot n)$ where $m$ and $n$ are grid dimensions. Each cell is processed at most once.\n- **Space Complexity:** $O(m \\cdot n)$ for the BFS queue storing at most $m \\times n$ cell coordinates.\n\n**Algorithmic mechanics and edge cases:**\nRotting is a simultaneous wave propagation process. Initializing the BFS queue with all initially rotten oranges ensures that the infection advances by 1 step in all directions per minute (multi-source BFS). Tracking `fresh` ensures we stop as soon as all fresh oranges rot and detect disconnected fresh oranges that can never be reached (returning `-1`). Edge cases include no fresh oranges initially (returns `0`), no rotten oranges with fresh oranges present (returns `-1`), and empty cells (`0`).",
+        "Why": "Multi-source BFS models simultaneous parallel infection waves, tracking elapsed time accurately level by level.",
+        "Risk": "Incrementing minutes unconditionally when the queue is non-empty adds 1 extra minute after all fresh oranges have already rotted.",
+        "Trade": "Mutating grid[nr][nc] = 2 in-place eliminates the need for an auxiliary visited boolean matrix.",
+        "Try": "Trace grid=[[2,1,1],[1,1,0],[0,1,1]]: queue starts with (0,0); fresh=6. Minutes increment to 4 when fresh drops to 0.",
+        "worked_case": "grid=[[2,1,1],[0,1,1],[1,0,1]]. Orange at (2,0) is separated by 0s from rotten oranges. Multi-source BFS finishes with fresh=1 > 0. Returns -1.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "How does multi-source BFS differ from single-source BFS on a graph?",
+                "A": "All starting sources are seeded at distance 0 in the queue initially, expanding wavefronts concurrently."
+            }
+        ]
+    }
+]
+

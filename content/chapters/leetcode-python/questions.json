@@ -1,0 +1,218 @@
+[
+  {
+    "Q": "How do you solve Two Sum with optimal O(n) time complexity?",
+    "A": "**Direct answer:** Two Sum requires finding two distinct indices in an integer array whose values sum to a target integer. The optimal solution uses a single-pass hash map (Python `dict`) to store each seen number mapped to its index. For each element `num` at index `i`, we compute its required complement `target - num`. If the complement exists in the hash map, we immediately return the pair `[seen[complement], i]`. If not, we record `seen[num] = i` and proceed.\n\n```python\ndef two_sum(nums: list[int], target: int) -> list[int]:\n    seen: dict[int, int] = {}\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [seen[complement], i]\n        seen[num] = i\n    return []\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of elements in `nums`. We perform exactly one pass through the list, and each dictionary insertion and lookup takes average $O(1)$ time.\n- **Space Complexity:** $O(n)$ auxiliary memory to store at most $n$ key-value pairs in the `seen` hash map.\n\n**Algorithmic mechanics and edge cases:**\nBrute-force iteration using nested loops compares all $n(n - 1) / 2$ pairs, resulting in quadratic $O(n^2)$ time. A two-pointer approach over a sorted array achieves $O(n \\log n)$ time due to sorting, but sorting alters the original indices unless paired with index tuples. The single-pass hash map resolves both speed and index stability. Edge cases include duplicate numbers that sum to the target (e.g., `nums = [3, 3]`, `target = 6`): the single-pass order checks the complement before inserting the second `3`, naturally preventing an index from pairing with itself.",
+    "Why": "A single-pass hash map replaces quadratic nested comparisons with O(1) complement lookups, reducing runtime from O(n^2) to linear O(n).",
+    "Risk": "Inserting into the hash map before checking for the complement can allow a single element to pair with itself if target == 2 * num.",
+    "Trade": "The hash map trades O(n) auxiliary memory for an optimal O(n) runtime reduction compared to in-place nested loops.",
+    "Try": "Test with duplicate values like nums=[3, 3] target=6, negative numbers, and arrays with no valid pair.",
+    "worked_case": "For nums=[2, 7, 11, 15] and target=9: num=2 -> complement=7 (not in seen) -> seen={2: 0}; num=7 -> complement=2 (found at index 0) -> returns [0, 1].",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "What changes if the input array is already sorted in non-decreasing order?",
+        "A": "If the array is already sorted (LeetCode 167), a bidirectional two-pointer approach achieves O(n) time with strictly O(1) auxiliary space, eliminating the hash map entirely."
+      }
+    ]
+  },
+  {
+    "Q": "How do you validate balanced parentheses using a monotonic stack?",
+    "A": "**Direct answer:** Valid Parentheses (LeetCode 20) requires verifying that every opening bracket (`(`, `{`, `[`) has a corresponding closing bracket of the identical type in correct nested order. The optimal solution uses a Last-In, First-Out (LIFO) stack (implemented using Python's `list.append()` and `list.pop()`) combined with a hash map mapping each closing bracket to its required opening counterpart.\n\n```python\ndef is_valid(s: str) -> bool:\n    if len(s) % 2 != 0:\n        return False\n    matching = {')': '(', '}': '{', ']': '['}\n    stack: list[str] = []\n    for char in s:\n        if char in matching:\n            if not stack or stack[-1] != matching[char]:\n                return False\n            stack.pop()\n        else:\n            stack.append(char)\n    return len(stack) == 0\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of string `s`. Each character is inspected once and pushed/popped from the stack at most once in $O(1)$ time.\n- **Space Complexity:** $O(n)$ auxiliary space in the worst case (e.g., string consisting entirely of opening brackets `((((((`).\n\n**Algorithmic mechanics and edge cases:**\nAn early optimization checks `if len(s) % 2 != 0: return False`, as balanced strings must have an even number of characters. For each character, if it is a closing bracket, the stack must neither be empty nor have a top element differing from the matching opening bracket. At the end of traversal, the stack must be empty (`len(stack) == 0`); if any unclosed opening brackets remain, the string is invalid. Edge cases include starting with a closing bracket (`)()` or `]`), strings with mismatched pairs (`(]`), and unclosed trailing brackets (`((()`).",
+    "Why": "A stack naturally enforces the LIFO nesting constraint of parentheses, matching the most recently opened symbol with the incoming closing bracket.",
+    "Risk": "Popping from an empty stack without an explicit emptiness guard raises an unhandled IndexError when a closing bracket arrives first.",
+    "Trade": "Using a stack requires O(n) auxiliary space in the worst case to guarantee O(n) single-pass validation.",
+    "Try": "Test boundary cases: odd-length strings like '(', strings starting with closing brackets ')(', and deeply nested sequences '((([{}]))).'",
+    "worked_case": "For s='({[]})': '(' pushed, '{' pushed, '[' pushed; ']' matches top '[', popped; '}' matches top '{', popped; ')' matches top '(', popped; stack is empty -> True.",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "How do you solve Longest Valid Parentheses (LeetCode 32)?",
+        "A": "Store indices instead of characters on the stack, initialized with a base index -1 to provide a boundary for substring length calculation whenever a valid pair is popped."
+      }
+    ]
+  },
+  {
+    "Q": "How do you find the longest substring without repeating characters using a sliding window?",
+    "A": "**Direct answer:** Longest Substring Without Repeating Characters (LeetCode 3) requires finding the length of the longest contiguous substring containing no duplicate characters. The optimal solution uses a sliding window bounded by two pointers (`left` and `right`) along with a hash map (`last_seen`) recording the most recent index where each character appeared.\n\n```python\ndef length_of_longest_substring(s: str) -> int:\n    last_seen: dict[str, int] = {}\n    max_length = 0\n    left = 0\n    for right, char in enumerate(s):\n        if char in last_seen and last_seen[char] >= left:\n            left = last_seen[char] + 1\n        last_seen[char] = right\n        max_length = max(max_length, right - left + 1)\n    return max_length\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of string `s`. The `right` pointer advances from $0$ to $n-1$, and the `left` pointer jumps monotonically forward without backtracking.\n- **Space Complexity:** $O(\\min(n, m))$ auxiliary memory for the hash map, where $m$ is the size of the character alphabet (e.g., at most 128 for standard ASCII or 26 for lowercase English).\n\n**Algorithmic mechanics and edge cases:**\nA naive sliding window removes characters one-by-one from the left until the duplicate is evicted, taking $2n$ steps. Storing `last_seen[char]` allows the `left` pointer to jump immediately past the duplicate in $O(1)$ time. Crucially, the condition `last_seen[char] >= left` ensures we ignore duplicates that occur before the current window's left boundary. Edge cases include empty strings (`'' -> 0`), single-character strings (`'a' -> 1`), strings with all identical characters (`'bbbbb' -> 1`), and strings with no repeating characters (`'abcdef' -> 6`).",
+    "Why": "A sliding window with last-seen index mapping allows the left pointer to jump directly past duplicate occurrences in O(1) time without element-by-element eviction.",
+    "Risk": "Failing to check last_seen[char] >= left can cause the left pointer to jump backwards when encountering a character seen outside the active window.",
+    "Trade": "The hash map consumes O(min(n, m)) space to reduce what would be an O(n^2) nested scan to a strict O(n) single-pass traversal.",
+    "Try": "Trace with string 'abba' to verify that when the second 'a' is encountered at index 3, left does not regress backwards from index 2 to index 1.",
+    "worked_case": "For s='abcabcbb': window expands 'abc' (len 3); on second 'a' at idx 3, left jumps to last_seen['a']+1=1; window becomes 'bca' (len 3); max_length remains 3.",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "How does the algorithm adapt if at most K duplicate characters are permitted?",
+        "A": "Use a character frequency counter (Counter or defaultdict) and shrink the left pointer one step at a time whenever the sum of duplicates exceeds the allowed quota K."
+      }
+    ]
+  },
+  {
+    "Q": "How do you find the maximum subarray sum using Kadane's algorithm?",
+    "A": "**Direct answer:** Maximum Subarray (LeetCode 53) seeks the contiguous subarray having the largest sum within a given integer array. Kadane's algorithm solves this in linear $O(n)$ time and $O(1)$ space using dynamic programming. At each index $i$, the optimal choice is whether to extend the previous running subarray sum (`current_sum + nums[i]`) or start a fresh subarray at `nums[i]` (`max(nums[i], current_sum + nums[i])`).\n\n```python\ndef max_sub_array(nums: list[int]) -> int:\n    if not nums:\n        return 0\n    max_sum = current_sum = nums[0]\n    for num in nums[1:]:\n        current_sum = max(num, current_sum + num)\n        max_sum = max(max_sum, current_sum)\n    return max_sum\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of elements in `nums`. We visit each number exactly once in a single sequential pass.\n- **Space Complexity:** $O(1)$ auxiliary space, as only two scalar variables (`current_sum` and `max_sum`) are maintained.\n\n**Algorithmic mechanics and edge cases:**\nThe core invariant is that a negative prefix sum can never contribute positively to any subsequent subarray; discarding it by restarting at `num` is always optimal. Initializing `max_sum` and `current_sum` to `nums[0]` (rather than 0) correctly handles arrays consisting exclusively of negative numbers (e.g., `[-3, -2, -5]` returns `-2`, not `0`). Edge cases include single-element arrays (`[5] -> 5`), all-negative arrays, arrays with alternating large positives and negatives, and arrays with all zeroes.",
+    "Why": "Kadane's algorithm leverages the optimal substructure invariant: an incoming number either benefits from extending the existing sum or starts a superior new subarray.",
+    "Risk": "Initializing max_sum to 0 instead of nums[0] causes incorrect outputs for arrays composed entirely of negative numbers.",
+    "Trade": "Kadane's algorithm computes the maximum scalar sum in O(1) space, but reconstructing the exact subarray indices requires storing start and end pointers.",
+    "Try": "Test with an all-negative list like [-2, -1, -3] to verify it returns -1 rather than 0, and with mixed values [-2, 1, -3, 4, -1, 2, 1, -5, 4].",
+    "worked_case": "For nums=[-2, 1, -3, 4, -1, 2, 1, -5, 4]: current_sum resets to 1 at idx 1; extends to 4 at idx 3; peaks at 6 for subarray [4, -1, 2, 1]; returns 6.",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "How do you solve Maximum Product Subarray (LeetCode 152)?",
+        "A": "Maintain both running maximum and minimum products at each step, because multiplying a negative number by a negative minimum can produce the new maximum product."
+      }
+    ]
+  },
+  {
+    "Q": "How do you solve Best Time to Buy and Sell Stock in a single pass?",
+    "A": "**Direct answer:** Best Time to Buy and Sell Stock (LeetCode 121) requires determining the maximum profit achievable by choosing a single day to buy one stock and a subsequent day to sell it. The optimal solution maintains a running minimum purchase price (`min_price`) and calculates the profit achievable by selling at the current day's price (`price - min_price`), updating `max_profit` whenever a superior spread is found.\n\n```python\ndef max_profit(prices: list[int]) -> int:\n    if not prices:\n        return 0\n    min_price = float('inf')\n    max_profit = 0\n    for price in prices:\n        if price < min_price:\n            min_price = price\n        elif price - min_price > max_profit:\n            max_profit = price - min_price\n    return max_profit\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the number of price entries. We inspect each daily price exactly once.\n- **Space Complexity:** $O(1)$ auxiliary space, maintaining only two scalar variables.\n\n**Algorithmic mechanics and edge cases:**\nThis problem is isomorphic to finding the maximum difference between two elements where the smaller element precedes the larger element. Tracking `min_price` dynamically ensures we only evaluate valid forward temporal transitions (you cannot sell before you buy). If prices continually decline (e.g., `[7, 6, 4, 3, 1]`), `max_profit` remains `0`. Edge cases include empty lists (`[] -> 0`), single-day lists (`[5] -> 0`), monotonically decreasing prices, and identical prices (`[3, 3, 3] -> 0`).",
+    "Why": "Tracking the cumulative historical minimum price in a single forward pass guarantees that any evaluated profit satisfies temporal causality in O(1) space.",
+    "Risk": "Resetting min_price without checking whether the current price produces a superior profit compared to an earlier buy point breaks optimal spread tracking.",
+    "Trade": "Single-pass tracking applies strictly when exactly one buy and one sell transaction is permitted; multiple transactions require greedy slope accumulation.",
+    "Try": "Run with monotonically decreasing prices [7, 6, 4, 3, 1] to assert zero profit, and with volatile prices [7, 1, 5, 3, 6, 4] to verify profit of 5.",
+    "worked_case": "For prices=[7, 1, 5, 3, 6, 4]: price=7 -> min=7, profit=0; price=1 -> min=1, profit=0; price=5 -> profit=4; price=6 -> profit=5; returns 5.",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "What changes for Best Time to Buy and Sell Stock II (LeetCode 122) with unlimited transactions?",
+        "A": "Apply a greedy approach: accumulate price[i] - price[i-1] whenever price[i] > price[i-1], capturing every upward slope without complex state management."
+      }
+    ]
+  },
+  {
+    "Q": "How do you find Top K Frequent Elements in O(n) time using bucket sort?",
+    "A": "**Direct answer:** Top K Frequent Elements (LeetCode 347) asks for the $k$ most frequent elements from an integer array. While a min-heap over a frequency dictionary yields $O(n \\log k)$ runtime, bucket sort achieves linear $O(n)$ time. The algorithm counts frequencies using `collections.Counter`, then creates an array of buckets where bucket index represents frequency (from $0$ to $n$), and `buckets[freq]` stores the list of elements having that exact frequency.\n\n```python\nfrom collections import Counter\n\ndef top_k_frequent(nums: list[int], k: int) -> list[int]:\n    counts = Counter(nums)\n    buckets: list[list[int]] = [[] for _ in range(len(nums) + 1)]\n    for num, freq in counts.items():\n        buckets[freq].append(num)\n    result: list[int] = []\n    for freq in range(len(buckets) - 1, 0, -1):\n        for num in buckets[freq]:\n            result.append(num)\n            if len(result) == k:\n                return result\n    return result\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is `len(nums)`. Counting takes $O(n)$, populating buckets takes $O(m) \\le O(n)$, and scanning backwards from frequency $n$ down to $1$ stops as soon as $k$ elements are gathered.\n- **Space Complexity:** $O(n)$ auxiliary space to store frequency counts and $n + 1$ bucket slots.\n\n**Algorithmic mechanics and edge cases:**\nBucket sort works here because frequency is strictly bounded by array length $n$, avoiding comparison-based sorting limits ($O(n \\log n)$). Traversing buckets in descending order from $n$ guarantees that the most frequent elements are appended first. Edge cases include $k$ equal to the number of unique elements (returns all unique elements), all elements having frequency 1, and single-element inputs (`nums=[1], k=1 -> [1]`).",
+    "Why": "Because frequency is an integer bounded by [1, n], bucket sort partitions elements by frequency in O(n) time, beating comparison-based O(n log k) heaps.",
+    "Risk": "Creating buckets of size max(counts.values()) without padding up to len(nums) + 1 can cause index out of bounds when all elements are identical.",
+    "Trade": "Bucket sort achieves O(n) time by allocating an array of n + 1 bucket lists, which uses more memory than an O(k) min-heap for small values of k.",
+    "Try": "Test with nums=[1, 1, 1, 2, 2, 3] and k=2 to verify result is [1, 2], and with negative numbers nums=[-1, -1, 2] k=1 to verify [-1].",
+    "worked_case": "For nums=[1, 1, 1, 2, 2, 3], k=2: counts={1: 3, 2: 2, 3: 1}; buckets[3]=[1], buckets[2]=[2], buckets[1]=[3]; iterating backwards yields [1, 2].",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "When is a min-heap preferable to bucket sort for Top-K?",
+        "A": "When processing a streaming dataset where total elements n is unbounded or unknown, a fixed-size min-heap of capacity k processes incoming items in O(log k) per element."
+      }
+    ]
+  },
+  {
+    "Q": "How do you implement an LRU Cache with O(1) get and put operations?",
+    "A": "**Direct answer:** An LRU (Least Recently Used) Cache (LeetCode 146) requires retrieving values by key (`get`) and inserting/updating values (`put`) in strict $O(1)$ average time, while evicting the least recently accessed key when capacity is exceeded. The optimal data structure combines a hash map (`dict`) with a doubly linked list. The hash map maps keys to doubly linked list nodes for $O(1)$ pointer lookups, while the doubly linked list maintains access recency with sentinel head and tail nodes for $O(1)$ node insertion and removal.\n\n```python\nclass Node:\n    def __init__(self, key: int = 0, val: int = 0):\n        self.key = key\n        self.val = val\n        self.prev: Node | None = None\n        self.next: Node | None = None\n\nclass LRUCache:\n    def __init__(self, capacity: int):\n        self.capacity = capacity\n        self.cache: dict[int, Node] = {}\n        self.head = Node()\n        self.tail = Node()\n        self.head.next = self.tail\n        self.tail.prev = self.head\n\n    def _remove(self, node: Node) -> None:\n        prev_node, next_node = node.prev, node.next\n        prev_node.next, next_node.prev = next_node, prev_node\n\n    def _add_to_front(self, node: Node) -> None:\n        node.next = self.head.next\n        node.prev = self.head\n        self.head.next.prev = node\n        self.head.next = node\n\n    def get(self, key: int) -> int:\n        if key not in self.cache:\n            return -1\n        node = self.cache[key]\n        self._remove(node)\n        self._add_to_front(node)\n        return node.val\n\n    def put(self, key: int, value: int) -> None:\n        if key in self.cache:\n            self._remove(self.cache[key])\n        node = Node(key, value)\n        self._add_to_front(node)\n        self.cache[key] = node\n        if len(self.cache) > self.capacity:\n            lru = self.tail.prev\n            self._remove(lru)\n            del self.cache[lru.key]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(1)$ for both `get` and `put`. Hash map lookup and update is $O(1)$, and doubly linked list pointer manipulation is $O(1)$.\n- **Space Complexity:** $O(c)$ auxiliary memory where $c$ is the configured `capacity` of the cache.\n\n**Algorithmic mechanics and edge cases:**\nSentinel `head` and `tail` nodes eliminate null-pointer edge cases during insertions and deletions. The `Node` object must store its corresponding `key` so that when `self.tail.prev` is evicted from the list, its key can be deleted from `self.cache` in $O(1)$ without an expensive reverse lookup. In Python production code, `collections.OrderedDict` provides this exact combination (`move_to_end` and `popitem(last=False)`), but interviewers universally expect candidate implementation of the underlying doubly linked list.",
+    "Why": "A hash map provides O(1) key-to-node addressing, while a doubly linked list provides O(1) splicing and reordering of nodes without array shifts.",
+    "Risk": "Omitting the key from the linked list Node prevents deleting the evicted LRU node from the hash map in O(1) time.",
+    "Trade": "Maintaining four pointers per node (prev, next, hash bucket links) increases memory overhead compared to an array or simple dict.",
+    "Try": "Initialize LRUCache(2), put (1, 1), put (2, 2), get 1, put (3, 3), and assert that get(2) returns -1 because key 2 was the least recently used.",
+    "worked_case": "Capacity 2: put(1, 1), put(2, 2); get(1) moves 1 to front; put(3, 3) evicts tail.prev (key 2); get(2) returns -1; get(3) and get(1) return 3 and 1.",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "How do you implement an LFU (Least Frequently Used) Cache (LeetCode 460)?",
+        "A": "Maintain a min_frequency integer, a frequency-to-doubly-linked-list map, and a key-to-node map, updating node frequencies and incrementing min_frequency accordingly."
+      }
+    ]
+  },
+  {
+    "Q": "How do you count the number of islands in a 2D grid using BFS or DFS?",
+    "A": "**Direct answer:** Number of Islands (LeetCode 200) requires finding the number of distinct connected components of `'1'`s (land) surrounded by `'0'`s (water) in an $m \\times n$ grid. Land cells connect horizontally or vertically. We iterate through every cell $(r, c)$; whenever an unvisited land cell (`grid[r][c] == '1'`) is encountered, we increment the island count and initiate a Breadth-First Search (BFS) or Depth-First Search (DFS) to explore and sink or mark all connected land cells in the island.\n\n```python\nfrom collections import deque\n\ndef num_islands(grid: list[list[str]]) -> int:\n    if not grid or not grid[0]:\n        return 0\n    rows, cols = len(grid), len(grid[0])\n    islands = 0\n\n    def bfs(r: int, c: int) -> None:\n        queue = deque([(r, c)])\n        grid[r][c] = '0'  # Mark visited by sinking land to water\n        while queue:\n            row, col = queue.popleft()\n            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:\n                nr, nc = row + dr, col + dc\n                if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == '1':\n                    grid[nr][nc] = '0'  # Mark visited IMMEDIATELY upon enqueue!\n                    queue.append((nr, nc))\n\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] == '1':\n                islands += 1\n                bfs(r, c)\n    return islands\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(m \\times n)$ where $m$ is rows and $n$ is columns. Every cell is visited at most twice: once in the outer loops, and once during BFS/DFS traversal.\n- **Space Complexity:** $O(\\min(m, n))$ for BFS queue memory (diagonal across grid), or $O(m \\times n)$ worst-case call stack for DFS in a grid consisting entirely of land.\n\n**Algorithmic mechanics and edge cases:**\nA critical BFS invariant is **marking cells as visited immediately upon enqueueing** (`grid[nr][nc] = '0'`). Delaying the visited mutation until dequeuing causes adjacent cells to re-enqueue identical nodes repeatedly, exploding memory usage to $O(m \\times n)$ and causing severe queue bloat. Mutating the input grid in-place avoids allocating a separate `visited` set; if mutating the grid is forbidden, maintain a set of `(row, col)` tuples. Edge cases include empty grids, grids consisting entirely of water (`'0'`), grids consisting entirely of land (`'1'`), and diagonal disconnected cells.",
+    "Why": "Graph traversal (BFS/DFS) groups connected components by systematically visiting and marking adjacent land cells, preventing duplicate island counts.",
+    "Risk": "Marking cells visited on pop rather than on push in BFS causes duplicate queue insertions, causing MemoryLimitExceeded on dense grids.",
+    "Trade": "Mutating the grid in-place achieves O(min(m, n)) space but destroys original input data; using a visited set preserves data at the cost of O(m*n) space.",
+    "Try": "Test a grid with only diagonal land [['1', '0'], ['0', '1']] to assert that it yields 2 distinct islands rather than 1.",
+    "worked_case": "For grid=[['1','1','0'],['1','1','0'],['0','0','1']]: BFS at (0,0) sinks (0,0),(0,1),(1,0),(1,1) -> island 1; cell (2,2) found -> island 2; returns 2.",
+    "answer_format": "conceptual",
+    "difficulty": "interview",
+    "citations": [
+      "https://docs.python.org/3/tutorial/datastructures.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "domain": "foundations",
+    "subdomain": "leetcode-python",
+    "follow_ups": [
+      {
+        "Q": "How do you solve Max Area of Island (LeetCode 695)?",
+        "A": "Instead of merely sinking the island, return an integer area from the traversal by accumulating 1 for each visited land cell and updating global max_area."
+      }
+    ]
+  }
+]
