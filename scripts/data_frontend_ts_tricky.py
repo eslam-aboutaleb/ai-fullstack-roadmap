@@ -46,11 +46,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#differences-between-type-aliases-and-interfaces"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -99,11 +94,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/2/conditional-types.html#distributive-conditional-types"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -149,11 +139,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/2/conditional-types.html#inferring-within-conditional-types"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -205,11 +190,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/2/mapped-types.html#key-remapping-via-as"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -264,11 +244,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -323,11 +298,6 @@ QUESTIONS = [
             "https://www.typescriptlang.org/docs/handbook/2/functions.html#declaring-this-in-a-function",
             "https://github.com/microsoft/TypeScript/pull/18654"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -384,11 +354,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/2/mapped-types.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -438,11 +403,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html#const-type-parameters"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -500,11 +460,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/declaration-merging.html#module-augmentation"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -558,11 +513,6 @@ QUESTIONS = [
             "https://www.typescriptlang.org/tsconfig#noUncheckedIndexedAccess",
             "https://www.typescriptlang.org/tsconfig#exactOptionalPropertyTypes"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -622,11 +572,6 @@ QUESTIONS = [
             "https://www.typescriptlang.org/docs/handbook/2/narrowing.html#using-type-predicates",
             "https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-7.html#assertion-functions"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -679,11 +624,6 @@ QUESTIONS = [
             "https://react.dev/learn/typescript#typing-dom-events",
             "https://www.typescriptlang.org/docs/handbook/2/generics.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -746,11 +686,6 @@ QUESTIONS = [
             "https://www.typescriptlang.org/docs/handbook/2/generics.html",
             "https://nodejs.org/api/events.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -812,11 +747,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -863,11 +793,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-0.html#variadic-tuple-types"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -913,11 +838,6 @@ QUESTIONS = [
             "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
             "https://www.typescriptlang.org/docs/handbook/2/types-from-types.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -963,11 +883,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/2/objects.html#excess-property-checks"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -1025,11 +940,6 @@ QUESTIONS = [
         "citations": [
             "https://www.typescriptlang.org/docs/handbook/declaration-files/by-example.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -1084,11 +994,6 @@ QUESTIONS = [
             "https://www.typescriptlang.org/docs/handbook/type-compatibility.html",
             "https://github.com/Microsoft/TypeScript/wiki/TypeScript-Design-Goals"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -1142,11 +1047,6 @@ QUESTIONS = [
             "https://www.typescriptlang.org/docs/handbook/2/functions.html#function-overloads",
             "https://www.typescriptlang.org/docs/handbook/2/conditional-types.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [

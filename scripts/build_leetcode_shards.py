@@ -22,22 +22,14 @@ SHARDS = [
     ('questions-search-dp.json', data_search_dp.QUESTIONS),
 ]
 
-REVIEWER_STATUS = {
-    "status": "reviewed",
-    "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-    "reviewed_at": "2026-10-24"
-}
-
 def main():
     total_new = 0
     slug = 'leetcode-python'
     chapter_dir = ROOT / 'content/chapters' / slug
 
-    # Ensure reviewer status and difficulty/answer_format on all questions
+    # Ensure difficulty/answer_format on all questions
     for filename, questions in SHARDS:
         for q in questions:
-            if 'reviewer_status' not in q:
-                q['reviewer_status'] = REVIEWER_STATUS
             if 'answer_format' not in q:
                 q['answer_format'] = 'conceptual'
             if 'difficulty' not in q:
@@ -52,8 +44,8 @@ def main():
         for q in questions:
             ident = f'interview/{slug}/{q["Q"]}'
             digest = content_digest(q)
-            reviewer = q['reviewer_status']['reviewer']
-            reviewed_at = q['reviewer_status']['reviewed_at']
+            reviewer = q.get('reviewer_status', {}).get('reviewer', '')
+            reviewed_at = q.get('reviewer_status', {}).get('reviewed_at', '')
             notes = (f"User delegated the acceptance verdict to Codex. AI-authored/self-reviewed. "
                      f"Reviewed direct answer to {q['Q']} for algorithmic invariants, Big-O complexity, "
                      f"Python implementation, edge cases and changed-assumption follow-up. "

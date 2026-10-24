@@ -42,11 +42,6 @@ QUESTIONS = [
             "https://react.dev/reference/react/useState",
             "https://react.dev/reference/react/useReducer"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -100,11 +95,6 @@ QUESTIONS = [
             "https://react.dev/reference/react/useRef",
             "https://react.dev/reference/react/useImperativeHandle"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -160,11 +150,6 @@ QUESTIONS = [
             "https://react.dev/reference/react/useSyncExternalStore",
             "https://github.com/reactwg/react-18/discussions/86"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -216,11 +201,6 @@ QUESTIONS = [
             "https://react.dev/reference/react/useId",
             "https://github.com/reactwg/react-18/discussions/111"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -267,11 +247,6 @@ QUESTIONS = [
         "citations": [
             "https://react.dev/reference/react/useDebugValue"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -323,11 +298,6 @@ QUESTIONS = [
         "citations": [
             "https://react.dev/reference/react/use"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -382,11 +352,6 @@ QUESTIONS = [
         "citations": [
             "https://react.dev/learn/reusing-logic-with-custom-hooks"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -449,11 +414,6 @@ QUESTIONS = [
         "citations": [
             "https://react.dev/reference/react/useEffect#connecting-to-an-external-system"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -525,11 +485,6 @@ QUESTIONS = [
             "https://developer.mozilla.org/en-US/docs/Web/API/Window/storage_event",
             "https://react.dev/reference/react/useState"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -589,11 +544,6 @@ QUESTIONS = [
             "https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API",
             "https://react.dev/reference/react/useEffect"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -655,11 +605,6 @@ QUESTIONS = [
             "https://developer.mozilla.org/en-US/docs/Web/API/Node/contains",
             "https://react.dev/learn/reusing-logic-with-custom-hooks"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -717,11 +662,6 @@ QUESTIONS = [
             "https://developer.mozilla.org/en-US/docs/Web/API/Window/matchMedia",
             "https://react.dev/reference/react/useSyncExternalStore"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -778,11 +718,6 @@ QUESTIONS = [
             "https://react.dev/reference/react/useRef",
             "https://github.com/reactjs/rfcs/blob/useevent/text/0000-useevent.md"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -830,11 +765,6 @@ QUESTIONS = [
             "https://legacy.reactjs.org/blog/2020/08/10/react-v17-rc.html#changes-to-event-delegation",
             "https://react.dev/learn/responding-to-events"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -884,11 +814,6 @@ QUESTIONS = [
             "https://react.dev/reference/react/StrictMode",
             "https://react.dev/learn/synchronizing-with-effects#how-to-handle-the-effect-firing-twice-in-development"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -945,11 +870,6 @@ QUESTIONS = [
         "citations": [
             "https://react.dev/learn/sharing-state-between-components#controlled-and-uncontrolled-components"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -994,11 +914,6 @@ QUESTIONS = [
         "citations": [
             "https://react.dev/learn/preserving-and-resetting-state"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -1053,11 +968,6 @@ QUESTIONS = [
         "citations": [
             "https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -1101,11 +1011,6 @@ QUESTIONS = [
             "https://github.com/facebook/react/blob/main/packages/react-reconciler/src/ReactFiberLane.js",
             "https://react.dev/reference/react/useTransition"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [
@@ -1158,11 +1063,6 @@ QUESTIONS = [
             "https://react.dev/reference/react/Profiler",
             "https://legacy.reactjs.org/blog/2018/09/10/introducing-the-react-profiler.html"
         ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        },
         "answer_format": "conceptual",
         "difficulty": "interview",
         "follow_ups": [

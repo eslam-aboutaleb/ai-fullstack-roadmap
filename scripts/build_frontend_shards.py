@@ -25,12 +25,6 @@ SHARDS = [
     ('questions-security.json', data_frontend_security.QUESTIONS),
 ]
 
-REVIEWER_STATUS = {
-    "status": "reviewed",
-    "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-    "reviewed_at": "2026-10-24"
-}
-
 def main():
     slug = 'frontend-foundations'
     ch_dir = ROOT / 'content/chapters' / slug
@@ -53,11 +47,9 @@ def main():
     lessons_path.write_text(json.dumps(all_lessons, indent=2, ensure_ascii=False) + '\n')
     print(f"Updated lessons.json: {len(legacy_lessons)} legacy + {len(new_lessons)} new = {len(all_lessons)} total lessons")
 
-    # Step 3: Ensure reviewer status, difficulty, and answer_format on all new questions
+    # Step 3: Ensure difficulty and answer_format on all new questions
     for filename, questions in SHARDS:
         for q in questions:
-            if 'reviewer_status' not in q:
-                q['reviewer_status'] = REVIEWER_STATUS
             if 'answer_format' not in q:
                 q['answer_format'] = 'conceptual'
             if 'difficulty' not in q:
@@ -71,8 +63,8 @@ def main():
     for l in new_lessons:
         ident = f'lesson/{slug}/{l["Q"]}'
         digest = content_digest(l)
-        reviewer = l['reviewer_status']['reviewer']
-        reviewed_at = l['reviewer_status']['reviewed_at']
+        reviewer = l.get('reviewer_status', {}).get('reviewer', '')
+        reviewed_at = l.get('reviewer_status', {}).get('reviewed_at', '')
         notes = (f"User delegated the acceptance verdict to Codex. AI-authored/self-reviewed. "
                  f"Reviewed guided lesson for {l['Q']} for pedagogical clarity, code examples, "
                  f"architectural accuracy and contracts.")
@@ -89,8 +81,8 @@ def main():
         for q in questions:
             ident = f'interview/{slug}/{q["Q"]}'
             digest = content_digest(q)
-            reviewer = q['reviewer_status']['reviewer']
-            reviewed_at = q['reviewer_status']['reviewed_at']
+            reviewer = q.get('reviewer_status', {}).get('reviewer', '')
+            reviewed_at = q.get('reviewer_status', {}).get('reviewed_at', '')
             notes = (f"User delegated the acceptance verdict to Codex. AI-authored/self-reviewed. "
                      f"Reviewed direct answer to {q['Q']} for technical depth, code correctness, "
                      f"edge cases, risk/trade analysis and changed-assumption follow-up. "
