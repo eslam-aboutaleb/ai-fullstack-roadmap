@@ -1,42 +1,48 @@
 [
   {
     "Q": "How do you debug a tool timeout without retaining complete private prompts in traces?",
-    "spoken": "Record appropriate stage timing, operation identity, bounded outcome codes, retry count and safe resource-generation metadata. Prefer allowlisted attributes and restricted diagnostic workflows. Correlate model/tool/receiver spans without putting tokens, document bodies or uncontrolled high-cardinality input into ordinary telemetry.",
-    "A": "Record appropriate stage timing, operation identity, bounded outcome codes, retry count and safe resource-generation metadata. Prefer allowlisted attributes and restricted diagnostic workflows. Correlate model/tool/receiver spans without putting tokens, document bodies or uncontrolled high-cardinality input into ordinary telemetry.\n\nConcrete engineering case: A retry storm is visible only as generic failures, so engineers enable full request logging and create a second private document store.\n\nBoundary defense: Not necessarily. Small predictable input spaces can be guessed. Minimize collection and apply the actual privacy and access policy.",
-    "Why": "Record appropriate stage timing, operation identity, bounded outcome codes, retry count and safe resource-generation metadata. Prefer allowlisted attributes and restricted diagnostic workflows. Correlate model/tool/receiver spans without putting tokens, document bodies or uncontrolled high-cardinality input into ordinary telemetry.",
-    "Risk": "A retry storm is visible only as generic failures, so engineers enable full request logging and create a second private document store.",
-    "Trade": "Not necessarily. Small predictable input spaces can be guessed. Minimize collection and apply the actual privacy and access policy.",
-    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "spoken": "Record stage timing, operation identity, bounded outcome codes, retry count, and safe resource metadata. Never store unredacted prompt bodies or raw documents in ordinary traces. Use allowlisted attributes, salted hashes for deduplication, and isolated replay sandboxes for in-depth debugging.",
+    "A": "Debugging agent tool timeouts without violating data privacy regulations (GDPR, HIPAA, SOC 2) requires an **Allowlist-Only Telemetry Architecture** with privacy-preserving diagnostic attributes:\n\n1. **The Trap of Cleartext Prompt Logging:** When a tool timeout or retry storm strikes, engineers are tempted to enable full payload logging, dumping raw prompts, customer messages, and retrieved document bodies into trace collectors. This turns observability infrastructure (Datadog, Elastic, Honeycomb) into an unencrypted secondary data store, exposing confidential user records and credentials to unauthorized personnel.\n2. **Safe Diagnostic Attributes (Allowlist Policy):** Instrument spans with bounded, non-confidential structural metadata:\n   - **Stage Timing:** Record durations for input tokenization, vector retrieval, provider network wait, and tool execution.\n   - **Operation & Resource Identifiers:** Record the sanitized tool name (`tool.name: 'vector_search'`), index name, target schema version, and retry attempt index (`retry.count: 2`).\n   - **Bounded Outcome & Error Codes:** Record standard error categorizations (`error.type: 'HTTP_504_GATEWAY_TIMEOUT'`, `error.phase: 'SOCKET_READ'`).\n   - **Cryptographic Fingerprints:** Record a salted SHA-256 hash of the input prompt (`prompt_fingerprint = sha256(tenant_salt + prompt_text)`). This allows engineers to identify whether all timeouts stem from the identical pathological prompt without viewing cleartext.\n3. **Deterministic Replay Sandboxes:** To debug the exact prompt that caused a timeout, rely on secure, role-restricted replay environments where authorized engineers can replay the sanitized task ID under audited break-glass access controls, rather than splashing cleartext across general monitoring dashboards.",
+    "Why": "Engineers need to diagnose timeouts and latency bottlenecks across distributed spans, but retaining unredacted prompts in monitoring systems creates massive security vulnerabilities and regulatory compliance violations.",
+    "Risk": "A retry storm occurs and engineers log full request payloads; an attacker with read-only access to monitoring dashboards exfiltrates confidential medical or financial records from the trace logs.",
+    "Trade": "Allowlisting sanitized attributes prevents seeing exact user typos or full document paragraphs in traces, requiring reproduction via sandboxed evaluation fixtures, but guarantees bulletproof privacy compliance.",
+    "Try": "Configure an OpenTelemetry span processor that redacts prompt text and sensitive PII, replacing them with input token counts, execution stage durations, and a salted SHA-256 fingerprint; assert that the trace provides actionable timeout diagnostics while containing zero raw prompt strings.",
     "domain": "ai-rag",
     "subdomain": "agent-observability",
     "module": "agent-observability",
     "concept": "How do you debug a tool timeout without retaining complete private prompts in traces?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A retry storm is visible only as generic failures, so engineers enable full request logging and create a second private document store.",
+    "misconception_target": "Assuming that debugging complex agent timeouts is impossible without logging the full, unredacted user prompt and document payload into monitoring systems.",
     "definitions": [
       {
-        "term": "Boundary: agent observability",
-        "definition": "Record appropriate stage timing, operation identity, bounded outcome codes, retry count and safe resource-generation metadata."
+        "term": "Allowlist Telemetry Policy",
+        "definition": "A security practice where observability collectors record only explicitly pre-approved, non-sensitive attributes, dropping all raw payloads and arbitrary metadata by default."
+      },
+      {
+        "term": "Salted Input Fingerprint",
+        "definition": "A cryptographic one-way hash computed with a tenant-specific secret salt, allowing operators to identify duplicate requests without revealing cleartext inputs."
       }
     ],
-    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "execution_timeline": "Agent dispatches tool call -> Span processor captures start time -> Tool times out after 10s -> Span processor strips raw input -> Records stage timing, error code, and salted prompt hash -> Emits sanitized trace span -> Operator diagnoses timeout cause from structured attributes.",
     "example": {
-      "code": "{\n  \"scenario\": \"A retry storm is visible only as generic failures, so engineers enable full request logging and create a second private document store.\",\n  \"required_decision\": \"Record appropriate stage timing, operation identity, bounded outcome codes, retry count and safe resource-generation metadata\"\n}",
+      "code": "{\n  \"scenario\": \"A retry storm is visible only as generic failures, so engineers enable full request logging and create a second private document store.\",\n  \"required_decision\": \"Record appropriate stage timing, operation identity, bounded outcome codes, retry count and safe resource-generation metadata, refusing to log raw prompt bodies\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "A retry storm is visible only as generic failures, so engineers enable full request logging and create a second private document store.",
+    "production_case": "A downstream retrieval tool times out under load; developers enable full debug logging, causing unredacted customer PII and API keys to be indexed into a shared Elasticsearch logging cluster.",
     "alternatives": [
-      "Not necessarily. Small predictable input spaces can be guessed. Minimize collection and apply the actual privacy and access policy."
+      "Use OpenTelemetry span processors to filter and redact PII, recording only stage durations, error codes, and token counts.",
+      "Maintain an isolated, break-glass replay environment where authorized personnel can reproduce issues using encrypted audit records."
     ],
     "pitfalls": [
-      "A retry storm is visible only as generic failures, so engineers enable full request logging and create a second private document store."
+      "Logging raw conversational prompts or document snippets directly into distributed trace span attributes.",
+      "Assuming that hashing a predictable, small input space (like a 4-digit PIN) provides anonymity without salting."
     ],
-    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "complexity": "Inline trace attribute sanitization adds less than 5 microseconds of CPU overhead per span while eliminating catastrophic data exposure risks in observability backends.",
     "follow_ups": [
       {
-        "Q": "Does hashing a predictable user identifier make it anonymous?",
-        "A": "Not necessarily. Small predictable input spaces can be guessed. Minimize collection and apply the actual privacy and access policy."
+        "Q": "Does hashing a predictable user identifier make it completely anonymous?",
+        "A": "Not necessarily. If the input space is small or predictable (e.g. phone numbers or 4-digit codes), an attacker can precompute rainbow tables. Always combine salting with tenant-level key derivation."
       }
     ],
     "citations": [
@@ -48,7 +54,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   }
 ]
