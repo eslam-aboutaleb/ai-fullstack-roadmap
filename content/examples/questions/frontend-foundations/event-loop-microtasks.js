@@ -39,3 +39,4 @@ function verifyOrder() {
 }
 
 demonstrateEventLoopPhases();
+

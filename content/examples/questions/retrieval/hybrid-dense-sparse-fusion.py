@@ -45,3 +45,4 @@ assert top_doc_id in ["doc_A", "doc_B"]
 assert len(fused_ranking) == 4
 
 print(f"RRF Hybrid Fusion verified: top_doc={top_doc_id}, score={round(top_score, 5)}, rankings={[(d, round(s, 5)) for d, s in fused_ranking]}")
+

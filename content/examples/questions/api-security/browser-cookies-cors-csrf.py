@@ -120,3 +120,4 @@ if __name__ == "__main__":
     assert curl_status == 200
 
     print("Browser cookie controls, CORS preflight, and CSRF token defenses verified successfully.")
+

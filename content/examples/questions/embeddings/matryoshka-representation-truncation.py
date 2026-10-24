@@ -41,3 +41,4 @@ assert abs(sim_full - sim_trunc_256) < 0.02
 assert abs(sim_full - sim_trunc_128) < 0.05
 
 print(f"MRL truncation verified: full_1024_sim={round(sim_full, 5)}, trunc_256_sim={round(sim_trunc_256, 5)}, trunc_128_sim={round(sim_trunc_128, 5)}")
+

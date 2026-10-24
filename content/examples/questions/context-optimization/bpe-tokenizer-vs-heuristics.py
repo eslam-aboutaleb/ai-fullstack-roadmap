@@ -41,3 +41,4 @@ true_ar = mock_bpe_token_count(arabic_text, language="ar")
 assert true_ar > (est_ar * 2), "Heuristic catastrophic underestimation on non-Latin script"
 
 print(f"BPE token boundary analysis: JSON (chars={chars_json}): heuristic={est_json}, true_bpe={true_json}; Arabic (chars={chars_ar}): heuristic={est_ar}, true_bpe={true_ar}")
+

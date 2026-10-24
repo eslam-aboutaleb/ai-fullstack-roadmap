@@ -48,3 +48,4 @@ assert int8_profile["raw_vectors_mb"] < 1500
 assert int8_profile["recommended_ram_gb"] < fp32_profile["recommended_ram_gb"]
 
 print(f"Vector RAM sizing verified: 1M vectors fp32={fp32_profile['recommended_ram_gb']}GB RAM, int8={int8_profile['recommended_ram_gb']}GB RAM")
+

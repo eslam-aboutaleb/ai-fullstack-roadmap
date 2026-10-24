@@ -57,3 +57,4 @@ header_dict = dict(scope["headers"])
 assert header_dict[b"authorization"] == b"Bearer test_token_xyz"
 
 print(f"HTTP wire parsing verified: method={scope['method']}, path={scope['path']}, body_bytes={len(body_data)}")
+

@@ -45,3 +45,4 @@ if (resultMalformed.status !== "error") {
 }
 
 console.log(`TypeScript runtime union verified: valid_status=${resultSuccess.status}, malformed_caught=${resultMalformed.status}`);
+

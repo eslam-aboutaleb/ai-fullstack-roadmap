@@ -81,3 +81,4 @@ assert any("Security Invariants" in c for c in chunks)
 assert any("Storage Policies" in c for c in chunks)
 
 print(f"Recursive splitting verified: chunk_count={len(chunks)}, chunk_sizes={[len(c) for c in chunks]}")
+

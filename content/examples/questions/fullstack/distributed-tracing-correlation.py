@@ -76,3 +76,4 @@ assert spans[2]["parent_span_id"] == spans[1]["span_id"]
 assert spans[3]["parent_span_id"] == spans[2]["span_id"]
 
 print(f"Distributed tracing verified: trace_id={trace_id[:8]}..., connected_spans={len(spans)}, root_to_leaf_linked=True")
+

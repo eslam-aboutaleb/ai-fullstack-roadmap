@@ -115,3 +115,4 @@ if __name__ == "__main__":
     assert categories == {"Spoofing", "Tampering", "Repudiation", "Information Disclosure", "Denial of Service", "Elevation of Privilege"}
 
     print("Safe error responses, enumeration defense, and STRIDE threat modeling verified successfully.")
+

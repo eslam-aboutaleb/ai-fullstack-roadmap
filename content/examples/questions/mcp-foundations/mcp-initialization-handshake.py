@@ -137,3 +137,4 @@ if __name__ == "__main__":
     assert tools_resp["result"]["tools"][0]["name"] == "echo"
 
     print("MCP initialization handshake and capability state machine verified successfully.")
+

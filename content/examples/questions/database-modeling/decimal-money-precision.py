@@ -28,3 +28,4 @@ total = (subtotal + tax).quantize(cents, rounding=ROUND_HALF_EVEN)
 
 assert total == Decimal('64.92'), f"Unexpected total: {total}"
 print(f"Decimal financial precision: subtotal={subtotal}, tax={tax}, total={total} (float_drift was {float_drift:.6f})")
+

@@ -35,3 +35,4 @@ def test_synchronized_counter_race():
 
 if __name__ == '__main__':
     test_synchronized_counter_race()
+

@@ -64,3 +64,4 @@ assert "PostgreSQL" in chunks[0] and "SELECT FOR UPDATE" in chunks[0]
 assert "CSS Flexbox" in chunks[1] and "justify-content" in chunks[1]
 
 print(f"Semantic chunking verified: chunk_count={len(chunks)}, transition_distance={round(dists[1], 4)}, threshold={round(threshold, 4)}")
+

@@ -63,3 +63,4 @@ result = router.query([0.5] * 3072)
 assert result == "Searched green collection with 3 items"
 
 print(f"Blue/Green embedding migration verified: active={router.active_collection}, green_docs={len(router.green_collection)}")
+

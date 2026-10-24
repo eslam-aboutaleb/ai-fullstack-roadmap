@@ -46,3 +46,4 @@ assert "What about in the UK?" in rewritten
 assert any("Enterprise Plan" in q or "refund" in q for q in rewritten)
 
 print(f"Contextual rewriting verified: original='{follow_up}', rewrites={rewritten}")
+

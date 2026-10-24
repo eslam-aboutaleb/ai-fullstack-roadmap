@@ -68,3 +68,4 @@ assert "n1" in result_ids and "n3" in result_ids
 assert "n2" not in result_ids, "Cross-tenant candidate filtered out"
 
 print(f"Filtered HNSW verified: query={query}, target_tenant=tenant_acme, selected_nodes={result_ids}")
+

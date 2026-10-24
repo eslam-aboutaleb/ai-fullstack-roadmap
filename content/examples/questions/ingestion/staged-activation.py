@@ -46,3 +46,4 @@ pipeline.phase_4_atomic_activation()
 
 assert pipeline.active_collection == "kb_v2_staging", "Active collection switched"
 print(f"Staged activation complete: active_collection={pipeline.active_collection}, items={len(pipeline.collections['kb_v2_staging'])}")
+

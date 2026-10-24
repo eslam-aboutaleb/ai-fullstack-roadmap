@@ -55,3 +55,4 @@ status_bearer, user = sec.authenticate_via_bearer_token("Bearer jwt_secret_token
 assert status_bearer == 200 and user["user_id"] == "usr_alice"
 
 print(f"Auth trust boundaries verified: cookie_csrf_blocked={status_csrf}, bearer_authenticated={status_bearer}")
+

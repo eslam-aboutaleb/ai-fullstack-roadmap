@@ -57,3 +57,4 @@ except VectorValidationError:
 assert dim_rejected is True
 
 print(f"Vector validation verified: valid=True, nan_rejected={nan_rejected}, dim_rejected={dim_rejected}")
+

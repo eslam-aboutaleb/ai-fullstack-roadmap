@@ -120,3 +120,4 @@ if __name__ == "__main__":
     assert harness.durable_log[op_id_2]["status"] == "RECONCILED_COMMITTED"
 
     print("Durable action logging and crash reconciliation verified successfully.")
+

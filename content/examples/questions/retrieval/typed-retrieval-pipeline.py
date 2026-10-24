@@ -49,3 +49,4 @@ assert cos_score >= req.min_score_threshold
 assert l2_score >= req.min_score_threshold
 
 print(f"Typed retrieval request validated: query='{req.query}', tenant={req.tenant_id}, candidate_k={req.candidate_k}, final_k={req.final_k}")
+

@@ -42,3 +42,4 @@ res_forbidden = execute_storage_operation("search", "tenant_forbidden")
 assert res_forbidden.status == "error" and res_forbidden.is_retriable is False
 
 print(f"Storage error semantics verified: empty_is_ok={res_empty.status == 'ok'}, timeout_retriable={res_timeout.is_retriable}, forbidden_retriable={res_forbidden.is_retriable}")
+

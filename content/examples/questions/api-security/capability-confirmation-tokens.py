@@ -146,3 +146,4 @@ if __name__ == "__main__":
         assert "Parameter tampering detected" in str(pe)
 
     print("Capability confirmation tokens and parameter tamper-proofing verified successfully.")
+

@@ -126,3 +126,4 @@ def run_contract_test_suite():
 if __name__ == "__main__":
     run_contract_test_suite()
     print("MCP contract tests, bounded limits, and schema evolution verified successfully.")
+

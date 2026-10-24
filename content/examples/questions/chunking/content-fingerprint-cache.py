@@ -47,3 +47,4 @@ fp_v2 = compute_chunk_fingerprint("doc_42", 0, doc_text, config_v2)
 assert fp_v1 != fp_v2, "Cache correctly invalidated upon chunker parameter change"
 
 print(f"Content fingerprint verified: fp_v1={fp_v1[:16]}..., fp_v2={fp_v2[:16]}..., invalidated={fp_v1 != fp_v2}")
+

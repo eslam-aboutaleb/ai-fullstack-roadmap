@@ -45,3 +45,4 @@ assert prob > 0.95
 assert loss >= 0.0
 
 print(f"InfoNCE contrastive loss verified: loss={round(loss, 6)}, positive_probability={round(prob, 6)}")
+

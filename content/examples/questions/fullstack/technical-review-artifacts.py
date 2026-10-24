@@ -49,3 +49,4 @@ assert review["negative_path_security_suite"]["prompt_injection_rejection_rate"]
 assert len(review["artifacts_attached"]) >= 3
 
 print(f"Technical review dossier verified: faithfulness={review['evaluation_metrics']['faithfulness']}, p95={review['latency_percentiles_ms']['p95_ms']}ms, cost_per_query=${review['token_economics']['avg_cost_per_query_usd']}")
+

@@ -60,3 +60,4 @@ code2, res2 = engine.execute_metered_request("tenant_alpha", 1500, 350)
 assert code2 == 429 and res2["error"] == "QuotaExceeded"
 
 print(f"Multi-tenant billing verified: req1_cost=${res1['cost_usd']}, req2_quota_blocked={code2 == 429}")
+

@@ -65,3 +65,4 @@ final_ranked = cross_encoder.rerank(query, initial_candidates)
 
 assert final_ranked[0][0] == "doc_2", "Cross-encoder correctly promoted valid refund policy to rank 1"
 print(f"Two-stage retrieval verified: bi_encoder_top={initial_candidates[0]['id']} -> cross_encoder_top={final_ranked[0][0]} (score={final_ranked[0][1]})")
+

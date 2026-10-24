@@ -62,3 +62,4 @@ with sqlite3.connect(':memory:') as rdb:
     rdb.commit()
 
     print(f"Authoritative ACID outbox synced: event_count={len(events)}, doc_id={valid_id} verified")
+

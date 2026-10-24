@@ -66,3 +66,4 @@ best_doc_idx = scores[0][0]
 assert best_doc_idx == 0, f"Expected Doc 0 to rank first, got {best_doc_idx}"
 
 print(f"BM25 scoring verified: top_doc={best_doc_idx}, scores={[round(s[1], 4) for s in scores]}")
+

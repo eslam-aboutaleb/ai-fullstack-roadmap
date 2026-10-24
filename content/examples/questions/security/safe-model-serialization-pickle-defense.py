@@ -128,3 +128,4 @@ if __name__ == "__main__":
     assert "RCE threat blocked" in warning
 
     print("Model serialization safety: SafeTensors and pickle RCE defense verified successfully.")
+

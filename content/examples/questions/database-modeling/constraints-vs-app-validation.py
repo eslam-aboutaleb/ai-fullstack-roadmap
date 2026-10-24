@@ -43,3 +43,4 @@ with sqlite3.connect(':memory:') as db:
 
     assert duplicate_rejected and negative_seats_rejected
     print(f"Database constraints enforced: duplicate_rejected={duplicate_rejected}, negative_seats_rejected={negative_seats_rejected}")
+

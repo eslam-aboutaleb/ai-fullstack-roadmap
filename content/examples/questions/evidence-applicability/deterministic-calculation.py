@@ -44,3 +44,4 @@ valid_audit = verify_invoice_explanation(invoice_items, "0.0825", "356.09")
 assert valid_audit["is_accurate"]
 
 print(f"Deterministic calculation audit: accurate={valid_audit['is_accurate']} total=${valid_audit['computed_total']}")
+

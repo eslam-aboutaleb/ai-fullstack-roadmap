@@ -54,3 +54,4 @@ assert math.isclose(map_score, 0.50, rel_tol=1e-3)
 assert 0.0 < ndcg <= 1.0
 
 print(f"Retrieval offline evaluation verified: MRR@5={round(mrr, 3)}, MAP@5={round(map_score, 3)}, NDCG@5={round(ndcg, 3)}")
+

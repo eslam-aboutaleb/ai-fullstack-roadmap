@@ -45,3 +45,4 @@ assert high_recall_run["comparisons"] > fast_run["comparisons"]
 assert filtered_run["estimated_latency_ms"] > high_recall_run["estimated_latency_ms"]
 
 print(f"HNSW latency factors verified: ef_32={fast_run['estimated_latency_ms']}ms, ef_128={high_recall_run['estimated_latency_ms']}ms, ef_128_filtered={filtered_run['estimated_latency_ms']}ms")
+

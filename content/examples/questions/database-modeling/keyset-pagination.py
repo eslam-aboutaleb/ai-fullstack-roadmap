@@ -34,3 +34,4 @@ with sqlite3.connect(':memory:') as db:
     assert len(results) == 10
     assert results[0][0] < cursor_id or results[0][1] < cursor_time
     print(f"Keyset pagination seek returned {len(results)} rows; next_cursor=({results[-1][1]}, {results[-1][0]})")
+

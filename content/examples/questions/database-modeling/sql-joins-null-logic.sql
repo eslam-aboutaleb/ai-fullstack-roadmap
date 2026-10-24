@@ -32,3 +32,4 @@ SELECT name FROM employees WHERE bonus != 5000.0; -- Only Linus returned; Grace 
 
 -- Correct pattern to include NULLs when filtering:
 SELECT name FROM employees WHERE bonus != 5000.0 OR bonus IS NULL; -- Returns Grace and Linus
+

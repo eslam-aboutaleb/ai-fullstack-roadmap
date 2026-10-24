@@ -50,3 +50,4 @@ pre_filtered = pre_filter_search(k_final=3)
 assert len(pre_filtered) == 3, "Pre-filtering successfully returned tenant documents"
 
 print(f"Pre-filtering vs Post-filtering: post_filter_hits={len(post_filtered)} (starvation), pre_filter_hits={len(pre_filtered)}")
+

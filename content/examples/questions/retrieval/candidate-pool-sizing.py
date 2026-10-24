@@ -40,3 +40,4 @@ final_recovered = second_stage_cross_encoder_rerank(healthy_candidates, final_k=
 
 assert final_recovered[0]["id"] == "statutory_exception_doc"
 print(f"Candidate pool sizing verified: candidate_k=5 failed (starvation); candidate_k=30 recovered decisive evidence to rank 1")
+

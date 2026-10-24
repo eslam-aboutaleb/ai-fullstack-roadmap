@@ -98,3 +98,4 @@ assert final_record["tenant_id"] == "tenant_acme"
 assert final_record["status"] == "completed"
 
 print(f"Vertical slice contract verified: task_id={assigned_task_id}, client_id={final_record['client_request_id']}, status={final_record['status']}")
+

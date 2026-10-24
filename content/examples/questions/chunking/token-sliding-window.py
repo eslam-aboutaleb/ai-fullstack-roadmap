@@ -62,3 +62,4 @@ except ValueError:
 
 assert overlap_rejected is True
 print(f"Sliding window verified: total_chunks={len(chunks)}, stride=3, invalid_overlap_rejected={overlap_rejected}")
+

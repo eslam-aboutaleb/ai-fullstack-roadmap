@@ -49,3 +49,4 @@ phases = [s["phase"] for s in steps]
 assert phases == ["DNS", "TCP_HANDSHAKE", "TLS_1_3", "TTFB"]
 
 print(f"HTTPS request trace verified: total_latency={total_time}ms, phases={phases}")
+

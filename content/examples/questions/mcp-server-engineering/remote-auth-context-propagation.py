@@ -158,3 +158,4 @@ if __name__ == "__main__":
     assert "Forbidden: Caller lacks scope 'analytics:read'" in res_no_scope["content"][0]["text"]
 
     print("Remote MCP authentication, audience verification, and context propagation verified successfully.")
+

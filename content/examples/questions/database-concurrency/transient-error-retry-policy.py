@@ -50,3 +50,4 @@ except DatabasePermanentError:
 
 assert permanent_failed_immediately is True
 print(f"Retry policy verified: transient_succeeded={result} in {total_attempts} attempts; permanent_fail_fast={permanent_failed_immediately}")
+

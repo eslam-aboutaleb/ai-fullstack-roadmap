@@ -38,3 +38,4 @@ SELECT d.owner_id, d.title, r.revision_num, r.content_hash
 FROM documents d
 JOIN document_revisions r ON r.document_id = d.id
 ORDER BY d.id, r.revision_num;
+

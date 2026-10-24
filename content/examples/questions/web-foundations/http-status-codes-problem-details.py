@@ -60,3 +60,4 @@ code_422, prob_422 = dispatch_api_request("/api/generate", "valid_token", "user"
 assert code_422 == 422 and prob_422["invalid_params"][0]["name"] == "temperature"
 
 print(f"Problem details contract verified: 401={code_401}, 403={code_403}, 422={code_422}")
+

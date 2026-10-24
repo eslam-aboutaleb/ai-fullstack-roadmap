@@ -58,3 +58,4 @@ with sqlite3.connect(':memory:') as db:
     """).fetchone()
     
     print(f"Revision lifecycle verified: active switched from rev {active_during_indexing} to rev {active_after_swap[0]}")
+

@@ -31,3 +31,4 @@ t2.join(timeout=2.0)
 
 assert not t1.is_alive() and not t2.is_alive(), "Deadlock occurred! Threads timed out"
 print(f"Deadlock prevented: {len(execution_log)} operations completed safely")
+

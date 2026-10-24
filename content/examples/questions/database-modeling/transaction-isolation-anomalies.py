@@ -56,3 +56,4 @@ try:
 finally:
     if os.path.exists(db_path):
         os.remove(db_path)
+

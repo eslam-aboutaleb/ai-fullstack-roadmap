@@ -79,3 +79,4 @@ nearest_node, path = search_hnsw(target_query)
 
 assert nearest_node == "N4", f"Expected N4, found {nearest_node}"
 print(f"HNSW search verified: target={target_query}, nearest={nearest_node}, navigation_path={path}")
+

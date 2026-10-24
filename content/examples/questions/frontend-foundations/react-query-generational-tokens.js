@@ -51,3 +51,4 @@ const bobResult = store.commitResponse(tokenBob.owner, tokenBob.generation, { pr
 if (!bobResult.accepted) throw new Error("Bob's fresh response was rejected");
 
 console.log(`Generational token verified: alice_stale_accepted=${aliceResult.accepted}, bob_active_accepted=${bobResult.accepted}`);
+

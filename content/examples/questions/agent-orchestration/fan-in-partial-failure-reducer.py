@@ -108,3 +108,4 @@ if __name__ == "__main__":
     assert "core_pricing" in reduced_crit["message"]
 
     print("Fan-in partial failure reduction and error provenance verified successfully.")
+

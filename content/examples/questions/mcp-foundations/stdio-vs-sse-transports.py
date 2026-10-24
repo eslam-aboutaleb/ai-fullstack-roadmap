@@ -130,3 +130,4 @@ if __name__ == "__main__":
     assert select_transport("remote_service", requires_duplex_media=True) == "webrtc_or_websocket"
 
     print("MCP STDIO vs SSE transport mechanics verified successfully.")
+

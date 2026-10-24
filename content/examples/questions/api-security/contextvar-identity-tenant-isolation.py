@@ -118,3 +118,4 @@ async def simulate_concurrent_requests():
 if __name__ == "__main__":
     asyncio.run(simulate_concurrent_requests())
     print("ContextVar identity isolation, RBAC vs ownership, and model spoofing defenses verified successfully.")
+

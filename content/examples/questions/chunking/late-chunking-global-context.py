@@ -45,3 +45,4 @@ assert sim_late > sim_early
 gain = sim_late - sim_early
 
 print(f"Late chunking verified: early_sim={round(sim_early, 4)}, late_sim={round(sim_late, 4)}, context_gain={round(gain, 4)}")
+

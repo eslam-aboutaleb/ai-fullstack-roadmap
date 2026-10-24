@@ -38,3 +38,4 @@ if (!secureHtml.includes('&lt;img')) {
 }
 
 console.log(`Model text rendering verified: unescaped_tag_present=${secureHtml.includes('<img')}, safe_entity_present=${secureHtml.includes('&lt;img')}`);
+

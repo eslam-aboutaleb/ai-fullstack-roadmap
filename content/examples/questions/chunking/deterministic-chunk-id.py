@@ -38,3 +38,4 @@ id_1_mutated = generate_deterministic_chunk_id(doc_id, 0, text_p1 + " Extra poli
 assert id_1a != id_1_mutated
 
 print(f"Deterministic chunk IDs verified: chunk_0={id_1a}, chunk_1={id_2a}, idempotent={id_1a == id_1b}")
+

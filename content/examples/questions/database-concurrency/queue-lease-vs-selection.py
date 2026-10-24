@@ -66,3 +66,4 @@ queue.complete_task("task_1", "worker_node_C", current_time=140)
 assert queue.tasks["task_1"]["status"] == "completed"
 
 print(f"Task lease recovery verified: claimed by {task_c['owner_id']}, attempts={task_c['attempts']}")
+

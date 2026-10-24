@@ -89,3 +89,4 @@ if __name__ == "__main__":
     assert pwd_mgr.verify_password(plain_password, upgraded_hash) is True
 
     print("Password hashing, timing attack defense, and rehash migration verified successfully.")
+

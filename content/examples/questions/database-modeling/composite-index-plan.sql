@@ -30,3 +30,4 @@ EXPLAIN QUERY PLAN
 SELECT id 
 FROM user_tasks 
 WHERE created_at > 1700000000;
+

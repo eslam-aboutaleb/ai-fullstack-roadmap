@@ -66,3 +66,4 @@ safe_result = audited_safe_compress(source_policy, required_negations)
 assert "non-refundable" in safe_result and "unless" in safe_result
 
 print(f"Compression audit verified: naive_pruned={flawed_result != source_policy}, safe_exception_preserved=True")
+

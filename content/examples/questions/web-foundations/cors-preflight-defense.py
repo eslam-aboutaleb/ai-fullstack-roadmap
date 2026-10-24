@@ -60,3 +60,4 @@ status_curl, body_curl = cors_server.handle_api_request(
 assert status_curl == 200, "Non-browser clients ignore CORS; server auth protected the endpoint"
 
 print(f"CORS security boundary verified: preflight_allowed={status_opt}, preflight_blocked={status_bad}, curl_bypass_handled={status_curl}")
+

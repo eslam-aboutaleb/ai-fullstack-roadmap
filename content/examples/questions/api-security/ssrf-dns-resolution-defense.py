@@ -109,3 +109,4 @@ if __name__ == "__main__":
     assert not ipaddress.ip_address(pinned_ip).is_private
 
     print("SSRF pre-flight DNS validation and cloud metadata defenses verified successfully.")
+

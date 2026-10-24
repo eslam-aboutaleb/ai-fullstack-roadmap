@@ -36,3 +36,4 @@ RETURNING id, status;
 SELECT id, status, created_at 
 FROM ingestion_tasks 
 WHERE idempotency_key = 'upload_key_123';
+

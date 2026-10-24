@@ -35,3 +35,4 @@ ORDER BY created_at DESC LIMIT 10;
 SELECT id, metadata->>'gateway_transaction_id' AS gateway_tx
 FROM customer_orders
 WHERE metadata @> '{"payment_method": {"type": "apple_pay", "risk_level": "normal"}}';
+

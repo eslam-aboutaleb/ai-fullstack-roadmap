@@ -54,3 +54,4 @@ assert full_text == "The database transaction completed with success."
 assert [t[0] for t in received_tokens] == [1, 2, 3, 4, 5, 6]
 
 print(f"SSE reconnection reconciliation verified: full_text='{full_text}', total_events={len(received_tokens)}")
+

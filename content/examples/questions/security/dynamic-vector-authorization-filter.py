@@ -105,3 +105,4 @@ if __name__ == "__main__":
     assert "doc_101" in valid_source["doc_id"]
 
     print("Dynamic two-tier vector authorization and real-time revocation verified successfully.")
+

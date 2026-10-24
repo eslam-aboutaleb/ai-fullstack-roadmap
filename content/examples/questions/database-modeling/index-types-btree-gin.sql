@@ -34,3 +34,4 @@ ORDER BY created_at DESC LIMIT 25;
 EXPLAIN SELECT id FROM security_audit_events 
 WHERE payload @> '{"action": "role_escalation", "status": "blocked"}'
   AND tags && ARRAY['critical', 'compliance'];
+

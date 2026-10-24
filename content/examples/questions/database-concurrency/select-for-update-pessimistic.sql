@@ -38,3 +38,4 @@ SET status = 'running', locked_by = 'worker_pod_3', locked_at = clock_timestamp(
 WHERE id = 'job_7718';
 
 COMMIT;
+

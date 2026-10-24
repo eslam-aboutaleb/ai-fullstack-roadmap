@@ -55,3 +55,4 @@ assert roi["justified"] is True
 assert roi["annual_net_roi"] > 400_000
 
 print(f"Non-AI baseline ROI verified: baseline_cost=${roi['baseline_total_cost']}/mo, ai_cost=${roi['ai_total_cost']}/mo, annual_roi=${roi['annual_net_roi']}")
+

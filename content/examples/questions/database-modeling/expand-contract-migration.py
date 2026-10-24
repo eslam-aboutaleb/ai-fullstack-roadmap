@@ -47,3 +47,4 @@ with sqlite3.connect(':memory:') as db:
     # Verify final schema
     final_rows = cursor.execute("SELECT id, first_name, last_name FROM users ORDER BY id").fetchall()
     print(f"Expand-and-contract migration finished: {len(final_rows)} rows migrated with zero downtime")
+

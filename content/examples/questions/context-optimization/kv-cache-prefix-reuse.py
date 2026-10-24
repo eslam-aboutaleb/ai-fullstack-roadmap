@@ -45,3 +45,4 @@ hit_bad2, _ = kv_cache.process_prompt(bad_prefix_with_timestamp("14:00:02"), "Qu
 assert hit_bad1 is False and hit_bad2 is False, "Dynamic timestamp destroyed KV cache reuse!"
 
 print(f"KV cache prefix reuse verified: static_prefix_cached={hit2} (prefill={prefill2} tokens), dynamic_busted={hit_bad2}")
+

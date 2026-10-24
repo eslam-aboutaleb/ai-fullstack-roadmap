@@ -63,3 +63,4 @@ res2 = engine.execute_idempotent_operation("idemp_key_abc", order_payload, lambd
 
 assert res1 == res2 == {"status": "confirmed", "tx": "tx_555"}
 print(f"Idempotent two-phase execution verified: result={res2['status']}, durable_records={len(engine.db_idempotency_table)}")
+

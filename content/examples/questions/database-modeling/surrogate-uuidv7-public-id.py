@@ -44,3 +44,4 @@ database_row = {
 }
 
 print(f"Decoupled keys: internal_pk={database_row['internal_pk']} (UUIDv7), public_id={database_row['public_id']}")
+

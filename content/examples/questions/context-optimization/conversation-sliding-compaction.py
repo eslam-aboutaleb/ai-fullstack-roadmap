@@ -71,3 +71,4 @@ assert "Conversation History Summary:" in prompt_text
 assert len(memory.active_turns) == 2
 
 print(f"Conversation compaction verified: active_turns={len(memory.active_turns)}, entities={list(memory.entity_ledger.keys())}")
+

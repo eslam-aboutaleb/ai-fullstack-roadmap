@@ -68,3 +68,4 @@ resp2, total2 = execute_http_request_with_retry(unauthorized_endpoint)
 assert resp2.status_code == 401 and total2 == 1
 
 print(f"HTTP retry client verified: retried_429_succeeded={resp1.status_code} in {total1} tries; 401_fail_fast={resp2.status_code} in {total2} try")
+

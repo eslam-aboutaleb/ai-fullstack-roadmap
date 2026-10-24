@@ -52,3 +52,4 @@ with sqlite3.connect(':memory:') as db:
     remaining_dept = cursor.execute("SELECT dept_name FROM departments WHERE dept_id = 10").fetchone()[0]
     
     print(f"3NF verified: dept={remaining_dept} intact after employee deletion, anomalies eliminated")
+

@@ -53,3 +53,4 @@ dot_unaligned = sum(a * b for a, b in zip(vec_flawed, vec_doc))
 
 assert dot_aligned > dot_unaligned
 print(f"Asymmetric task prefix verified: aligned_similarity={round(dot_aligned, 4)}, unaligned_drift={round(dot_unaligned, 4)}")
+

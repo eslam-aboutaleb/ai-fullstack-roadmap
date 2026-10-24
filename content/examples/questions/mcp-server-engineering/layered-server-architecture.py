@@ -140,3 +140,4 @@ if __name__ == "__main__":
     assert "between 10 and 500" in mcp_bad_args["content"][0]["text"]
 
     print("Layered MCP server architecture and domain service isolation verified successfully.")
+

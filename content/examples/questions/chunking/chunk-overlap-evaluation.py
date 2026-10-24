@@ -50,3 +50,4 @@ assert coverage == 0.50
 assert "exception_clause" in missing
 
 print(f"Chunk overlap evaluation verified: naive_hits={naive_hits}/5, true_criteria_coverage={coverage * 100}%, missing={missing}")
+

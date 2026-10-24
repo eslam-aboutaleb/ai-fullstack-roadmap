@@ -60,3 +60,4 @@ try:
 finally:
     if os.path.exists(wal_file):
         os.remove(wal_file)
+

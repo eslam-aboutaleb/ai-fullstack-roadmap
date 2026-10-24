@@ -60,3 +60,4 @@ with sqlite3.connect(':memory:') as db:
     assert doc_count == 1
     assert audit_count == 1
     print(f"Unified pgvector ACID atomicity verified: active_documents={doc_count}, audit_entries={audit_count}")
+

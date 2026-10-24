@@ -56,3 +56,4 @@ with sqlite3.connect(':memory:') as conn:
     cursor.execute("INSERT INTO users (email) VALUES ('ada@example.com')")
     user = cursor.execute("SELECT email, is_verified FROM users WHERE id = 1").fetchone()
     print(f"Migration completed safely: current_version={mgr.current_version()}, user={user}")
+

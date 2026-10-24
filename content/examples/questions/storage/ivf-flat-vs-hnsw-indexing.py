@@ -54,3 +54,4 @@ assert results[0][0] in ["doc_L1", "doc_L2"]
 assert not any("doc_R" in r[0] for r in results)
 
 print(f"IVF-Flat index verified: query={query}, top_matches={[r[0] for r in results]} (pruned cluster_right)")
+

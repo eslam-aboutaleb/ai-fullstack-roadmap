@@ -49,3 +49,4 @@ const resultB = compB.applyUpdates();
 if (resultB.count !== 2) throw new Error("Expected functional update result to be 2");
 
 console.log(`React state update verified: direct_stale=${resultA.count}, functional_accumulated=${resultB.count}`);
+

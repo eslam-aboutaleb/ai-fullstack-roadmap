@@ -33,3 +33,4 @@ WHERE id = 'doc_42' AND version = 1;
 -- If rows_affected == 0, the application raises StaleObjectError (409 Conflict),
 -- prompting Client B to reload the latest version and merge changes rather than silently destroying Client A's work.
 SELECT id, version, content FROM document_drafts WHERE id = 'doc_42';
+

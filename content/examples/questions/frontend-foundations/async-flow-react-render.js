@@ -34,3 +34,4 @@ loadDashboardData().then(state => {
   if (state.recommendationsNotice === null) throw new Error("Optional failure notice expected");
   console.log(`Resilient dashboard loaded: metrics_ok=${state.metrics !== null}, degraded_optional=${state.recommendationsNotice !== null}`);
 });
+

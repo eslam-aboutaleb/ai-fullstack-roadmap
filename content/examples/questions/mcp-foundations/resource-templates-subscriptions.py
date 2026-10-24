@@ -138,3 +138,4 @@ if __name__ == "__main__":
     assert update_notifications[0]["target_client"] == "ide_client_1"
 
     print("MCP Resource URIs, dynamic templates, and subscriptions verified successfully.")
+

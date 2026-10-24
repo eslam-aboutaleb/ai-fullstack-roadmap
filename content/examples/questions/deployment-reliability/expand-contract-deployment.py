@@ -40,3 +40,4 @@ sim.step_5_contract()
 
 assert "normalized_address" in sim.schema_columns and "legacy_address" not in sim.schema_columns
 print(f"Zero-downtime deployment verified: final_columns={sorted(sim.schema_columns)}, replicas={sim.replicas}")
+

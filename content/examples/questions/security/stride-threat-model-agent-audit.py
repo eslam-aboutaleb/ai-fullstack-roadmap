@@ -104,3 +104,4 @@ if __name__ == "__main__":
     assert all(status.startswith("PASS") for status in report.values())
 
     print("STRIDE threat modeling, tool scope separation, and telemetry privacy verified successfully.")
+

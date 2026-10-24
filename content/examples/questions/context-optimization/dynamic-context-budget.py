@@ -68,3 +68,4 @@ assert allocation["total_input_tokens"] <= 5888
 assert allocation["guaranteed_generation_headroom"] == 2048
 
 print(f"Dynamic budget allocation verified: input={allocation['total_input_tokens']}/5888, headroom={allocation['guaranteed_generation_headroom']}, admitted={allocation['admitted_passages']}")
+

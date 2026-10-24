@@ -102,3 +102,4 @@ if __name__ == "__main__":
     assert "verified hops" in valid_msg
 
     print("Cloud metadata SSRF defense, redirect inspection, and transport protection verified successfully.")
+

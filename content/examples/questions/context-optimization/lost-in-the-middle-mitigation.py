@@ -45,3 +45,4 @@ assert u_shaped[-1] == "doc_2_high", "Second best document placed at recency pos
 assert u_shaped[2] == "doc_5_lowest", "Lowest scoring document placed in center"
 
 print(f"U-shaped reranking verified: original={candidates} -> u_shaped={u_shaped}")
+

@@ -161,3 +161,4 @@ if __name__ == "__main__":
     assert "Stagnation detected" in run3["explanation"]
 
     print("Controlled agent loop state machine and termination bounds verified successfully.")
+

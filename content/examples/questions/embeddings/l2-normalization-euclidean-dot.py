@@ -43,3 +43,4 @@ assert math.isclose(dist_sq, expected_dist_sq, rel_tol=1e-7)
 
 # Monotonic equivalence: Maximizing Cosine Similarity is IDENTICAL to minimizing Euclidean Distance!
 print(f"L2 normalization equivalence verified: raw_cos={round(raw_cos_sim, 5)}, norm_dot={round(norm_dot, 5)}, dist_sq={round(dist_sq, 5)} (2 - 2*dot)")
+

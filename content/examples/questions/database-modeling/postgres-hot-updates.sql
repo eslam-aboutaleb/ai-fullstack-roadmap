@@ -28,3 +28,4 @@ WHERE session_id = 'c1b48b7a-9e1f-4b09-b42e-6bc8adfa9901';
 -- If an UPDATE modifies an indexed column (e.g., user_id or status if status is indexed):
 --   PostgreSQL CANNOT use HOT. It must write a new heap tuple AND insert new entries into EVERY index,
 --   causing index page splits, WAL write amplification, and table/index bloat.
+

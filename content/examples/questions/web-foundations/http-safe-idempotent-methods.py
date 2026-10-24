@@ -65,3 +65,4 @@ s4, r4 = server.handle_request("POST", "/documents", k_headers, {"content": "Pay
 assert r3["id"] == r4["id"], "Idempotency key guaranteed exactly-one created document"
 
 print(f"HTTP method semantics verified: duplicate_post={r2['id']}, idempotent_retried={r4['id']}")
+

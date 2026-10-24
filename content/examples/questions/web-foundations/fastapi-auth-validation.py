@@ -90,3 +90,4 @@ status3, body3 = handle_create_invoice_endpoint(
 assert status3 == 403
 
 print(f"FastAPI validation & auth verified: valid={status1}, invalid_schema={status2}, cross_tenant={status3}")
+
