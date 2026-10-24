@@ -1,0 +1,189 @@
+[
+  {
+    "name": "normalization-anomalies",
+    "filename": "normalization-anomalies.py",
+    "language": "python",
+    "explain": "Decompose unnormalized records with transitive dependencies into 1NF, 2NF, and 3NF relational tables. Explicit foreign keys and distinct entity tables eliminate insertion, update, and deletion anomalies.",
+    "steps": "Demonstrate update and deletion anomalies in a single denormalized table. || Decompose entities into 3NF tables with foreign keys and verify consistency under mutations.",
+    "expect": "3NF verified: dept=Engineering intact after employee deletion, anomalies eliminated",
+    "questions": [
+      509
+    ]
+  },
+  {
+    "name": "sql-joins-null-logic",
+    "filename": "sql-joins-null-logic.sql",
+    "language": "sql",
+    "explain": "Illustrate INNER, LEFT, and FULL joins alongside SQL three-valued logic. Comparisons against NULL yield UNKNOWN, which silently filters out valid records unless handled with IS NULL or COALESCE.",
+    "steps": "Join departments and employees to compare inner pair matching against left outer row preservation. || Filter rows using comparison operators and demonstrate how UNKNOWN drops rows where values are NULL.",
+    "expect": "Inner join returns matching pairs; left join preserves unassigned employees; NULL comparisons require explicit IS NULL checks.",
+    "questions": [
+      510
+    ]
+  },
+  {
+    "name": "index-types-btree-gin",
+    "filename": "index-types-btree-gin.sql",
+    "language": "sql",
+    "explain": "Compare B-Tree, Hash, and GIN index structures in PostgreSQL. B-Tree indexes power range scans and sorting; GIN inverted indexes optimize composite array intersection and JSONB containment queries.",
+    "steps": "Define composite B-Tree index on scalar tenant and timestamp columns. || Define GIN index with jsonb_path_ops for @> JSONB containment queries.",
+    "expect": "EXPLAIN demonstrates Index Scan for range queries and Bitmap Index Scan for JSONB containment.",
+    "questions": [
+      511
+    ]
+  },
+  {
+    "name": "transaction-isolation-anomalies",
+    "filename": "transaction-isolation-anomalies.py",
+    "language": "python",
+    "explain": "Demonstrate non-repeatable read anomalies under Read Committed isolation and enforce serialization invariants using optimistic version checks.",
+    "steps": "Execute concurrent read and write transactions demonstrating that Read Committed allows an open transaction to observe mutated values. || Prevent lost updates and write skew using atomic version checks.",
+    "expect": "Non-repeatable read anomaly=True; Stale concurrent write rejected=True",
+    "questions": [
+      512
+    ]
+  },
+  {
+    "name": "deadlock-prevention",
+    "filename": "deadlock-prevention.py",
+    "language": "python",
+    "explain": "Prevent transactional deadlocks by enforcing canonical global lock ordering. Sorting resource keys before acquiring row locks guarantees circular dependency cycles cannot form.",
+    "steps": "Simulate bidirectional concurrent transfers between accounts A and B. || Acquire locks in sorted canonical order across all worker threads to guarantee deadlock-free progress.",
+    "expect": "Deadlock prevented: 4 operations completed safely",
+    "questions": [
+      513
+    ]
+  },
+  {
+    "name": "keyset-pagination",
+    "filename": "keyset-pagination.py",
+    "language": "python",
+    "explain": "Compare quadratic OFFSET/LIMIT degradation against O(1) Keyset pagination. Keyset queries seek directly to index coordinates using (created_at, id) tuples, maintaining steady latency regardless of page depth.",
+    "steps": "Benchmark scan cost of OFFSET skipping 5,000 preceding rows. || Execute Keyset query seeking directly to cursor coordinates via composite B-tree index.",
+    "expect": "Keyset pagination seek returned 10 rows; next_cursor=(1700000998, 4991)",
+    "questions": [
+      722
+    ]
+  },
+  {
+    "name": "postgres-hot-updates",
+    "filename": "postgres-hot-updates.sql",
+    "language": "sql",
+    "explain": "PostgreSQL Heap-Only Tuple (HOT) updates modify tuples on the same heap page without writing to indexes, preventing table and index bloat. Table fillfactor reserves free page space, but updating an indexed column breaks HOT.",
+    "steps": "Create table with reduced fillfactor to reserve in-page update capacity. || Mutate unindexed columns to leverage HOT chains without incurring index write amplification.",
+    "expect": "HOT update chains preserve index pointers without modifying B-Tree index pages.",
+    "questions": [
+      723
+    ]
+  },
+  {
+    "name": "acid-relational-vs-vector",
+    "filename": "acid-relational-vs-vector.py",
+    "language": "python",
+    "explain": "Store authoritative transactional state and audit history in relational tables rather than standalone vector stores. Dual-write split-brain is prevented using the Transactional Outbox pattern.",
+    "steps": "Demonstrate orphan vector leaks caused by uncoordinated dual writes when database transactions roll back. || Atomically commit documents and outbox events together, then dispatch asynchronously to vector storage.",
+    "expect": "Authoritative ACID outbox synced: event_count=1, doc_id=doc_100 verified",
+    "questions": [
+      151
+    ]
+  },
+  {
+    "name": "surrogate-uuidv7-public-id",
+    "filename": "surrogate-uuidv7-public-id.py",
+    "language": "python",
+    "explain": "Decouple internal database surrogate primary keys (sequential UUIDv7) from external public resource identifiers. UUIDv7 preserves B-Tree append locality, while opaque prefixed tokens prevent enumeration attacks.",
+    "steps": "Generate time-ordered UUIDv7 keys to maintain monotonic B-Tree insertion locality. || Generate opaque high-entropy public IDs to expose in external HTTP APIs without leaking transaction volume.",
+    "expect": "Decoupled keys: internal_pk contains UUIDv7 timestamp prefix, public_id uses opaque prefix token.",
+    "questions": [
+      152
+    ]
+  },
+  {
+    "name": "decimal-money-precision",
+    "filename": "decimal-money-precision.py",
+    "language": "python",
+    "explain": "Prevent binary floating-point drift in financial records by using exact Decimal arithmetic and Banker's Rounding (ROUND_HALF_EVEN).",
+    "steps": "Demonstrate accumulated precision drift with IEEE 754 binary floating-point addition. || Compute invoice subtotal, tax, and final amount with Decimal and explicit quantization.",
+    "expect": "Decimal financial precision: subtotal=59.97, tax=4.95, total=64.92 (float_drift was 0.000000)",
+    "questions": [
+      153
+    ]
+  },
+  {
+    "name": "constraints-vs-app-validation",
+    "filename": "constraints-vs-app-validation.py",
+    "language": "python",
+    "explain": "Demonstrate why database constraints (FOREIGN KEY, UNIQUE, CHECK) are mandatory to prevent race conditions and bugs that bypass application-level validation.",
+    "steps": "Simulate concurrent requests racing past application-level existence checks. || Enforce atomic uniqueness and CHECK constraints at the database engine level.",
+    "expect": "Database constraints enforced: duplicate_rejected=True, negative_seats_rejected=True",
+    "questions": [
+      154
+    ]
+  },
+  {
+    "name": "normalized-columns-vs-jsonb",
+    "filename": "normalized-columns-vs-jsonb.sql",
+    "language": "sql",
+    "explain": "Differentiate normalized relational columns from JSONB documents. Put core relational keys, status enums, and foreign keys in typed columns; put polymorphic third-party payloads in GIN-indexed JSONB.",
+    "steps": "Define core relational schema with explicit CHECK constraints and B-Tree indexes. || Store semi-structured payload in JSONB with GIN index for @> containment queries.",
+    "expect": "Structured query plans use B-Tree scans; polymorphic metadata queries use GIN containment scans.",
+    "questions": [
+      155
+    ]
+  },
+  {
+    "name": "composite-index-plan",
+    "filename": "composite-index-plan.sql",
+    "language": "sql",
+    "explain": "Analyze query execution plans for composite indexes (owner_id, created_at DESC). Demonstrates why leading equality filters eliminate sorting overhead and illustrates the left-to-right prefix rule.",
+    "steps": "Create composite index matching tenant equality filter and chronological ordering. || Inspect EXPLAIN QUERY PLAN to verify Index Scan without in-memory sorting, and demonstrate prefix failure when leading key is omitted.",
+    "expect": "EXPLAIN QUERY PLAN confirms index scan using idx_tasks_owner_created for owner query.",
+    "questions": [
+      156
+    ]
+  },
+  {
+    "name": "active-revision-pointer",
+    "filename": "active-revision-pointer.py",
+    "language": "python",
+    "explain": "Model document revisions immutably while serving queries through an atomic active pointer table. Ingestion indexes new revisions in the background without partial-read anomalies.",
+    "steps": "Serve queries through the active pointer while indexing a new revision in the background. || Swap the active pointer atomically once background indexing and validation complete.",
+    "expect": "Revision lifecycle verified: active switched from rev 1 to rev 2",
+    "questions": [
+      157
+    ]
+  },
+  {
+    "name": "alembic-migration-lifecycle",
+    "filename": "alembic-migration-lifecycle.py",
+    "language": "python",
+    "explain": "Manage schema evolution programmatically with forward-only versioned migrations and transactional DDL. Version tracking prevents inconsistent database states across environments.",
+    "steps": "Track applied migration revisions inside the alembic_version ledger. || Execute schema changes and ledger updates atomically inside a single ACID transaction.",
+    "expect": "Applying migration: None -> 001_create_users\nApplying migration: 001_create_users -> 002_add_verification\nMigration completed safely: current_version=002_add_verification, user=('ada@example.com', 0)",
+    "questions": [
+      158
+    ]
+  },
+  {
+    "name": "expand-contract-migration",
+    "filename": "expand-contract-migration.py",
+    "language": "python",
+    "explain": "Execute the four phases of Expand-and-Contract schema migrations: expand with nullable columns, dual-write across application versions, backfill historical data, and contract deprecated columns.",
+    "steps": "Expand database with new nullable columns without breaking legacy readers. || Dual-write to old and new columns, backfill historical rows, and safely contract the schema.",
+    "expect": "Expand-and-contract migration finished: 3 rows migrated with zero downtime",
+    "questions": [
+      159
+    ]
+  },
+  {
+    "name": "document-revision-hierarchy",
+    "filename": "document-revision-hierarchy.sql",
+    "language": "sql",
+    "explain": "Model parent document entities and child revisions without false collision across owners. Uniqueness rules are scoped to (document_id, revision_num) rather than owner.",
+    "steps": "Create documents table with owner_id and cascade-delete child revisions. || Enforce uniqueness on (document_id, revision_num) allowing an owner to manage multiple documents.",
+    "expect": "Owner manages multiple documents concurrently, each tracking distinct revisions without constraint collisions.",
+    "questions": [
+      887
+    ]
+  }
+]

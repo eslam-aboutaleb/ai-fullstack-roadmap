@@ -1,0 +1,79 @@
+[
+  {
+    "explain": "Choose metrics and tools from the product's required evidence. The contract distinguishes deterministic permission checks from judged answer support.",
+    "steps": "State success and failure criteria first. || Select a metric implementation only after identifying the inputs it requires.",
+    "expect": "['answer_support', 'no_forbidden_reads']",
+    "name": "evaluation-contract",
+    "language": "python",
+    "filename": "evaluation-contract.py",
+    "questions": [
+      587,
+      241,
+      250,
+      405
+    ]
+  },
+  {
+    "explain": "Precision counts relevant returned items, recall counts relevant items found, and reciprocal rank uses the first relevant position. Labels here are document identities.",
+    "steps": "Find the positions of relevant hits in the ranking. || Calculate each metric using its own denominator.",
+    "expect": "0.333333 0.5 0.5",
+    "name": "retrieval-metrics",
+    "language": "python",
+    "filename": "retrieval-metrics.py",
+    "questions": [
+      756,
+      111,
+      588,
+      113
+    ]
+  },
+  {
+    "explain": "A regression case captures a minimal synthetic reproduction and its expected invariant, avoiding unnecessary production payload collection.",
+    "steps": "Store input, configuration identity, observed failure, and expected behavior. || Validate the case is sufficient to rerun the boundary check.",
+    "expect": "case-stale-cache revision_must_match",
+    "name": "failure-artifact",
+    "language": "python",
+    "filename": "failure-artifact.py",
+    "questions": [
+      590,
+      678,
+      260
+    ]
+  },
+  {
+    "explain": "Liveness, readiness, and degraded quality answer different questions. A running process can be unready to accept work even while its liveness probe passes.",
+    "steps": "Record process, dependency, and freshness signals separately. || Compute admission readiness without calling it end-to-end answer quality.",
+    "expect": "True False True",
+    "name": "health-levels",
+    "language": "python",
+    "filename": "health-levels.py",
+    "questions": [
+      116,
+      694,
+      284
+    ]
+  },
+  {
+    "explain": "Aggregate quality can shift because the task mix changed or because one slice regressed. Track category counts and outcomes instead of only the global mean.",
+    "steps": "Keep a baseline rate for the same task slice. || Flag the observed drop for investigation rather than declaring its cause.",
+    "expect": "investigate",
+    "name": "drift-monitor",
+    "language": "python",
+    "filename": "drift-monitor.py",
+    "questions": [
+      117,
+      120
+    ]
+  },
+  {
+    "name": "evaluation-failure-boundary-isolation",
+    "filename": "evaluation-failure-boundary-isolation.py",
+    "language": "python",
+    "explain": "An evaluation boundary test harness demonstrates how composite score averages mask severe policy contradictions despite high retrieval recall, and validates decoupled evaluation gates for retrieval, claim support, and abstention.",
+    "steps": "Evaluate retrieval recall and reciprocal rank against gold document sets. || Verify atomic answer claims against retrieved contexts to detect hallucinations and policy contradictions. || Gate production release on decoupled thresholds rather than aggregate composite scores.",
+    "expect": "All evaluation failure boundary isolation invariants verified successfully.",
+    "questions": [
+      904
+    ]
+  }
+]

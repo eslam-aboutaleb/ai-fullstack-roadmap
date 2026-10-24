@@ -1,0 +1,243 @@
+[
+  {
+    "Q": "What must change when scaling from one process to multiple replicas?",
+    "A": "Shared sessions, idempotency, rate limits, jobs, migrations, and telemetry need explicit cross-process semantics. Process-local dictionaries, locks, and counters remain local even when replicas run identical code.",
+    "Why": "Move authoritative tasks, sessions, rate accounting, and operation identity into deliberately shared stores where required. Test concurrent replicas instead of extrapolating from one process.",
+    "Risk": "Adding replicas can multiply quotas, repeat model calls, and split conversational state. A load balancer does not make local state shared.",
+    "Trade": "Shared services improve continuity and introduce network dependencies. One process with honest limitations can be a simpler initial deployment.",
+    "Try": "Test retries routed to another replica, session continuation, worker claiming, and global quota behavior during Redis failure.",
+    "spoken": "Multiple replicas need shared authoritative state, scoped identities, atomic/idempotent operation handling and coordinated schema changes. In-memory tasks and locks do not span processes. Also review connection pools, downstream quotas, health semantics, rollout compatibility and recovery behavior.",
+    "domain": "operations",
+    "subdomain": "reliability",
+    "difficulty": "foundations",
+    "misconception_target": "A green deploy means the system is healthy",
+    "definitions": [
+      {
+        "term": "Health check",
+        "definition": "Endpoint that reports whether an instance can serve traffic"
+      },
+      {
+        "term": "Rollout",
+        "definition": "Gradual deployment to users with error-rate monitoring"
+      },
+      {
+        "term": "Disaster recovery drill",
+        "definition": "Practiced procedure for restoring service after failure"
+      }
+    ],
+    "execution_timeline": "Deploy new version -> Health checks pass -> Gradual traffic shift -> Monitor error rates -> Full rollout or rollback",
+    "example": {
+      "code": "if health_check() == unhealthy:\n    remove_from_load_balancer(instance)\n    alert_oncall()",
+      "explanation": "Unhealthy instances are removed from traffic and on-call is alerted.",
+      "output": "Instance drained, alert sent"
+    },
+    "production_case": "A request is accepted by replica A and status polling reaches B. If state is process-local, B reports unknown despite a real accepted task; move authoritative task state to shared durable storage.",
+    "alternatives": [
+      "Big bang deployment",
+      "Blue-green deployment"
+    ],
+    "pitfalls": [
+      "Health checks pass but business logic broken",
+      "Rollback too slow during incident",
+      "No disaster recovery practice"
+    ],
+    "complexity": "Readiness probes should be bounded and inexpensive, but deployment cost includes startup, migration locks, mixed-version traffic and capacity headroom. Measure the actual rollout and recovery behavior.",
+    "follow_ups": [
+      {
+        "Q": "Will a load-balancer sticky session fix durability?",
+        "A": "It may mask routing symptoms temporarily, but process loss, scaling and background workers still require shared recoverable state."
+      }
+    ],
+    "citations": [
+      "https://sre.google/sre-book/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true,
+    "concept": "What must change when scaling from one process to multiple replicas"
+  },
+  {
+    "Q": "Should migrations run on every application startup?",
+    "A": "Startup migration is convenient for small deployments but couples readiness to schema changes and can make replicas compete to migrate. A controlled migration job followed by compatible application rollout is an alternative.",
+    "Why": "Give one deployment step ownership of reviewed migrations and deploy compatible application versions. Define upgrade failure and rollback behavior before enabling multiple startup processes.",
+    "Risk": "Concurrent DDL, long locks, and destructive changes can affect all replicas. A schema change can also prevent rollback to the prior image.",
+    "Trade": "Self-initializing services reduce manual steps; dedicated migration stages improve sequencing. Either requires tested failure behavior and appropriate database privileges.",
+    "Try": "Design a rolling deployment with one migrator, compatible schema, application rollout, verification, and delayed cleanup.",
+    "spoken": "Run migrations as an explicit, serialized release operation with reviewed locking and compatibility behavior. Avoid every replica racing to change schema at startup. Use expand/migrate/contract phases so old and new replicas can coexist, and rehearse rollback limits for destructive changes.",
+    "domain": "operations",
+    "subdomain": "reliability",
+    "module": "deployment-reliability",
+    "concept": "Should migrations run on every application startup",
+    "difficulty": "implementation",
+    "misconception_target": "A successful deploy means the system is healthy",
+    "definitions": [
+      {
+        "term": "Migration owner",
+        "definition": "The single coordinated release operation responsible for a schema change."
+      },
+      {
+        "term": "Expand/contract",
+        "definition": "A staged transition that preserves compatibility before removing old fields or interfaces."
+      },
+      {
+        "term": "Rollback limit",
+        "definition": "State or external changes that an application-image rollback cannot automatically undo."
+      }
+    ],
+    "execution_timeline": "Review migration -> expand schema -> deploy compatible code -> backfill/verify -> retire old code -> contract schema",
+    "example": {
+      "code": "release_steps = ['expand', 'compatible_code', 'backfill', 'verify', 'contract']\nassert release_steps.index('verify') < release_steps.index('contract')\nprint('contract only after verification')",
+      "explanation": "This is an ordering fixture, not a database migration tool or proof that a real DDL operation has no locking cost.",
+      "output": "contract only after verification"
+    },
+    "production_case": "Twenty replicas start after a rollout and all attempt one large schema rewrite. A migration job with a single ownership boundary, staged compatibility and measured lock behavior avoids the startup stampede.",
+    "alternatives": [
+      "Big bang deployment",
+      "Blue-green deployment"
+    ],
+    "pitfalls": [
+      "Health checks pass but business logic broken",
+      "Rollback too slow during incident",
+      "No disaster recovery practice"
+    ],
+    "complexity": "Runtime and locking depend on the specific DDL, engine version, table size and access pattern. Measure representative migrations and define failure/recovery behavior.",
+    "follow_ups": [
+      {
+        "Q": "Is application-image rollback enough after a destructive migration?",
+        "A": "No. Old code may no longer understand the schema or lost data. Plan compatibility and restore/reconciliation before applying the migration."
+      }
+    ],
+    "citations": [
+      "https://www.postgresql.org/docs/current/explicit-locking.html",
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "Why does startup ingestion need separate operational treatment?",
+    "A": "Ingestion performs provider calls and writes unrelated to accepting a web request. Running it during every replica startup can duplicate preparation, delay readiness, and couple scaling to source and model availability.",
+    "Why": "Run ingestion as a versioned background workflow with freshness state, deduplication, deadlines, and retry policy. Avoid repeating expensive source preparation on each replica startup.",
+    "Risk": "A service can start successfully with missing knowledge. Database connectivity does not prove usable policy evidence exists.",
+    "Trade": "Startup ingestion suits a sample corpus; a scheduled or operator-triggered worker gives clearer ownership, progress, and recovery.",
+    "Try": "Start two replicas with an unchanged source, then with an unavailable provider. Report effective readiness, freshness, and duplicate preparation."
+  },
+  {
+    "Q": "What does the minimal health endpoint prove?",
+    "A": "A bounded database probe establishes only that a basic connection and query worked at that moment. It does not prove model availability, current evidence, healthy workers, correct permissions, or functioning event delivery.",
+    "Why": "Separate process liveness, dependency readiness, index freshness, and task-quality signals. Bound probes and avoid costly model calls on every health check.",
+    "Risk": "Calling this fully healthy can conceal an assistant unable to answer or index. Putting expensive evaluations in every probe can instead overload the service.",
+    "Trade": "Cheap probes suit frequent checks. Readiness and scheduled consistency checks should cover critical product dependencies separately.",
+    "Try": "Define probe outcomes for database failure, provider failure, stale corpus, and a stopped embedding worker."
+  },
+  {
+    "Q": "How should connection pools and worker concurrency be sized together?",
+    "A": "Count API requests, background jobs, agent-session writes, migrations, and probes that need connections. Bound concurrency and pool waits so one workload cannot consume all capacity. Async I/O does not remove database connection limits.",
+    "Why": "Multiply pool limits by processes and replicas, then reserve database headroom for workers and operations. Bound simultaneous queries separately from model or HTTP concurrency.",
+    "Risk": "Increasing replicas can exceed the total connection budget. Provider waits inside open transactions amplify occupancy even when CPU usage is low.",
+    "Trade": "Larger pools reduce local waiting until database saturation; smaller pools protect the database and need admission control.",
+    "Try": "Calculate connections across replicas and workers, reserve operational headroom, and measure pool checkout latency under load."
+  },
+  {
+    "Q": "How should container and dependency hardening be evaluated?",
+    "A": "**A deployable artifact is more than source code that once ran locally.** Build a reproducible image from pinned dependencies, record its immutable digest and provenance, run with minimal privileges, and separate configuration/secrets from the image. A tag can move; a Git commit alone does not pin transitive packages, base images or build-time downloads. Scan the actual release artifact and retain enough metadata to reproduce or replace it.\n\nInfrastructure as code (IaC) declares resources and change history, but applying it can still destroy data or expose a service. Review the plan, permissions, state storage, rollback/recovery and environment isolation. Map cloud concepts before naming products: compute runs code, object storage stores blobs, identity limits actions, network policy controls paths and managed databases own durable state. AWS-specific choices such as IAM roles, ECS/EKS, S3 or RDS change operational responsibility and cost; they do not remove authorization or backup duties.\n\nKubernetes schedules containers and reconciles desired state. A Deployment rolling update needs resource requests, readiness, availability/surge limits and a progress deadline. Readiness controls traffic eligibility; liveness can restart an unhealthy process. A remote provider outage should not cause every replica to restart through a badly designed liveness check. A stalled rollout reports failure; rollback is an explicit operational decision, not automatic evidence that the old version is healthy.\n\nThe workbench includes a non-root Dockerfile, a two-replica manifest and a disposable-kind failure/undo exercise. Those commands are optional learner activities until actual runtime output is recorded. This authoring environment has no working Docker daemon, so neither image execution nor cluster recovery is claimed. The local release gate checks digest shape, schema compatibility and recovery evidence, while real browser/API tests exercise the service outside a container. Keep those observations separate. Inject secrets only at runtime through a scoped mechanism, avoid logging them and test rotation/revocation without rebuilding the image.",
+    "Why": "An image tag points to new bytes although the application commit is unchanged. Recording the image digest and dependency locks makes the release identity inspectable; a manifest alone cannot prove the workload actually started.",
+    "Risk": "A liveness probe tied to a provider outage can restart every replica and worsen the incident. Broad cloud credentials in a build image turn artifact access into infrastructure access.",
+    "Trade": "Managed services reduce some maintenance but add service constraints and cost. Kubernetes offers orchestration flexibility with significant operational overhead; a simpler container service may fit the workload better.",
+    "Try": "Review the workbench Dockerfile and manifest, then follow the disposable-kind exercise only on an available local engine. Record rollout and undo output, or clearly mark execution unperformed rather than substituting YAML validation.",
+    "worked_case": "An image tag points to new bytes although the application commit is unchanged. Recording the image digest and dependency locks makes the release identity inspectable; a manifest alone cannot prove the workload actually started.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://docs.docker.com/build/building/best-practices/",
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+      "https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can rolling back the application safely reverse a destructive database migration?",
+        "A": "No. Artifact rollback and data recovery are separate. Use compatible expand/contract migrations, verified backups and a rehearsed forward repair; restoring deleted or incompatible state can create new correctness and privacy failures."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "deployment-reliability"
+  },
+  {
+    "Q": "How should worker shutdown and stale-job recovery be verified?",
+    "A": "Stop accepting new work, allow bounded completion, release resources, and use durable job state for later recovery. A finally block helps graceful shutdown but cannot be guaranteed after abrupt process death.",
+    "Why": "Stop accepting new work, allow or cancel active operations under a deadline, persist state, and recover stale leases safely. Verify shutdown through controlled worker interruption.",
+    "Risk": "Reclaiming too early overlaps workers; never reclaiming strands jobs. A crash after external delivery but before completion marking can repeat delivery.",
+    "Trade": "Graceful draining improves continuity and slows replacement. Abrupt replacement is faster and demands stronger recovery invariants.",
+    "Try": "Terminate a worker after claim, after embedding, and after delivery. Verify the next worker converges without duplicate logical effects."
+  },
+  {
+    "Q": "How should an external provider outage affect the product?",
+    "A": "Distinguish unavailable generation, unavailable embeddings, failed retrieval, and degraded tracing. Preserve committed business state and expose retryable status. Do not fabricate policy answers or report unperformed actions as successful.",
+    "Why": "Classify affected capabilities and provide explicit degraded outcomes. Apply bounded retries and circuit or admission policies without generating unsupported answers when evidence or tools are unavailable.",
+    "Risk": "Nested retries can exhaust pools and budgets. Switching providers can change tool and privacy behavior and must be an explicit evaluated policy.",
+    "Trade": "Structured status lookup can preserve useful service while generation is unavailable. Full-availability service requests are inappropriate when essential evidence is missing.",
+    "Try": "Define an outage matrix for PostgreSQL, Redis, embedding, generation, and tracing, with permitted operations and recovery behavior."
+  },
+  {
+    "Q": "What is a meaningful disaster-recovery drill?",
+    "A": "**A recovery drill demonstrates restoration of a usable invariant, not merely the existence of a backup file.** Define recovery point objective (RPO), the acceptable data-loss interval, and recovery time objective (RTO), the acceptable restoration duration. State the reference event/time and workload. A green backup job says data was copied; it does not show decryption keys, schema compatibility, permissions, deletion intent or application behavior survived restoration.\n\nPrepare a runbook with symptom, impact, owner, safe containment, diagnostic evidence and decision points. For an AI assistant, separate service errors, latency, unsupported answers, false refusals, source freshness, unauthorized access and cost amplification. Correlate safe request/attempt/operation IDs across UI, API, data and model calls. Keep secrets and raw private prompts out of default telemetry. A provider outage may require degraded read-only behavior or explicit refusal rather than a restart storm.\n\nRestore into an isolated environment, verify integrity and business invariants, reapply deletion/revocation events newer than the snapshot, then test source eligibility and repeat-safe effects before allowing traffic. Measure elapsed recovery and actual recovered point; do not report planned RTO/RPO as achieved. A rollback may restore software while leaving incompatible data or stale model/index artifacts, so rehearse those coupled changes.\n\nThe workbench README provides optional container/cluster failure and explicit undo steps; local restore and rollout fixtures supply smaller reproducible exercises. A system-design defense should include a sequence diagram, capacity assumptions, failure timeline, proposed mitigation and observed validation. Keep the postmortem focused on the mechanism and prevention: for example, an owner-switch UI race, a stale policy cache or a changed-payload CDC replay. Cost and latency improvements cannot overrule critical disclosure or unsupported business decisions. Separate executed local evidence from infrastructure commands awaiting a suitable learner environment.",
+    "Why": "A backup restores an old document that was deleted after the snapshot. Integrity checks pass, but serving it violates current deletion intent; replaying tombstones before traffic is a required recovery step.",
+    "Risk": "Restoration can resurrect private data or duplicate effects even when files are intact. A runbook that checks only HTTP 200 misses the important business invariants.",
+    "Trade": "Frequent backups improve possible RPO but add cost and retention obligations. Automated restoration reduces delay only when safety checks and access/deletion reconciliation are also automated and tested.",
+    "Try": "Run restore_drill.py and write an incident timeline for a resurrected policy. State measured recovery versus target objectives and show the gate that prevents traffic before deletion reconciliation.",
+    "worked_case": "A backup restores an old document that was deleted after the snapshot. Integrity checks pass, but serving it violates current deletion intent; replaying tombstones before traffic is a required recovery step.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://sre.google/sre-book/managing-incidents/",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if telemetry itself contains the deleted document?",
+        "A": "Treat telemetry as another retention/deletion surface. Minimize sensitive content, scope access and document purge/backup behavior separately; deleting the primary row does not erase logs or exported traces."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "deployment-reliability"
+  },
+  {
+    "Q": "What evidence supports a production-readiness claim?",
+    "A": "**Production readiness is a traceable claim about particular failure scenarios and observed environments.** Source code, a Helm manifest, Dockerfile or green unit-test badge is evidence of *intent* and some checked invariants, not proof that a service will survive a region outage, database restoration, model quality drift or a critical tenant isolation attack. Name the target operating envelope, customers, security boundary, model/data versions, expected throughput and recovery objectives before deciding what to test.\n\n**Frontend boundary.** A React streaming chat interface must prevent stale network responses from an old request or authenticated user appearing in the new session. Use a request/epoch identity in UI state, cancellation on account switch/unmount, bounded render buffers, explicit stream completeness and accessible status. However, hiding a private citation in the browser does **not** authorize a server call; read permissions must be enforced at the authoritative API/database/retrieval layer. `labs/stream_session_reducer.cjs` tests the session/epoch reducer and deliberately drops late chunks after switching users.\n\n**Data pipeline boundary.** ETL transforms source bytes; CDC (change data capture) replays versioned changes. To prevent double effects or stale-policy resurrection, atomically couple projected state with the consumed source event ID/checkpoint. Reject gaps, scope operations to the authenticated tenant, and propagate tombstones before reindexing old snapshots. Test restart, replay, changed-payload duplicate, schema incompatibility and deletion. `labs/data_rollout_contract.py` uses real SQLite transactions to verify source ordering, replay, tenant scope, tombstones and gap rejection. It is single-process evidence; an actual Kafka/Beam/database pipeline still requires distributed integration tests.\n\n**Release and rollback.** A credible release manifest identifies the immutable container digest, compatible database/migration/schema revision, model/tokenizer/index and training-data lineage, deployment config and software-bill-of-materials/provenance as applicable. A readiness probe says the pod may serve work; liveness says whether it should be restarted. Neither proves answer correctness. A Kubernetes Deployment can roll back its pod template revision, but reverting container image alone does not reverse an incompatible database migration or stale downstream index. Use staged rollout, SLO/error budget gates, latency p95/p99, task-level evaluation slices, authorization negatives and an independently rehearsed restore.\n\n**Worked failure.** A new retrieval index is deployed with fresh model weights but an older policy snapshot. The application returns HTTP 200 and passes liveness while giving unsupported outdated answers. A release gate should reject the index revision mismatch and missing deletion evidence, then rollback read alias while reconciling tombstones. The toy release-policy function in the local lab validates required digest/schema/recovery fields and compares a supplied rollout error fraction with a declared bound; it is **not** a Kubernetes deployment or live traffic measurement.\n\n**Trade-offs and follow-up.** A static Pages learning site has no production backend or cloud credentials; complex services are downloadable labs. A single-machine test enables repeatability but cannot certify multi-zone durability. **If a successful rollback restores an old snapshot**, verify its deletion high-water mark and replay authorization/tombstones before serving; otherwise a 'successful' recovery can violate privacy.",
+    "Why": "Deployment readiness must be supported by exercised source-to-service evidence, not inferred from manifests, unit-test successes or green liveness probes.",
+    "Risk": "A polished architecture or passing unit suite can conceal untested runtime behavior. Secure, scalable, and exactly once are service requests requiring specific evidence.",
+    "Trade": "Readiness work is slower than a demo and establishes a defensible operational contract. A prototype may ship earlier with narrower commitments.",
+    "Try": "Run the stream reducer and SQLite CDC/rollout exercises; intentionally replay a deleted record and explain the difference between mock rollout policy and real Kubernetes recovery.",
+    "citations": [
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "If a deployment rollback restores an older data snapshot, how can it remain unsafe despite healthy readiness probes?",
+        "A": "An older snapshot may restore deleted policies or revoked owner permissions. Verify the data/ACL/tombstone high-water marks, replay authorized CDC events and ensure index/model/schema compatibility before serving; readiness/liveness only check process capability, not domain correctness."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    }
+  }
+]

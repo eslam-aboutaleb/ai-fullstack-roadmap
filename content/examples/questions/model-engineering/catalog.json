@@ -1,0 +1,71 @@
+[
+  {
+    "explain": "Fix the responsible stage before introducing training. Missing evidence points to retrieval, while repeatedly misusing correct context may justify a model-behavior experiment.",
+    "steps": "Record whether required evidence was retrieved and assembled. || Choose the first failed boundary as the next intervention.",
+    "expect": "retrieval",
+    "name": "locate-model-failure",
+    "language": "python",
+    "filename": "locate-model-failure.py",
+    "questions": [
+      688,
+      294
+    ]
+  },
+  {
+    "explain": "An adaptation experiment needs held-out comparisons and regression slices, not just a decreasing training loss. The candidate is rejected when rare-case performance falls below its requirement.",
+    "steps": "Compare baseline and adapted outcomes on the same held-out slices. || Enforce the critical slice requirement before adopting the model.",
+    "expect": "False",
+    "name": "adaptation-comparison",
+    "language": "python",
+    "filename": "adaptation-comparison.py",
+    "questions": [
+      800
+    ]
+  },
+  {
+    "explain": "Parameter precision estimates weight storage; runtime cache adds a separate workload-dependent cost. These simplified byte counts omit scales, activations, and implementation overhead.",
+    "steps": "Calculate 16-bit and 4-bit weight bytes. || Add a hypothetical cache reservation separately rather than claiming weights alone determine capacity.",
+    "expect": "14000000000 3500000000 4500000000",
+    "name": "serving-memory",
+    "language": "python",
+    "filename": "serving-memory.py",
+    "questions": [
+      801,
+      296
+    ]
+  },
+  {
+    "explain": "Throughput and interactive latency can move in opposite directions. Filter by the product's latency target before choosing the highest-throughput configuration.",
+    "steps": "Compare two measured workload-shaped fixtures. || Keep only configurations meeting the declared p95 budget.",
+    "expect": "small_batch",
+    "name": "serving-tradeoff",
+    "language": "python",
+    "filename": "serving-tradeoff.py",
+    "questions": [
+      802,
+      297
+    ]
+  },
+  {
+    "explain": "Confidence calibration compares predicted confidence with observed correctness in bins. Selective answering additionally decides which cases to answer under a policy.",
+    "steps": "Compare a confidence bin's nominal probability with its reviewed accuracy. || Calculate coverage under a proposed answer threshold separately.",
+    "expect": "0.5 1.0",
+    "name": "calibration",
+    "language": "python",
+    "filename": "calibration.py",
+    "questions": [
+      292
+    ]
+  },
+  {
+    "name": "model-release-manifest-compatibility",
+    "filename": "model-release-manifest-compatibility.py",
+    "language": "python",
+    "explain": "A model release manifest cryptographically binds base model weights, tokenizer vocab hashes, LoRA adapter configuration, and serving assumptions to prevent silent token drift in production inference.",
+    "steps": "Compute cryptographic digests for tokenizer vocabularies and base model revisions. || Verify that LoRA adapter configurations match the runtime vocabulary hash before loading weights. || Reject incompatible deployments and validate serving assumptions.",
+    "expect": "=== Testing Model Release Manifest & Tokenizer Compatibility Suite ===\nHappy Path Verification Result: {'status': 'VERIFIED_COMPATIBLE', 'release_id': 'rel-2026-cs-001', 'base_model': 'meta-llama/Llama-3-8B-Instruct', 'adapter_id': 'lora-customer-service-v1', 'min_vram_gb': 16, 'max_batch_size': 32}\n\nSimulating deployment with drifted tokenizer (shapes match, token IDs differ)...\nSuccessfully intercepted tokenizer mismatch:\n  Error message: Tokenizer vocabulary mismatch! Manifest vocab hash '56ab96dae09f' does not match runtime tokenizer hash 'cac20431765b'. Even though tensor dimensions match, token IDs will produce garbled output.\n\nSuccessfully intercepted base model revision mismatch:\n  Error message: Base model revision mismatch: manifest requires 'sha256-base-abc1234', but runtime environment loaded 'sha256-base-mismatched-999'.\n\nAll model release manifest and tokenizer compatibility tests passed successfully.",
+    "questions": [
+      949
+    ]
+  }
+]

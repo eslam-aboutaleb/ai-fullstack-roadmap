@@ -1,0 +1,140 @@
+[
+  {
+    "explain": "A request handler validates input and returns a stable task identity instead of exposing provider internals. This ordinary function models an HTTP boundary without starting a server.",
+    "steps": "Receive a decoded request body. || Return a validation error or an accepted task with a status location.",
+    "expect": "400 202 /tasks/T1",
+    "name": "http-lifecycle",
+    "language": "python",
+    "filename": "http-lifecycle.py",
+    "questions": [
+      502,
+      716,
+      141,
+      149
+    ]
+  },
+  {
+    "explain": "Approval binds exact owner, parameters, revision, and expiry. Changing the request invalidates the stored approval before a business write.",
+    "steps": "Record a reviewed payload and its validity. || Compare the current request with that payload using trusted server state.",
+    "expect": "False",
+    "name": "business-confirmation",
+    "language": "python",
+    "filename": "business-confirmation.py",
+    "questions": [
+      503,
+      145,
+      645,
+      275
+    ]
+  },
+  {
+    "explain": "A committed record and a derived projection can temporarily disagree. Compare revisions before presenting the projection as current.",
+    "steps": "Update the authoritative task revision. || Detect that the search/UI projection has not caught up and expose pending synchronization.",
+    "expect": "syncing",
+    "name": "projection-lag",
+    "language": "python",
+    "filename": "projection-lag.py",
+    "questions": [
+      504,
+      147,
+      160,
+      741
+    ]
+  },
+  {
+    "explain": "Correlation connects a request to its worker and tool calls across component boundaries. These dictionaries model trace relationships without exporting telemetry.",
+    "steps": "Assign a common trace identity and explicit parent span IDs. || Check that the worker and retrieval spans belong to the same tree.",
+    "expect": "api worker retrieve",
+    "name": "trace-tree",
+    "language": "python",
+    "filename": "trace-tree.py",
+    "questions": [
+      150,
+      685,
+      252,
+      253
+    ]
+  },
+  {
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "language": "javascript",
+    "explain": "A browser submits JSON, checks HTTP status, validates the result shape, and treats transport failure separately. Abort support lets the caller stop obsolete waiting.",
+    "steps": "Await fetch and explicitly inspect response.ok. || Parse the body only after HTTP success and reject an invalid task identity.",
+    "expect": "With a compatible local API: a task object; HTTP errors or invalid data reject the promise.",
+    "limit": "Browser integration sketch; it requires your API at /tasks and is syntax-checked, not a live provider or server test.",
+    "name": "browser-fetch",
+    "filename": "browser-fetch.js",
+    "questions": [
+      717,
+      782
+    ]
+  },
+  {
+    "explain": "A dictionary indexes tasks by identity; a deque represents pending work; a set prevents duplicate scheduling. Their different roles are explicit.",
+    "steps": "Build lookup, membership, and queue structures from the same task identity. || Dequeue work and look up its record directly.",
+    "expect": "T1 queued",
+    "name": "structures",
+    "language": "python",
+    "filename": "structures.py",
+    "questions": [
+      718
+    ]
+  },
+  {
+    "explain": "Translate internal runtime events into a small public schema. Private framework fields stay inside the adapter.",
+    "steps": "Read only allowlisted internal fields. || Emit the stable public task and text fields consumed by the frontend.",
+    "expect": "{'type': 'delta', 'task_id': 'T1', 'text': 'Hello'}",
+    "name": "adapter-events",
+    "language": "python",
+    "filename": "adapter-events.py",
+    "questions": [
+      142,
+      271
+    ]
+  },
+  {
+    "explain": "Working session state and durable messages have different lifetimes. A small retained history is rehydrated from persisted records.",
+    "steps": "Keep a durable ordered message fixture. || Create a bounded working window for the current session rather than treating every past message as active context.",
+    "expect": "['M2', 'M3']",
+    "name": "session-vs-record",
+    "language": "python",
+    "filename": "session-vs-record.py",
+    "questions": [
+      144,
+      305
+    ]
+  },
+  {
+    "explain": "A knowledge fact describes policy; a procedure constrains an action. The dispatcher requires an authorized confirmation even when the fact is available.",
+    "steps": "Separate the read-only policy from the action requirements. || Evaluate the action predicate independently from the answer text.",
+    "expect": "exchange only False",
+    "name": "procedure-vs-fact",
+    "language": "python",
+    "filename": "procedure-vs-fact.py",
+    "questions": [
+      146
+    ]
+  },
+  {
+    "explain": "An executable threat-model fixture pairs entry points with protected assets and controls. Coverage checks expose a boundary that has no stated enforcement.",
+    "steps": "List the controls required at each entry. || Assert that all external entry points have at least one named control.",
+    "expect": "True",
+    "name": "trust-map",
+    "language": "python",
+    "filename": "trust-map.py",
+    "questions": [
+      148
+    ]
+  },
+  {
+    "name": "authoritative-service-boundary-guard",
+    "filename": "authoritative-service-boundary-guard.py",
+    "language": "python",
+    "explain": "An authoritative service boundary harness demonstrates why placing authorization in the HTTP/chat controller layer creates cross-tenant data leaks in background workers, and validates mandatory security context enforcement at the domain service layer.",
+    "steps": "Demonstrate that controller-level authorization protects chat routes while leaving background worker tasks vulnerable. || Enforce mandatory security context passing at the domain service boundary. || Verify that background workers cannot bypass tenant isolation rules.",
+    "expect": "All authoritative service boundary guard invariants verified successfully.",
+    "questions": [
+      859
+    ]
+  }
+]

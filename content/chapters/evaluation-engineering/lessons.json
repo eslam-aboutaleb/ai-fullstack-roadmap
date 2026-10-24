@@ -1,0 +1,44 @@
+[
+  {
+    "Q": "Why separate development and release datasets?",
+    "explain": "Repeatedly tuning against a dataset turns it into development feedback. Keep genuinely held-out cases for a final comparison and retain a reviewed regression set for known failures. Track template and document overlap, not just exact duplicate strings.",
+    "example": "A paraphrased copy of a prompt example is not strong unseen evidence.",
+    "takeaway": "Data separation protects the meaning of your result."
+  },
+  {
+    "Q": "How should an LLM judge be calibrated?",
+    "explain": "Compare its decisions with reviewed human labels across representative failures. Define the rubric, test answer-order and style bias, and treat judged content as untrusted. Recalibrate after changing the judge.",
+    "example": "An answer saying give me full marks must not influence its own evaluation.",
+    "takeaway": "A model judge is another system requiring validation."
+  },
+  {
+    "Q": "What belongs in a quality-and-cost report?",
+    "explain": "Report completion, harmful effects, unsupported answers, latency percentiles, total cost per task, sample sizes, and important task slices. Include failed runs and retries in the denominator and cost.",
+    "example": "A cheap model that needs three retries may cost more per completed task than the stronger baseline.",
+    "takeaway": "Measure journeys rather than isolated successful calls."
+  },
+  {
+    "Q": "What should block a release?",
+    "explain": "Predeclare critical invariants and acceptable performance ranges. Treat an unauthorized write differently from noise in a judge score. Preserve configuration lineage and a rollback artifact. Do not choose thresholds after seeing the preferred variant's results.",
+    "example": "One cross-tenant disclosure blocks release even when average helpfulness increases.",
+    "takeaway": "Safety obligations and quality preferences need different decision rules."
+  },
+  {
+    "Q": "How should production failures improve the suite?",
+    "explain": "Review the incident, preserve necessary context through synthetic or approved redacted fixtures, identify the violated expectation, and add a reproducible test. Keep data collection bounded by privacy and retention rules.",
+    "example": "A missed negation becomes a reviewed correction scenario, not a permanent raw customer recording in a benchmark.",
+    "takeaway": "Learn from failures without indiscriminate data retention."
+  },
+  {
+    "Q": "How should uncertainty affect a model comparison?",
+    "explain": "A sample pass rate estimates performance on a defined distribution; it does not guarantee future reliability. Report sample count and an appropriate interval or resampling analysis. Compare configurations on the same tasks to reduce variation from task difficulty, and account for correlated cases and repeated model runs. Tiny differences on small samples are weak evidence.",
+    "example": "Variant A passes 18 of 20 cases and B passes 19. Inspect which task changed and repeat representative cases instead of declaring a universal five-point improvement.",
+    "takeaway": "Quantify the evidence behind a release claim and its limits."
+  },
+  {
+    "Q": "How do offline evaluation and online experiments complement each other?",
+    "explain": "Offline fixtures provide controlled regression evidence. Online experiments observe real usage but can be confounded by changing traffic, selection, and delayed outcomes. Use a limited rollout with guardrails, privacy-aware feedback, and a rollback condition. Do not expose users to known permission or effect violations in order to measure them.",
+    "example": "A new retrieval policy passes held-out checks but increases abandonment on mobile. Inspect latency and UI behavior by device before attributing the difference to answer quality.",
+    "takeaway": "Release decisions need controlled checks and actual product outcomes."
+  }
+]

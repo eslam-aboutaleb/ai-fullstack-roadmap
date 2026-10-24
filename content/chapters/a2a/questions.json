@@ -1,0 +1,143 @@
+[
+  {
+    "Q": "What is A2A, and when should a backend expose a remote agent?",
+    "A": "Agent2Agent describes interaction between independently hosted agents, including discovery, messages, tasks, and outputs. Use it when a remote specialist has a genuine service boundary rather than wrapping an ordinary deterministic lookup in another agent.",
+    "Why": "A remote agent integration needs explicit client and server adapters, discovery, identity, task state, and a sharing policy. An agent SDK dependency does not create an operational endpoint.",
+    "Risk": "Calling two local functions agents is not proof of protocol interoperability. A diagram arrow labeled A2A must correspond to an implemented and version-tested transport contract.",
+    "Trade": "A2A can support organizational and runtime boundaries while adding network, identity, compatibility, and operational complexity. A local domain service is simpler when independent deployment is unnecessary.",
+    "Try": "Identify one support capability that genuinely needs an independently operated agent and one that should remain an ordinary local tool.",
+    "reference": "https://a2a-protocol.org/latest/topics/key-concepts/",
+    "spoken": "A2A supports interaction between agent systems with discovery, messages and tasks. MCP standardizes AI-facing capabilities over local or remote connections. REST is commonly used for ordinary domain APIs. Choose based on the interaction contract and independent deployment need, then enforce authority separately.",
+    "domain": "agents",
+    "subdomain": "a2a",
+    "module": "a2a",
+    "concept": "What is A2A, and when should a backend expose a remote agent",
+    "difficulty": "design",
+    "misconception_target": "A2A replaces MCP and REST for all use cases",
+    "definitions": [
+      {
+        "term": "A2A",
+        "definition": "Agent-to-Agent protocol for remote agent collaboration"
+      },
+      {
+        "term": "Agent Card",
+        "definition": "Capability advertisement published by an A2A agent"
+      },
+      {
+        "term": "Task lifecycle",
+        "definition": "States and transitions for long-running agent tasks"
+      }
+    ],
+    "execution_timeline": "Publish Agent Card -> Discover remote agent -> Create task -> Delegate work -> Monitor task lifecycle -> Receive result",
+    "example": {
+      "code": "card = await fetch_agent_card(url)\ntask = await client.create_task(card, input)\nresult = await client.wait_for_task(task.id)",
+      "explanation": "Discover agent capabilities, create task, wait for result.",
+      "output": "Task result from remote agent"
+    },
+    "production_case": "A support workflow delegates research to an independently operated specialist. Validate its Agent Card, allowed destinations, disclosed context, task timeout and who owns each durable effect.",
+    "alternatives": [
+      "MCP for AI-facing local or remote capabilities",
+      "A domain API or deterministic workflow when agent delegation adds no value"
+    ],
+    "pitfalls": [
+      "Using A2A for local tool access",
+      "No task timeout handling",
+      "Missing Agent Card validation"
+    ],
+    "complexity": "Discovery, credentials and compatibility add network work; total cost depends on delegated tools, data and task lifecycle rather than an O(1) interoperability guarantee.",
+    "follow_ups": [
+      {
+        "Q": "Does MCP imply a local-only deployment?",
+        "A": "No. MCP supports remote HTTP integrations as well as local STDIO processes. Transport selection does not determine whether a capability is authorized."
+      }
+    ],
+    "citations": [
+      "https://a2a-protocol.org/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "How do A2A, MCP, and ordinary APIs differ?",
+    "A": "A2A concerns agent-to-agent interactions and task-oriented collaboration. MCP commonly exposes tools and resources to model-enabled clients. A normal API can provide deterministic domain operations without claiming to be an autonomous peer. These interfaces can coexist but do not grant authority by themselves.",
+    "Why": "Use MCP for AI-facing capability access, ordinary APIs for deterministic service operations, and A2A where remote agent task ownership is useful. Define who owns every durable effect.",
+    "Risk": "Treating a peer agent as a trusted internal function can bypass user scope or disclose entire conversations. Capability discovery is not consent to every requested action.",
+    "Trade": "Protocol choice affects interoperability and lifecycle semantics. Use the narrowest interface that meets the integration need rather than wrapping every endpoint in an agent protocol.",
+    "Try": "Map policy search, request confirmation, long-running specialist review, and metrics export to appropriate interfaces and explain the decision.",
+    "reference": "https://a2a-protocol.org/latest/topics/key-concepts/"
+  },
+  {
+    "Q": "What is an Agent Card, and why is it not an authorization token?",
+    "A": "An Agent Card describes an agent's identity, capabilities, skills, endpoint, and security requirements. Discovery helps a client select a compatible service. Credentials and authorization are separately validated when invoking protected operations.",
+    "Why": "Treat published capability metadata as untrusted service input. Review the endpoint and supported contracts before sending scoped customer context or delegating a task.",
+    "Risk": "A malicious or stale card can point at an unintended endpoint or overstate capabilities. Do not send credentials or private claim data to arbitrary discovered destinations without trust and network policy.",
+    "Trade": "Dynamic discovery improves flexibility and adds authenticity, caching, and allowlist requirements. Explicitly configured peers are simpler for a small controlled deployment.",
+    "Try": "Draft a secret-free capability description for a review-only specialist. List information that belongs in deployment configuration rather than its public card.",
+    "reference": "https://a2a-protocol.org/latest/topics/agent-discovery/"
+  },
+  {
+    "Q": "How do messages, tasks, and artifacts differ in A2A?",
+    "A": "A message is an exchange of content, a task represents tracked work with lifecycle state, and an artifact is an output produced by that work. A reply being delivered does not necessarily mean the task completed or its output is authorized for all users.",
+    "Why": "Map remote lifecycle states into a versioned internal task model. Preserve remote identifiers, required user input, cancellation state, and authoritative completion references.",
+    "Risk": "Treating progress text as a final approved decision can trigger premature downstream action. Artifact references also need ownership, integrity, revision, and retrieval limits.",
+    "Trade": "Explicit tasks support long-running work and require durable tracking. One synchronous response is easier when the operation is genuinely short.",
+    "Try": "Design an internal task record for a review request with owner, remote ID, status, result reference, deadline, and idempotency key.",
+    "reference": "https://a2a-protocol.org/latest/topics/life-of-a-task/"
+  },
+  {
+    "Q": "How should remote-agent authentication and user delegation work?",
+    "A": "Authenticate the service peer and separately authorize the delegated action for the originating user or case. A service identity should receive only the evidence and actions needed for its task. Do not forward a browser cookie indiscriminately across organizational boundaries.",
+    "Why": "Authenticate the remote service and delegate only the minimum user authority required. Verify token audience and avoid sending a broad application credential as a convenience.",
+    "Risk": "A powerful remote agent can become a confused deputy, using its own privileges for a caller who lacks them. Agent-card metadata does not enforce resource authorization.",
+    "Trade": "Narrow delegated capabilities reduce disclosure and require identity integration. Broad shared credentials simplify demos and make accountability difficult.",
+    "Try": "Define which identity approves a review, which identity reads evidence, and which identity may confirm a service request. Keep final write authority local unless explicitly delegated.",
+    "reference": "https://a2a-protocol.org/latest/topics/enterprise-ready/"
+  },
+  {
+    "Q": "How do remote retries avoid duplicate work?",
+    "A": "Give one logical request a stable operation identity, persist its relationship to the remote task, and query or reconcile before creating another task after an ambiguous timeout. Transport request IDs and business idempotency keys may serve different purposes.",
+    "Why": "Propagate deadlines and durable operation identity across retries. After an uncertain response, query task status rather than automatically restarting a side-effecting remote task.",
+    "Risk": "A timeout can mean the remote service accepted the task but the acknowledgment was lost. Blind retries can create duplicate cases, charges, or conflicting recommendations.",
+    "Trade": "Reconciliation adds storage and latency but avoids assuming failure from missing acknowledgment. Fire-and-forget messaging is smaller and unsuitable for untracked consequential work.",
+    "Try": "Simulate remote acceptance followed by a dropped response. Show how the client discovers or reuses the original task without submitting twice."
+  },
+  {
+    "Q": "What does cancellation mean for a remote agent task?",
+    "A": "Cancellation is a request to stop eligible work, not proof that every side effect has been undone. A task may have completed or crossed an irreversible boundary before the cancellation arrives. The host must interpret the remote result and reconcile its own state.",
+    "Why": "Specify what cancellation can stop and what already completed. A remote cancelled state does not reverse an external effect, so expose authoritative status and compensation where appropriate.",
+    "Risk": "Closing the browser stream does not establish task cancellation. A user may otherwise believe a case was abandoned while remote work continues or a notification is delivered.",
+    "Trade": "Explicit cancellation acknowledgment improves user expectations and adds race handling. Letting tasks finish is operationally simpler for read-only work if clearly communicated.",
+    "Try": "Draw cancellation before acceptance, during review, and after completion. Define the displayed state and permissible follow-up action for each race.",
+    "reference": "https://a2a-protocol.org/latest/topics/life-of-a-task/"
+  },
+  {
+    "Q": "How can A2A artifacts become a prompt-injection or disclosure channel?",
+    "A": "A remote result can contain untrusted text, URLs, attachments, or instructions. Treat it as data from a service with a specific trust level, validate its schema, and allowlist any subsequent action. Remote output must not inherit system-instruction authority.",
+    "Why": "Constrain outputs by schema, scope, size, provenance, and retention. Validate artifacts before using them as facts or displaying them through a privileged renderer.",
+    "Risk": "An artifact can ask the model to retrieve another customer's claim or fetch an internal URL. Authentication of the sender does not make every returned instruction safe or every referenced document authorized.",
+    "Trade": "Rich artifacts support useful collaboration and need validation, size limits, safe fetching, and provenance. Minimal structured references are easier to govern than entire conversations and attachments.",
+    "Try": "Return a mock artifact containing a cross-tenant reference and an instruction to bypass confirmation. Verify neither is executed."
+  },
+  {
+    "Q": "How should one trace span cross an A2A boundary?",
+    "A": "Propagate an approved trace context and stable operation identifiers while keeping credentials and private content separate. Each service records its own spans and outcome; the host correlates the remote task with the originating operation.",
+    "Why": "Pass safe trace context under a reviewed policy and retain task correlation across services. Distributed spans aid diagnosis but do not establish who authorized an operation.",
+    "Risk": "A trace ID is not authentication, and untrusted inbound trace metadata needs validation. Copying full claim text into span attributes can leak it to both organizations' telemetry systems.",
+    "Trade": "Distributed traces speed diagnosis but require shared conventions and retention policy. Correlation by sanitized operation IDs is a simpler fallback.",
+    "Try": "Design a trace tree for one remote review with a retry and later artifact delivery. Show which spans represent waiting versus remote execution.",
+    "reference": "https://opentelemetry.io/docs/concepts/signals/traces/"
+  },
+  {
+    "Q": "When is a multi-agent architecture justified for service work?",
+    "A": "Use independently scoped agents when capabilities have distinct ownership, data access, deployment, or specialist review responsibilities. A local planner calling five functions does not need networked peers simply to look sophisticated.",
+    "Why": "Use multiple agents when ownership, capabilities, trust, or deployment boundaries justify them. Compare with one local agent and deterministic services before accepting the coordination overhead.",
+    "Risk": "More peers increase routing errors, coordination cost, inconsistent evidence, and cascading failures. Agreement between agents is not independent verification if they share the same wrong source or model.",
+    "Trade": "Specialization and organizational boundaries can justify distributed collaboration; a single orchestrator with narrow tools is cheaper and easier to test.",
+    "Try": "Write an A2A architecture decision record with a task lifecycle, delegation policy, data-minimization plan, failure budget, and a simpler alternative.",
+    "reference": "https://adk.dev/a2a/"
+  }
+]

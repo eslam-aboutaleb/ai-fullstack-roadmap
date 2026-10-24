@@ -1,0 +1,38 @@
+[
+  {
+    "Q": "What else must be stored beside a vector?",
+    "explain": "Store a stable document and chunk identity, text or a fetch reference, source revision, tenant scope, and processing profile. These fields let the application explain and control what was retrieved.",
+    "example": "A close vector without an authorized source reference cannot support a usable citation.",
+    "takeaway": "Search quality and information governance share metadata."
+  },
+  {
+    "Q": "What does approximate search give up?",
+    "explain": "Approximate methods trade some exact-neighbor recall for lower query cost on larger collections. Their usefulness depends on index settings, workload, filters, and update patterns. Compare with an exact baseline on representative cases.",
+    "example": "An approximate index is faster but misses a rare decisive passage; tune against task quality rather than speed alone.",
+    "takeaway": "Faster nearest-neighbor search may change which evidence reaches the model."
+  },
+  {
+    "Q": "Why must filtering happen inside the retrieval plan?",
+    "explain": "The search should rank eligible records, not rank the entire world and discard unauthorized hits afterward. Otherwise the first candidates may all be inaccessible and useful authorized records may never be considered.",
+    "example": "Global top five contains tenant B documents; filtering leaves zero despite a relevant tenant A document ranked sixth.",
+    "takeaway": "Filtering affects both privacy and recall."
+  },
+  {
+    "Q": "How do you compare storage backends honestly?",
+    "explain": "Compare the needed operations and guarantees: scope enforcement, transactions, lexical search, persistence, update behavior, recovery, and operational cost. A shared adapter interface does not prove equivalent semantics.",
+    "example": "A local in-memory demo and a replicated service both search vectors but have very different restart and coordination behavior.",
+    "takeaway": "Choose by the complete contract, not a single benchmark."
+  },
+  {
+    "Q": "How do exact and approximate nearest-neighbor search differ?",
+    "explain": "Exact search scores every eligible vector and selects the best results. Approximate indexes reduce work by visiting a subset, which trades search effort and memory against missed neighbors. Their parameters and update behavior vary. Benchmark against exact search on the same eligible set and workload; higher raw speed is not useful if relevant authorized evidence disappears.",
+    "example": "An approximate query retrieves ten global neighbors, then a tenant filter discards all ten even though valid nearby tenant records exist. Use an access-aware strategy and evaluate eligible recall.",
+    "takeaway": "Approximation changes retrieval quality and must respect the authorization plan."
+  },
+  {
+    "Q": "Which store is authoritative when metadata and vectors disagree?",
+    "explain": "Declare a source of truth for document identity, revision, permissions, and active generation. Treat the search index as a derived representation that can lag or be rebuilt. Use publication markers and reconciliation rather than assuming a vector upsert and a database commit succeed atomically across services.",
+    "example": "Vector upload succeeds but metadata activation fails. Keep the old generation active and recover or remove the orphaned upload using its operation identity.",
+    "takeaway": "Derived search state must not overrule authoritative lifecycle and access state."
+  }
+]

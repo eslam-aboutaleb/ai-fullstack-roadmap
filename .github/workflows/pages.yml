@@ -1,0 +1,221 @@
+name: Validate and publish learning guide
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: learning-guide-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Static content and examples
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/project-check.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    with:
+      project-dir: .
+      target: ci-quality
+      python-version: '3.11'
+      node-version: '22'
+
+  workflow-lint:
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/workflow-lint.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+
+  security:
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/security.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      pull-requests: read
+    with:
+      languages: '["python", "javascript-typescript", "actions"]'
+      dependency-severity: high
+
+  browser-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Set up Node.js for example checks
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Build browser test artifact
+        run: |
+          make runtime
+          make site
+      - name: Install and audit accessibility test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
+      - name: Install browser and local integration test dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python scripts/install_test_browser.py
+      - name: Verify browser interactions and local FastAPI pilot
+        run: |
+          python tests/check_browser.py
+          python tests/check_learning_browser.py
+          python tests/check_accessibility.py
+          python tests/check_agent_trace_reader.py
+          python tests/check_scale_browser.py
+          python labs/request_lifecycle.py
+          python scripts/test_postgres_pilot.py
+      - name: Compile and verify cumulative React and API project
+        run: |
+          npm ci --ignore-scripts --prefix projects/evidence-workbench
+          npm audit --audit-level=high --prefix projects/evidence-workbench
+          npm run build --prefix projects/evidence-workbench
+          python projects/evidence-workbench/tests/check_workbench.py
+      - name: Build and verify the Pages subpath artifact
+        env:
+          PAGES_BASE_PATH: /ai-fullstack-roadmap/
+        run: |
+          make site
+          python tests/check_browser.py --base-path /ai-fullstack-roadmap/
+          python tests/check_learning_browser.py --base-path /ai-fullstack-roadmap/
+          python tests/check_scale_browser.py --base-path /ai-fullstack-roadmap/
+      - name: Upload public Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+          retention-days: 7
+
+  model-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Verify NumPy and CPU autograd bridge
+        run: |
+          python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements-models.txt
+          python -m labs.numpy_torch_bridge
+          python labs/adapter_training.py
+
+  advanced-check:
+    name: Dataset, Beam and protocol interoperability
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned optional engineering dependencies
+        run: python -m pip install -r requirements-advanced.txt
+      - name: Verify held-out evaluation, actual runner and official clients
+        run: |
+          python labs/model_selection.py
+          python labs/beam_event_time.py
+          python labs/protocol_interop.py
+          python labs/restore_drill.py
+      - name: Verify real Kafka crash and recovery
+        run: |
+          java -version
+          python scripts/test_kafka_recovery.py --download
+      - name: Build and smoke-test the non-root container
+        run: |
+          docker build -t evidence-workbench:ci projects/evidence-workbench
+          docker run -d --name evidence-workbench-ci -p 127.0.0.1:8787:8787 evidence-workbench:ci
+          trap 'docker rm -f evidence-workbench-ci' EXIT
+          python - <<'PYCODE'
+          import json, time, urllib.error, urllib.request
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=2) as response:
+                      assert json.load(response) == {'status': 'ready'}
+                  break
+              except (OSError, urllib.error.URLError):
+                  time.sleep(1)
+          else:
+              raise SystemExit('Container never became ready')
+          request = urllib.request.Request('http://127.0.0.1:8787/api/answer',
+              data=json.dumps({'query':'refund policy','requestId':'ci-1','scenario':'normal'}).encode(),
+              headers={'Content-Type':'application/json','Authorization':'Bearer demo-a'})
+          with urllib.request.urlopen(request, timeout=5) as response:
+              body=response.read().decode()
+          assert 'a-policy@1' in body and 'Owner B private' not in body
+          PYCODE
+
+  editorial-revisions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Validate all changed published learning records and review evidence
+        env:
+          REVIEW_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$REVIEW_BASE" ] && [ "$REVIEW_BASE" != "0000000000000000000000000000000000000000" ]; then
+            python scripts/revised_content_gate.py --base "$REVIEW_BASE" --require-review
+          else
+            python scripts/revised_content_gate.py
+          fi
+
+  gate:
+    name: Quality gate
+    if: always()
+    needs: [quality, browser-check, model-check, advanced-check, workflow-lint, security, editorial-revisions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all selected checks to succeed
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['CHECK_RESULTS'])
+          failures = {name: value['result'] for name, value in results.items() if value['result'] != 'success'}
+          if failures:
+              raise SystemExit(f'Required checks did not succeed: {failures}')
+          print('All required checks passed')
+          PY
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: gate
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Deploy verified artifact
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

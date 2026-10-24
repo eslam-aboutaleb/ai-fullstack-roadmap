@@ -1,0 +1,763 @@
+{
+  "id": "math-models",
+  "title": "Mathematics, machine learning and transformers",
+  "description": "Numerical foundations through analytic backpropagation, a trained classifier, attention, decoding and efficient adaptation.",
+  "units": [
+    {
+      "id": "vectors-probability",
+      "title": "Vectors, probability and statistical reasoning",
+      "outcomes": [
+        "Track dimensions before multiplying",
+        "Separate conditional probability from causation"
+      ],
+      "terms": [
+        {
+          "term": "Vector",
+          "definition": "An ordered set of components interpreted in a specified coordinate space."
+        },
+        {
+          "term": "Dot product",
+          "definition": "The sum of products of corresponding components."
+        },
+        {
+          "term": "Conditional probability",
+          "definition": "The probability of an event under a stated condition, written P(A|B)."
+        }
+      ],
+      "narrative": [
+        "A vector has values, dimension and a meaning for each coordinate. Matching dimension alone does not establish that two embeddings share a compatible space. For vectors a=(1,2) and b=(3,4), the dot product is 1×3+2×4=11. Their norms are sqrt(5) and 5; cosine similarity is 11/(5 sqrt(5)), about 0.98387. A zero vector has no defined cosine denominator and must be handled explicitly. A matrix can represent a batch or a linear map; name which axis means samples, features or outputs before multiplying.",
+        "Probability describes uncertainty under a model, not a guarantee for an individual case. P(A|B)=P(A and B)/P(B) when P(B)>0. A medical-test style example shows why base rates matter: if a condition occurs in 1% of a population, a 90%-sensitive test with 5% false positives yields about 90 true positives and 495 false positives per 10,000 people. The positive predictive value is 90/585, about 15.4%, under those assumptions. Sensitivity alone does not answer the posterior question.",
+        "A distribution describes possible observations and their probabilities. A sample mean estimates a population mean; its uncertainty depends on sampling, dependence and variability. A narrow confidence interval from biased samples can still support the wrong conclusion. Distinguish the uncertainty of an estimator from the spread of individual observations. For model evaluation, group dependence such as multiple rows from one customer can make an ordinary random split misleading.",
+        "The attention lab combines vectors and normalized weights, but attention weights are not automatically calibrated probabilities of factual correctness or faithful explanations of model decisions. They are coefficients in a specific computation. Keep mathematical normalization separate from the meaning assigned to the result."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Calculate a dot product, norm and cosine by hand, then verify with Python.",
+        "Construct two datasets with equal means but different variance.",
+        "Explain how a change in base rate changes a posterior probability without changing test sensitivity.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
+      ],
+      "debugging": "Unexpected similarity values often come from incompatible spaces, unnormalized vectors, or zero denominators. A confident metric from dependent or biased samples requires a better dataset, not more decimal places.",
+      "tradeoffs": "Geometric simplifications build intuition but can hide high-dimensional behavior; statistical estimates need assumptions, uncertainty and a defined sampling population.",
+      "references": [
+        "https://www.statlearning.com/"
+      ],
+      "assessment": null,
+      "prerequisites": [],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 811,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A condition has 1% prevalence; a test has 90% sensitivity and a 5% false-positive rate.",
+          "steps": [
+            "Among 10,000 people, about 100 have the condition and 90 test positive.",
+            "Of 9,900 without it, about 495 test positive.",
+            "Positive predictive value is 90/(90+495), approximately 15.4%."
+          ],
+          "result": "A strong sensitivity number alone does not imply a high probability after a positive result."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why do base rates matter when interpreting a classifier?",
+          "spoken": "The probability of the condition after a prediction depends on prevalence as well as sensitivity and false positives. Confusing these conditional directions leads to misleading conclusions.",
+          "deep": "**Sensitivity is not the probability that an alert is correct.** Sensitivity is P(alert | condition); precision is P(condition | alert). To invert the condition, the prior frequency matters. Assume 10,000 independent cases, a 1% condition rate, 90% sensitivity and a 5% false-positive rate among cases without the condition. Expect 90 true alerts and 495 false alerts, so precision is 90 / (90 + 495), approximately 15.4%.\n\n**Why this matters.** An alert rule can look strong on a balanced development sample and overwhelm reviewers in a rare-event deployment. Estimate the target population's base rate and report confusion counts, not only a percentage. The numerical example is a calculation under stated assumptions, not a measured clinical or production result. Correlated cases, uncertain labels or changed traffic invalidate a simple transfer of these rates.\n\n**Geometric scores are different.** A vector similarity describes geometry in an embedding representation. A cosine of 0.9 is not automatically a 90% relevance probability, and a classifier score needs empirical calibration for that interpretation. Choose a threshold using held-out data, actual error costs and uncertainty. If prevalence falls while conditional error rates stay fixed, the proportion of false alerts rises; neither the threshold nor a quoted sensitivity alone prevents that.",
+          "follow_up": {
+            "question": "Does cosine similarity behave like a calibrated probability?",
+            "answer": "No. It is a geometric score under a representation, not automatically a probability of truth or relevance."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Why can a classifier with 90% sensitivity have only 15% precision on rare events?",
+          "spoken": "Sensitivity measures true-positive detection among actual positives. Precision depends also on prevalence and false positives. With a 1% base rate and a 5% false-positive rate, most positive predictions may be false.",
+          "deep": "**Begin with the question's denominator.** Sensitivity (true-positive rate) is `P(predicted positive | actually positive)`. Precision, or positive predictive value (PPV), is `P(actually positive | predicted positive)`. They reverse the condition. Bayes' theorem connects them using the **base rate** (prevalence): PPV = (sensitivity × prevalence) / [(sensitivity × prevalence) + (false-positive rate × (1 − prevalence))].\n\n**Work the numbers before an interview shortcut.** Suppose 1% of 10,000 events are genuinely fraudulent (100). With sensitivity 90%, we catch 90 true events. There are 9,900 legitimate events; at a 5% false-positive rate, 495 innocent events are flagged. The positive predictions total 585, so precision is 90/585 = approximately **15.38%**, not 90%. Specificity is the true-negative rate: 95% in this example. Accuracy may still look good because negatives dominate, and this can hide operationally expensive false alerts.\n\n**Implementation.** The local `labs/math_interview_mechanics.py` calculates the conditional probability and asserts the result using a direct numerator/denominator. It rejects probabilities outside [0,1]. This verifies arithmetic, not a real classifier's calibration, group fairness or distribution stability.\n\n**Production scenario.** A claims-screening classifier produces too many false positives during a low-prevalence season. Adjusting the threshold changes sensitivity and false-positive rate; choose a policy using a validation dataset with representative base rates and explicit fraud-loss/human-review costs. Calibration matters if users interpret numeric outputs as probabilities, but calibrated prediction alone cannot repair a missing population feature.\n\n**Changed assumption.** If prevalence rises from 1% to 20% with unchanged conditional rates, PPV becomes (.9×.2)/(.9×.2 + .05×.8) = .18/.22 ≈ **81.82%**. The measured classification threshold and future drift still need revalidation.",
+          "follow_up": {
+            "question": "Does a higher ROC-AUC guarantee good precision for a rare-event application?",
+            "answer": "No. ROC-AUC aggregates sensitivity/false-positive trade-offs without fixing prevalence or downstream error costs. Examine precision-recall curves, calibrated probabilities and workload-specific utility on representative groups."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    },
+    {
+      "id": "gradients-optimization",
+      "title": "Gradients and optimization from a numerical update",
+      "outcomes": [
+        "Derive and verify a gradient",
+        "Explain the learning-rate trade-off"
+      ],
+      "terms": [
+        {
+          "term": "Derivative",
+          "definition": "The local rate of change of a scalar function with respect to one variable."
+        },
+        {
+          "term": "Gradient",
+          "definition": "The vector of partial derivatives with respect to all parameters."
+        },
+        {
+          "term": "Learning rate",
+          "definition": "The step-size multiplier used in a parameter update."
+        }
+      ],
+      "narrative": [
+        "Take one input x=2, target y=3 and model prediction y_hat=w x. With w=1, prediction is 2 and squared loss L=(y_hat-y)^2 is 1. The derivative dL/dw=2(w x-y)x is -4. A gradient step with learning rate eta=0.1 gives w_new=1-0.1(-4)=1.4. The new prediction is 2.8 and loss is 0.04. The sign tells the update direction; the learning rate determines how far it moves. A rate of 1 would overshoot to w=5 and increase loss to 49.",
+        "For many parameters, compute one partial derivative per parameter. The chain rule connects local derivatives: if a parameter changes a hidden activation, which changes a logit, which changes loss, multiply the derivatives along that path and add contributions from all paths. Backpropagation organizes that calculation efficiently; it is not a separate kind of optimization. An optimizer uses the resulting gradients to choose updates.",
+        "Finite differences provide an independent numerical check. For parameter theta_i, approximate its derivative with [L(theta_i+epsilon)-L(theta_i-epsilon)]/(2 epsilon), holding other coordinates fixed. Too large an epsilon gives truncation error; too small causes floating-point cancellation. The training capstone checks all 17 analytic derivatives at initialization using epsilon=1e-5 and a tight error tolerance before training. This tests a mechanism, not merely whether a training curve eventually decreases.",
+        "Full-batch gradient descent averages all training examples per update. Stochastic or mini-batch updates change the noise, throughput and memory trade-off. Momentum and adaptive methods maintain additional optimizer state, so resuming training requires that state as well as model parameters and random-generator state. A reproducible seed does not guarantee bit-identical results across every accelerator and numerical library."
+      ],
+      "lab": "model_training.py",
+      "practice": [
+        "Verify the scalar update and the overshooting rate by hand.",
+        "Change one gradient sign in the capstone and demonstrate that finite differences reject it.",
+        "Compare 100, 300 and 600 updates without tuning against the held-out test set.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
+      ],
+      "debugging": "If loss is NaN, inspect input scale, overflow and learning rate. If loss decreases but gradient checks fail, do not trust convergence as proof that backpropagation is implemented correctly.",
+      "tradeoffs": "Larger batches reduce gradient noise but use more memory; smaller steps may be stable but slow. Choose optimization settings using validation evidence and measured compute.",
+      "references": [
+        "https://www.deeplearningbook.org/contents/numerical.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "vectors-probability"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 812,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "For x=2, target y=3 and prediction wx, use squared loss (wx-y)^2 with w=1.",
+          "steps": [
+            "Prediction is 2 and loss is 1.",
+            "The derivative with respect to w is 2x(wx-y)=-4.",
+            "At learning rate 0.1, update w to 1.4; prediction becomes 2.8 and loss 0.04."
+          ],
+          "result": "The sign and scale of the derivative explain the update; an excessive step can increase loss."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What does a gradient tell you, and what does it not prove?",
+          "spoken": "It describes local loss change with respect to parameters. It does not guarantee that a finite step improves the objective or that the model generalizes.",
+          "deep": "**A gradient is a local sensitivity, not a guarantee of learning.** For scalar loss L and parameter vector w, the gradient contains partial derivatives dL/dw_i evaluated at the current parameters and data. A descent update is w_new = w - eta * gradient, where eta is the learning rate. If L(w) = (w - 3)^2, w = 1 and eta = 0.1, the derivative is -4 and the next weight is 1.4; the loss drops from 4 to 2.56.\n\n**Verify the implementation.** Approximate each derivative by the central difference [L(w + epsilon) - L(w - epsilon)] / (2 * epsilon) while holding the other coordinates fixed. Use deterministic double-precision arithmetic for a small check and compare both absolute and relative error. A tiny epsilon can amplify rounding error; a large one measures a wider interval instead of the intended local derivative. Avoid testing exactly at a nondifferentiable ReLU boundary as if a unique derivative existed.\n\n**Limits and choices.** A correct derivative can still lead to divergence with an excessive learning rate, poor conditioning or inconsistent loss scaling. A decreasing training objective does not prove held-out generalization. First check the objective, dimensions and update path, then compare controlled learning rates on training and validation histories. Keep the final test set out of this tuning loop.",
+          "follow_up": {
+            "question": "Why can finite-difference checks be misleading?",
+            "answer": "Steps that are too small suffer rounding error; large steps are poor local approximations. Nondifferentiable points and stochastic layers need special handling."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Derive a gradient descent step and show how finite differences reveal a derivative bug.",
+          "spoken": "Compute the derivative of the loss with respect to the weight, then move opposite the derivative by a chosen learning rate; compare the analytic result with a small central difference at a fixed point.",
+          "deep": "**First principles.** Consider a one-parameter linear model `prediction = w × x` and squared error `L(w) = (wx − y)^2`. The chain rule yields `dL/dw = 2(wx−y)×x` because the derivative of a square is twice its input and the derivative of the inner expression `wx−y` with respect to `w` is `x`.\n\n**Worked gradient.** With `w=0.25`, `x=3`, `y=1`, prediction is 0.75 and error is -0.25. Gradient is `2×(-0.25)×3 = -1.5`. Taking learning rate `η=0.01`, `w_new = w−η×gradient = 0.265`. The original loss is (0.75−1)^2 = 0.0625; the new loss is (0.795−1)^2 = 0.042025, so this particular small update improved the objective. A larger learning rate can overshoot; improvement is not guaranteed for arbitrary networks or steps.\n\n**Numerical verification.** Use a central difference `[L(w+h)−L(w−h)]/(2h)` with `h=10^-5`. Its result should approximately match -1.5. This is a practical test of tensor shape, missing factors, and incorrect masking/reduction. Tiny `h` can cause floating-point cancellation, while too large `h` biases the estimate; try multiple step sizes and appropriate tolerances.\n\n**Autograd and production.** A modern PyTorch autograd engine traces differentiable tensor operations and accumulates gradients through the computation graph. It does not validate the business meaning of the labels or prove that the model generalizes. The same training pipeline must examine data leakage, numerical precision, optimizers and reproducibility. In the repository, the CPU `numpy_torch_bridge.py` goes beyond this scalar exercise.\n\n**Changed assumption.** If the label is mis-scaled or a training-only feature leaks the target, a mathematically correct gradient can reduce training loss while making deployment quality worse. Use leakage-free held-out splits and independent error analysis rather than judging correctness by monotonic training loss.",
+          "follow_up": {
+            "question": "Does a gradient check on one weight prove a deep model is implemented correctly?",
+            "answer": "No. It is a local derivative oracle for the tested path. Test vector shapes, masked positions, reduction/scaling, non-differentiable operations, other parameters and realistic batch/deployment paths independently."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    },
+    {
+      "id": "ml-splits-models",
+      "title": "Learning tasks, baselines and leakage",
+      "outcomes": [
+        "Choose metrics for an actual decision",
+        "Protect held-out evaluation"
+      ],
+      "terms": [
+        {
+          "term": "Supervised learning",
+          "definition": "Learning from examples that include a target output."
+        },
+        {
+          "term": "Bias–variance trade-off",
+          "definition": "The balance between systematic model error and sensitivity to the particular training sample."
+        },
+        {
+          "term": "Leakage",
+          "definition": "Information influencing fitting or selection that would not be available for the intended prediction."
+        }
+      ],
+      "narrative": [
+        "Regression predicts a numeric target; classification predicts a category or probability; clustering groups examples without supplied class targets. Define the decision and cost of errors before choosing the method. An always-majority classifier can have high accuracy on an imbalanced dataset while missing every rare event. Establish a simple baseline, then evaluate whether a more complex model improves the outcome you actually need.",
+        "Linear models make an explicit weighted combination of features. Trees split the feature space into decision regions; ensembles combine trees to reduce particular errors, but add size and operational cost. Clustering methods depend on distance, scale and assumptions about cluster shape. A cluster label is not automatically a ground-truth business category. Feature engineering and preprocessing are part of fitting and must respect the same split boundaries as model parameters.",
+        "Use training data to fit, validation data to select settings, and a held-out test set for the final declared evaluation. If you repeatedly pick changes because they improve test accuracy, that set has become a validation set. Time-dependent tasks need chronological splits, and related entities may need group splits. Fit scalers, vocabularies and feature selectors only on training observations, then apply the fitted transformation to held-out rows.",
+        "The training capstone uses explicit non-overlapping synthetic splits and a fixed architecture, seed, step count and learning rate. Its perfect tiny-fixture accuracy establishes only that the implementation solves this separated toy problem. It says nothing about generalization to real customer data. The retrieval capstone separately measures relevance recovery and abstention, showing why model loss, retrieval quality and generated-answer faithfulness must not be collapsed into one score."
+      ],
+      "lab": "model_training.py",
+      "practice": [
+        "Compare accuracy with precision and recall on a rare-event fixture.",
+        "Add a duplicate entity across the split and explain the leakage.",
+        "Create an uninformative majority baseline before increasing model complexity.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
+      ],
+      "debugging": "Unexpectedly perfect results call for a split and feature-provenance audit. A train/test gap can result from leakage, distribution shift, insufficient data, overfitting or an unsuitable task definition.",
+      "tradeoffs": "Flexible models can reduce training error while increasing variance; simpler baselines are easier to debug and deploy, but may miss real structure.",
+      "references": [
+        "https://scikit-learn.org/stable/common_pitfalls.html"
+      ],
+      "assessment": "leakage-holdout",
+      "prerequisites": [
+        "gradients-optimization"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 813,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A preprocessing scaler is fitted before the dataset is split.",
+          "steps": [
+            "Identify statistics computed from held-out examples.",
+            "Fit the scaler only on training data inside the evaluation pipeline.",
+            "Repeat selection using a validation split, reserving an untouched final test."
+          ],
+          "result": "The corrected score measures a cleaner generalization question rather than information leakage."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do you choose a valid train/test split?",
+          "spoken": "Match the split to deployment: group related entities, respect time when predicting the future, and fit preprocessing only on training data.",
+          "deep": "**A split must represent the decision the model will face.** Random rows are appropriate only when examples are sufficiently independent for the intended evaluation. If many records belong to the same user, document or episode, random splitting can place near-identical information in both training and test. A model can then appear to generalize by recognizing an entity already represented during training.\n\n**Choose the unit and clock first.** For predicting new customers, assign all records from one customer to one split. For forecasting future events, hold out later timestamps and allow only features available at prediction time; a future settlement field is leakage even if no row is duplicated. Fit normalization, imputers, feature selection and vocabulary using training data only, then apply those fitted transformations to validation and test.\n\n**Model selection and trade-offs.** Compare a simple baseline and more complex models on the same validation protocol, with metrics tied to the actual decision and its critical slices. Group and time splits may produce fewer independent examples and wider uncertainty, but that is more honest than a large invalid score. Seal the test set until the configuration is chosen. If deployment shifts to a different region or customer population, evaluate that shift explicitly rather than reusing a random-row score as proof.",
+          "follow_up": {
+            "question": "Can near-duplicate documents cross split boundaries?",
+            "answer": "They can leak nearly identical evidence. Detect and group them where appropriate before splitting."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "How do random row splits leak information for grouped or time-dependent AI datasets?",
+          "spoken": "Random rows can put near-duplicates, data from one user or future information in both training and test sets. Split along the deployment boundary—entity, time, source or document family—and fit preprocessing on training data only.",
+          "deep": "**Start with the deployment question.** A train/test split is an estimate of how a trained system will generalize to data *it did not know when trained*. A random row partition is valid only if rows are appropriately independent and identically distributed for the intended task. Repeated users, patients, devices, documents, policy versions or sessions break that assumption.\n\n**Leakage mechanisms.** Suppose each customer has ten nearly identical messages. A random 80/20 split may place eight of a customer's messages in training and two in test. The model can memorize customer-specific language or identifiers and produce a high score without learning to serve an unseen customer. For a future forecasting task, random rows can place future events into training. A text normalization vocabulary or feature scaler fitted before the split can also include held-out information, even if model fitting itself used only the training partition.\n\n**Implementation.** Group by an entity whose behavior must generalize (`GroupKFold` or group holdout) or split chronologically when predicting future events, leaving a realistic time gap if labels mature late. Fit vectorizers, scalers, imputation, feature selection, model tuning and threshold selection **only inside** the training/validation folds. Seal the final test set until the design is frozen; use independent evaluation on new domains and corruptions.\n\n**Production failure.** A document RAG reranker appears to reach recall@5=99% because chunks from the same source PDF and revised copies occur in both train and evaluation corpora. Group by source/revision family and test claim-level retrieval from genuinely unseen material. For an LLM judge, keep gold label, model answer and source provenance separate to prevent leakage.\n\n**Trade-off and changed assumption.** Group/time splits may reduce the headline score and usable train rows; that lower score is often more honest. If deployment intentionally serves existing customers, evaluate both seen-customer future-time and entirely new-customer slices. State which risk each number measures.",
+          "follow_up": {
+            "question": "Can you fit a scaler on the full dataset if you do not fit model weights on test labels?",
+            "answer": "No for a clean held-out evaluation. Global statistics can reveal test feature distribution and alter training transformations. Fit preprocessing on training folds, then apply the frozen transform to validation and test."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    },
+    {
+      "id": "neural-backprop",
+      "title": "A neural network and backpropagation you can inspect",
+      "outcomes": [
+        "Track every parameter dimension",
+        "Match analytic and numerical derivatives"
+      ],
+      "terms": [
+        {
+          "term": "Activation",
+          "definition": "A nonlinear function applied to an intermediate computation."
+        },
+        {
+          "term": "Logit",
+          "definition": "An unnormalized model score before a probability transformation."
+        },
+        {
+          "term": "Binary cross-entropy",
+          "definition": "A loss for binary targets that penalizes incorrect confident probabilities."
+        }
+      ],
+      "narrative": [
+        "The capstone maps a two-component input x to four hidden activations h and one output logit z. W1 has 4×2 weights, b1 has four values, W2 has four weights and b2 has one value: 8+4+4+1=17 trainable parameters. For hidden unit j, h_j=tanh(W1_j dot x+b1_j). The output logit is z=sum_j W2_j h_j+b2, and p=sigmoid(z)=1/(1+exp(-z)). Nonlinearity matters: composing linear maps without activations still produces a linear map.",
+        "For target y in {0,1}, binary cross-entropy can be computed stably from the logit as max(z,0)-z y+log(1+exp(-abs(z))). This avoids taking log(0) after a saturated sigmoid. Its derivative with respect to z is p-y. Therefore dL/dW2_j=(p-y)h_j, dL/db2=p-y, and the hidden pre-activation derivative is (p-y)W2_j(1-h_j^2). Multiplying that by each input component gives the two W1 gradients for hidden unit j. Average each gradient across the batch before updating.",
+        "An autograd engine records operations and applies equivalent local chain rules in reverse. In PyTorch, tensors carry shapes and optional gradient tracking; a training step typically clears old gradients, computes predictions and loss, calls backward, then steps an optimizer. Gradients accumulate unless cleared deliberately. Evaluation mode and disabled gradient recording are different controls: modules such as dropout change behavior with train/eval mode, while no_grad reduces graph recording. Neither automatically moves tensors between CPU and GPU.",
+        "The standard-library implementation exposes the math so you can inspect and finite-difference every parameter. Larger production models should use tested tensor libraries, proper initialization, batch handling, accelerator-aware kernels and reproducibility controls. Loss falling is necessary evidence here, but the independent gradient check is what catches many superficially plausible backward-pass errors."
+      ],
+      "lab": "model_training.py",
+      "practice": [
+        "Draw the computational graph with all dimensions.",
+        "Derive one W1 partial derivative for one training row.",
+        "Change tanh to another activation and update its derivative before rerunning checks."
+      ],
+      "debugging": "If training steps use gradients from a previous batch, inspect accumulation and zeroing. If gradients vanish, inspect activation saturation, scale and the chain of multiplications.",
+      "tradeoffs": "Handwritten gradients teach the mechanism but are fragile; autograd improves implementation reliability while still requiring correct loss, shapes, modes and data splits.",
+      "references": [
+        "https://pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "ml-splits-models"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 814,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A tiny network fits its training rows but the held-out loss increases.",
+          "steps": [
+            "Verify loss/gradient shapes and a numerical derivative check.",
+            "Compare train and validation curves under fixed data splits.",
+            "Evaluate regularization, early stopping or simpler baselines without tuning on the final test."
+          ],
+          "result": "A correct backpropagation implementation can still overfit."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do you distinguish a training implementation bug from overfitting?",
+          "spoken": "Check numerical derivatives and controlled tiny cases first, then inspect train/validation behavior with a fixed evaluation design.",
+          "deep": "**Separate whether the optimizer works from whether the learned rule generalizes.** Backpropagation applies the chain rule through the computation graph to calculate derivatives of the chosen loss. For a two-layer network, trace the dimensions of input, weights, activations and output, then compare selected parameter derivatives against finite differences on a small deterministic case. A broadcasting mistake can produce a scalar loss and valid-looking derivatives of the wrong objective.\n\n**Use a diagnostic sequence.** Check one forward pass against a hand calculation; check gradients; verify that the optimizer owns the parameters actually used by the forward pass; then try to overfit a tiny fixed batch. If the model cannot reduce that batch's loss, investigate masks, labels, activation saturation, learning rate, detached tensors and update order before blaming data scarcity. Matching training examples is a diagnostic, not an evaluation result.\n\n**Recognize overfitting.** If implementation checks pass, training loss falls and independent validation quality deteriorates, the model may be fitting idiosyncrasies. Compare regularization, data quality and capacity while keeping the evaluation protocol fixed. Do not repeatedly tune on the final test set. ReLU's zero boundary and stochastic layers need explicit treatment in derivative checks; a numerical mismatch there is not by itself proof that autograd is broken.",
+          "follow_up": {
+            "question": "Does lower training loss justify deployment?",
+            "answer": "No. Validate task quality, critical failure slices, resource cost and authorization/effect behavior independently."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Derive backpropagation through a two-layer ReLU network and explain what changes at the zero activation boundary.",
+          "spoken": "Apply the chain rule from the scalar loss through output weights, the ReLU activation, and input weights; state the chosen subgradient convention at zero.",
+          "deep": "**Prerequisites and model.** Let the input be x∈R², first-layer weights W₁∈R²ˣ², biases b₁∈R², preactivation z=W₁x+b₁, hidden activation h=ReLU(z), output ŷ=w₂ᵀh+b₂, and loss L=(ŷ−y)²/2. Every matrix multiplication has a specific shape. ReLU is max(0,z); its local derivative is 1 for z>0, 0 for z<0, and a chosen subgradient at z=0. Many autodiff libraries use zero exactly at the kink. This convention affects a boundary test but does not make the model differentiable everywhere.\n\n**Forward worked calculation.** Take x=(1,2), W₁=identity, b₁=(−2,0), w₂=(1,−1), b₂=0 and y=0. Then z=(−1,2), h=(0,2), ŷ=−2, and L=2. The output loss derivative is δ_out=ŷ−y=−2. Therefore ∂L/∂w₂=δ_out·h=(0,−4) and ∂L/∂b₂=−2. The hidden gradient before ReLU is w₂δ_out=(−2,+2); after the ReLU mask (0,1), δ_hidden=(0,+2). Thus ∂L/∂W₁=outer(δ_hidden,x) has rows (0,0) and (2,4), and ∂L/∂b₁=(0,2). A small descent step subtracts η times these gradients.\n\n**Debugging oracle.** Compare an analytic gradient against a central finite difference away from nondifferentiable points; test W₁ entries that activate and deactivate units separately. Beware an incorrect transpose, implicit broadcasting, using a mean reduction where a sum is intended, or masking the *post-output* gradient instead of the preactivation derivative. A gradient check near z=0 is not conclusive because finite differences cross the kink.\n\n**Production failure.** A deep ReLU network whose initial biases are strongly negative can create dead units with zero local gradients; training loss plateaus although the optimizer executes. Diagnose activation distributions, gradient norms, initialization and learning rate before claiming that more data solves the problem. Compare to smooth activation variants, normalization and residual paths under the same evaluation data.\n\n**Practice.** Hand-compute this example, alter b₁ so the first unit is positive and explain the new nonzero first-row gradient. Then inspect numerical derivatives with the repository's existing NumPy–autograd comparison exercise.",
+          "follow_up": {
+            "question": "How do gradient checkpointing and mixed precision change this derivative?",
+            "answer": "Checkpointing recomputes selected forward activations during backward to trade computation for memory; it should not change the analytical derivative. Mixed precision may alter numerical gradients through rounding or underflow, so test tolerances and loss scaling where appropriate."
+          },
+          "rubric": [
+            "Derives or measures a concrete mechanism with correct assumptions and shapes",
+            "Differentiates code correctness from held-out production effectiveness",
+            "Explains failure modes, alternatives and an answered changed-condition follow-up"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    },
+    {
+      "id": "numpy-autograd-bridge",
+      "title": "From scalar derivatives to NumPy and PyTorch",
+      "outcomes": [
+        "Match tensor shapes and scalar gradients",
+        "Verify autograd before training",
+        "Run CPU training and a held-out evaluation"
+      ],
+      "terms": [
+        {
+          "term": "Tensor",
+          "definition": "A multi-dimensional array with a shape, numeric dtype and device."
+        },
+        {
+          "term": "Leaf parameter",
+          "definition": "A user-created trainable tensor whose gradient an optimizer can update."
+        },
+        {
+          "term": "Autograd graph",
+          "definition": "Recorded differentiable operations used to propagate derivatives backward."
+        }
+      ],
+      "narrative": [
+        "The scalar network exposes every derivative. The NumPy/PyTorch bridge computes the same function with batched arrays, so its first obligation is agreement, not a faster training curve. NumPy builds an 8-by-2 feature matrix and an eight-element target array using float64 values. torch.from_numpy shares CPU storage with that array; a later NumPy mutation can therefore affect the tensor. Copy deliberately when ownership requires isolation.",
+        "A 17-element leaf tensor holds exactly the scalar implementation’s parameters. Slicing and reshaping form W1=(4,2), b1=(4,), W2=(4,) and b2=scalar. With features X=(8,2), X@W1.T+b1 produces eight rows and four hidden values. tanh preserves the shape; multiplying by W2 returns one logit per row. Binary cross-entropy with logits computes the same mean objective as the stable scalar formula.",
+        "Before training, the bridge compares the loss and every autograd derivative against the independently written scalar implementation. It also runs torch.autograd.gradcheck, which uses numerical perturbations. These are separate checks: a shared wrong objective can pass an implementation comparison, while a correct gradient of the wrong task still does not solve the intended problem. Preserve explicit targets and held-out evaluation.",
+        "The training loop clears gradients, computes the current objective, calls backward and steps SGD. Omitting zero_grad accumulates previous gradients and changes the optimization algorithm. Evaluation is wrapped in no_grad because no backward pass is needed. This functional fixture has no dropout or batch normalization; if such modules are added, model.eval changes their mode separately from gradient recording. The script uses one CPU thread, a fixed initial parameter sequence and small synthetic splits. Its result is a reproducibility check under the tested package versions, not a performance or generalization claim."
+      ],
+      "lab": "numpy_torch_bridge.py",
+      "dependencies": "Optional Python 3.14+, NumPy 2.5.4 and PyTorch 2.14.1 CPU environment; run python -m labs.numpy_torch_bridge from a checkout.",
+      "practice": [
+        "Replace the scalar initialization and prove both paths still agree.",
+        "Intentionally omit zero_grad and explain the changed update.",
+        "Add a new held-out slice without tuning on its final score."
+      ],
+      "debugging": "A mismatch often comes from batch averaging, transposed weights, dtype, gradient accumulation or a changed activation derivative. Inspect shapes before adjusting tolerances.",
+      "tradeoffs": "Tensor libraries provide efficient kernels and autograd, but device transfers, memory ownership and numerical precision remain explicit engineering choices.",
+      "references": [
+        "https://docs.pytorch.org/docs/stable/autograd.html",
+        "https://numpy.org/doc/stable/user/absolute_beginners.html"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "neural-backprop"
+      ],
+      "estimated_minutes": 25,
+      "path": "elective",
+      "study_id": 815,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "Manual derivatives and autograd disagree by a large factor for the same batch.",
+          "steps": [
+            "Fix inputs, parameter values, dtype and loss reduction.",
+            "Compare every parameter gradient before an optimizer update.",
+            "Check mean versus sum reduction, broadcasting and detached computation paths."
+          ],
+          "result": "A controlled cross-implementation comparison localizes the mismatch before long training runs."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why compare a manual implementation with autograd?",
+          "spoken": "It makes tensor shapes, reductions and chain-rule dependencies explicit and provides an independent check on a small controlled model.",
+          "deep": "**Use an independent implementation to expose incorrect assumptions.** A manual NumPy forward pass and derivative can check a PyTorch implementation of the same small objective, provided they do not merely call the same helper. Fix inputs and weights, use explicit dimensions and compare scalar losses and selected gradients with tolerances suited to the dtype. Autograd computes derivatives of the graph you built, including accidental broadcasting; it does not know the graph you intended.\n\n**Trace a real update.** For a linear predictor, calculate predictions, residuals and the mean squared loss, call backward, inspect parameter gradients, then step the optimizer and verify that the intended weights changed. Reset accumulated gradients before the next update. A detached tensor, a newly constructed parameter absent from the optimizer, a no-grad scope or an omitted optimizer step can leave weights unchanged even when a loss is printed each iteration.\n\n**Failure and evaluation.** Assert input and target shapes before relying on numeric agreement. A target shaped (N,) and predictions shaped (N, 1) can broadcast to an unintended (N, N) residual matrix. Only after the small calculation agrees should you train and evaluate on sealed held-out data. Matching gradients validates one implementation boundary; it does not establish model quality, calibration or production robustness.",
+          "follow_up": {
+            "question": "Can an accidental broadcast yield valid-looking gradients?",
+            "answer": "Yes. Check intermediate shapes and the intended objective, not only whether the code runs."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Why does a numerically correct PyTorch training step still fail to update its parameters?",
+          "spoken": "Autograd records a differentiable graph, but the optimizer updates only registered leaf parameters with non-None gradients; graph detachments, no_grad scopes and missing optimizer membership can break training.",
+          "deep": "**Mechanism.** PyTorch tracks tensor operations when tensors require gradients. A scalar loss calls backward() to accumulate derivatives into leaf parameters. The optimizer owns an explicit set of parameter objects: its step updates only that set using available gradients. The common sequence is optimizer.zero_grad(set_to_none=True), loss.backward(), inspect grads and optimizer.step(). Calling backward without step computes gradients but does not train. Calling step without refreshing gradients may reuse stale accumulated values.\n\n**Typical silent mistakes.** Converting a tensor to Python with item() and reconstructing it with torch.tensor(value) severs the original gradient path. Invoking detach() or torch.no_grad() during forward disables or breaks required derivatives. Replacing a module weight object after constructing the optimizer may mean the optimizer holds an obsolete parameter. Performing an accidental in-place mutation can invalidate autograd's saved tensors and should surface a version-counter error. A tensor created from a parameter's numeric data may be a disconnected new leaf rather than a view on the trainable parameter.\n\n**Minimal debugging procedure.** Fix a deterministic input/label and record the loss and a clone of each expected trainable parameter before and after a single step. Assert that expected parameters have gradients of the correct shape, their gradients are finite, the intended parameter's bytes changed, frozen parameters did not change and the loss improves for a small enough learning rate. Compare the analytic manual implementation and autograd value for one small case; this proves local derivatives, not generalization.\n\n**Error categories.** Training loss can fall despite label leakage, biased sampling or a broken test split. Conversely, a model can be implemented correctly and fail to generalize because it is overparameterized or data is unrepresentative. Isolate graph correctness, optimizer wiring, train data quality and held-out evaluation as different hypotheses. Include restart/checkpoint checks before claiming reproducibility.\n\n**Changed assumption.** If gradient accumulation spans four microbatches, zero the gradients once per *optimizer* accumulation window rather than before every microbatch. Divide or normalize the loss consistently with your intended effective batch, handle the last partial window explicitly, and verify optimizer step count.",
+          "follow_up": {
+            "question": "A parameter has a nonzero gradient but remains unchanged after optimizer.step(). How do you investigate?",
+            "answer": "Check the exact parameter object belongs to a live optimizer group, the group learning rate and update rule, zero-weight-decay behavior, gradient scaling/overflow skips and whether an old or detached parameter is being inspected. A nonzero grad alone does not guarantee a visible step."
+          },
+          "rubric": [
+            "Derives or measures a concrete mechanism with correct assumptions and shapes",
+            "Differentiates code correctness from held-out production effectiveness",
+            "Explains failure modes, alternatives and an answered changed-condition follow-up"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    },
+    {
+      "id": "tokenization-attention",
+      "title": "Tokenization, attention and tensor dimensions",
+      "outcomes": [
+        "Explain tokens as model-specific IDs",
+        "Compute stable scaled dot-product attention"
+      ],
+      "terms": [
+        {
+          "term": "Tokenization",
+          "definition": "Mapping input data to a sequence of vocabulary IDs according to a particular tokenizer."
+        },
+        {
+          "term": "Query, key and value",
+          "definition": "Learned projections used to compute compatibility scores and weighted output representations."
+        },
+        {
+          "term": "Softmax",
+          "definition": "A normalized exponential transformation applied along a specified axis."
+        }
+      ],
+      "narrative": [
+        "A token is not necessarily a word or character. Byte-level vocabularies can represent any UTF-8 input, while learned merges combine common byte sequences into larger units. The attention lab implements one illustrative byte-pair merge and verifies exact roundtrips for accented text and an emoji. It does not train BPE or reproduce a production tokenizer. Real tokenizer assets, normalization, special tokens and chat formatting must match the selected model; changing them can change both cost and behavior.",
+        "For one attention head, Q has shape (number of queries, d), K has shape (number of keys, d), and V has shape (number of keys, value width). QK-transpose produces a score for every query/key pair. Dividing by sqrt(d) moderates score scale; row-wise softmax turns each query’s scores into weights. Multiplying those weights by V returns one weighted value vector per query. The weights’ row sums are one; their interpretation still depends on the learned projections and masking.",
+        "In the one-dimensional worked case, q=1, keys=[1,0], values=[2,4]. Scores are [1,0], weights are approximately [0.731059,0.268941], and output is 0.731059×2+0.268941×4=2.537883. Subtracting the maximum score before exponentiation leaves softmax unchanged and avoids overflow. The browser exercise includes a very large-logit fixture to make this numerical boundary observable.",
+        "Causal attention masks future positions so training and autoregressive generation obey the intended dependency order. Position information is supplied through an architecture-specific mechanism, such as positional embeddings or rotary transformations; attention alone does not encode arbitrary token order. Multi-head attention repeats learned projections and combines their outputs. Residual paths, normalization and feed-forward sublayers complete a transformer block; a diagram of only Q/K/V is not a full transformer."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Calculate the two-key worked example by hand.",
+        "Derive the output shape for Q=(3,4), K=(5,4), V=(5,2).",
+        "Remove stable-softmax subtraction and reproduce overflow with a large logit.",
+        "Describe why one learned byte merge is not a complete production tokenizer.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
+      ],
+      "debugging": "Shape errors often swap key length and feature width. Softmax over the wrong axis can produce valid-looking numbers with the wrong meaning.",
+      "tradeoffs": "Dense attention has quadratic score count in sequence length; efficient kernels change memory traffic and constants, while sparse or linear alternatives change assumptions or computations.",
+      "references": [
+        "https://arxiv.org/abs/1706.03762",
+        "https://arxiv.org/abs/1508.07909",
+        "https://arxiv.org/abs/1808.06226"
+      ],
+      "assessment": "attention-dimensions",
+      "prerequisites": [
+        "numpy-autograd-bridge"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 816,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A two-position attention row has logits [1,0] and values [2,4].",
+          "steps": [
+            "Subtract the maximum logit before exponentiation.",
+            "Softmax weights are approximately [0.731059,0.268941].",
+            "The weighted value is 0.731059×2+0.268941×4=2.537883."
+          ],
+          "result": "The output follows a normalized weighted combination, with dimensions and numerical stability visible."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why scale dot-product attention and apply a mask?",
+          "spoken": "Scaling controls logit magnitude relative to key dimension; a mask excludes disallowed positions such as future tokens in causal decoding.",
+          "deep": "**Scaled dot-product attention turns compatibility scores into a weighted mixture.** Let Q and K have matching feature dimension d_k. Compute scores QK-transpose / sqrt(d_k), mask disallowed query-key pairs, apply softmax across keys, then multiply by V. If independent zero-mean query and key components have unit variance, their dot product has variance proportional to d_k; the scaling limits the growth of logits and helps avoid extremely saturated softmax at initialization. Those assumptions explain the factor rather than guarantee every trained distribution is normalized.\n\n**Mask before normalization.** In causal self-attention, query position t may not use keys after t. Giving a forbidden position a large negative logit before softmax removes its probability mass. Multiplying probabilities by zero afterward without renormalizing changes the total weight and is a different operation. Subtract the largest allowed logit for numerical stability; handle an all-masked row explicitly rather than letting infinities produce an unexplained NaN.\n\n**Representations matter.** Tokenization maps text to model-specific IDs and determines sequence length and positions; token IDs are not semantic coordinates by themselves. Padding and causal masks enforce different constraints. Test a tiny hand-computed attention row, verify that future values cannot change an earlier output, and keep mask conventions explicit when moving between APIs.",
+          "follow_up": {
+            "question": "Does a tokenizer’s round trip prove equal token counts across languages?",
+            "answer": "No. Segmentation and token counts vary by vocabulary, normalization, language and model."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Why scale query-key attention logits and mask future tokens before softmax?",
+          "spoken": "Scaled dot-product attention divides the query/key dot product by sqrt(key dimension) to control logit magnitude. In a causal decoder, future positions must receive zero probability before normalizing.",
+          "deep": "**Define tensor shapes.** With sequence length `T` and key/query width `d_k`, queries `Q` and keys `K` have shape `T × d_k`. The raw score matrix is `QKᵀ` of shape `T × T`. Divide by `sqrt(d_k)` to reduce the growth in variance of dot products when features have roughly independent unit-scale components. Add a causal mask that excludes key positions later than the current query position; then apply softmax independently to each row.\n\n**Numerical example.** For two queries `[(1,0),(0,1)]` and keys of the same vectors, the first query has raw logits `[1,0]`. But when generating token 1, position 2 is in the *future*, so mask its logit to negative infinity before softmax; the resulting attention weight is exactly `[1,0]` (up to numerical representation). If its value vector is `(10,0)`, the output is `(10,0)`. The second query may attend to both earlier and current positions.\n\n**Stable softmax.** For allowed logits `s_i`, compute `exp(s_i−max(s)) / sum(exp(s_j−max(s)))`. Subtracting the max cancels mathematically but avoids numeric overflow with very large logits. Masked positions should contribute exactly zero. An all-masked row is invalid unless the architecture explicitly defines fallback behavior; reject it rather than divide by zero.\n\n**Implementation and reliability.** `labs/math_interview_mechanics.py` calculates these weights with only Python math and asserts mask/shape behavior. Production attention includes head and batch dimensions, different query/KV head counts, padding masks, attention kernels, precision and caching; this tiny program illustrates semantics, not GPU performance. Incorrect mask broadcasting can leak future tokens in a language-model evaluation.\n\n**Changed assumption.** With a bidirectional encoder, future-key masking may be inappropriate; padding masks still apply. Always derive mask semantics from the training objective and deployed task, not from using the word “transformer.”",
+          "follow_up": {
+            "question": "Why should the mask be applied before softmax rather than multiplying probabilities by zero afterward?",
+            "answer": "Masking after softmax changes the normalization and can leave a row summing to less than one; it can also waste probability mass on forbidden keys. Mask logits first and normalize only over legal positions."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    },
+    {
+      "id": "transformer-inference",
+      "title": "Training objectives, decoding and cached inference",
+      "outcomes": [
+        "Distinguish pretraining from generation",
+        "Explain cached state and context costs"
+      ],
+      "terms": [
+        {
+          "term": "Autoregressive objective",
+          "definition": "Predicting a next token using only the allowed prefix."
+        },
+        {
+          "term": "KV cache",
+          "definition": "Stored key/value representations for already processed tokens during generation."
+        },
+        {
+          "term": "Temperature",
+          "definition": "A scaling of logits before sampling; lower values concentrate the distribution."
+        }
+      ],
+      "narrative": [
+        "A decoder language model is commonly pretrained to predict the next token from its prefix. The training objective compares model predictions with known next tokens; generation instead repeatedly chooses a token, appends it, and evaluates the next step. Teacher-forced training can process many positions together under a causal mask. Decoding choices such as greedy selection, temperature scaling and top-p sampling change which sequence is produced, not the learned weights.",
+        "Greedy decoding picks the largest score at each step and can still produce an incorrect answer. Temperature scales logits before probabilities are sampled; it does not provide a calibrated factual confidence score. Top-p chooses a probability-mass nucleus according to the implementation’s exact ordering and boundary rules. A fixed seed helps repeat sampling under a fixed environment, but changing kernels, batching or library versions can still affect results. Define which reproducibility guarantee an evaluation requires.",
+        "During autoregressive decoding, previous tokens’ keys and values can be reused rather than recomputed from scratch. The attention lab checks prefix K/V reuse against equivalent full-prefix attention for a small fixed single-layer case. In a real transformer, every relevant layer and head has cached tensors, so cache memory grows with batch size and context length as well as head dimensions and storage precision. Prefill and decode have different compute and bandwidth profiles.",
+        "The context window is a computational limit, not evidence that every included fact will be used correctly. Context packing needs relevance, ordering, provenance and sufficient space for output. Multimodal systems introduce modality-specific encoders or token representations, alignment and additional privacy considerations; more modalities do not remove the need for grounded evaluation. Benchmark a representative workload across latency, memory, accuracy and unsafe failure cases rather than treating a context-length number as overall quality."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Explain the distinction between prefill and one-token decode.",
+        "Estimate cache element count from layers, sequence length, batch and head dimensions.",
+        "Compare greedy and sampled outputs under an explicitly fixed configuration.",
+        "Run python3 -B labs/math_interview_mechanics.py; reproduce the calculation on paper and explain where its assumptions fail."
+      ],
+      "debugging": "If incremental output differs from full-prefix computation, inspect masking, cache positions, model mode and projection reuse before assuming numerical noise.",
+      "tradeoffs": "Caching trades memory for saved computation; batching can improve throughput while increasing per-request waiting and retained cache demand.",
+      "references": [
+        "https://huggingface.co/docs/transformers/kv_cache"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "tokenization-attention"
+      ],
+      "estimated_minutes": 25,
+      "path": "core",
+      "study_id": 817,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "An autoregressive decoder has already computed a prefix and generates one more token.",
+          "steps": [
+            "Retain compatible prefix key/value tensors under the same model and positional convention.",
+            "Compute the new token’s query/key/value work.",
+            "Attend over cached prefix plus the new position without treating another user’s cache as interchangeable."
+          ],
+          "result": "KV reuse avoids recomputing compatible prefix K/V work but consumes growing memory."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What is the latency/memory trade-off of a KV cache?",
+          "spoken": "It saves repeated prefix computation during decoding while retaining per-layer key/value state that grows with sequence length and active requests.",
+          "deep": "**A KV cache exchanges memory for reuse during autoregressive decoding.** Each transformer attention layer stores the key and value tensors for earlier tokens. At the next generation step the model computes the new token's query, key and value, then attends to the accumulated cache instead of recomputing earlier token projections. The new query still reads the relevant history, so caching does not make long-context decoding constant-cost.\n\n**Calculate the footprint.** For L layers, H_kv key/value heads, head dimension D, T live tokens and B bytes per element, the simple tensor estimate per sequence is 2 * L * H_kv * D * T * B. With L=32, H_kv=8, D=128, T=4096 and B=2, this is 536,870,912 bytes, or 512 MiB. Add weights, temporary activations, allocator overhead and serving headroom separately; multiplying by concurrent sequences is only a first bound when sharing and variable lengths are involved.\n\n**Correct reuse.** Cache compatibility includes model/adapter revision, token IDs, positions and attention semantics. Shared prefix caches must preserve privacy and permission boundaries. Increasing context or concurrency can exhaust memory, so admission and cancellation must reclaim allocations predictably. Measure prefill time, first-token latency and per-token decode latency separately; the memory formula is a calculation, not a GPU benchmark.",
+          "follow_up": {
+            "question": "Can cache keys ignore tenant or authorization state?",
+            "answer": "No. Reuse must preserve data-isolation and compatibility boundaries, not only matching visible text."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "Why is KV caching useful during decoding, and what memory assumptions does it introduce?",
+          "spoken": "Caching prior key and value tensors avoids recomputing past attention projections at each generated step, trading GPU memory for faster per-token decoding; the retained tensors grow with context, layer count and concurrent sequences.",
+          "deep": "**Autoregressive mechanism.** During prefill, the model processes the prompt tokens and computes attention projections. During decoding, it generates one token at a time. Without a KV cache, the decoder may repeatedly recompute keys and values for previous tokens. A KV cache stores per-layer past key/value representations so the new query can attend to previous positions without recomputing every prior projection.\n\n**Memory calculation.** For a simplified decoder with `L` layers, `H_kv` KV heads, head width `D`, `T` live tokens per sequence and `b` bytes per KV scalar, key+value storage is approximately `2 × L × H_kv × D × T × b` bytes per sequence. Example: `L=32`, `H_kv=8`, `D=128`, `T=4096`, `b=2` (FP16): `2×32×8×128×4096×2 = 536,870,912` bytes, or **512 MiB** for that sequence's KV cache alone. Across eight same-length sequences, the simple total is roughly 4 GiB. This does not include model weights, activations, allocator overhead, fragmentation or compute workspaces.\n\n**Latency vs throughput.** Prefill can be compute-heavy and processes many tokens concurrently; decoding often has limited arithmetic per token and becomes memory-bandwidth/scheduling sensitive. Continuous batching can improve hardware use, but it must manage variable prompt lengths, admission and fairness. Prefix sharing and paged KV allocations have version-specific constraints. A smaller weight quantization does not necessarily improve latency if its kernels and memory movement are inefficient.\n\n**Implementation.** The `labs/math_interview_mechanics.py` causal attention fixture shows the correctness semantics of masking and reuse candidates; it does not allocate a real GPU KV cache. Issue #38 separately covers vLLM/TGI, profiling and hardware measurements. Performance claims require actual model, tokenizer, GPU, prompt lengths, precision, warmup, p95/p99 and tokens/s.\n\n**Follow-up — what if context doubles under the same concurrency?** KV storage grows approximately linearly with retained tokens in the formula; admission and memory pressure must be recalculated, and tail latency can worsen even when average throughput looks acceptable.",
+          "follow_up": {
+            "question": "Does 4 GiB for eight sequences mean an 8 GiB GPU can host the server?",
+            "answer": "No. Model weights, CUDA/runtime allocations, activations, fragmentation and headroom remain. Real admission and benchmark results require measuring the actual serving engine and model/hardware pair."
+          },
+          "rubric": [
+            "Defines notation and prerequisites and shows a complete worked numerical example",
+            "Reconciles actual test outputs with held-out evaluation and uncertainty limitations",
+            "Explains a failure case, a production trade-off and an answered changed-assumption question"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    },
+    {
+      "id": "adaptation-quantization",
+      "title": "Quantization, LoRA, distillation and model evaluation",
+      "outcomes": [
+        "Estimate parameter and quantization costs",
+        "Choose an adaptation method from evidence"
+      ],
+      "terms": [
+        {
+          "term": "Quantization",
+          "definition": "Representing numeric values with a lower-precision format and a defined mapping back to approximate values."
+        },
+        {
+          "term": "Low-rank adaptation",
+          "definition": "Learning a low-rank update to selected weight matrices instead of updating every original parameter."
+        },
+        {
+          "term": "Distillation",
+          "definition": "Training a student model using behavior or targets from a teacher, evaluated against the intended task."
+        }
+      ],
+      "narrative": [
+        "For a simple symmetric int8 quantizer, choose scale=max(abs(weight))/127, round each weight divided by scale to an integer, and reconstruct by multiplying by scale. For values within the represented range, nearest rounding introduces at most roughly half a scale unit of absolute error, subject to floating-point details. The lab verifies this bound on a fixture. The all-zero case needs an explicit scale convention. Real quantization can use per-channel scales, different zero points, calibration and specialized kernels; lower bit width alone does not prove faster inference.",
+        "If a weight matrix W has output width m and input width n, a low-rank update can be written delta_W=B A, where A has shape (r,n) and B has shape (m,r). The update uses r(n+m) parameters rather than mn when r is small. Apply the update as B(Ax), with any declared scaling, and keep the base weights fixed according to the chosen method. LoRA still needs representative training data, optimizer state, compatible target modules and evaluation; a small adapter is not automatically a small total serving footprint.",
+        "Fine-tuning changes model parameters or adapters; retrieval changes the supplied evidence; prompting changes the input instruction. Choose the cheapest method that solves the measured failure and respects data requirements. Distillation can reduce serving cost, but a student may inherit teacher errors or lose rare capabilities. Evaluate it against independent labels and safety constraints rather than only agreement with its teacher.",
+        "Keep model and tokenizer versions, decoding configuration, dataset provenance and metric definitions with the report. Measure quality slices, false refusals, unsupported claims, privacy leakage, robustness and latency/cost. The tiny training capstone’s perfect synthetic accuracy is a reproducible implementation check, not a deployment benchmark. A release decision requires a representative held-out dataset and a documented threshold for both acceptable outcomes and unacceptable side effects."
+      ],
+      "lab": "attention_math.py",
+      "practice": [
+        "Add an all-zero quantization fixture with a defined scale convention.",
+        "Compare full-matrix and rank-r parameter counts for m=n=1024 and r=8.",
+        "Write an evaluation plan that could reject a distilled model even when teacher agreement is high."
+      ],
+      "debugging": "An adapter loaded into the wrong model revision can silently invalidate results. A quantized model that is smaller but slower may be using unsuitable kernels or suffering from transfer overhead.",
+      "tradeoffs": "Parameter-efficient training reduces update storage and some optimizer cost; it does not eliminate base-model memory, data governance or validation.",
+      "references": [
+        "https://arxiv.org/abs/2106.09685"
+      ],
+      "assessment": null,
+      "prerequisites": [
+        "transformer-inference"
+      ],
+      "estimated_minutes": 25,
+      "path": "elective",
+      "study_id": 818,
+      "worked_examples": [
+        {
+          "title": "Worked foundation case",
+          "setup": "A smaller numerical representation reduces model weight storage but measured latency gets worse.",
+          "steps": [
+            "Confirm the quantization format, kernels and hardware actually used.",
+            "Measure end-to-end latency, memory and quality on the same tasks.",
+            "Compare with a nonquantized baseline and inspect conversion overhead."
+          ],
+          "result": "Memory reduction does not imply a universal inference speedup."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do LoRA, quantization and distillation differ?",
+          "spoken": "LoRA changes a limited parameter adaptation path, quantization changes numerical representation, and distillation trains a student from another model’s signals. Each needs its own quality and resource evaluation.",
+          "deep": "**The techniques change different parts of a model system.** LoRA trains low-rank updates to selected frozen weight matrices. Quantization stores or computes some tensors at reduced precision. Distillation trains a student to imitate outputs or other behavior of a teacher. A LoRA adapter does not automatically quantize its base model, and a smaller representation does not automatically preserve task quality or reduce latency on the available kernels.\n\n**Work a parameter example.** A dense matrix with 4096 inputs and 4096 outputs has 16,777,216 weights. A rank-8 update factors it into a 4096-by-8 matrix and an 8-by-4096 matrix: 65,536 trainable values before extra configured parameters. That count describes adapter parameters, not total training memory; the frozen base, activations, optimizer state for trained tensors and runtime KV cache remain relevant. Quantized base storage and compute dtype also need separate accounting.\n\n**Choose from an error diagnosis.** Use retrieval to supply changing external facts; consider supervised adaptation for stable behavior errors demonstrated by representative data. Compare the frozen baseline, prompt baseline and adapted or distilled model on the same held-out tasks, including safety and forgetting slices. Pin base/tokenizer/adapter compatibility and test reload/merge equivalence. Prefer the simpler option that fixes the measured failure under the actual resource budget, then retain a rollback artifact.",
+          "follow_up": {
+            "question": "Would you approve a smaller model based on accuracy alone?",
+            "answer": "No. Compare failure slices, calibration where relevant, latency/memory/cost and application safety invariants under the intended workload."
+          },
+          "rubric": [
+            "Defines assumptions and key terms",
+            "Shows a calculation or observable failure",
+            "Separates fixture correctness from production/generalization claims"
+          ]
+        },
+        {
+          "question": "How do you decide among RAG, LoRA, quantization and distillation for a production language model?",
+          "spoken": "First classify the error as missing information, unstable task behavior or resource pressure; then pick retrieval, adapter training, numerical compression or teacher-to-student training and validate on separate held-out cases.",
+          "deep": "**Different objectives.** Retrieval-augmented generation (RAG) retrieves current, authorized evidence and supplies it to the model at answer time; it does not modify the underlying model weights. LoRA adapts behavior by training a low-rank ΔW=(α/r)BA with the base W frozen. Quantization encodes existing weights or activations with reduced precision to trade compute/memory/latency against numerical error; it does not automatically teach the model a new ability. Distillation trains a student model on teacher predictions or representations, potentially changing architecture and requiring substantial labels/compute.\n\n**Worked diagnosis.** A support assistant gives an old refund policy. If the policy source changed yesterday, a retriever/index freshness failure is the primary hypothesis; fine-tuning the model on yesterday's policy hardcodes stale knowledge. If current evidence is available but answers violate a stable JSON response contract, evaluate structured decoding/prompt changes before an adapter. If latency is high because the base weights cannot fit GPU memory, benchmark compatible 8/4-bit kernels under the same model and workload; do not infer faster serving simply from a smaller checkpoint. If a small model is needed on a constrained device, a measured teacher/student distillation experiment may be warranted.\n\n**Quantitative adapter example.** A W matrix with 4096 input and 4096 output channels has 16,777,216 base scalars. With LoRA rank 16, A contains 16×4096 and B contains 4096×16, totaling 131,072 trainable scalars; that is about 0.78% of the base matrix parameter count before gradients/optimizers/activations. A 4-bit base weight representation may reduce parameter storage compared with FP16, but quantization scales, runtime buffers, KV cache and implementation kernels contribute to total memory.\n\n**Evaluation and safety.** Establish an immutable baseline and sealed held-out task set. Compare answer support/refusals, resource use, p95/p99 latency, cost, retention/forgetting and safety slices after each change. Check model/tokenizer/template compatibility when reloading a LoRA adapter; don't claim a QLoRA run from a toy rank-one matrix lab. Record artifact licenses and source lineage.\n\n**Follow-up.** If RAG improves factuality but context token spending triples, measure relevant-evidence recall, source support and cost per *correct* answer. Tune retrieval and passage selection before replacing the model architecture; document quality versus latency trade-offs.",
+          "follow_up": {
+            "question": "Could weight quantization invalidate a merged LoRA adapter even with matching shapes?",
+            "answer": "Yes. Quantization changes numerical representation and kernel behavior; an adapter merge calibrated for another base precision/version can shift outputs. Pin base/tokenizer and benchmark merged/unmerged outputs with real tolerances before deployment."
+          },
+          "rubric": [
+            "Derives or measures a concrete mechanism with correct assumptions and shapes",
+            "Differentiates code correctness from held-out production effectiveness",
+            "Explains failure modes, alternatives and an answered changed-condition follow-up"
+          ]
+        }
+      ],
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-24"
+      }
+    }
+  ],
+  "review_status": "technical review pending",
+  "version": "1.1.0",
+  "updated": "2026-10-20"
+}

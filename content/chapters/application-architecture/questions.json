@@ -1,0 +1,190 @@
+[
+  {
+    "Q": "What does a full support application add beyond a retrieval subsystem?",
+    "A": "A complete application adds authenticated APIs, customer-owned service requests, versioned knowledge, an agent runtime, confirmation workflows, persistent conversation history, background jobs, evaluation, and observability. Retrieval remains one service within that product.",
+    "Why": "Bind authenticated APIs, domain repositories, retrieval, model execution, and a client through typed contracts. Each layer should expose failures without pretending another layer has completed its work.",
+    "Risk": "Do not infer that every newer the retrieval service feature is integrated. The knowledge tool concatenates retrieved context directly; it does not automatically use the library's full an evidence assembler and revision-lookup contract.",
+    "Trade": "A narrow host binding is easier to ship, while richer evidence contracts add explicit statuses and provenance. Adoption requires wiring and migration rather than only upgrading a dependency.",
+    "Try": "Trace a question from the browser through authentication, tool selection, scoped retrieval, evidence assembly, generation, and source opening."
+  },
+  {
+    "Q": "How should the orchestration framework be distinguished from model and retrieval adapters?",
+    "A": "The orchestration runtime controls the agent loop. A model adapter normalizes provider access, a retrieval service supplies evidence, and a tracing backend records execution. A product may use ADK, LangChain, or another runtime without changing these responsibilities.",
+    "Why": "Draw separate boxes for the runtime, model adapter, retrieval service, business services, and telemetry. Evaluate a replacement at its contract boundary rather than inferring responsibilities from package names.",
+    "Risk": "Framework confusion leads to examples that cannot run against the reference design's dependencies. The later LangChain, LangGraph, and A2A chapters explicitly describe alternatives or additions rather than pretending those frameworks are already installed.",
+    "Trade": "Staying with one orchestrator reduces state-model overlap. Adding another can solve a measured workflow need but introduces serialization, tracing, error, and deployment boundaries.",
+    "Try": "Make a dependency-layer table with web framework, agent runtime, model adapter, retrieval library, persistence layer, and tracing service. Name their concrete constructors.",
+    "spoken": "The orchestration layer owns workflow state, budgets, policy and ordering. A model adapter translates provider contracts; a retrieval adapter exposes scoped evidence candidates. Keep business invariants in authoritative services so replacing the model or orchestration framework cannot bypass them.",
+    "domain": "system-design",
+    "subdomain": "api-lifecycle",
+    "difficulty": "foundations",
+    "misconception_target": "Confusing orchestration, evidence, eligibility and committed operation state",
+    "definitions": [
+      {
+        "term": "Orchestrator",
+        "definition": "Owns workflow transitions, budgets and ordering around adapters."
+      },
+      {
+        "term": "Model adapter",
+        "definition": "Translates a provider interface into the application-owned model contract."
+      },
+      {
+        "term": "Retrieval adapter",
+        "definition": "Returns scoped versioned evidence through a defined retrieval contract."
+      }
+    ],
+    "execution_timeline": "Validated task -> scoped retrieval -> model proposal -> domain validation -> authorized effect -> durable result",
+    "example": {
+      "code": "def choose_next(state):\n    if not state['has_evidence']:\n        return 'retrieve'\n    if not state['proposal_valid']:\n        return 'validate_proposal'\n    return 'domain_authorization'\n\nprint(choose_next({'has_evidence': True, 'proposal_valid': False}))",
+      "explanation": "The deterministic decision owns ordering; an adapter call does not grant business authority.",
+      "output": "validate_proposal"
+    },
+    "production_case": "Replacing a model provider changes response and retry formats. Adapter contract tests should catch the change while the same task state machine and authorization service remain responsible for effects.",
+    "alternatives": [
+      "GraphQL for flexible queries",
+      "WebSocket for bidirectional streaming"
+    ],
+    "pitfalls": [
+      "Blank input reaches business layer",
+      "Malformed JSON crashes handler",
+      "Authentication bypassed"
+    ],
+    "complexity": "Workflow cost depends on the selected model, retrieval and tool operations; interface separation adds a testable boundary rather than a universal speed improvement.",
+    "follow_ups": [
+      {
+        "Q": "What should an adapter avoid owning?",
+        "A": "Global workflow authority or hidden business writes. Its contract should expose results and failures for the caller to handle explicitly."
+      }
+    ],
+    "citations": [
+      "https://docs.langchain.com/oss/python/langgraph/thinking-in-langgraph",
+      "https://docs.langchain.com/oss/python/langchain/models",
+      "https://docs.langchain.com/oss/python/langchain/tools"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true,
+    "concept": "How should the orchestration framework be distinguished from model and retrieval adapters"
+  },
+  {
+    "Q": "How does an eligibility question differ from a request-status question?",
+    "A": "Coverage requires retrieving knowledge rules and applying a reviewed procedure to the user's facts. Claim status is a lookup of structured application state under the authenticated owner's scope. An answer about a policy is evidence-based interpretation; an answer about an existing request must reflect the actual recorded claim.",
+    "Why": "Route an exact request identifier to an authorized structured lookup. Route a knowledge question to applicable evidence. Evaluate both the intent decision and the resulting resource scope.",
+    "Risk": "Semantic similarity cannot establish that an arbitrary request ID belongs to the user or that a versioned rule applies to their contract. Tool-side identity checks remain necessary even when prompting selects the right tool.",
+    "Trade": "Separate tools make intent and authority clearer but require route-selection evaluation. One universal search tool is simpler and can blur exact facts with approximate matches.",
+    "Try": "Write expected tool sequences for an exact request ID, a remembered incident without an ID, and an eligibility question with missing facts.",
+    "spoken": "An eligibility question asks what current evidence and business rules permit. A request-status question asks what a durable operation has actually reached. Use applicable policies for eligibility and authoritative operational state for status; generated text or retrieved prose cannot prove a request committed.",
+    "domain": "system-design",
+    "subdomain": "javascript-typescript",
+    "module": "application-architecture",
+    "concept": "How does an eligibility question differ from a request-status question",
+    "difficulty": "foundations",
+    "misconception_target": "Confusing orchestration, evidence, eligibility and committed operation state",
+    "definitions": [
+      {
+        "term": "Eligibility",
+        "definition": "What applicable evidence and current rules permit for this case."
+      },
+      {
+        "term": "Operation status",
+        "definition": "The durable state reached by a specific owned task or effect."
+      },
+      {
+        "term": "Authoritative state",
+        "definition": "The system of record whose committed result determines the operation outcome."
+      }
+    ],
+    "execution_timeline": "Classify question -> validate identity -> policy/evidence lookup OR owned operation lookup -> report scoped conclusion",
+    "example": {
+      "code": "def answer_source(question_type):\n    return {'eligibility': 'applicable_policy_and_case',\n            'status': 'owned_durable_operation'}[question_type]\n\nprint(answer_source('status'))",
+      "explanation": "Route by the kind of fact being requested; a policy passage cannot confirm a completed external effect.",
+      "output": "owned_durable_operation"
+    },
+    "production_case": "A user asks whether a refund is allowed and then whether it was sent. The first needs current policy and case attributes; the second needs the owned operation and receiver-confirmed effect state.",
+    "alternatives": [
+      "XMLHttpRequest",
+      "Third-party HTTP libraries"
+    ],
+    "pitfalls": [
+      "Not checking response.ok",
+      "Trusting TypeScript types at runtime",
+      "No error handling"
+    ],
+    "complexity": "Eligibility may involve evidence/rule evaluation; status uses authoritative operation lookup. Neither should be inferred from fluent generated text.",
+    "follow_ups": [
+      {
+        "Q": "Can a retrieved policy confirm a completed refund?",
+        "A": "No. Policy supports a permission/eligibility decision, while execution status requires durable operation and effect evidence."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/2005.11401",
+      "https://www.postgresql.org/docs/current/tutorial.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "What is the difference between an agent session and a conversation record?",
+    "A": "Agent sessions hold runtime state and events used by ADK. Conversation records hold application-visible messages, ownership, archival state, and IDs used by feedback and history APIs. They overlap in content but serve different contracts and lifecycle requirements.",
+    "Why": "Give runtime sessions and user-visible conversations separate identities and retention rules. Rehydrate only authorized history and reconcile message IDs with durable task and operation state.",
+    "Risk": "Divergence can replay a turn twice, omit tool results, or show UI messages that the agent cannot recall. Switching storage modes also needs a deliberate migration and restart story.",
+    "Trade": "Separate stores decouple product history from runtime implementation but require clear reconciliation and retention ownership. A single store reduces duplication and can bind the product tightly to one framework.",
+    "Try": "Trace which IDs identify the user, conversation, ADK session, invocation, user message, and assistant message. Explain which remain stable after a restart."
+  },
+  {
+    "Q": "What is the real prepare-and-confirm boundary for request creation?",
+    "A": "Preparation validates fields and stores a pending submission with a confirmation token and expiry. Confirmation is an authenticated API operation that locks the pending submission, creates the service request and associated records, marks completion, and commits. Agent prose does not itself complete the financial workflow.",
+    "Why": "Prepare validated intent, present exact parameters for review, then verify approval inside a short transaction. Persist the authoritative result before claiming the action completed.",
+    "Risk": "The prompt's phrase that a tool call is the confirmation action can be misunderstood. The actual database submission still requires the separate route. A textual yes from the model is not proof that the API operation succeeded.",
+    "Trade": "Two steps add user interaction and pending-state management while reducing accidental writes. A one-step workflow is faster but gives less opportunity to review material fields.",
+    "Try": "Follow one token from preparation to a locked confirmation transaction. Identify which operation first makes the service request durable."
+  },
+  {
+    "Q": "Why separate policy procedures from knowledge facts?",
+    "A": "A procedure describes how to investigate a question or route an unclear request. A knowledge source supplies actual limits, deductibles, exclusions, and conditions. The procedure should not become an alternative authority for contractual facts merely because it is easier to retrieve.",
+    "Why": "Store playbooks as workflow guidance and knowledge articles as factual authority. Version both and evaluate whether a current procedure can still select an inapplicable source.",
+    "Risk": "A stale procedure can direct an incomplete investigation, while a current procedure can still be combined with the wrong rule revision. Both source identities need to be visible in evaluation and operational diagnosis.",
+    "Trade": "Separating reasoning guidance from factual material supports independent review but adds retrieval calls and version combinations. Hardcoding all instructions in one prompt is easier to start and harder to govern.",
+    "Try": "Label every sentence in the eligibility-review playbook as a workflow rule or factual claim. Move any unsupported numeric policy claim back to the authoritative source layer."
+  },
+  {
+    "Q": "Where does eventual consistency appear to a customer?",
+    "A": "A request can be durably submitted before its embedding job completes, so exact structured lookup and semantic search may temporarily disagree. Notification delivery can also lag the request transaction. These are different read and delivery projections of one business operation.",
+    "Why": "Commit the request and its downstream jobs together. Serve exact status from authoritative records while exposing indexing or notification lag as separate projection states.",
+    "Risk": "A search miss immediately after filing must not be reported as proof that no claim exists. An authoritative exact lookup can confirm persistence while the index catches up.",
+    "Trade": "Asynchronous processing keeps submission independent of provider latency but introduces lag and recovery work. Synchronous indexing is simpler conceptually and couples business availability to model services.",
+    "Try": "Pause the embedding worker, file a service request, and compare exact lookup with semantic search. Define the appropriate user-visible status for each result."
+  },
+  {
+    "Q": "What are the main trust boundaries in this application?",
+    "A": "Boundaries include browser-to-API identity, model-to-tool authority, source-to-prompt content, application-to-database privileges, application-to-model disclosure, and application-to-observability export. Each boundary has a different actor and failure mode.",
+    "Why": "Annotate every edge with identity, allowed data, and permitted effects. Model output, retrieved text, remote metadata, and observability exports cross different trust boundaries.",
+    "Risk": "A protected chat endpoint is insufficient if a tool trusts model-supplied owner IDs or a trace exports private claim text. Read and write paths require separate evidence of enforcement.",
+    "Trade": "Explicit boundaries add policy and testing effort but make failures diagnosable. Combining all access behind a powerful agent credential simplifies integration and magnifies mistakes.",
+    "Try": "Draw the support runtime diagram and annotate every edge with identity, permitted data, and whether the receiver can initiate authoritative writes."
+  },
+  {
+    "Q": "Which application guarantees must be established end to end?",
+    "A": "Implemented mechanisms include owner-scoped case retrieval, a locked confirmation row, caller-owned submission transactions, typed streaming events, optional shared idempotency, and trace instrumentation. Their deployment guarantees depend on real database behavior, chosen storage settings, provider configuration, and complete use of the intended paths.",
+    "Why": "Define tool availability, ownership checks, approval validation, persistence, and stream outcomes as independently testable contracts. A framework swap should preserve or explicitly revise those contracts.",
+    "Risk": "Reading a comment about deployment defaults or a role model as proof of configured behavior creates false confidence. Follow defaults and call sites rather than naming available classes.",
+    "Trade": "Conservative defaults support local development but may require production gates. Rejecting startup on missing critical state is stricter than silently falling back to local state.",
+    "Try": "Create a deployment evidence checklist showing the selected session, idempotency, rate-limit, and tracing backends without printing secrets."
+  },
+  {
+    "Q": "How should you trace a request across the complete application?",
+    "A": "Start at user intent and verified identity, follow tool selection and scoped services, inspect evidence and model output, then confirm persisted results and client state. Trace the actual path, including failures and recovery.",
+    "Why": "Turn architectural guarantees into acceptance tests. A diagram describes intended responsibilities; concurrent workers, deployment settings, provider errors, and bypass paths determine whether the implementation actually meets them.",
+    "Risk": "A diagram can describe an ideal design while a bypass path violates it. Verify each critical boundary through observable behavior rather than relying only on intended structure.",
+    "Trade": "Cross-project tracing takes more effort than a single overview but teaches integration judgment, the central skill in full-stack AI engineering.",
+    "Try": "Trace three synthetic tasks: a factual answer, an approved write, and a provider failure. Record the invariant checked at every boundary."
+  }
+]

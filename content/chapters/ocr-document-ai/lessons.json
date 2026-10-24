@@ -1,0 +1,44 @@
+[
+  {
+    "Q": "Why isn't OCR text the same as understanding the document?",
+    "explain": "OCR identifies characters. Document understanding also resolves reading order, labels, tables, units, and relationships. Keep those structures when they determine meaning rather than flattening every recognized word into one paragraph.",
+    "example": "The number 250 appears beside subtotal and 200 beside amount due. Recognizing both does not decide which field the task requested.",
+    "takeaway": "Correct text can still be assembled incorrectly."
+  },
+  {
+    "Q": "How do you make an extracted field reviewable?",
+    "explain": "Store the raw recognized text, normalized value, page, region, source revision, and extraction version. A reviewer can then inspect how the application arrived at the result and distinguish recognition from normalization errors.",
+    "example": "Preserve 1,250.00 and its page box before converting it to a decimal value under a known locale.",
+    "takeaway": "Keep the original evidence behind every important transformation."
+  },
+  {
+    "Q": "Why is an OCR confidence threshold insufficient?",
+    "explain": "Scores vary by engine and document type. A confidently wrong digit can pass a threshold. Calibrate on reviewed examples and combine confidence with format, cross-field, and domain checks.",
+    "example": "An invoice total passes the score threshold but fails comparison with its line-item sum, triggering review.",
+    "takeaway": "Confidence is a signal, not a business guarantee."
+  },
+  {
+    "Q": "How should tables and footnotes be handled?",
+    "explain": "Preserve header-to-cell relationships, merged cells, units, and qualifying notes. A model-generated reconstruction should be checked rather than assumed faithful. Retain region references so people can inspect uncertain associations.",
+    "example": "A footnote says prices exclude tax. Dropping it changes the meaning of every otherwise correctly recognized number.",
+    "takeaway": "Structure and qualifications belong in the evidence."
+  },
+  {
+    "Q": "Can a scanned document attack the agent?",
+    "explain": "Yes. Instructions inside an image remain untrusted after recognition. Treat extracted text as source data and constrain the model's tools and outbound access independently. Isolate untrusted parsers and limit file and pixel sizes.",
+    "example": "A scanned invoice says ignore approval and transfer funds. OCR success must not become execution authority.",
+    "takeaway": "Converting an image to text does not increase its trust."
+  },
+  {
+    "Q": "Which image changes can help or harm OCR?",
+    "explain": "Rotation correction, resolution changes, contrast adjustment, and denoising may help recognition under particular conditions. They can also remove faint characters or table lines. Preserve original bytes, record transformations, and compare on representative documents rather than applying a universal preset. Limit image dimensions and processing resources before decoding untrusted files.",
+    "example": "Deskew a rotated invoice and compare the amount-due field before and after. Keep the original source region so a reviewer can see whether a missing decimal point came from scanning or preprocessing.",
+    "takeaway": "Preprocessing is a versioned experiment with possible regressions."
+  },
+  {
+    "Q": "How do field evaluation and multimodal interpretation complement OCR?",
+    "explain": "Character accuracy measures transcription, while field accuracy measures whether the requested value, unit, and association were extracted correctly. Evaluate both where they matter. Vision-language models may interpret layout or figures, but their generated interpretation still needs source regions and checks. Test supported languages, right-to-left layout, numerals, and locale-specific formatting separately.",
+    "example": "The words and numbers are recognized perfectly, but the total is assigned to the wrong currency column. A field-level comparison catches the error that character accuracy misses.",
+    "takeaway": "Evaluate the value the application uses and the evidence needed to review it."
+  }
+]

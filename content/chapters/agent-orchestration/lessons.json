@@ -1,0 +1,44 @@
+[
+  {
+    "Q": "Which steps may run in parallel?",
+    "explain": "Only steps whose required inputs and authority are already established. A later step needing an earlier result is a dependency, not an opportunity for concurrency. Bound parallelism according to downstream capacity.",
+    "example": "Search three corpora concurrently, then assemble the combined evidence; do not execute a write while its validation is still running.",
+    "takeaway": "Parallelize independent work, not unresolved assumptions."
+  },
+  {
+    "Q": "How should fan-in treat one failed branch?",
+    "explain": "Define whether the task requires all results or can proceed with explicitly limited coverage. Preserve each branch's outcome and provenance so a partial answer is not presented as complete.",
+    "example": "Two knowledge sources succeed and the authoritative exception source times out. The answer must not ignore that missing authority.",
+    "takeaway": "Partial success needs task-specific semantics."
+  },
+  {
+    "Q": "What state must survive a crash?",
+    "explain": "Preserve the task goal, principal reference, completed operation IDs, pending dependencies, budget, approval requirements, and terminal status. Keep model plans separate from authoritative completed effects.",
+    "example": "On restart, use the operation ledger to discover that a previously pending write already committed.",
+    "takeaway": "Durable orchestration refers to durable business outcomes."
+  },
+  {
+    "Q": "How should retries be coordinated?",
+    "explain": "Classify the failure, preserve the operation key, and count every attempt in the same task deadline and budget. Retry transient reads differently from uncertain writes. Query status when completion is ambiguous.",
+    "example": "A payment timeout may mean committed but response lost. Starting a new payment is not a safe generic retry.",
+    "takeaway": "Recovery must reflect what may already have happened."
+  },
+  {
+    "Q": "How should a workflow pause for human approval?",
+    "explain": "Persist a review requirement bound to exact parameters and revision. Resume only after authenticating the approving actor and rechecking current state. A waiting graph node or yes message is not sufficient proof.",
+    "example": "A changed amount invalidates the old approval even if the workflow is still at the same visual step.",
+    "takeaway": "Approval is data with authority, scope, and expiry."
+  },
+  {
+    "Q": "What state must a durable workflow store while waiting?",
+    "explain": "Persist the task identity, current step and schema version, completed artifacts, pending work, deadline, and any required review state. A sleeping process or open connection is not durable waiting. A resumed worker must reread authoritative state before proceeding, because cancellation, expiry, or edits may have arrived while it was stopped.",
+    "example": "A document export waits overnight for review. After restart, it checks that the reviewer, permitted scope, artifact revision, and expiry still match before executing.",
+    "takeaway": "Durable waiting is stored state plus a validated resume transition."
+  },
+  {
+    "Q": "How should parallel branches join without losing failure meaning?",
+    "explain": "Declare which branches are required, optional, or mutually dependent. Preserve each branch's result and failure category, then apply a join policy. Partial completion may be useful, but must not be labeled full success. Cancel obsolete branches when possible and ensure their late results cannot overwrite a newer task revision.",
+    "example": "One branch retrieves policy while another checks order status. If the status service fails, the assistant may explain policy but cannot promise an order-specific resolution.",
+    "takeaway": "Fan-in needs a product decision about incomplete information."
+  }
+]

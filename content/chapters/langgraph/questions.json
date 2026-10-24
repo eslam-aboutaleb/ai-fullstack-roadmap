@@ -1,0 +1,89 @@
+[
+  {
+    "Q": "What problem would LangGraph solve that a basic agent loop does not?",
+    "A": "LangGraph expresses a workflow as state, nodes, and transitions, with explicit branching and persistence options. It is useful when retries, human review, resumability, and bounded stages should be visible in the orchestration design rather than left entirely to a model loop.",
+    "Why": "Represent explicit state transitions when the workflow needs branching, checkpoints, review, or recovery. Keep a simple agent loop when those requirements do not justify a graph.",
+    "Risk": "A graph diagram can suggest stronger guarantees than its nodes implement. Domain writes still need their own transaction and permission boundaries.",
+    "Trade": "Explicit control improves inspectability while adding state schema and orchestration code. A simple tool-calling loop can remain sufficient for narrow conversational tasks.",
+    "Try": "Draw a proposed eligibility-review graph with answerable, missing-facts, unavailable-backend, and escalation branches before writing nodes.",
+    "reference": "https://docs.langchain.com/oss/python/langgraph/thinking-in-langgraph"
+  },
+  {
+    "Q": "How do StateGraph state, nodes, and conditional edges work together?",
+    "A": "State is the workflow's shared data contract; nodes compute updates; edges choose what executes next. A node can be deterministic code or a model call. Conditional routing should use validated state rather than treating arbitrary generated text as an unrestricted next-node name.",
+    "Why": "Define typed state with clear ownership, transient fields, durable references, and terminal outcomes. Store large artifacts separately and keep versioned IDs inside graph state.",
+    "Risk": "Overloaded state can retain private text, credentials, or stale authorization. Input schema shape alone does not decide what a stream or trace may disclose.",
+    "Trade": "Explicit state improves testing and requires careful versioning. A dictionary with unrestricted keys is flexible and harder to migrate or secure.",
+    "Try": "Separate public output fields, internal evidence references, and trusted identity in the proposed graph contract.",
+    "reference": "https://docs.langchain.com/oss/python/langgraph/graph-api"
+  },
+  {
+    "Q": "Why do reducers matter when graph nodes run in parallel?",
+    "A": "A reducer defines how multiple updates to a state field combine. Replacing a value, appending messages, and merging keyed results are different semantics. Parallel branches need a declared merge rule rather than assuming the last writer is correct.",
+    "Why": "Give parallel updates explicit merge semantics through compatible reducers. Decide whether lists append, records replace, or conflicts fail; persistence alone does not define a safe merge.",
+    "Risk": "An append reducer can duplicate retries, and a merge can combine evidence from incompatible revisions or scopes. A reducer is not a distributed database transaction.",
+    "Trade": "Explicit merge rules support parallel work and require identity, ordering, and replay discipline. Sequential nodes avoid some conflicts at the cost of latency.",
+    "Try": "Design a reducer for evidence keyed by source, revision, and chunk ID. Show how repeated delivery avoids duplicating the same item.",
+    "reference": "https://docs.langchain.com/oss/python/langgraph/graph-api"
+  },
+  {
+    "Q": "What is a checkpoint, and how is it different from a business commit?",
+    "A": "A checkpoint stores workflow state so execution can resume or be inspected. A business commit makes an authoritative business transition durable. A checkpoint can refer to a completed operation, but saving it does not atomically commit another service's database transaction.",
+    "Why": "Treat checkpoints as workflow progress records. Reconcile them with authoritative operation status after crashes, because checkpoint persistence and a separate business transaction may not commit together.",
+    "Risk": "On resume, a node may retry an already-completed side effect. An in-memory saver demonstrates state handling only within its lifetime and is not a durable production guarantee.",
+    "Trade": "Durable checkpoints support recovery and require storage, retention, access policy, and schema evolution. Pure in-memory graphs are easier for local experiments.",
+    "Try": "Draw a crash after business commit but before checkpoint save. Specify how an operation ID lets the resumed node discover the existing result.",
+    "reference": "https://docs.langchain.com/oss/python/langgraph/persistence"
+  },
+  {
+    "Q": "How does a human-review interrupt differ from authorization?",
+    "A": "An interrupt pauses workflow progress and exposes a question or proposed action for review. Authorization determines whether the identity resuming it is permitted to approve that exact action. A resume payload saying approved is untrusted unless the server validates its actor and scope.",
+    "Why": "Pause execution for input or review, then validate the resumed principal and approval against current business state. A resume command is control flow, not authorization.",
+    "Risk": "Guessable or cross-user thread access can resume another person's workflow. Material edits after review can invalidate what was approved even if the resume token is technically valid.",
+    "Trade": "Human pauses reduce accidental actions while adding persistence and expiry management. For low-risk reads they may be unnecessary.",
+    "Try": "Bind a proposed review to user, payload hash, operation ID, and expiry. Test an unauthorized resume and a changed amount.",
+    "reference": "https://docs.langchain.com/oss/python/langgraph/interrupts"
+  },
+  {
+    "Q": "Why must code before an interrupt or retry be safe to execute again?",
+    "A": "Resuming or recovering a workflow may re-enter node code. Work performed before the pause can therefore repeat. Deterministic computation is usually safe; sending a notification or creating a service request needs a durable idempotent operation boundary.",
+    "Why": "Put nondeterministic and side-effecting work behind replay-safe boundaries. Use durable operation keys and test the crash window after an effect but before checkpoint completion.",
+    "Risk": "Repeating a preparation can leave multiple live tokens; repeating an external notification can confuse the user. A cached Python return value is not enough across process crashes.",
+    "Trade": "Smaller nodes with explicit side-effect tasks improve replay reasoning and add orchestration detail. One large node is shorter and harder to recover safely.",
+    "Try": "Put a harmless counter and a mock external action before a teaching interrupt. Observe replay, then move the action behind an idempotent service contract.",
+    "reference": "https://docs.langchain.com/oss/python/langgraph/interrupts"
+  },
+  {
+    "Q": "How should graph retries and timeouts be layered?",
+    "A": "Retry only failures likely to recover, with bounded attempts and an overall deadline. A node retry, provider retry, database retry, and client retry can multiply each other. Track the full operation budget and avoid retrying invalid authorization or schema errors.",
+    "Why": "Layer node retries, provider retries, and task deadlines deliberately. Count all attempts in one budget and classify business rejection separately from transient infrastructure failure.",
+    "Risk": "Nested retries amplify load and can execute write nodes repeatedly. A model timeout also does not prove the provider or remote agent stopped processing.",
+    "Trade": "Local resilience helps transient failures, while a simpler centralized budget is easier to reason about. Use stage-specific policy with one overall ceiling.",
+    "Try": "Calculate worst-case attempts for two client retries, three node attempts, and four provider attempts. Replace that accidental multiplier with an explicit budget."
+  },
+  {
+    "Q": "Can graph private state be streamed safely by default?",
+    "A": "Do not assume a private schema is a redaction policy. A framework may stream internal state or custom events depending on mode. Define an application event projection that allowlists public fields and removes private evidence, identity, and credentials.",
+    "Why": "Project only approved fields into public events. State needed for internal coordination can include private evidence, tool arguments, or identifiers that should not be streamed.",
+    "Risk": "Forwarding raw values or updates can expose claim details or internal analysis. A UI that hides a field visually has still received it over the network.",
+    "Trade": "Allowlisted projections take adapter work and preserve privacy across framework updates. Raw graph streaming is convenient for development diagnostics only under controlled access.",
+    "Try": "Insert a synthetic private field into graph state and inspect every chosen stream mode. Verify the public SSE adapter never emits it.",
+    "reference": "https://docs.langchain.com/oss/python/langgraph/streaming"
+  },
+  {
+    "Q": "How should graph state and checkpoints evolve across deployments?",
+    "A": "Version state schemas and maintain readers or migrations for active checkpoints. A suspended service workflow may resume after code changes, so renamed fields, changed node semantics, and new authorization requirements need compatibility handling.",
+    "Why": "Version checkpoint schemas and migrate or isolate old threads deliberately. Test resume with old artifacts after deployment, and prevent incompatible readers from silently interpreting changed state fields.",
+    "Risk": "A resumed old workflow can invoke a new write path with stale assumptions. Authorization should be re-evaluated at action time rather than frozen indefinitely in a checkpoint.",
+    "Trade": "Compatibility readers increase maintenance and preserve resumability. Expiring old workflows simplifies migration but must communicate how users restart safely.",
+    "Try": "Design a v1-to-v2 checkpoint migration that adds rule revision and payload hash before confirmation. Specify what happens if the old evidence no longer exists."
+  },
+  {
+    "Q": "When is LangGraph a better choice than ADK or a plain function?",
+    "A": "Choose it when explicit state transitions, branching, durable pause/resume, or inspectable parallel work solve a real product requirement. Keep a plain function for deterministic small operations and consider retaining ADK when flexible tool routing already meets the need.",
+    "Why": "Evaluate transitions, terminal outcomes, approvals, replay, and cost under realistic failures. A passing graph visualization or one happy-path invocation does not establish business reliability.",
+    "Risk": "Introducing a graph solely to draw a more impressive architecture can add persistence and deployment obligations without improving outcomes. More orchestration layers can also fragment traces and ownership.",
+    "Trade": "Explicit workflow control is valuable when recovery and review dominate. Simpler code is preferable when the path is short and has no durable pauses.",
+    "Try": "Write a decision record for one proposed graph workflow and one operation you deliberately keep as a normal function. Defend both choices."
+  }
+]

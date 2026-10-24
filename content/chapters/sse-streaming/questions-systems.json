@@ -1,0 +1,33 @@
+[
+  {
+    "Q": "How should a streaming API distinguish generated text, persisted answers and successful task completion?",
+    "A": "**These are separate facts.** A model can generate text before the application saves it. A saved message can describe a failed business operation. A connection can close without a terminal application event. Define explicit fields for generation outcome, persistence outcome and domain-operation outcome instead of overloading one success boolean.\n\n**Make terminal semantics part of the application protocol.** Server-Sent Events (SSE) define an event framing and reconnection transport, not what your product considers a completed answer. Use a typed final event with task identity, status, persisted message identifier when available, source references and safe error information. If the product promises a durable answer at completion, commit the answer before emitting a successful terminal event.\n\n**Represent persistence failures honestly.** If text was generated but storage failed, the UI may keep a clearly marked unsaved draft and offer an appropriate retry or reconciliation path. Do not enable feedback with a fabricated message identifier. Avoid regenerating the entire answer just to retry persistence; preserve the generated artifact under a task identity when the architecture permits safe recovery.\n\n**Handle transport loss independently.** A server can emit one terminal event and the client can still miss it. Clients need a status lookup or replay contract where continuity matters. Treat end-of-file without terminal evidence as interrupted or unknown, not successful. Exactly one logical terminal state is an application invariant; its delivery may be at least once, so clients must deduplicate. The example models server-side completion fields without pretending to run an HTTP server.",
+    "Why": "A browser displays a complete paragraph, then the database write fails. The terminal event reports generated text with failed persistence and no message ID; the UI retains an unsaved draft and disables persisted-message feedback.",
+    "worked_case": "A browser displays a complete paragraph, then the database write fails. The terminal event reports generated text with failed persistence and no message ID; the UI retains an unsaved draft and disables persisted-message feedback.",
+    "Risk": "Equating a closed socket with a completed operation causes false success and feedback against nonexistent records.",
+    "Trade": "Commit-before-terminal adds storage latency but makes durable-completion promises meaningful.",
+    "Try": "Test generated-but-unsaved, saved-but-terminal-lost and failed-domain-action cases. Define the UI state and retry action for each.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "sse-streaming",
+    "citations": [
+      "https://html.spec.whatwg.org/multipage/server-sent-events.html",
+      "https://www.sqlite.org/lang_transaction.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should persistence failure always discard visible text?",
+        "A": "That is a product decision. Keeping it as an explicitly unsaved draft can preserve user work, but the client must not present it as durable history or invent feedback references."
+      },
+      {
+        "Q": "Does a terminal event guarantee the client received it?",
+        "A": "No. Durable status and replay are needed to reconcile lost delivery. A successful send call does not prove the browser processed the event."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

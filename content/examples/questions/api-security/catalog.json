@@ -1,0 +1,103 @@
+[
+  {
+    "name": "jwt-signature-audience-validator",
+    "filename": "jwt-signature-audience-validator.py",
+    "language": "python",
+    "explain": "A production JWT validator enforces cryptographic HMAC signatures, not-before and expiration time bounds, issuer and audience claims to defeat confused-deputy attacks, and token revocation blocklists.",
+    "steps": "Verify cryptographic signatures and enforce explicit algorithm allowlists. || Assert expiration and not-before claims within clock skew thresholds. || Enforce exact issuer and audience matches to defeat confused-deputy attacks. || Check token identifiers against distributed revocation blocklists.",
+    "expect": "Production JWT signature, audience, and revocation validation verified successfully.",
+    "questions": [
+      521,
+      181,
+      858,
+      994
+    ]
+  },
+  {
+    "name": "browser-cookies-cors-csrf",
+    "filename": "browser-cookies-cors-csrf.py",
+    "language": "python",
+    "explain": "Browser security controls combine HttpOnly, Secure, and SameSite cookie attributes with CORS preflight handlers and synchronizer anti-CSRF tokens for state-mutating requests.",
+    "steps": "Construct hardened Set-Cookie headers with HttpOnly, Secure, and SameSite attributes. || Handle CORS preflight OPTIONS requests with explicit Origin allowlists. || Require and validate synchronizer anti-CSRF tokens on state-mutating HTTP methods.",
+    "expect": "Browser cookie controls, CORS preflight, and CSRF token defenses verified successfully.",
+    "questions": [
+      522,
+      724,
+      182
+    ]
+  },
+  {
+    "name": "contextvar-identity-tenant-isolation",
+    "filename": "contextvar-identity-tenant-isolation.py",
+    "language": "python",
+    "explain": "ContextVar isolates authenticated caller identity across concurrent async tasks, distinguishing global RBAC roles from object-level resource ownership while preventing model-injected identity spoofing.",
+    "steps": "Propagate authenticated identity via ContextVar across asynchronous task execution boundaries. || Enforce object-level resource ownership in database queries independently from global RBAC roles. || Bind tools strictly to ContextVar principal, completely ignoring model-supplied user parameters.",
+    "expect": "ContextVar identity isolation, RBAC vs ownership, and model spoofing defenses verified successfully.",
+    "questions": [
+      520,
+      523,
+      183,
+      184,
+      185,
+      412
+    ]
+  },
+  {
+    "name": "password-hashing-argon2-timing",
+    "filename": "password-hashing-argon2-timing.py",
+    "language": "python",
+    "explain": "Production password security uses high-iteration salted key derivation, constant-time verification to prevent timing attacks, and automatic rehash detection for work factor upgrades.",
+    "steps": "Derive cryptographic password hashes using unique random salts and recommended iteration counts. || Perform constant-time hash comparisons using hmac.compare_digest to eliminate timing side channels. || Detect outdated iteration counts upon successful verification and upgrade hashes automatically.",
+    "expect": "Password hashing, timing attack defense, and rehash migration verified successfully.",
+    "questions": [
+      186
+    ]
+  },
+  {
+    "name": "capability-confirmation-tokens",
+    "filename": "capability-confirmation-tokens.py",
+    "language": "python",
+    "explain": "High-impact actions require HMAC-signed capability confirmation tokens that cryptographically bind the action, target, operator, and parameters, enforcing single-use replay protection.",
+    "steps": "Issue signed capability tokens embedding action, target, operator, and SHA-256 parameter hashes. || Verify token cryptographic signatures and short-lived expiration deadlines. || Detect parameter tampering and prevent replay attacks by recording consumed capability nonces.",
+    "expect": "Capability confirmation tokens and parameter tamper-proofing verified successfully.",
+    "questions": [
+      187
+    ]
+  },
+  {
+    "name": "layered-limits-token-budgets",
+    "filename": "layered-limits-token-budgets.py",
+    "language": "python",
+    "explain": "Layered protection combines pre-parsing HTTP request size bounds, token-bucket sliding-window rate limiters, and per-turn agent tool execution budgets.",
+    "steps": "Reject oversized HTTP payloads prior to memory allocation with 413 Payload Too Large. || Smooth traffic bursts and shed excess load using a token-bucket rate limiter returning 429. || Enforce agent tool execution budgets to prevent infinite model recursion and runaway inference token costs.",
+    "expect": "Layered limits: Request sizes, rate limits, and agent tool budgets verified successfully.",
+    "questions": [
+      188,
+      418
+    ]
+  },
+  {
+    "name": "ssrf-dns-resolution-defense",
+    "filename": "ssrf-dns-resolution-defense.py",
+    "language": "python",
+    "explain": "Server-Side Request Forgery defense validates outbound URL schemes, performs pre-flight DNS resolution, blocks loopback, private subnets, and cloud metadata (169.254.169.254), and pins safe IPs to prevent DNS rebinding.",
+    "steps": "Enforce an HTTPS-only scheme allowlist and reject non-HTTP schemes. || Perform pre-flight DNS resolution on target hostnames before socket initialization. || Block loopback, RFC 1918 private subnets, and link-local cloud metadata IP ranges. || Pin the validated IP address to the outbound socket connection to eliminate DNS rebinding.",
+    "expect": "SSRF pre-flight DNS validation and cloud metadata defenses verified successfully.",
+    "questions": [
+      725,
+      25
+    ]
+  },
+  {
+    "name": "safe-error-responses-threat-model",
+    "filename": "safe-error-responses-threat-model.py",
+    "language": "python",
+    "explain": "Safe error handling returns uniform 404 responses to eliminate resource enumeration, redacts internal stack traces and database credentials, and evaluates vulnerabilities using the STRIDE threat model.",
+    "steps": "Return uniform 404 Not Found outcomes for missing and unauthorized resources to prevent enumeration. || Redact database connection strings, SQL queries, and stack traces from client responses while logging correlation IDs. || Produce structured STRIDE threat modeling matrices identifying vulnerabilities, impact, and mitigations.",
+    "expect": "Safe error responses, enumeration defense, and STRIDE threat modeling verified successfully.",
+    "questions": [
+      189,
+      190
+    ]
+  }
+]

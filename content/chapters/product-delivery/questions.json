@@ -1,0 +1,155 @@
+[
+  {
+    "Q": "What is the public SSE contract, and why should the browser not parse raw ADK internals?",
+    "A": "**The browser should consume an application-owned event contract**, such as task identity, sequence, progress, bounded text, citations, error and a terminal state. An adapter translates framework-specific events into that stable contract. Raw ADK internals can change version, expose tool arguments or leak private state; the frontend must not infer user success from an undocumented internal event. Define whether the actual wire framing is SSE or NDJSON and parse it accordingly.\n\n**An interface should make system state understandable while the server remains authoritative.** Distinguish pending, partial, completed, unsupported, failed and cancelled results. Show source provenance and limitations alongside fluent prose. A spinner cannot stand in for a task-state contract, and hiding another owner's record in the browser does not undo the disclosure if it already arrived over the network.\n\nAuthentication establishes identity; object-level authorization decides access to each task, source and effect. The workbench uses public synthetic fixture identities and is not a real login system. A production cookie session needs a CSRF policy for state-changing requests, secure cookie settings and server-side expiry/revocation. A bearer-token design needs safe storage, transport and issuer/audience validation. Never embed provider secrets in a static build or assume CORS is authentication.\n\nOn logout or owner change, clear visible answer/citation state, invalidate client caches and ignore old callbacks. Scope server caches and reads independently. Render model/source text as text, not trusted HTML; a content security policy is additional defense rather than a reason to use unsafe insertion. Do not put tokens in URLs or ordinary logs. Browser-only checks cannot authorize a tool operation.\n\nMeasure useful performance: build size, initial interaction, first visible response, final completion, render/update count and long tasks under a stated device/network/fixture. A fast localhost response is not evidence of fleet capacity. Run behavioral browser tests over the actual compiled UI and HTTP server, including malformed stream, unsupported query, cancellation, owner swap and literal HTML-looking text. Keep semantic accessibility review and real authentication integration as explicit extensions with their own evidence, rather than pretending a demo-token selector implements production security.",
+    "Why": "A hidden B citation still appears in the network response to A. The correct repair scopes the server query before returning data; clearing the UI or adding a client filter does not repair the confidentiality breach.",
+    "Risk": "Static frontend bundles and source maps are public. Embedding a provider key or treating a demo identity selector as authentication makes every visitor capable of impersonation.",
+    "Trade": "Rich HTML can improve presentation but increases sanitization and injection complexity. Text rendering plus explicit trusted components is a safer default for untrusted model/source output.",
+    "Try": "Inspect the workbench network response for an owner swap and literal HTML payload. Record first-response and completion separately, then state why the timing cannot predict concurrent production capacity.",
+    "worked_case": "A hidden B citation still appears in the network response to A. The correct repair scopes the server query before returning data; clearing the UI or adding a client filter does not repair the confidentiality breach.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Does a disabled Approve button protect a write endpoint?",
+        "A": "No. It is a usability control. The server must verify principal, exact operation arguments, business state and approval on every request, including requests sent outside the interface."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "product-delivery"
+  },
+  {
+    "Q": "How should a browser parse streaming chunks correctly?",
+    "A": "Buffer bytes across network reads, decode incrementally, split complete SSE frames, parse their JSON, and retain any unfinished suffix. A network chunk may contain half a JSON object or several events; it is not an event boundary.",
+    "Why": "Decode UTF-8 incrementally and accumulate SSE fields through the blank-line delimiter. Validate the completed event payload separately and test every relevant network fragmentation boundary.",
+    "Risk": "Naive JSON.parse on each read loses events or fails on multibyte characters. Error recovery must also distinguish a malformed event from a clean terminal completion.",
+    "Trade": "A small parser handles a narrow contract; a mature SSE client can cover more protocol details. Test the actual API framing and reconnection requirements.",
+    "Try": "Feed the same stream split at every possible byte boundary, including inside Unicode text. Verify identical parsed events.",
+    "spoken": "Decode bytes incrementally, preserve partial UTF-8 state and parse the transport’s actual event framing before parsing JSON. Track operation identity, sequence/replay, partial content and explicit completion separately. Bound buffers and reject malformed or conflicting events.",
+    "domain": "frontend",
+    "subdomain": "streaming-ui",
+    "module": "product-delivery",
+    "concept": "How should a browser parse streaming chunks correctly",
+    "difficulty": "implementation",
+    "misconception_target": "Streaming UI is just showing text as it arrives",
+    "definitions": [
+      {
+        "term": "UI state machine",
+        "definition": "Tracks request state across loading, streaming, complete, and error"
+      },
+      {
+        "term": "Citation rendering",
+        "definition": "Displaying source passages alongside generated answers"
+      },
+      {
+        "term": "Reconnection",
+        "definition": "Resuming a stream after a connection drop"
+      }
+    ],
+    "execution_timeline": "User submits -> Loading state -> Stream begins -> Handle chunks -> Complete or error -> Reconnect if needed",
+    "example": {
+      "code": "const states = { LOADING, STREAMING, COMPLETE, ERROR };\\nlet current = states.LOADING;\\nfunction onChunk(text) { current = states.STREAMING; append(text); }\\nfunction onError(err) { current = states.ERROR; showError(err); }",
+      "explanation": "Track state transitions for streaming UI.",
+      "output": "UI state transitions correctly"
+    },
+    "production_case": "An accented character and a JSON delimiter arrive in different network chunks. A streaming decoder plus framing buffer reconstructs the event; per-chunk JSON parsing fails.",
+    "alternatives": [
+      "Polling for updates",
+      "Server-sent events without state machine"
+    ],
+    "pitfalls": [
+      "Losing state on reconnect",
+      "No error state handling",
+      "Citations not matched to text"
+    ],
+    "complexity": "Decoder/reducer work depends on bytes, events and retained history; immutable copies and rendering can add growing cost. Bound buffers and batch visible updates after measuring responsiveness.",
+    "follow_ups": [
+      {
+        "Q": "Does a fetch chunk correspond to one SSE event?",
+        "A": "No. Network chunk boundaries are arbitrary. SSE fields and blank-line framing need a compatible parser."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/EventSource"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "Why do persisted message IDs matter for feedback?",
+    "A": "Feedback should reference an actual assistant message owned by the user, not a temporary browser-generated ID. The backend can then authorize the record and connect a rating to its conversation, evidence, model configuration, and trace.",
+    "Why": "Bind feedback to an owner-scoped persisted answer or operation. A client-supplied message ID must not allow another user to label or retrieve private conversation data.",
+    "Risk": "Rating an optimistic local ID can fail or attach feedback to the wrong turn. A persistence failure may leave partial text visible but no authoritative message to rate.",
+    "Trade": "Waiting for server identity adds a final synchronization step and preserves referential integrity. Client-only messages are easy to render and weak as durable references.",
+    "Try": "Simulate a stream that generates text but fails persistence. Define whether feedback is disabled and how retry behaves without duplicating the displayed answer."
+  },
+  {
+    "Q": "What should the UI state machine distinguish during a turn?",
+    "A": "Distinguish draft, accepted, searching or tooling, generating, completed, failed, cancelled, and disconnected. Track evidence and persistence status separately where needed. A spinner stopping is not proof that the model completed successfully.",
+    "Why": "Use explicit waiting, running, streaming, review, complete, incomplete, failed, and cancelled states. Transitions should follow typed outcomes rather than the presence of some generated text.",
+    "Risk": "Treating every closed connection as completion can show truncated service requests as final. Late responses from a prior conversation or signed-out user can also contaminate current state.",
+    "Trade": "Explicit states add frontend logic and improve recovery. A single loading boolean is compact and cannot represent the important distinctions.",
+    "Try": "Create a reducer for stream events and test disconnect before completion, tool failure, persistence failure, cancellation, and a late event after tenant or conversation change."
+  },
+  {
+    "Q": "How should request confirmation be presented and protected in the UI?",
+    "A": "Display the exact prepared fields, identify that no claim is yet submitted, and send the token through the authenticated confirmation route only after the user's action. Disable duplicate controls for usability while retaining server-side race protection.",
+    "Why": "Present exact parameters, operation identity, expiry, and revision. Disable misleading repeated actions in the UI, but rely on server-side approval validation and transactional idempotency for correctness.",
+    "Risk": "Corrections can leave old pending tokens valid unless the server supersedes them. The UI must not promise revocation that only exists in prompt text.",
+    "Trade": "A review screen adds friction and supports consent to material fields. The authoritative check must remain on the server because browsers can retry or be bypassed.",
+    "Try": "Test double click, refresh, expired token, cancellation race, and correction after preparation. Compare displayed state with the actual submission record."
+  },
+  {
+    "Q": "How should browser caching respond to sign-out, role changes, and archived conversations?",
+    "A": "Partition cached results by trusted user and relevant resource identity, cancel or ignore obsolete in-flight responses, and clear private state at sign-out. Revalidate permissions for source opening and mutation even if a cached view once allowed access.",
+    "Why": "Invalidate or partition client caches by authenticated identity and permission revision. Cancel streams and clear private view state on sign-out, while retaining server-side ownership checks on every fetch.",
+    "Risk": "Reusing query keys across users can show private content without making a new unauthorized request. Hidden or archived messages can also remain in model context unless their lifecycle is mapped deliberately.",
+    "Trade": "Aggressive invalidation costs network requests and preserves clear session boundaries. Long-lived caches improve responsiveness and need stronger partitioning and freshness rules.",
+    "Try": "Switch users during a slow stream and verify no old message, source, or confirmation token appears in the new user's interface."
+  },
+  {
+    "Q": "How should citations and tool activity be rendered accessibly and safely?",
+    "A": "Render untrusted text safely, expose expandable source details by keyboard, use meaningful labels, and avoid announcing every token to assistive technology. Show user-relevant activity without exposing internal prompts, private tool arguments, or raw exception data.",
+    "Why": "Render model text as text or a sanitized approved subset. Validate links and avoid treating returned HTML or tool output as trusted application markup.",
+    "Risk": "Raw HTML or unsafe URLs can create XSS, and a busy live region can make streaming unusable. A similarity distance should not be displayed as percent certainty.",
+    "Trade": "Progressive disclosure reduces overload but must keep verification discoverable. Detailed internal traces belong in authorized operator tools, not the customer screen.",
+    "Try": "Review a synthetic answer using only the keyboard and a screen reader. Include malicious markup and long source titles in the fixture."
+  },
+  {
+    "Q": "How should client retries preserve operation identity?",
+    "A": "Reuse one idempotency key for retries of the same logical request, but create a new operation for a genuinely changed request. Record whether the server accepted or completed it. Claim confirmation should rely on its own token and durable state, not a generic chat response cache.",
+    "Why": "Preserve a durable operation key across retries and distinguish request deduplication from business idempotency. After an uncertain outcome, query status rather than restarting a write blindly.",
+    "Risk": "Reusing a key with a changed body should fail rather than replay another answer. Retrying a long-running request after a best-effort Redis wait can still duplicate model calls.",
+    "Trade": "Explicit operation identity requires lifecycle handling and supports predictable retries. Automatically retrying all failures is easy and can repeat expensive work.",
+    "Try": "Test same key/same body, same key/changed body, new key/same body, and an ambiguous timeout. Document behavior for chat versus confirmation."
+  },
+  {
+    "Q": "How should frontend, API, and agent contracts be tested together?",
+    "A": "Use a small set of full user journeys plus focused contract tests for events, ownership, persistence IDs, and confirmation effects. Fake providers make UI tests deterministic; separate live-provider tests assess actual model behavior.",
+    "Why": "Expose a stable API error and outcome schema across frontend and backend. Version incompatible changes and test clients against missing, delayed, duplicate, and unknown event types.",
+    "Risk": "A mocked stream that always ends successfully cannot reveal cancellation or malformed-event behavior. Live model tests alone are too variable for every UI assertion.",
+    "Trade": "Layered tests provide fast diagnosis and credible integration coverage. Excessive end-to-end duplication raises cost without necessarily testing new behavior.",
+    "Try": "Define five journeys: cited answer, corrected preparation, denied foreign claim, failed stream, and post-restart history. State the provider and database realism each needs."
+  },
+  {
+    "Q": "What should the completed portfolio demonstration show?",
+    "A": "Show one coherent user journey across authentication, evidence retrieval, streaming, source verification, request preparation, confirmation, background indexing, and feedback. Then demonstrate a denial and a recovery case with supporting traces and tests.",
+    "Why": "Demonstrate identity, evidence, approved effects, cancellation, restart recovery, and quality measurement in one coherent journey. Use synthetic data and show a failure as well as success.",
+    "Risk": "A polished recording can hide unimplemented handoff, current-only policy scope, or in-memory deployment state. State those limitations and show the effective configuration.",
+    "Trade": "A narrow reliable application is more persuasive than many unverified agent features. Add remote agents or model adaptation only when the measured problem justifies them.",
+    "Try": "Prepare a ten-minute demo with architecture, one successful task, one adversarial denial, one crash recovery, and a held-out quality/cost report."
+  }
+]

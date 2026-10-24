@@ -1,0 +1,69 @@
+[
+  {
+    "name": "remote-task-lifecycle",
+    "filename": "remote-task-lifecycle.py",
+    "language": "python",
+    "explain": "Demonstrates the Agent-to-Agent (A2A) remote task lifecycle, distinguishing A2A from local MCP tools and deterministic REST APIs. Shows progressive execution states (SUBMITTED -> WORKING -> COMPLETED), interim artifact generation during long-running tasks, and safely reconciling early artifacts before terminal state transition.",
+    "steps": "Submit an asynchronous task to a remote specialist agent with unique task identity. || Handle interim artifacts received while the task is in WORKING status and mark them provisional. || Receive terminal authoritative artifacts upon completion and commit verified results.",
+    "expect": "Testing A2A Task Lifecycle and Early Artifact Reconciliation:\n  [Interim Artifact] Recorded art_interim_task_e (report/draft) while task is WORKING\n  [Terminal Artifact] Authoritative result art_final_task_e committed.\n\nA2A Orchestration Result:\n{\n  \"task_id\": \"task_ee6157961048\",\n  \"final_state\": \"COMPLETED\",\n  \"total_artifacts\": 2,\n  \"provisional_handled\": true,\n  \"final_artifact_id\": \"art_final_task_e\"\n}\n\nA2A task lifecycle and early artifact reconciliation verified successfully.",
+    "questions": [
+      636,
+      221,
+      222,
+      224,
+      851
+    ]
+  },
+  {
+    "name": "agent-card-discovery-auth",
+    "filename": "agent-card-discovery-auth.py",
+    "language": "python",
+    "explain": "Demonstrates the essential architectural separation between public Agent Card discovery metadata and runtime cryptographic authorization. The Agent Card advertises protocol schemas and endpoints publicly without granting execution authority; the perimeter gate requires HMAC-signed delegated JWTs with exact audience matching and downscoped scope enforcement.",
+    "steps": "Inspect public Agent Card discovery metadata without authentication credentials. || Reject unauthenticated capability invocations and confused-deputy tokens with mismatched audience claims. || Issue and verify a downscoped delegation token, proving that read-only tokens cannot execute mutation capabilities.",
+    "expect": "1. Discovery Metadata Inspection:\n  Agent Name: corporate-security-auditor\n  Capabilities: ['audit_iam_roles', 'revoke_excessive_keys']\n  Auth Scheme: oauth2_bearer\n\n2. Invoking without Authentication Token:\n  Successfully blocked unauthenticated invocation: 401 Unauthorized: Bearer delegation token required for capability execution\n\n3. Testing Audience Verification (Confused-Deputy Defense):\n  Successfully blocked wrong-audience token: Audience mismatch: expected 'https://security-specialist.corp.internal', got 'https://billing-service.corp.internal'\n\n4. Testing Downscoped Delegation Enforcement:\n  Successfully blocked out-of-scope mutation: 403 Forbidden: Missing required scope 'iam:keys:revoke'. Granted: {'iam:audit:read'}\n\n5. Authorized Execution with Downscoped Token:\n  Execution result: SUCCESS by alice@corp.com\n\nAgent Card discovery vs cryptographic authorization verified successfully.",
+    "questions": [
+      637,
+      223,
+      776,
+      225
+    ]
+  },
+  {
+    "name": "remote-cancellation-idempotency",
+    "filename": "remote-cancellation-idempotency.py",
+    "language": "python",
+    "explain": "Demonstrates remote task idempotency, network timeout status reconciliation, and effect-aware cooperative cancellation. Preserving deterministic task IDs prevents duplicate agent executions on retries; cooperative cancellation stops future execution while maintaining explicit audit records separating committed irreversible actions from aborted steps.",
+    "steps": "Dispatch remote tasks using client-generated idempotency keys. || Reconnect and reconcile authoritative task state after simulated network timeouts without duplicating work. || Issue cooperative cancellation requests and assert that irreversible side-effects remain recorded while future mutations are halted.",
+    "expect": "Executing remote task with ID: task_fin_report_9901\n\nAuthoritative Remote Task State:\n  Status: CANCELLED\n  Service Invocation Count for ID: 2 (Idempotent duplicate caught)\n  Committed Irreversible Effects: ['SEND_CUSTOMER_EMAIL_RECEIPT']\n  Aborted Steps: ['COMMIT_DATABASE_LEDGER_UPDATE']\n\nRemote cancellation and idempotent retry reconciliation verified successfully.",
+    "questions": [
+      638,
+      226,
+      227
+    ]
+  },
+  {
+    "name": "remote-artifact-sandboxing",
+    "filename": "remote-artifact-sandboxing.py",
+    "language": "python",
+    "explain": "Demonstrates defense-in-depth sandboxing and validation for remote A2A artifacts. Enforces cryptographic SHA-256 digest validation, path traversal filename sanitization, payload size ceilings, and indirect prompt-injection detection to prevent remote specialist outputs from compromising local coordinators.",
+    "steps": "Detect and neutralize directory traversal attacks in artifact filenames. || Validate cryptographic SHA-256 hashes against signed manifests and reject tampered payloads. || Detect indirect prompt-injection instructions embedded in specialist reports and isolate content within XML boundary tags.",
+    "expect": "1. Path Traversal Neutralization:\n  Attempted filename: '../../etc/cron.d/root_backdoor'\n  Safely resolved path: '<sandbox_dir>/root_backdoor'\n\n2. Cryptographic Integrity Validation:\n  Successfully rejected corrupt payload: Integrity check failed: expected 0000000000000000000000000000000000000000000000000000000000000000, got f1f6dad130c6e42bac28c51fffb1954d3c5a62355b45769c42fda5b7745db53f\n\n3. Indirect Prompt Injection Neutralization:\n  Prompt injection detected: True\n  Neutralized XML View:\n<untrusted_remote_artifact format='text'>\n# Vulnerability Assessment\nTarget system analyzed: 2 warnings found.\n[REDACTED_POTENTIAL_INJECTION: SYSTEM OVERRIDE: IGNORE ALL PR...]\nConclusion: Minor patching recommended.\n</untrusted_remote_artifact>\n\nRemote artifact sandboxing and prompt-injection defense verified successfully.",
+    "questions": [
+      639,
+      777,
+      228
+    ]
+  },
+  {
+    "name": "distributed-trace-propagation",
+    "filename": "distributed-trace-propagation.py",
+    "language": "python",
+    "explain": "Demonstrates distributed W3C Trace Context propagation across A2A agent boundaries alongside architectural justification analysis. Formats and parses standard traceparent headers to link remote child spans to root coordinator traces, and evaluates whether a multi-agent architecture is justified over a local service baseline.",
+    "steps": "Mint standard W3C traceparent headers and propagate them across cross-service agent requests. || Extract incoming traceparent context on the remote specialist and establish linked child spans with identical trace IDs. || Evaluate operational requirements to determine whether multi-agent delegation or local code services should be chosen.",
+    "expect": "1. Distributed Trace Propagation Across A2A Boundary:\n  Root Span ID: 2a4915f5587b4c91\n  Traceparent Header: 00-2cbd4af3b19241a0962a8e205ef7dfbd-2a4915f5587b4c91-01\n  Remote Child Span ID: 2a4915f5587b4c92\n  Remote Parent Span ID: 2a4915f5587b4c91\n  Root and Child Trace IDs Match: True\n\n2. Multi-Agent Architectural Justification Analysis:\n  Scenario A (Simple Record Lookup): LOCAL_SERVICE_BASELINE_RECOMMENDED\n  Scenario B (Cross-Org Compliance Audit): MULTI_AGENT_A2A_JUSTIFIED\n\nDistributed trace propagation and architecture evaluation verified successfully.",
+    "questions": [
+      229,
+      230
+    ]
+  }
+]

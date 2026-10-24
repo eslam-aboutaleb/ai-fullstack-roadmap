@@ -1,0 +1,113 @@
+[
+  {
+    "name": "utf8-incremental-decoder",
+    "filename": "utf8-incremental-decoder.py",
+    "language": "python",
+    "explain": "Demonstrate incremental multibyte UTF-8 byte stream decoding across arbitrary network chunk boundaries. Prevents Unicode replacement character corruption when multibyte characters span packet splits.",
+    "steps": "Slice encoded multibyte text across every possible byte boundary. || Reassemble byte partitions using a stateful incremental UTF-8 decoder without replacement character corruptions.",
+    "expect": "Incremental UTF-8 decoding verified: all_byte_partitions_passed=True, corruptions=0",
+    "questions": [
+      648,
+      784,
+      272
+    ]
+  },
+  {
+    "name": "sse-protocol-framing",
+    "filename": "sse-protocol-framing.py",
+    "language": "python",
+    "explain": "Implement W3C Server-Sent Events protocol framing and parsing. Folds consecutive multi-line data fields with single newlines, strips comment and heartbeat lines, and dispatches events strictly on double newlines.",
+    "steps": "Format raw SSE wire stream with IDs, custom event names, and multi-line data fields. || Parse wire text, folding multi-line data fields and ignoring comment heartbeats upon double-newline boundaries.",
+    "expect": "SSE protocol framing verified: parsed_events=2, multiline_data_folded=True, heartbeats_ignored=True",
+    "questions": [
+      649,
+      422,
+      424
+    ]
+  },
+  {
+    "name": "fetch-stream-event-consumer",
+    "filename": "fetch-stream-event-consumer.js",
+    "language": "javascript",
+    "explain": "Consume authenticated SSE streams using fetch() and ReadableStreamDefaultReader. Supports POST request bodies, custom Authorization headers, and AbortController cancellation.",
+    "steps": "Initiate POST streaming request with custom Authorization Bearer token headers. || Read binary stream via ReadableStream reader and decode incrementally using TextDecoder with stream true.",
+    "expect": "Fetch streaming consumer verified: headers_supported=true, abort_controller_supported=true",
+    "questions": [
+      423,
+      650
+    ]
+  },
+  {
+    "name": "resumable-event-replay-buffer",
+    "filename": "resumable-event-replay-buffer.py",
+    "language": "python",
+    "explain": "Implement a resumable SSE stream with Last-Event-ID cursor recovery and client token deduplication. Allows disconnected clients to resume from their last received event without dropped or duplicated text.",
+    "steps": "Emit streaming events with monotonic IDs into a server ring buffer. || Simulate client reconnect with Last-Event-ID header, replaying subsequent events and filtering duplicate tokens on the client.",
+    "expect": "Resumable SSE replay verified: reconnected_from_id=4, replayed_events=3, duplicate_tokens=0",
+    "questions": [
+      651,
+      425,
+      786,
+      437
+    ]
+  },
+  {
+    "name": "proxy-buffering-heartbeat",
+    "filename": "proxy-buffering-heartbeat.py",
+    "language": "python",
+    "explain": "Defeat reverse proxy response buffering and load balancer idle connection timeouts. Emits X-Accel-Buffering no headers and periodic heartbeat comment pings during model reasoning pauses.",
+    "steps": "Configure HTTP response headers with X-Accel-Buffering no and Cache-Control no-cache. || Stream tokens interspersed with periodic empty comment heartbeats to keep proxy sockets active.",
+    "expect": "Proxy buffering defense verified: x_accel_buffering=no, heartbeats_emitted=3, socket_flushed=True",
+    "questions": [
+      652,
+      426
+    ]
+  },
+  {
+    "name": "in-band-error-terminal-stream",
+    "filename": "in-band-error-terminal-stream.py",
+    "language": "python",
+    "explain": "Transmit in-band structured error events after HTTP 200 OK headers are committed. Handles mid-flight LLM provider timeouts by emitting structured error frames and closing the socket gracefully.",
+    "steps": "Commit HTTP 200 headers and stream initial delta events over the network socket. || Simulate mid-stream provider timeout, emitting in-band event error with structured JSON and closing the connection cleanly.",
+    "expect": "In-band stream error verified: http_status_committed=200, terminal_event_received=error, clean_termination=True",
+    "questions": [
+      785,
+      429
+    ]
+  },
+  {
+    "name": "unidirectional-sse-lifecycle",
+    "filename": "unidirectional-sse-lifecycle.py",
+    "language": "python",
+    "explain": "Manage unidirectional SSE lifecycles with out-of-band cancellation. Pairs downstream GET event streaming with out-of-band POST cancellation, cooperatively halting background model workers upon abort.",
+    "steps": "Define unidirectional HTTP API contract with GET event streaming and POST cancellation endpoints. || Dispatch out-of-band cancellation POST, asserting that running background workers cooperatively abort.",
+    "expect": "Unidirectional SSE lifecycle verified: stream_method=GET, cancel_method=POST, worker_aborted=True",
+    "questions": [
+      421,
+      427,
+      653
+    ]
+  },
+  {
+    "name": "stream-partition-fuzz-testing",
+    "filename": "stream-partition-fuzz-testing.py",
+    "language": "python",
+    "explain": "Fuzz test stream reassembly across every single byte cut point in a multi-event stream containing Arabic, Chinese, emojis, and JSON payloads without data loss.",
+    "steps": "Partition an encoded multi-byte event stream at every byte offset. || Decode split partitions through an incremental decoder, asserting 100% data integrity across all cut points.",
+    "expect": "Stream partition fuzz test verified: tested_splits=161, success_rate=1.0, data_integrity=100%",
+    "questions": [
+      430
+    ]
+  },
+  {
+    "name": "incremental-sse-parser-boundary",
+    "filename": "incremental-sse-parser-boundary.py",
+    "language": "python",
+    "explain": "Implement an incremental SSE parser handling simultaneous multibyte UTF-8 byte fragmentation and event boundary delimiter splits across network chunks.",
+    "steps": "Feed fragmented byte chunks splitting both 4-byte emojis and double-newline boundaries into an incremental parser. || Accumulate incomplete fragments in remainder buffer and dispatch complete parsed JSON events.",
+    "expect": "Incremental SSE parser boundary verified: multibyte_split_resolved=True, delimiter_split_resolved=True, events_dispatched=2",
+    "questions": [
+      971
+    ]
+  }
+]

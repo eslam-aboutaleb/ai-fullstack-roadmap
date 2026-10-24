@@ -1,0 +1,38 @@
+[
+  {
+    "Q": "Why separate migration and application credentials?",
+    "explain": "Migrations may need to change schema; a normal request handler usually does not. Giving both the same broad role means a compromised request path inherits migration powers. Verify actual grants rather than relying on role names.",
+    "example": "A reporting process can read reviewed views but cannot alter customer records or create tables.",
+    "takeaway": "Different jobs need different authority."
+  },
+  {
+    "Q": "What does parameter binding protect, and what does it leave open?",
+    "explain": "Binding values prevents those values from being interpreted as SQL syntax in their positions. Table names, column names, operators, and whole generated queries still need reviewed contracts and allowlists. Authorization remains a separate requirement.",
+    "example": "Binding a user-supplied string safely does not make SELECT from any requested table an acceptable capability.",
+    "takeaway": "SQL syntax safety is narrower than safe data access."
+  },
+  {
+    "Q": "How does RLS provide an additional barrier?",
+    "explain": "Row policies can restrict which rows a database role may see or change. Test them under the actual non-owner, non-bypass role and trusted transaction-local identity. Consider pooled connection reuse and privileged administrative access explicitly.",
+    "example": "A query missing its application owner predicate still sees only allowed rows when the tested policy applies.",
+    "takeaway": "Defense in depth works only under the role actually executing queries."
+  },
+  {
+    "Q": "Why is deleting a source document not enough?",
+    "explain": "Search chunks, embeddings, summaries, caches, logs, and backups may retain derived information. Decide which must be revoked immediately and which follow an approved retention schedule. Track lineage so cleanup can reach the right artifacts.",
+    "example": "A removed upload should not remain downloadable through an old citation or searchable through a cached embedding result.",
+    "takeaway": "Data lifecycle extends beyond the original file."
+  },
+  {
+    "Q": "Why do database roles matter even with application checks?",
+    "explain": "A database role defines what the connected process may do. Give the runtime only the operations it needs and use a separate controlled role for migrations. Row security can provide another enforcement layer, but owners, privileged roles, and configured bypasses may behave differently. Test the exact runtime role and clear request-specific connection state before returning pooled connections.",
+    "example": "A test passing as a restricted role proves little if production connects as an owner that bypasses the intended policy. Run the same cross-tenant query using the actual role configuration.",
+    "takeaway": "Defense layers work only when their effective identities are verified."
+  },
+  {
+    "Q": "How can a cache or export bypass an otherwise correct permission check?",
+    "explain": "Derived views and caches need the same scope and freshness discipline as primary data. Include trusted tenant, resource scope, policy revision where needed, and data identity in cache design. Recheck authorization when serving a saved artifact, not just when creating it. Bulk exports and background jobs must carry an explicit principal or constrained service identity.",
+    "example": "A shared cache key based only on the question returns a private answer to another tenant. Scope it correctly and invalidate entries when source access changes.",
+    "takeaway": "Authorization follows information into every derived representation."
+  }
+]

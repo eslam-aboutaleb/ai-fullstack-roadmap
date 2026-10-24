@@ -1,0 +1,108 @@
+[
+  {
+    "name": "cascaded-voice-pipeline",
+    "filename": "cascaded-voice-pipeline.py",
+    "language": "python",
+    "explain": "Implement a cascaded voice agent pipeline connecting Voice Activity Detection (VAD), Automatic Speech Recognition (ASR), LLM reasoning, and Text-to-Speech (TTS) synthesis with per-stage latency budgeting and error boundaries.",
+    "steps": "Feed microphone audio frames through energy-based VAD to detect speech boundaries. || Transcribe speech to text, generate agent response tokens, and synthesize audio frames while tracking stage latencies.",
+    "expect": "Cascaded voice pipeline verified: audio_bytes=82, response_phrase='store exchange only', stages_completed=4",
+    "questions": [
+      659,
+      441,
+      442
+    ]
+  },
+  {
+    "name": "partial-transcript-reconciliation",
+    "filename": "partial-transcript-reconciliation.py",
+    "language": "python",
+    "explain": "Handle non-monotonic streaming ASR hypotheses. Enables speculative interim transcript updates for live UI captions while strictly gating consequential backend tool mutations on finalized transcripts.",
+    "steps": "Ingest interim ASR hypotheses to update speculative UI captions without triggering sensitive tools. || Enforce finalization check, executing the committed business action only after receiving the final transcript.",
+    "expect": "Partial transcript reconciliation verified: interim_gated=True, final_executed=True, executed_action='keep_order_active'",
+    "questions": [
+      660,
+      443
+    ]
+  },
+  {
+    "name": "adaptive-turn-detection",
+    "filename": "adaptive-turn-detection.py",
+    "language": "python",
+    "explain": "Implement adaptive conversational turn detection combining acoustic silence duration with syntactic completeness heuristics. Dynamically expands silence windows on incomplete clauses to protect cognitive pauses.",
+    "steps": "Evaluate turn completion on syntactically complete sentences using standard silence thresholds. || Detect incomplete trailing syntax or hesitation, expanding threshold windows to prevent premature user cut-offs.",
+    "expect": "Adaptive turn detection verified: complete_detected=True, hesitation_protected=True, extended_threshold=1200ms",
+    "questions": [
+      661,
+      444
+    ]
+  },
+  {
+    "name": "barge-in-interruption-controller",
+    "filename": "barge-in-interruption-controller.py",
+    "language": "python",
+    "explain": "Coordinate client-server state during user barge-in. Clears local audio buffers, sends cancellation signals to abort backend TTS synthesis, and advances generation epochs to fence out stale audio frames.",
+    "steps": "Detect user speech during active playback, instantly purging local client audio queues. || Abort backend TTS generation and advance the generation epoch to discard delayed stale audio frames.",
+    "expect": "Barge-in interruption controller verified: buffer_purged=True, generation_advanced_to=2, stale_frames_dropped=1, new_turn_accepted=True",
+    "questions": [
+      662,
+      445
+    ]
+  },
+  {
+    "name": "voice-confirmation-policy",
+    "filename": "voice-confirmation-policy.py",
+    "language": "python",
+    "explain": "Enforce formal verification protocols for sensitive voice-driven operations. Distinguishes ASR phonetic confidence from authorization, enforces exact parameter readback, and invalidates confirmations upon parameter changes.",
+    "steps": "Require explicit parameter readback and user confirmation before committing high-risk operations. || Invalidate pending confirmation state when parameters mutate, preventing stale approvals.",
+    "expect": "Voice confirmation policy verified: parameters_verified=True, stale_confirmation_prevented=True, committed_amount=$250.00",
+    "questions": [
+      663,
+      446
+    ]
+  },
+  {
+    "name": "voice-privacy-lifecycle",
+    "filename": "voice-privacy-lifecycle.py",
+    "language": "python",
+    "explain": "Enforce privacy and accessibility governance for voice agents by discarding raw biometric audio in RAM, redacting PII from stored transcripts, and providing an accessible parallel text fallback channel.",
+    "steps": "Process incoming voice audio in RAM and discard raw PCM bytes immediately upon transcription. || Redact credit card numbers and SSNs from transcripts, and fall back to text chat when mic access is denied.",
+    "expect": "Voice privacy lifecycle verified: raw_audio_retained=False, pii_masked=True, text_fallback_available=True",
+    "questions": [
+      665,
+      449
+    ]
+  },
+  {
+    "name": "pcm-audio-frame-calculator",
+    "filename": "pcm-audio-frame-calculator.py",
+    "language": "python",
+    "explain": "Calculate uncompressed PCM audio byte throughput, samples per frame, and jitter buffer sizing across audio configurations, comparing raw PCM bandwidth with compressed Opus streams.",
+    "steps": "Compute uncompressed audio throughput from sample rate, channel count, and bit depth. || Calculate 20ms frame buffer byte allocations and maximum jitter buffer memory budgets.",
+    "expect": "PCM audio frame calculator verified: throughput_16k=32000 B/s, frame_20ms_bytes=640, jitter_buffer_budget=8000 B",
+    "questions": [
+      788
+    ]
+  },
+  {
+    "name": "voice-agent-evaluation-matrix",
+    "filename": "voice-agent-evaluation-matrix.py",
+    "language": "python",
+    "explain": "Evaluate voice agent conversational quality across five critical dimensions: Word Error Rate (WER), Intent Recognition Accuracy, Time to First Audio Frame (TTFA), Barge-in Latency, and Audio Leak Prevention.",
+    "steps": "Benchmark high-quality turns against latency, recognition, and interruption thresholds. || Detect defect runs where high transcription accuracy masks severe barge-in latency or obsolete audio leaks.",
+    "expect": "Voice evaluation matrix verified: benchmark_passed=True, leak_failure_detected=True",
+    "questions": [
+      450
+    ]
+  },
+  {
+    "name": "interruption-lifecycle-reconciliation",
+    "filename": "interruption-lifecycle-reconciliation.py",
+    "language": "python",
+    "explain": "Reconcile decoupled lifecycles between client audio playback and backend tool execution during user barge-in. Proves that stopping speaker audio does not undo committed backend tool transactions, triggering compensating actions.",
+    "steps": "Cancel in-flight backend tool operations when interrupted before database commitment. || Detect interruptions that occur after a tool commits, preserving the transaction receipt and triggering a compensation flow.",
+    "expect": "Interruption lifecycle reconciliation verified: audio_stopped=True, inflight_cancelled=True, committed_compensated=True, receipt_preserved=rec_flight_seat_902",
+    "questions": [
+      973
+    ]
+  }
+]

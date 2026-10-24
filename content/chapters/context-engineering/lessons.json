@@ -1,0 +1,44 @@
+[
+  {
+    "Q": "What information does the next decision actually need?",
+    "explain": "Start from the task, not from everything available. Select the current user intent, trusted constraints, applicable evidence, relevant history, and latest operation outcomes. Record why each block is present so missing context can be diagnosed.",
+    "example": "A request-status answer needs R17's current record, not every previous conversation about refunds.",
+    "takeaway": "Context is a designed input, not an accumulating transcript."
+  },
+  {
+    "Q": "How should tool results enter context?",
+    "explain": "Preserve outcome category and operation identity before compressing large payloads. A failed operation and a completed operation must remain distinguishable after summarization. Store detailed artifacts separately when necessary.",
+    "example": "A tool returned needs_confirmation. The next prompt must not summarize that as request submitted.",
+    "takeaway": "Compress detail without changing state meaning."
+  },
+  {
+    "Q": "How do working memory and durable memory differ?",
+    "explain": "Working memory supports the active task. Durable memory retains reviewed facts or preferences across tasks under explicit ownership, expiry, correction, and deletion rules. Do not silently promote a speculative inference into a lasting customer fact.",
+    "example": "Remembering the preferred language differs from storing an unverified assumption about financial circumstances.",
+    "takeaway": "Persistence increases both usefulness and responsibility."
+  },
+  {
+    "Q": "What is a context manifest useful for?",
+    "explain": "It records source, trust, revision, purpose, and approximate cost for included blocks. You can compare two failed runs and identify whether the relevant fact was absent, outdated, or excluded by the budget.",
+    "example": "The answer failed because source D7 was filtered out, not because the model ignored it. The manifest exposes that distinction.",
+    "takeaway": "Make context selection observable."
+  },
+  {
+    "Q": "When should the assistant ask rather than search again?",
+    "explain": "Ask when the missing fact is the user's intent or a detail only the user can supply. Retrieve when an authorized system can supply it. More searches cannot resolve an ambiguous instruction to cancel it.",
+    "example": "Ask which request the user means instead of searching unrelated private records until one seems plausible.",
+    "takeaway": "Different information gaps need different next actions."
+  },
+  {
+    "Q": "How does a context builder decide what to include?",
+    "explain": "Start from the current task and trusted constraints. Select authorized, applicable information, render it with clear origin labels, reserve output capacity, and record the final request profile. Separate immutable application rules from mutable user intent and untrusted source text. Model context limits do not decide what is relevant or permitted.",
+    "example": "A delivery question needs the order's authorized status and relevant policy, not the customer's entire conversation history. Record why each included block helps answer or constrain the current task.",
+    "takeaway": "Context assembly is a selection policy with accountable origins."
+  },
+  {
+    "Q": "How should memory handle corrections, expiry, and deletion?",
+    "explain": "Treat stored memory as derived data with an owner, source, purpose, validity, and review policy. A correction should supersede the old value rather than leaving two equally current facts. Deletion needs to affect stores, summaries, caches, and future retrieval paths under the declared retention policy. Retrieved memory remains information to validate, not a new authorization grant.",
+    "example": "A user changes their preferred contact channel. Update the canonical preference and invalidate summaries or memories that would reintroduce the earlier value.",
+    "takeaway": "Memory must stay correctable and removable across its derived forms."
+  }
+]

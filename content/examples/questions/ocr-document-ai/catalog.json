@@ -1,0 +1,88 @@
+[
+  {
+    "explain": "An extracted field carries raw text, normalized value, page, region, and revision so a reviewer can inspect the transformation.",
+    "steps": "Preserve recognition output before normalization. || Expose the normalized value together with its exact page region.",
+    "expect": "1250.00 2 (10, 20, 80, 40)",
+    "name": "field-provenance",
+    "language": "python",
+    "filename": "field-provenance.py",
+    "questions": [
+      537,
+      453,
+      265
+    ]
+  },
+  {
+    "explain": "A high OCR score does not establish field correctness. Independent cross-field arithmetic can trigger review despite apparent confidence.",
+    "steps": "Compare the extracted total with reviewed line-item arithmetic. || Require review when those values disagree.",
+    "expect": "True",
+    "name": "field-check",
+    "language": "python",
+    "filename": "field-check.py",
+    "questions": [
+      538,
+      455,
+      458
+    ]
+  },
+  {
+    "explain": "A value without its header or footnote can change meaning. The retrievable record includes the row, unit, and qualification together.",
+    "steps": "Assemble a table record with its header and note. || Render all meaning-bearing fields as one evidence unit.",
+    "expect": "Plan A: 200 EUR; excludes tax",
+    "name": "table-header",
+    "language": "python",
+    "filename": "table-header.py",
+    "questions": [
+      539,
+      454,
+      736,
+      39
+    ]
+  },
+  {
+    "explain": "Record image-processing transformations separately from the source bytes so their effects can be compared and reversed by returning to the original. No OCR engine is invoked here.",
+    "steps": "Keep original and transformed artifact identities. || Store the transformation profile alongside the recognition result.",
+    "expect": "scan-original deskew-v1",
+    "name": "preprocessing-lineage",
+    "language": "python",
+    "filename": "preprocessing-lineage.py",
+    "questions": [
+      734,
+      452
+    ]
+  },
+  {
+    "explain": "Field accuracy measures the application value, not just character recognition. Slice results by scan condition to expose weak cases.",
+    "steps": "Compare extracted values against reviewed labels. || Report blurred-document accuracy separately from overall accuracy.",
+    "expect": "0.5 0.0",
+    "name": "ocr-evaluation",
+    "language": "python",
+    "filename": "ocr-evaluation.py",
+    "questions": [
+      735,
+      460
+    ]
+  },
+  {
+    "explain": "Text and image retrieval results can share source identities while preserving modality-specific provenance. The merge does not make their scores directly comparable.",
+    "steps": "Keep modality on each candidate. || Deduplicate source identities before selecting evidence, without summing raw score scales.",
+    "expect": "['D1', 'D2']",
+    "name": "multimodal-hits",
+    "language": "python",
+    "filename": "multimodal-hits.py",
+    "questions": [
+      457
+    ]
+  },
+  {
+    "name": "ocr-confidence-validation-boundary",
+    "filename": "ocr-confidence-validation-boundary.py",
+    "language": "python",
+    "explain": "An OCR confidence validation harness demonstrates how high optical character recognition confidence scores fail to guarantee factual correctness, and validates multi-layer deterministic business field validation.",
+    "steps": "Simulate OCR misreading refund period 14 as 74 with 94% confidence. || Demonstrate how downstream RAG faithfully cites the corrupted text with high evaluation scores. || Enforce deterministic business rule validation to quarantine anomalous extractions for human review.",
+    "expect": "All OCR confidence validation boundary invariants verified successfully.",
+    "questions": [
+      951
+    ]
+  }
+]

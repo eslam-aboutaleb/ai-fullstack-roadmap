@@ -1,0 +1,255 @@
+[
+  {
+    "Q": "What happens inside a typed retrieval request?",
+    "A": "RetrievalRequest carries the query, candidate and final counts, threshold, filters, isolation scope, expected generation, metadata projection, session, and mandatory capabilities. It makes execution constraints explicit instead of hiding them in loosely interpreted keyword arguments.",
+    "Why": "A hybrid retriever coerces legacy calls into this form and validates supported constraints before delegating to a store or strategy. Effective filters and required metadata help preserve scope checks across the execution path.",
+    "Risk": "A well-typed request can still contain an unauthorized scope if the host trusts the user's input. Authentication must establish which scope the caller is allowed to request.",
+    "Trade": "A richer request object improves composability and inspection but requires a stable public contract and deliberate defaults. A small positional API is easier for toy usage.",
+    "Try": "Construct one request for tenant A with a larger candidate pool and a smaller final result set. Explain every field that affects authorization, ranking, or visibility.",
+    "spoken": "Validate the typed request, trusted caller scope, query and ranking limits, then fetch/rank candidates with source/version metadata. Apply authorization before exposing candidates, optionally fuse and rerank, and return a bounded, diagnosable result contract rather than unrestricted documents.",
+    "domain": "ai-rag",
+    "subdomain": "retrieval",
+    "difficulty": "foundations",
+    "misconception_target": "Dense retrieval always beats keyword search",
+    "definitions": [
+      {
+        "term": "Dense retrieval",
+        "definition": "Vector similarity search over embedded text passages"
+      },
+      {
+        "term": "BM25",
+        "definition": "Keyword ranking based on term frequency and inverse document frequency"
+      },
+      {
+        "term": "Hybrid retrieval",
+        "definition": "Combining dense and lexical search results"
+      }
+    ],
+    "execution_timeline": "Query -> Dense embedder creates vector -> ANN index searches -> BM25 ranks keywords -> RRF fuses results -> Ranked passages returned",
+    "example": {
+      "code": "dense_results = vector_index.search(query_vector, k=10)\nkeyword_results = bm25.search(query, k=10)\nfused = reciprocal_rank_fusion([dense_results, keyword_results])",
+      "explanation": "Run both retrievers, then fuse results using Reciprocal Rank Fusion.",
+      "output": "Combined ranked list of 10 passages"
+    },
+    "production_case": "An approximate search returns mostly other-tenant neighbors. The system must not expose them or assume that post-filtering automatically yields enough permitted candidates; evaluate filtered retrieval recall.",
+    "alternatives": [
+      "Dense-only retrieval",
+      "Lexical-only retrieval"
+    ],
+    "pitfalls": [
+      "Dense misses exact terms",
+      "Keyword misses semantic matches",
+      "RRF parameter tuning"
+    ],
+    "complexity": "Exact scoring, inverted-index postings, ANN candidates, fusion and model reranking have different costs. Describe corpus size, token lengths, filters and candidate/final limits before making a runtime claim.",
+    "follow_ups": [
+      {
+        "Q": "What belongs in the response besides scores?",
+        "A": "Stable permitted source/revision identifiers, relevant spans and enough ranking metadata to explain behavior without disclosing unauthorized candidates."
+      }
+    ],
+    "citations": [
+      "https://www.pinecone.io/learn/series/rag/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true,
+    "concept": "What happens inside a typed retrieval request"
+  },
+  {
+    "Q": "Why separate candidate_k from final_k?",
+    "A": "Candidate_k determines how many initial hits later stages can inspect; final_k determines how many results the caller receives. A reranker cannot promote a relevant passage that the candidate stage never retrieved. Fetching only five candidates and returning five wastes much of the value of reranking.",
+    "Why": "The strategy API carries both counts through retrieval and applies final slicing after optional reranking and scope validation. Evidence budgeting is yet another limit and should not be confused with either count.",
+    "Risk": "Very large candidate pools increase backend work, reranker cost, and exposure of material to external services. Candidates sent to a reranker must already respect applicable permissions.",
+    "Trade": "More candidates can improve recall with diminishing returns. Tune using recall, final ranking quality, and latency rather than assuming larger is always better.",
+    "Try": "Compare candidate pools of 10, 30, and 100 while holding final_k at five. Track whether missing answers were absent from the pool or simply ranked too low.",
+    "spoken": "candidate_k controls the pool considered before expensive reranking or evidence selection; final_k controls the returned results. A larger candidate pool can recover relevant items but increases latency, compute and memory. Tune both under the same quality and scope constraints.",
+    "domain": "ai-rag",
+    "subdomain": "retrieval",
+    "module": "retrieval",
+    "concept": "Why separate candidate_k from final_k",
+    "difficulty": "implementation",
+    "misconception_target": "RRF requires normalizing scores from different retrievers",
+    "definitions": [
+      {
+        "term": "Candidate pool",
+        "definition": "The retrieved objects considered before reranking or final evidence selection."
+      },
+      {
+        "term": "final_k",
+        "definition": "The number of selected results exposed by the final retrieval stage."
+      },
+      {
+        "term": "Candidate recall",
+        "definition": "Whether relevant evidence entered the pool that downstream selection can inspect."
+      }
+    ],
+    "execution_timeline": "Authorize scope -> retrieve candidate_k -> rerank permitted candidates -> select final_k -> validate evidence",
+    "example": {
+      "code": "candidates = [('doc-A', 0.2), ('doc-B', 0.9), ('doc-C', 0.5)]\nfinal_k = 2\nselected = sorted(candidates, key=lambda item: (-item[1], item[0]))[:final_k]\nprint([identity for identity, score in selected])",
+      "explanation": "The scores are fixed synthetic reranker outputs; the example illustrates pool selection rather than a real ranking benchmark.",
+      "output": "['doc-B', 'doc-C']"
+    },
+    "production_case": "A reranker can choose five results from fifty candidates instead of five initial neighbors. Evaluate whether the extra pool recovers difficult queries and whether the latency budget still holds.",
+    "alternatives": [
+      "Weighted score combination",
+      "Learned ranking models"
+    ],
+    "pitfalls": [
+      "Choosing k too small (over-weights top ranks)",
+      "Ignoring retriever quality differences"
+    ],
+    "complexity": "Reranking cost generally grows with candidate count and pair lengths. A comparison sort may be O(n log n); model inference and retrieval can dominate the actual service cost.",
+    "follow_ups": [
+      {
+        "Q": "Can reranking recover a document absent from its candidate set?",
+        "A": "No. It can reorder what it receives; improve candidate recall upstream if the relevant evidence never enters the pool."
+      }
+    ],
+    "citations": [
+      "https://arxiv.org/abs/2005.11401",
+      "https://arxiv.org/abs/1603.09320"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "How does Reciprocal Rank Fusion work here?",
+    "A": "**Reciprocal Rank Fusion (RRF) combines ranks, not raw relevance scores.** For document d, sum 1/(c+r) across result lists containing d, where r starts at 1 and c is a declared positive rank constant. BM25 uses term frequency, inverse document frequency and document-length normalization; a dense ranker uses vector similarity. Their raw scores generally have different meanings and scales. Rank fusion avoids pretending that a cosine value of 0.8 equals a BM25 score of 0.8.\n\nWith c=60, a document ranked 1st and 3rd scores 1/61+1/63, about 0.032266. A document ranked 2nd in both scores 2/62, about 0.032258. A document appearing in only one list at rank 1 scores 1/61, about 0.016393. The first two are very close, so deterministic tie-breaking and recorded original ranks matter for debugging. A missing hit contributes zero; never assign a fictitious vector distance to a keyword-only hit.\n\nBefore fusion, establish trusted scope, active revision, deletion status and compatible profiles in every candidate path. Then deduplicate by the declared document/span identity, fuse a bounded candidate pool, optionally rerank, and select final context under a separate token budget. Candidate_k controls opportunity for later ranking; final_k controls exposure and generation cost. Post-filtering only the final fused top-k can leave no permitted evidence even when useful permitted candidates existed deeper in each list.\n\n**Diagnose by stage.** Save eligible source IDs and lexical/dense ranks, fused scores, reranker decisions and final context membership with privacy-aware trace metadata. If a relevant exception is absent from both candidate lists, changing the RRF constant cannot recover it. If it is present but omitted from context, inspect reranking and packing. Compare lexical, dense and fused variants on identical fixed gold cases, including exact IDs, paraphrases, negation and unanswerable queries. A tiny fixture demonstrates the calculation and authorization invariant; it cannot establish the best constant or a universal hybrid quality improvement.",
+    "Why": "With c=60, ranks (1,3) barely outrank (2,2). A keyword-only result still has a valid rank contribution even though it has no vector distance; preserving that distinction prevents misleading diagnostics.",
+    "Risk": "Duplicated chunks or unfiltered branches can distort fusion and leak source identities. RRF does not normalize authorization or repair missing evidence.",
+    "Trade": "Rank fusion tolerates incompatible score scales but discards score magnitude. Weighted or learned fusion can help with enough representative labels, at the cost of calibration and drift monitoring.",
+    "Try": "Run retrieval_ranking.js and grounded_policy_pipeline.py. Calculate all three worked RRF values independently, remove the exception from both lists and explain why no rank constant can restore it.",
+    "worked_case": "With c=60, ranks (1,3) barely outrank (2,2). A keyword-only result still has a valid rank contribution even though it has no vector distance; preserving that distinction prevents misleading diagnostics.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion",
+      "https://www.elastic.co/docs/reference/elasticsearch/index-settings/similarity"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if the lexical branch is unavailable?",
+        "A": "Expose degraded single-branch retrieval explicitly and evaluate its refusal/quality behavior. Do not fabricate lexical ranks or call the result full hybrid search; decide whether the task can tolerate the reduced evidence path."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "retrieval"
+  },
+  {
+    "Q": "Are dense and lexical stages executed concurrently?",
+    "A": "Dense and lexical search can run concurrently when they are independent and the backend supports the combined load. They can also run sequentially or inside one SQL statement. Choose deliberately and measure the actual execution path.",
+    "Why": "Parallelize independent I/O with a bounded task group and preserve separate failure outcomes. A combined database query has its own query plan; Python-level concurrency cannot be inferred from its SQL shape.",
+    "Risk": "Assuming stage concurrency understates latency. Conversely, parallelizing blindly can violate a shared database session's rules or increase load beyond intended limits.",
+    "Trade": "Sequential execution is easier to reason about with one session. Parallel execution may reduce latency for independent backends but requires separate safe resources, cancellation, and error policy.",
+    "Try": "Instrument start and finish events for both stages. Propose a parallel variant only after specifying which sessions and connections may be used concurrently."
+  },
+  {
+    "Q": "When does a reranker help, and what can it not fix?",
+    "A": "**Reranking reorders an existing candidate pool; it does not search the missing corpus.** A cross-encoder reads a query and candidate jointly to estimate relevance, unlike a bi-encoder whose document vectors can be precomputed. An approximate nearest-neighbor (ANN) index trades some exact-search recall for reduced search work. HNSW is a graph-based ANN method: construction and search breadth influence memory, build cost and recall. Its parameters are engine-specific; they are not interchangeable with final answer count.\n\nSeparate corpus eligibility, ANN candidate retrieval, fusion, reranking and context selection. If candidate_k=40 and final_k=5, the reranker can inspect 40 permitted candidates before selecting five. If only five are fetched, it cannot promote the relevant exception at rank 12. Increasing candidate_k may improve recall but also increases reranker token work, remote data exposure and tail latency. A score threshold must be calibrated for the particular model/task rather than copied from a cosine example.\n\n**Use an exact oracle.** For a fixed query set and embedding snapshot, compare ANN candidates to exact nearest neighbors under the same owner/revision filters, then separately compare both to human/task relevance labels. ANN recall measures approximation fidelity; relevance recall measures usefulness. Exact nearest neighbors can all be irrelevant. Filtering after a small ANN top-k may badly reduce eligible recall; test actual engine prefilter behavior and authorization at source resolution.\n\nA credible experiment varies search breadth and candidate pool while holding corpus/model/profile/gold labels fixed. Record recall, MRR/nDCG, reranking latency and context cost, including selective filters and rare exceptions. Keep a safe lexical-only baseline and a fallback/refusal policy when reranking times out. The repository's local SDK contracts prove selected filtering/deletion invariants, not a production HNSW benchmark. The policy capstone deliberately removes the exception to show a reranker's hard boundary: a plausible general rule is still unsupported for a final-sale question.",
+    "Why": "The decisive exception is corpus rank 12 but only five candidates are fetched. Reranking those five cannot recover it; a larger candidate pool and an independent relevance oracle distinguish retrieval failure from ranking failure.",
+    "Risk": "A slow remote reranker can exceed the deadline after retrieval already succeeded. Sending unfiltered candidates to it creates a disclosure even if the final UI hides them.",
+    "Trade": "A larger pool improves opportunity with diminishing returns. Exact search is a useful small-data oracle; an ANN graph can scale retrieval but needs measured recall under real filter selectivity.",
+    "Try": "Remove the final-sale candidate in policy_assistant_project.py and inspect the failed release result. Design an exact-vs-ANN comparison that reports approximation recall separately from task relevance.",
+    "worked_case": "The decisive exception is corpus rank 12 but only five candidates are fetched. Reranking those five cannot recover it; a larger candidate pool and an independent relevance oracle distinguish retrieval failure from ranking failure.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://arxiv.org/abs/1603.09320",
+      "https://arxiv.org/abs/1901.04085"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can a perfect reranker guarantee a correct generated answer?",
+        "A": "No. It only ranks the candidates it receives. The context packer can drop evidence and the generator can misinterpret it; assess final claim support, revision validity and correct abstention separately."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "retrieval"
+  },
+  {
+    "Q": "How should query rewriting and multi-query retrieval be bounded?",
+    "A": "Query rewriting can make a conversational or ambiguous question more searchable; multi-query retrieval explores alternative phrasings. Both add work and can drift away from the original intent. Bounds should cover variant count, text length, time, and downstream calls.",
+    "Why": "A bounded query transformer wraps a host-provided transformer with limits and a timeout. Query generation should be an explicit optional dependency with measured cost and failure behavior.",
+    "Risk": "Generated variants may invent identifiers or broaden the scope of meaning. Scope filters must remain fixed across variants, and deduplication does not by itself calibrate rankings across all variants.",
+    "Trade": "Expansion can improve recall for difficult language while multiplying embedding and search cost. Start with a baseline and add it only for demonstrated failures.",
+    "Try": "Supply a transformer returning duplicates, blank strings, too many variants, and a slow response. Explain which limits protect cost and which protect meaning."
+  },
+  {
+    "Q": "How does multi-query merging differ from a fully calibrated global ranker?",
+    "A": "The generic hybrid strategy fuses each query variant's dense and lexical results, extends a candidate list, and deduplicates by ID in first-seen order before optional reranking. That is not a learned global calibration of all variant scores.",
+    "Why": "The implementation is a bounded composition mechanism. Its optional reranker is the natural place to compare the combined candidates against the original question, but absent that stage the ordering reflects implementation choices.",
+    "Risk": "The first query variant can dominate which duplicate representation and ordering survive. More variants therefore need not improve final ranking and can increase noise.",
+    "Trade": "First-seen deduplication is simple and deterministic. A second fusion across variants or a global reranker adds complexity and should be justified by evaluation.",
+    "Try": "Reverse the order of two transformer variants and compare final results without a reranker. Explain any changed ordering using the execution policy."
+  },
+  {
+    "Q": "Why must filters be applied during each retrieval stage?",
+    "A": "**Authorization is an eligibility predicate, not a post-processing feature.** Each tenant, source revision, deletion tombstone, confidentiality policy and document scope must be enforced before ranking (and again when resolving citations). If an ANN query retrieves the global top five and then filters other tenants, five forbidden near neighbors can displace the only eligible records. This both hides relevant evidence and can expose identifiers through debug output. Filter by trusted owner inside the search engine or isolate indexes when the engine cannot enforce it.\n\n**Vector math and correctness.** Cosine similarity equals dot(a,b) divided by the product of both norms; a zero vector has undefined cosine. A query vector must use the same embedding model/version and dimensions as indexed records. HNSW approximates nearest neighbors, trading search time, memory and recall according to index/query parameters. A benchmark must hold gold queries, eligible corpus, metric and hardware constant rather than comparing vendor score fields directly.\n\n**Versioned migration case.** When replacing model v1 with v2, construct a separate versioned index, dual-write immutable record IDs and revisions, backfill, propagate deletions and verify the full expected ID set. Gate a read cutover on completeness and gold Recall@k plus tenant-denial tests; retain rollback with deletion reconciliation. Swapping an alias after only 90% of documents were indexed creates a silent relevance regression.\n\n**Exercise.** The dependency-free `labs/vector_index_migration.py` demonstrates exact cosine search scoped before ranking, revision eligibility, tombstones and a fail-closed migration. It is an executable **reference oracle**, not a live integration with Qdrant, Chroma, Pinecone, Weaviate, FAISS, pgvector or LanceDB. Provider adapters must be checked against this behavior with official SDKs, pinned server versions and genuine negative integration tests.\n\n**Follow-up.** If an ACL is revoked while a query is running, agree on an authorization-epoch snapshot policy and check source retrieval again; a cached result from an earlier ACL revision must not be used without revalidation. Exact search may be slower than filtered ANN, but correctness is the gate for tuning the latter.",
+    "Why": "Global top-k then authorization filtering can silently drop eligible evidence and leak unauthorized IDs.",
+    "Risk": "A backend that ignores a filter can still leak data. Defense in depth detects some invalid results, but tests must also ensure a reranker or external processor does not receive unauthorized candidates before that final check.",
+    "Trade": "Filter-aware search can affect query plans and approximate recall. Security requirements take precedence; tune backend indexes rather than dropping constraints for speed.",
+    "Try": "Run the exact reference fixture with different owners, an unindexed revision and a deletion; specify the real provider integration test needed next.",
+    "citations": [
+      "https://qdrant.tech/documentation/guides/optimize/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why can top-k post-filtering harm recall even if it removes every unauthorized result?",
+        "A": "Unscoped candidates can fill all top-k slots with forbidden neighbors and displace lower-ranked eligible evidence. Apply the trusted ACL in the engine's candidate selection or separate index namespaces, then verify an owner-scoped Recall@k oracle and a revoked-document negative case."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How should I interpret distance thresholds and relevance scores?",
+    "A": "Distance is a geometric measurement, not a truth probability. RRF is a rank-fusion score, not a calibrated confidence. Reranker scores have provider-specific meaning. A distance threshold must match the selected metric and embedding profile.",
+    "Why": "Result types preserve distance, keyword score, and fusion or reranker scores separately rather than pretending they share a universal numerical scale. The retriever can apply a configured threshold and explicit final result limit.",
+    "Risk": "Displaying 0.92 as 92 percent correct misleads users. A low distance can retrieve an obsolete, unauthorized, or merely related passage; those require separate checks.",
+    "Trade": "Thresholding removes weak candidates but can reduce coverage and varies across corpus changes. Product confidence should be evaluated empirically using multiple signals and abstention policy.",
+    "Try": "Collect score distributions for answerable and unanswerable questions. Evaluate a threshold's false acceptance and false rejection rates before choosing a UI label."
+  },
+  {
+    "Q": "How would you debug a relevant document missing from the final answer?",
+    "A": "**Debug the pipeline in the direction the information travels, not by rewriting the final prompt first.** Ingestion must read the intended source, preserve page/revision and access metadata, normalize text/OCR accurately and emit stable chunk IDs. Retrieval then enforces the trusted principal and current revision, retrieves a broad enough lexical/dense candidate set, fuses/reranks it, selects a bounded evidence packet, and only then can generation cite or abstain. A missing relevant document at any earlier stage cannot be recovered by a cleverer answer prompt.\n\n**Concrete failure trace.** A customer asks whether an item can be returned within 30 days. The final answer incorrectly refuses, even though a policy PDF contains the rule. Inspect: (1) was the PDF present and indexed; (2) did OCR and chunk boundaries preserve the conditional language; (3) was tenant/page/revision authorization too restrictive or too broad; (4) did BM25 find exact \"returns\" and dense search find paraphrases; (5) did fusion/RRF retain the actual rule among candidate_k; (6) did reranking move a general rule ahead of the relevant exception; (7) did context compaction remove negation; (8) did the model refuse despite adequate evidence? Attribute the error to its stage before changing anything.\n\n**Mechanics and metrics.** For a gold source set G, Recall@k is the fraction of G included among the first k retrieved eligible IDs. MRR uses 1/rank of the first relevant result, averaged over queries; nDCG weights graded relevance by rank. Compute retrieval metrics before involving a stochastic generator. Then separately evaluate claim-to-citation support, appropriate abstention and false refusal. A high Recall@k can coexist with an unsupported answer, and a perfectly grounded refusal can be wrong for an answerable case.\n\n**Runnable local capstone.** `labs/grounded_policy_pipeline.py` uses synthetic documents to perform owner-scoped BM25 lexical ranking, toy cosine dense ranking, reciprocal rank fusion and a deliberately **extractive**, citation-grounded answer/refusal. It tests a 30-day rule, a cross-tenant 90-day rule, deleted/stale data and malicious retrieved text. This exercises architecture decisions without requiring a hosted LLM; it does not prove a production embedding model, ANN engine or generative answer reliability. Tests assert supported claim text and exact authorized source IDs.\n\n**Trade-offs and next checks.** Increase candidate_k to improve recall but account for reranking cost and token budgets. Do not weaken ACLs to fix an empty result. Repair index path and quality fixtures, then rerun a held-out evaluation rather than modifying gold expectations or lowering targets. More retrieval variants mean more failure modes and potentially worse evidence selection if score semantics are not calibrated.\n\n**Changed assumption.** If the relevant policy was deleted yesterday and a legacy cache still returns it, treat freshness and authorization as invariants: invalidate the cache, honor tombstone revision and abstain when no valid current source remains. A correct but stale citation is not current policy evidence.",
+    "Why": "The retrieval service exposes distinct modules and result shapes for these stages. That separation supports inspection of intermediate artifacts rather than guessing that every wrong answer is an embedding problem.",
+    "Risk": "Debug logging can expose queries or private passages. Prefer controlled fixtures and sanitized IDs, and do not bypass scope checks simply to make a document appear during investigation.",
+    "Trade": "Stage-by-stage diagnosis takes longer than tweaking a single constant but targets the actual cause and prevents compensating errors.",
+    "Try": "Run the grounded policy pipeline, delete the primary rule or swap tenant scope, and observe which stage makes the answer abstain.",
+    "citations": [
+      "https://aclanthology.org/2020.emnlp-main.550/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "If a RAG answer cites an obsolete but lexically perfect policy, what should the retrieval stage do?",
+        "A": "Check validity/revision and deletion before candidate ranking and revalidate at source resolution. Refuse when no current authorized evidence remains; improving BM25 or reranker score cannot make an invalid source valid, and the stale cache must be invalidated."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    }
+  }
+]

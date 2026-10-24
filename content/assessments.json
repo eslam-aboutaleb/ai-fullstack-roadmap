@@ -1,0 +1,3343 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "retrieval-empty",
+      "chapter": "foundations",
+      "topic": 1,
+      "title": "An empty search is not evidence",
+      "kind": "quiz",
+      "objective": "rag.evidence.abstention",
+      "difficulty": "foundation",
+      "scenario": "Retrieval succeeded but returned no passages for a refund question. What can the assistant safely conclude?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The customer is ineligible.",
+          "feedback": "No passages says nothing about eligibility."
+        },
+        {
+          "id": "2",
+          "text": "There is insufficient supporting evidence.",
+          "feedback": "Correct: distinguish lack of evidence from evidence of denial."
+        },
+        {
+          "id": "3",
+          "text": "The retrieval service is down.",
+          "feedback": "The fixture explicitly says the search succeeded."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A successful empty search establishes only that this query and index produced no supporting passage. Ask for useful missing details, try an appropriate alternative retrieval strategy, or explain the evidence limit. Do not invent a policy.",
+      "hints": [
+        "Separate the retrieval outcome from the business decision."
+      ],
+      "references": [
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10"
+      ],
+      "independent": false
+    },
+    {
+      "id": "cross-tenant-read",
+      "chapter": "api-security",
+      "topic": 181,
+      "title": "Find the ownership leak",
+      "kind": "debugging",
+      "objective": "backend.authorization.ownership",
+      "difficulty": "applied",
+      "scenario": "Trace: JWT signature verified → GET /requests/B-17 → database SELECT by request_id only → response contains owner B. Caller is owner A. Which repair belongs at the read boundary?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Hide the record in the frontend.",
+          "feedback": "The unauthorized response has already left the API."
+        },
+        {
+          "id": "2",
+          "text": "Add owner_id = authenticated_owner to the authoritative query.",
+          "feedback": "Correct: scope the read to the trusted caller identity."
+        },
+        {
+          "id": "3",
+          "text": "Accept an owner_id query parameter.",
+          "feedback": "A caller-controlled owner is not an authorization decision."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Token validity proves an identity claim, not access to every object. Scope database access using the server-established identity and handle missing/out-of-scope rows consistently. Add a negative fixture where A requests B’s ID.",
+      "hints": [
+        "Find the first point at which another owner’s data becomes accessible."
+      ],
+      "references": [
+        "https://fastapi.tiangolo.com/tutorial/dependencies/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "reservation-race",
+      "chapter": "database-concurrency",
+      "topic": 161,
+      "title": "Diagnose duplicate confirmation",
+      "kind": "debugging",
+      "objective": "backend.concurrency.atomic-write",
+      "difficulty": "applied",
+      "scenario": "Both callers read status=pending. Each creates a confirmation, then sets status=confirmed. Which invariant actually prevents two confirmations?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Check the status twice in application code.",
+          "feedback": "Both callers can still pass before either commits."
+        },
+        {
+          "id": "2",
+          "text": "Sleep randomly before writing.",
+          "feedback": "Timing does not enforce a database invariant."
+        },
+        {
+          "id": "3",
+          "text": "Use a guarded transaction and a unique operation identity.",
+          "feedback": "Correct: enforce the invariant at the authoritative write boundary."
+        }
+      ],
+      "correct": "3",
+      "explanation": "A transaction must connect the guard to its write: row locking or a conditional update can choose one winner, while a unique operation identity rejects duplicate effects. A process-local lock cannot coordinate other replicas.",
+      "hints": [
+        "The read and write must form one authoritative decision."
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "commit-vs-response",
+      "chapter": "application-architecture",
+      "topic": 141,
+      "title": "A lost response does not undo a commit",
+      "kind": "debugging",
+      "objective": "backend.idempotency.ambiguous-result",
+      "difficulty": "applied",
+      "scenario": "The database committed a task, but the connection dropped before the client received 202. The client retries. What should the server do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Always create a new task.",
+          "feedback": "The first task may already exist; the retry can duplicate effects."
+        },
+        {
+          "id": "2",
+          "text": "Resolve the same idempotency key to the original task.",
+          "feedback": "Correct: retries should recover one stable operation identity."
+        },
+        {
+          "id": "3",
+          "text": "Assume the first transaction rolled back.",
+          "feedback": "A transport failure cannot prove rollback."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Persist a request identity and its result together with the accepted operation. On retry return that result, or a conflict if the same key is reused with different content. Do not infer database state from a missing HTTP response.",
+      "hints": [
+        "Separate transport delivery from durable state."
+      ],
+      "references": [
+        "https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods"
+      ],
+      "independent": true
+    },
+    {
+      "id": "recall-denominator",
+      "chapter": "evaluation",
+      "topic": 111,
+      "title": "Compute recall before tuning",
+      "kind": "quiz",
+      "objective": "rag.metrics.recall",
+      "difficulty": "foundation",
+      "scenario": "Relevant IDs: {A, B, C, D}. Top 3 retrieved IDs: [A, X, B]. What are precision@3 and recall@3?",
+      "options": [
+        {
+          "id": "1",
+          "text": "2/3 and 1/2.",
+          "feedback": "Correct: two hits, three retrieved, four relevant."
+        },
+        {
+          "id": "2",
+          "text": "1/2 and 2/3.",
+          "feedback": "You have swapped the retrieved and relevant denominators."
+        },
+        {
+          "id": "3",
+          "text": "2/3 and 2/3.",
+          "feedback": "Recall uses the total number of relevant IDs, not k."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Precision asks what fraction of the returned results are relevant: 2/3. Recall asks what fraction of all relevant results were recovered: 2/4. Neither metric measures whether a generated answer is faithful.",
+      "hints": [
+        "Write both denominators explicitly."
+      ],
+      "references": [
+        "https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-ranked-retrieval-results-1.html"
+      ],
+      "independent": false
+    },
+    {
+      "id": "rrf-union",
+      "chapter": "retrieval",
+      "topic": 63,
+      "title": "Rank fusion preserves the union",
+      "kind": "quiz",
+      "objective": "rag.ranking.rrf",
+      "difficulty": "foundation",
+      "scenario": "Retriever 1 returns [A, B], retriever 2 returns [B, C]. With RRF and k=60, which document wins?",
+      "options": [
+        {
+          "id": "1",
+          "text": "A, because it is first in one list.",
+          "feedback": "B has contributions from both lists."
+        },
+        {
+          "id": "2",
+          "text": "B, because 1/62 + 1/61 beats a single contribution.",
+          "feedback": "Correct: RRF sums reciprocal rank contributions."
+        },
+        {
+          "id": "3",
+          "text": "C, because the second retriever is newer.",
+          "feedback": "Retriever age is not part of this scoring rule."
+        }
+      ],
+      "correct": "2",
+      "explanation": "For every unique ID, sum 1/(k+rank), where rank is one-based within each list. B receives two contributions; A and C receive one each. The fused candidate set is the union, not one retriever’s result length.",
+      "hints": [
+        "Compute one score per document, then sum across lists."
+      ],
+      "references": [
+        "https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf"
+      ],
+      "independent": false
+    },
+    {
+      "id": "agent-approval-order",
+      "chapter": "agent-evaluation",
+      "topic": 231,
+      "title": "A fluent answer hides a policy violation",
+      "kind": "debugging",
+      "objective": "agents.effects.approval-order",
+      "difficulty": "applied",
+      "scenario": "Ledger: read(authorized) → write(refund) → approve(refund). Final answer is correct and exactly one refund exists. Should the oracle pass?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes: final state is correct.",
+          "feedback": "The approval happened after the irreversible effect."
+        },
+        {
+          "id": "2",
+          "text": "No: required approval must precede the write.",
+          "feedback": "Correct: a valid final state does not excuse an invalid trajectory."
+        },
+        {
+          "id": "3",
+          "text": "Ask the agent to grade itself.",
+          "feedback": "Self-report is not independent evidence."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Check both state invariants and allowed event order. A refund might be correct in value but unauthorized at the time it occurred. Evaluate the complete trusted trace, including reads and failed attempts, rather than the final sentence alone.",
+      "hints": [
+        "Look at the order, not just the set of event names."
+      ],
+      "references": [
+        "https://docs.python.org/3/library/unittest.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "checkpoint-after-write",
+      "chapter": "coordination",
+      "topic": 91,
+      "title": "Recover the skipped ingestion page",
+      "kind": "debugging",
+      "objective": "data.ingestion.checkpoint-order",
+      "difficulty": "applied",
+      "scenario": "Log: checkpoint saved at cursor=20 → process crashes → records 11–20 were never upserted. Restart begins at 21. What should change?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Save the checkpoint after the page effects commit.",
+          "feedback": "Correct: progress must not advance ahead of durable effects."
+        },
+        {
+          "id": "2",
+          "text": "Increase the page size.",
+          "feedback": "That can increase the amount skipped without changing the ordering bug."
+        },
+        {
+          "id": "3",
+          "text": "Ignore missing records until the next model update.",
+          "feedback": "An eventual model update does not repair an ingestion checkpoint."
+        }
+      ],
+      "correct": "1",
+      "explanation": "A checkpoint asserts that all required effects before its cursor are durable. Advance it only after successful writes, ideally in the same transaction. If writes and checkpoint are separate, retries must be idempotent to tolerate a crash after writing but before advancing.",
+      "hints": [
+        "What fact does a checkpoint claim?"
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/tutorial-transactions.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "leakage-holdout",
+      "chapter": "models",
+      "topic": 121,
+      "title": "Find the leaked evaluation split",
+      "kind": "debugging",
+      "objective": "ml.evaluation.data-leakage",
+      "difficulty": "applied",
+      "scenario": "A scaler was fitted on all rows before the training/test split. Test accuracy improves. Is this reliable evidence?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes: preprocessing cannot leak labels.",
+          "feedback": "Even label-free statistics can expose the test distribution."
+        },
+        {
+          "id": "2",
+          "text": "No: fit preprocessing only on training data.",
+          "feedback": "Correct: held-out observations must not influence fitting."
+        },
+        {
+          "id": "3",
+          "text": "Only if the test set is small.",
+          "feedback": "The separation rule is independent of set size."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Training includes fitting preprocessing statistics, vocabulary or feature selection. Split first; fit those operations using only training data; apply the fitted transformation to validation and test. Repeatedly selecting against test scores also turns the test into a validation set.",
+      "hints": [
+        "Consider which data influenced the mean and variance."
+      ],
+      "references": [
+        "https://scikit-learn.org/stable/common_pitfalls.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "attention-dimensions",
+      "chapter": "models",
+      "topic": 122,
+      "title": "Check attention dimensions",
+      "kind": "quiz",
+      "objective": "transformers.attention.shapes",
+      "difficulty": "foundation",
+      "scenario": "One head has Q shape (3, 4), K shape (5, 4), and V shape (5, 2). What is the output shape of softmax(QKᵀ / √4)V?",
+      "options": [
+        {
+          "id": "1",
+          "text": "(3, 2).",
+          "feedback": "Correct: scores are (3,5); weights times (5,2) gives (3,2)."
+        },
+        {
+          "id": "2",
+          "text": "(5, 4).",
+          "feedback": "That is K’s shape, not the result for each query."
+        },
+        {
+          "id": "3",
+          "text": "(3, 5).",
+          "feedback": "That is the attention score/weight matrix before multiplying by V."
+        }
+      ],
+      "correct": "1",
+      "explanation": "QKᵀ pairs every query with every key, producing three rows and five columns. Row-wise softmax preserves that shape. Each query then forms a weighted sum of five value vectors, each with two components. The result contains three two-component output vectors.",
+      "hints": [
+        "Track the inner dimensions of both matrix multiplications."
+      ],
+      "references": [
+        "https://arxiv.org/abs/1706.03762",
+        "https://arxiv.org/abs/1508.07909",
+        "https://arxiv.org/abs/1808.06226"
+      ],
+      "independent": false
+    },
+    {
+      "id": "retry-external-effect",
+      "chapter": "coordination",
+      "topic": 93,
+      "title": "A retry repeats an external charge",
+      "kind": "debugging",
+      "objective": "systems.retries.side-effects",
+      "difficulty": "applied",
+      "scenario": "A SQL serialization error occurs after an external charge call inside a retried transaction. Retrying charges the card again. Which repair addresses the effect?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Catch the SQL error and retry forever.",
+          "feedback": "That repeats an external effect without a stable identity."
+        },
+        {
+          "id": "2",
+          "text": "Give the effect a stable idempotency key and coordinate dispatch with durable state.",
+          "feedback": "Correct: database rollback does not undo a remote charge."
+        },
+        {
+          "id": "3",
+          "text": "Use a longer SQL timeout.",
+          "feedback": "Timeout tuning cannot make a remote side effect transactional."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Bound the retry unit, reread state, and give each external effect a persistent operation identity. An outbox can link committed intent to dispatch; the receiver must still deduplicate or reconcile ambiguous outcomes. Never assume rollback covers another system.",
+      "hints": [
+        "Which operations does the database transaction actually control?"
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "context-irrelevant",
+      "chapter": "foundations",
+      "topic": 3,
+      "title": "Retrieved does not mean applicable",
+      "kind": "quiz",
+      "objective": "rag.evidence.applicability",
+      "difficulty": "foundation",
+      "scenario": "The user asks about refunds. The highest-scoring passage describes shipping speed. Which next action is supported?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Answer the refund question from the shipping passage.",
+          "feedback": "Similarity alone does not establish policy applicability."
+        },
+        {
+          "id": "2",
+          "text": "Look for applicable evidence or explain that this passage is insufficient.",
+          "feedback": "Correct: verify that evidence actually supports the requested claim."
+        },
+        {
+          "id": "3",
+          "text": "Always treat the top score as confidence in the answer.",
+          "feedback": "Retrieval scores are not calibrated answer correctness probabilities."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Retrieval ranks candidates. The application must still decide whether those candidates cover the requested entity, policy version, conditions and exception. A plausible passage can be irrelevant or superseded. Do not turn ranking position into an unsupported business conclusion.",
+      "hints": [
+        "Ask which claim the passage can support."
+      ],
+      "references": [
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10"
+      ],
+      "independent": false
+    },
+    {
+      "id": "defend-idempotent-api",
+      "chapter": "application-architecture",
+      "topic": 141,
+      "title": "Defend an idempotent task API",
+      "kind": "self-review",
+      "objective": "backend.design.idempotent-task",
+      "difficulty": "design",
+      "scenario": "Design a task-acceptance endpoint for clients that may retry after disconnects. Include concurrent requests with the same key and a key reused with a different body.",
+      "rubric": [
+        "Persist operation identity with accepted state.",
+        "Reject mismatched bodies for the same key.",
+        "Resolve concurrent submissions to one durable result.",
+        "Explain retention and authorization boundaries."
+      ],
+      "model_answer": "Authenticate before resolving an operation; scope keys to a trusted actor and operation type. Persist a canonical payload hash and task ID atomically under a uniqueness constraint. Return the existing result for a matching retry; reject changed content. Explain expiration, replay after expiry, and an ambiguous downstream side effect. A database row alone does not make a remote system idempotent.",
+      "references": [
+        "https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods"
+      ],
+      "hints": [
+        "Draw the commit and lost-response boundaries."
+      ],
+      "independent": false
+    },
+    {
+      "id": "frontend-stale-response",
+      "topic": 827,
+      "chapter": "course-javascript-types-react-state",
+      "title": "An obsolete response arrives last",
+      "kind": "debugging",
+      "objective": "javascript-types-react-state.boundary",
+      "difficulty": "applied",
+      "scenario": "Request A starts, then B starts. B finishes, and A responds after its abort was requested. Which rule preserves the right response?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Always display the last received response.",
+          "feedback": "Arrival order does not establish which user request owns the view."
+        },
+        {
+          "id": "2",
+          "text": "Accept a response only when its request generation still owns the active view.",
+          "feedback": "Abort saves work when supported; an ownership/generation check prevents already queued stale responses from overwriting B."
+        },
+        {
+          "id": "3",
+          "text": "Use only a loading boolean.",
+          "feedback": "A boolean cannot identify which of several requests completed."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Abort saves work when supported; an ownership/generation check prevents already queued stale responses from overwriting B.",
+      "hints": [
+        "Compare logical request identity with arrival order."
+      ],
+      "references": [
+        "https://react.dev/learn",
+        "https://www.typescriptlang.org/docs/handbook/intro.html",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+      ],
+      "independent": true
+    },
+    {
+      "id": "stream-without-terminal",
+      "topic": 828,
+      "chapter": "course-stream-framing-replay",
+      "title": "The answer looks finished but the stream closed",
+      "kind": "debugging",
+      "objective": "stream-framing-replay.boundary",
+      "difficulty": "applied",
+      "scenario": "Frames 1, 1 and 2 were received; the duplicate is identical. No terminal event arrives before disconnect. What state is justified?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Mark Complete because the text ends with a period.",
+          "feedback": "Presentation is not authoritative protocol completion."
+        },
+        {
+          "id": "2",
+          "text": "Apply the duplicate once and retain a clearly incomplete result for recovery.",
+          "feedback": "Duplicate-safe presentation and explicit terminal events are separate responsibilities. Reconcile the operation through its own durable identity."
+        },
+        {
+          "id": "3",
+          "text": "Dispatch the business action again to recover the stream.",
+          "feedback": "Replay of presentation must not repeat an independently committed effect."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Duplicate-safe presentation and explicit terminal events are separate responsibilities. Reconcile the operation through its own durable identity.",
+      "hints": [
+        "Which event proves completion under this protocol?"
+      ],
+      "references": [
+        "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events",
+        "https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+      ],
+      "independent": true
+    },
+    {
+      "id": "cdc-checkpoint-crash",
+      "topic": 831,
+      "chapter": "course-cdc-checkpoints-idempotency",
+      "title": "A crash crosses the checkpoint boundary",
+      "kind": "debugging",
+      "objective": "cdc-checkpoints-idempotency.boundary",
+      "difficulty": "applied",
+      "scenario": "A document mutation and source checkpoint share one transaction. A fault is injected after the document write but before commit. What must the fixture prove?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The checkpoint advances but the document is skipped.",
+          "feedback": "This loses source data on restart."
+        },
+        {
+          "id": "2",
+          "text": "Neither the projection nor the checkpoint commits; replay safely applies the same event.",
+          "feedback": "An atomic transaction rolls back both local facts. Across independent stores, use idempotency/reconciliation instead of claiming the same atomic boundary."
+        },
+        {
+          "id": "3",
+          "text": "The write always survives because its SQL statement finished.",
+          "feedback": "Statement execution is not transaction commit."
+        }
+      ],
+      "correct": "2",
+      "explanation": "An atomic transaction rolls back both local facts. Across independent stores, use idempotency/reconciliation instead of claiming the same atomic boundary.",
+      "hints": [
+        "Distinguish statement completion from durable commit."
+      ],
+      "references": [
+        "https://kafka.apache.org/documentation/",
+        "https://www.postgresql.org/docs/current/transaction-iso.html",
+        "https://beam.apache.org/documentation/programming-guide/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "watermark-late-event",
+      "topic": 832,
+      "chapter": "course-event-time-quality",
+      "title": "An old event arrives after the watermark",
+      "kind": "debugging",
+      "objective": "event-time-quality.boundary",
+      "difficulty": "applied",
+      "scenario": "An event timestamped 12:04 arrives at 12:09 after its five-minute window has emitted a result. What is the correct interpretation?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Assign it to 12:05–12:10 because that is when it arrived.",
+          "feedback": "That changes an event-time metric into an arrival-time metric."
+        },
+        {
+          "id": "2",
+          "text": "Use the declared late-data correction/review policy for the original event-time window.",
+          "feedback": "Window assignment, allowed lateness and update/retraction policy belong to the result contract."
+        },
+        {
+          "id": "3",
+          "text": "Declare the source impossible because watermarks prove completeness.",
+          "feedback": "A watermark does not eliminate all late or corrected events."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Window assignment, allowed lateness and update/retraction policy belong to the result contract.",
+      "hints": [
+        "Identify the meaning of event time versus processing time."
+      ],
+      "references": [
+        "https://beam.apache.org/documentation/programming-guide/",
+        "https://kafka.apache.org/documentation/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "retry-reservation-limit",
+      "topic": 834,
+      "chapter": "course-llm-provider-contracts",
+      "title": "Rate limiting meets the token budget",
+      "kind": "debugging",
+      "objective": "llm-provider-contracts.boundary",
+      "difficulty": "applied",
+      "scenario": "A request has 30 reserved tokens remaining. Each attempt reserves 10 input plus 20 maximum output tokens. The first attempt is rate limited. May a second attempt run under this fixture policy?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes, because a failed attempt cannot consume resources.",
+          "feedback": "The fixture deliberately reserves every attempt conservatively; real provider accounting must be checked."
+        },
+        {
+          "id": "2",
+          "text": "No. The first reservation exhausted the local allowance; obtain a new explicit budget decision.",
+          "feedback": "Budget is checked before each attempt. A retryable error does not grant extra resources or permission."
+        },
+        {
+          "id": "3",
+          "text": "Retry indefinitely until a valid answer appears.",
+          "feedback": "This violates finite attempt, deadline and spend limits."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Budget is checked before each attempt. A retryable error does not grant extra resources or permission.",
+      "hints": [
+        "Read the stated accounting policy rather than assuming a billing rule."
+      ],
+      "references": [
+        "https://developers.openai.com/api/docs/guides/structured-outputs",
+        "https://developers.openai.com/api/docs/guides/rate-limits",
+        "https://ai.google.dev/gemini-api/docs/structured-output",
+        "https://ai.google.dev/gemini-api/docs/rate-limits",
+        "https://json-schema.org/draft/2020-12/json-schema-validation"
+      ],
+      "independent": true
+    },
+    {
+      "id": "retrieval-metric-denominators",
+      "topic": 836,
+      "chapter": "course-retrieval-ranking-evaluation",
+      "title": "Calculate metrics from a failure trace",
+      "kind": "debugging",
+      "objective": "retrieval-ranking-evaluation.boundary",
+      "difficulty": "applied",
+      "scenario": "Gold IDs are {sale, normal}. The first two results are [irrelevant, sale]. Which pair is correct?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Recall@2 = 1.0; reciprocal rank = 1.0.",
+          "feedback": "Only one of two gold items was recovered and the first relevant hit is rank two."
+        },
+        {
+          "id": "2",
+          "text": "Recall@2 = 0.5; reciprocal rank = 0.5.",
+          "feedback": "State the evaluation unit and denominator. Empty-gold queries need a separate answerability/abstention policy."
+        },
+        {
+          "id": "3",
+          "text": "Recall@2 = 0.5; reciprocal rank = 0.25.",
+          "feedback": "Reciprocal rank is 1 divided by rank, not rank squared."
+        }
+      ],
+      "correct": "2",
+      "explanation": "State the evaluation unit and denominator. Empty-gold queries need a separate answerability/abstention policy.",
+      "hints": [
+        "Count recovered gold identities and locate the first relevant rank."
+      ],
+      "references": [
+        "https://arxiv.org/abs/1603.09320",
+        "https://arxiv.org/abs/2005.11401",
+        "https://scikit-learn.org/stable/modules/cross_validation.html",
+        "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.ndcg_score.html",
+        "https://www.elastic.co/docs/reference/elasticsearch/index-settings/similarity"
+      ],
+      "independent": true
+    },
+    {
+      "id": "citation-membership-limit",
+      "topic": 837,
+      "chapter": "course-evidence-citations-abstention",
+      "title": "A permitted citation supports the wrong rule",
+      "kind": "debugging",
+      "objective": "evidence-citations-abstention.boundary",
+      "difficulty": "applied",
+      "scenario": "An answer cites a permitted sale-policy source but states an ordinary-return deadline absent from that passage. What follows?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Accept because the source ID exists.",
+          "feedback": "Existence and scope do not prove semantic support."
+        },
+        {
+          "id": "2",
+          "text": "Membership passed, but support/applicability failed; withhold or repair the claim.",
+          "feedback": "Keep source membership, caller scope, applicability and claim support as separate checks."
+        },
+        {
+          "id": "3",
+          "text": "Increase the confidence rating to make the answer usable.",
+          "feedback": "A confidence label cannot supply missing evidence."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Keep source membership, caller scope, applicability and claim support as separate checks.",
+      "hints": [
+        "Which fact did source-ID validation actually establish?"
+      ],
+      "references": [
+        "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/",
+        "https://deepeval.com/docs/metrics-faithfulness",
+        "https://www.trulens.org/getting_started/core_concepts/rag_triad/",
+        "https://scikit-learn.org/stable/common_pitfalls.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "capacity-mean-versus-tail",
+      "topic": 840,
+      "chapter": "course-capacity-slos-cost",
+      "title": "Estimate replicas and defend the assumption",
+      "kind": "debugging",
+      "objective": "capacity-slos-cost.boundary",
+      "difficulty": "applied",
+      "scenario": "Assume 50 requests/s, 2 s mean occupancy, 4 independent slots/replica and 70% target utilization. What is the planning estimate?",
+      "options": [
+        {
+          "id": "1",
+          "text": "25 replicas with a guaranteed p95 under 2 seconds.",
+          "feedback": "That ignores headroom and confuses a mean-capacity relation with a tail guarantee."
+        },
+        {
+          "id": "2",
+          "text": "36 replicas, followed by load validation of the independence and tail-latency assumptions.",
+          "feedback": "ceil(50×2/(4×0.7)) is 36. Real GPU batching, memory and dependencies can invalidate the independent-slot assumption."
+        },
+        {
+          "id": "3",
+          "text": "143 replicas because each slot requires its own replica.",
+          "feedback": "The declared replica has four slots; do not change the units."
+        }
+      ],
+      "correct": "2",
+      "explanation": "ceil(50×2/(4×0.7)) is 36. Real GPU batching, memory and dependencies can invalidate the independent-slot assumption.",
+      "hints": [
+        "Track units through arrival rate × mean time ÷ capacity."
+      ],
+      "references": [
+        "https://opentelemetry.io/docs/concepts/signals/",
+        "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
+        "https://developers.openai.com/api/docs/guides/rate-limits",
+        "https://sre.google/sre-book/service-level-objectives/",
+        "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "privacy-gate-over-average",
+      "topic": 842,
+      "chapter": "course-recovery-governance-release",
+      "title": "Higher task quality hides a privacy regression",
+      "kind": "debugging",
+      "objective": "recovery-governance-release.boundary",
+      "difficulty": "applied",
+      "scenario": "Baseline quality is 0.90; candidate quality is 0.94 with acceptable latency but one other-tenant disclosure. Should the candidate pass?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Accept because average quality improved.",
+          "feedback": "An aggregate improvement cannot compensate for the forbidden disclosure."
+        },
+        {
+          "id": "2",
+          "text": "Reject it because the critical authorization invariant failed.",
+          "feedback": "Predeclare critical invariants and inspect their failures separately from average quality."
+        },
+        {
+          "id": "3",
+          "text": "Hide the failed case from the dataset.",
+          "feedback": "Removing the evidence makes the gate misleading."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Predeclare critical invariants and inspect their failures separately from average quality.",
+      "hints": [
+        "Which requirement is a hard boundary rather than an optimization target?"
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/backup.html",
+        "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+        "https://mlflow.org/docs/latest/ml/tracking/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "revision-tombstone-replay",
+      "topic": 833,
+      "chapter": "course-lineage-deletion-rebuild",
+      "title": "A backfill replays a deleted policy",
+      "kind": "debugging",
+      "objective": "lineage-deletion-rebuild.boundary",
+      "difficulty": "applied",
+      "scenario": "Revision 4 deletes a policy. A delayed revision 2 upsert arrives during a historical backfill. What should the projection do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Restore revision 2 because it arrived more recently.",
+          "feedback": "Arrival order is not document revision order."
+        },
+        {
+          "id": "2",
+          "text": "Retain the revision-4 tombstone and prevent the old upsert from republishing the document.",
+          "feedback": "Deletion requires version-aware state and reconciliation of derived stores; current access rules must survive rollback/replay."
+        },
+        {
+          "id": "3",
+          "text": "Delete only the browser cache.",
+          "feedback": "The stale derived index and backfill can still expose the source."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Deletion requires version-aware state and reconciliation of derived stores; current access rules must survive rollback/replay.",
+      "hints": [
+        "Compare authoritative revision order with processing time."
+      ],
+      "references": [
+        "https://beam.apache.org/documentation/programming-guide/",
+        "https://www.postgresql.org/docs/current/backup.html",
+        "https://arxiv.org/abs/2005.11401"
+      ],
+      "independent": true
+    },
+    {
+      "id": "typed-runtime-boundary",
+      "chapter": "course-cumulative-typed-application",
+      "topic": 843,
+      "title": "A declared type is not a parsed response",
+      "kind": "debugging",
+      "objective": "practicum.typed-runtime-boundary",
+      "difficulty": "applied",
+      "scenario": "An HTTP response is cast with `as Answer` and the compiler passes. A new server returns citations as a string. What protects the UI boundary?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Trust the cast because TypeScript checked it.",
+          "feedback": "This does not enforce the stated boundary."
+        },
+        {
+          "id": "2",
+          "text": "Parse unknown input and validate the runtime shape before publishing state.",
+          "feedback": "Correct: preserves the invariant under the given failure."
+        },
+        {
+          "id": "3",
+          "text": "Catch only rendering errors after the value enters state.",
+          "feedback": "This changes presentation or policy without repairing the failure."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A compile-time assertion does not inspect bytes received at runtime. Validate the discriminated union and field limits before treating a body as trusted state.",
+      "hints": [
+        "Identify the authoritative decision and the evidence that actually crosses the boundary."
+      ],
+      "references": [
+        "https://react.dev/learn/synchronizing-with-effects",
+        "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
+        "https://vite.dev/guide/",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events",
+        "https://api-security.owasp.org/editions/2023/en/0x11-t10"
+      ],
+      "independent": true
+    },
+    {
+      "id": "test-set-selection",
+      "chapter": "course-model-selection-uncertainty",
+      "topic": 844,
+      "title": "The test set became a tuning set",
+      "kind": "debugging",
+      "objective": "practicum.test-set-selection",
+      "difficulty": "applied",
+      "scenario": "A learner compares ten models using the final test accuracy, changes features after inspecting those test errors, then reports the best value as an unbiased held-out score. What repair is needed?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Rename the best model and keep the number.",
+          "feedback": "This does not enforce the stated boundary."
+        },
+        {
+          "id": "2",
+          "text": "Declare the old test data used for selection and evaluate the frozen decision on a fresh valid holdout.",
+          "feedback": "Correct: preserves the invariant under the given failure."
+        },
+        {
+          "id": "3",
+          "text": "Average only the five best scores.",
+          "feedback": "This changes presentation or policy without repairing the failure."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Selecting and engineering against test outcomes consumes that set. Fix the split and preprocessing design, use validation for decisions and reserve a fresh appropriately grouped or timed holdout.",
+      "hints": [
+        "Identify the authoritative decision and the evidence that actually crosses the boundary."
+      ],
+      "references": [
+        "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+        "https://scikit-learn.org/stable/common_pitfalls.html",
+        "https://scikit-learn.org/stable/modules/cross_validation.html",
+        "https://scikit-learn.org/stable/modules/calibration.html",
+        "https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+        "https://mlflow.org/docs/latest/ml/tracking/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "sdk-versus-wire-version",
+      "chapter": "course-sdk-protocol-interoperability",
+      "topic": 845,
+      "title": "Package pins do not identify the connection profile",
+      "kind": "debugging",
+      "objective": "practicum.sdk-versus-wire-version",
+      "difficulty": "applied",
+      "scenario": "A package lock pins a protocol SDK, but its client automatically falls back to an older supported profile. The app requires a capability absent in that profile. Which gate is missing?",
+      "options": [
+        {
+          "id": "1",
+          "text": "A check that the package version string looks current.",
+          "feedback": "This does not enforce the stated boundary."
+        },
+        {
+          "id": "2",
+          "text": "An assertion of the actual negotiated wire profile and required advertised capability.",
+          "feedback": "Correct: preserves the invariant under the given failure."
+        },
+        {
+          "id": "3",
+          "text": "A faster JSON parser.",
+          "feedback": "This changes presentation or policy without repairing the failure."
+        }
+      ],
+      "correct": "2",
+      "explanation": "SDK versions and negotiated wire profiles are separate. Reject unsupported profiles or missing required capabilities rather than silently weakening the contract.",
+      "hints": [
+        "Identify the authoritative decision and the evidence that actually crosses the boundary."
+      ],
+      "references": [
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+        "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization",
+        "https://py.sdk.modelcontextprotocol.io/get-started/first-steps/",
+        "https://a2a-protocol.org/v1.0.0/specification/",
+        "https://github.com/a2aproject/a2a-python"
+      ],
+      "independent": true
+    },
+    {
+      "id": "accumulating-pane-sink",
+      "chapter": "course-beam-watermarks-recovery",
+      "topic": 846,
+      "title": "An accumulating correction is not a fresh delta",
+      "kind": "debugging",
+      "objective": "practicum.accumulating-pane-sink",
+      "difficulty": "applied",
+      "scenario": "Beam emits an accumulating pane totaling 5, then a late-event correction totaling 12. A database sink adds both and shows 17. What is the correct write policy for this fixture?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Add each pane again after restart to ensure delivery.",
+          "feedback": "This does not enforce the stated boundary."
+        },
+        {
+          "id": "2",
+          "text": "Upsert the latest total under a stable owner/window identity and handle replay/version ordering.",
+          "feedback": "Correct: preserves the invariant under the given failure."
+        },
+        {
+          "id": "3",
+          "text": "Discard all late events without changing the declared policy.",
+          "feedback": "This changes presentation or policy without repairing the failure."
+        }
+      ],
+      "correct": "2",
+      "explanation": "The corrected accumulating pane already contains the earlier accepted values. Store the authoritative aggregate with appropriate ordering and replay identity; do not add the two cumulative totals.",
+      "hints": [
+        "Identify the authoritative decision and the evidence that actually crosses the boundary."
+      ],
+      "references": [
+        "https://beam.apache.org/documentation/programming-guide/",
+        "https://kafka.apache.org/documentation/",
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "restore-deletion-authority",
+      "chapter": "course-restore-and-rollout-drills",
+      "topic": 847,
+      "title": "A restore resurrected deleted data",
+      "kind": "debugging",
+      "objective": "practicum.restore-deletion-authority",
+      "difficulty": "applied",
+      "scenario": "A valid backup contains d2. A later authoritative deletion ledger says d2 must stay deleted. After restoring the old backup, when should the deletion be reapplied?",
+      "options": [
+        {
+          "id": "1",
+          "text": "After users report seeing d2.",
+          "feedback": "This does not enforce the stated boundary."
+        },
+        {
+          "id": "2",
+          "text": "Before exposing restored data or rebuilding visible projections.",
+          "feedback": "Correct: preserves the invariant under the given failure."
+        },
+        {
+          "id": "3",
+          "text": "Never: backup integrity overrides newer deletion authority.",
+          "feedback": "This changes presentation or policy without repairing the failure."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A valid old snapshot can contain data deleted later. Preserve independent deletion authority and apply it before visibility, including derived indexes and caches.",
+      "hints": [
+        "Identify the authoritative decision and the evidence that actually crosses the boundary."
+      ],
+      "references": [
+        "https://docs.python.org/3/library/sqlite3.html#sqlite3.Connection.backup",
+        "https://www.postgresql.org/docs/current/backup.html",
+        "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "critical-slice-release",
+      "chapter": "course-independent-review-practicum",
+      "topic": 848,
+      "title": "Averages cannot grant permission",
+      "kind": "debugging",
+      "objective": "practicum.critical-slice-release",
+      "difficulty": "applied",
+      "scenario": "A candidate improves mean answer quality but a network response now contains another owner’s private source. The release policy requires zero cross-owner disclosures. What is the release decision?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Ship because average quality improved.",
+          "feedback": "This does not enforce the stated boundary."
+        },
+        {
+          "id": "2",
+          "text": "Block release, repair server scope and retain the disclosure as a regression.",
+          "feedback": "Correct: preserves the invariant under the given failure."
+        },
+        {
+          "id": "3",
+          "text": "Hide the source link in the browser and ship.",
+          "feedback": "This changes presentation or policy without repairing the failure."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A critical permission invariant is a separate release gate. The unauthorized bytes have already reached the browser; an aggregate score or hidden link cannot repair the disclosure.",
+      "hints": [
+        "Identify the authoritative decision and the evidence that actually crosses the boundary."
+      ],
+      "references": [
+        "https://www.w3.org/WAI/test-evaluate/preliminary/",
+        "https://genai.owasp.org/llm-top-10/",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/",
+        "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"
+      ],
+      "independent": true
+    },
+    {
+      "id": "mutable-default-tenant-state",
+      "chapter": "course-python-values",
+      "topic": 819,
+      "title": "Mutable state crosses request identities",
+      "kind": "debugging",
+      "objective": "backend.python.mutable-default",
+      "difficulty": "applied",
+      "scenario": "A FastAPI helper has `def filters(extra={})`: each request injects its owner's ID into extra before a query. A second user sees unexpectedly scoped results. Which fix is correct?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Copy the owner's ID into the response but keep the shared dict.",
+          "feedback": "The database lookup is still built using shared state."
+        },
+        {
+          "id": "2",
+          "text": "Allocate per-request filters, derive owner from trusted auth and require owner predicate at the DB.",
+          "feedback": "Correct: both the Python alias and authorization boundaries must be repaired."
+        },
+        {
+          "id": "3",
+          "text": "Add a global asyncio.Lock only.",
+          "feedback": "A lock serializes use but does not remove shared ownership or stale values."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Python evaluates the default dict once at function definition; it survives across requests. Replace the default with None or a sentinel, allocate a new dict, and enforce owner filtering at the authoritative query. Test two principals sequentially and concurrently.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://docs.python.org/3/tutorial/controlflow.html#default-argument-values"
+      ],
+      "independent": true
+    },
+    {
+      "id": "async-generator-disconnect",
+      "chapter": "course-python-iteration-types",
+      "topic": 820,
+      "title": "Disconnect while streaming query rows",
+      "kind": "debugging",
+      "objective": "backend.python.resource-lifetime",
+      "difficulty": "applied",
+      "scenario": "A streaming response holds a database connection inside an async generator. The browser disconnects after two records, exhausting the pool over time. Which implementation invariant matters?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Depend on garbage collection to close generators immediately.",
+          "feedback": "Abandoned async generators need deterministic finalization."
+        },
+        {
+          "id": "2",
+          "text": "Use async context managers/finally and close on cancellation or early consumer exit.",
+          "feedback": "Correct: resource lifetime must be explicit across yield and await boundaries."
+        },
+        {
+          "id": "3",
+          "text": "Only increase the database pool size.",
+          "feedback": "Larger capacity delays the leak and hides the underlying lifetime error."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Resources persist inside a suspended generator until cleanup executes. Close generators deterministically and release connections in finally/asynchronous context-manager exit; test cancellation and early termination.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://docs.python.org/3/reference/expressions.html#asynchronous-generator-functions"
+      ],
+      "independent": true
+    },
+    {
+      "id": "queueing-utilization-case",
+      "chapter": "course-complexity-os-network",
+      "topic": 821,
+      "title": "Constant-time cache, poor p99 HTTP latency",
+      "kind": "debugging",
+      "objective": "backend.performance.queueing",
+      "difficulty": "applied",
+      "scenario": "An endpoint uses an O(1) hash lookup but mean response time rises sharply when requests approach service capacity. Which diagnosis is most defensible?",
+      "options": [
+        {
+          "id": "1",
+          "text": "O(1) proves the endpoint cannot queue.",
+          "feedback": "Complexity says nothing about arrivals, contention or external waits."
+        },
+        {
+          "id": "2",
+          "text": "Measure queue wait and downstream stages; saturation can dominate even O(1) local work.",
+          "feedback": "Correct: work can be constant per lookup but queued under load."
+        },
+        {
+          "id": "3",
+          "text": "Change every dictionary to a binary search tree.",
+          "feedback": "That worsens expected lookup complexity without addressing throughput saturation."
+        }
+      ],
+      "correct": "2",
+      "explanation": "In an ideal M/M/1 example with service 100/s, arrival 90/s implies mean time 0.1s; 99/s implies 1s. Real traffic must be measured; the model does not predict p99 for arbitrary workloads.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://sre.google/sre-book/handling-overload/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "async-ambiguous-ack-retry",
+      "chapter": "course-asyncio-lifecycle",
+      "topic": 822,
+      "title": "Lost acknowledgement after commit",
+      "kind": "debugging",
+      "objective": "backend.asyncio.idempotency",
+      "difficulty": "applied",
+      "scenario": "An asyncio handler commits a result and the client disconnects before the response. The client retries the same operation ID from another replica. What is safe?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Assume the cancellation reversed the commit.",
+          "feedback": "Cancellation does not undo completed external or database effects."
+        },
+        {
+          "id": "2",
+          "text": "Use a durable (owner,operation) key, return prior result or reject conflicting payload.",
+          "feedback": "Correct: maintain one authoritative business effect independent of the socket."
+        },
+        {
+          "id": "3",
+          "text": "Use an in-memory asyncio.Lock.",
+          "feedback": "The lock cannot coordinate other replicas or survive restarts."
+        }
+      ],
+      "correct": "2",
+      "explanation": "An effect ledger must be durable and scoped by authenticated owner and stable operation ID; identical retries recover the committed result while a different payload conflicts.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/transaction-iso.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "fapi-owner-predicate",
+      "chapter": "course-fastapi-request-boundary",
+      "topic": 823,
+      "title": "Validated UUID but unauthorized object",
+      "kind": "debugging",
+      "objective": "backend.http.object-authorization",
+      "difficulty": "applied",
+      "scenario": "Pydantic validates a request's UUID but `GET /claims/B` returns tenant B's data to authenticated tenant A. Which invariant was omitted?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The input UUID is syntactically invalid.",
+          "feedback": "Input syntax is not object-level authorization."
+        },
+        {
+          "id": "2",
+          "text": "Include authenticated owner in the authoritative database query.",
+          "feedback": "Correct: the trusted principal must restrict every object read and write."
+        },
+        {
+          "id": "3",
+          "text": "Hide claim B's link in React.",
+          "feedback": "The server has already disclosed the data."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Authentication establishes principal identity, Pydantic validates shape, but authorization must bind reads and mutations to the server-established owner. Test with two owners and the same object identifier.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://fastapi.tiangolo.com/tutorial/security/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "bayes-low-base-rate",
+      "chapter": "course-vectors-probability",
+      "topic": 811,
+      "title": "90%-sensitive classifier with rare positives",
+      "kind": "debugging",
+      "objective": "math.bayes.base-rate",
+      "difficulty": "applied",
+      "scenario": "A detector has sensitivity 90%, false-positive rate 5% and prevalence 1%. Approximately what fraction of flagged cases are genuinely positive?",
+      "options": [
+        {
+          "id": "1",
+          "text": "90%",
+          "feedback": "Sensitivity reverses the conditional; it is not precision."
+        },
+        {
+          "id": "2",
+          "text": "15.4%",
+          "feedback": "Correct: (0.9×0.01)/[(0.9×0.01)+(0.05×0.99)] ≈15.38%."
+        },
+        {
+          "id": "3",
+          "text": "95%",
+          "feedback": "Specificity is not positive predictive value."
+        }
+      ],
+      "correct": "2",
+      "explanation": "For 10,000 cases, 100 are positive: 90 true positives; 9,900 are negative: 495 false positives. Precision=90/585 ≈15.38%. This depends on prevalence, threshold and error rates.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures"
+      ],
+      "independent": true
+    },
+    {
+      "id": "causal-mask-order",
+      "chapter": "course-tokenization-attention",
+      "topic": 816,
+      "title": "Causal attention normalization error",
+      "kind": "debugging",
+      "objective": "math.attention.causal-mask",
+      "difficulty": "applied",
+      "scenario": "An engineer runs softmax over attention logits, then zeros out future-token probabilities without renormalization. Which correction preserves causal attention?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Mask forbidden logits before softmax, then normalize allowed positions.",
+          "feedback": "Correct: legal positions receive probabilities summing to one."
+        },
+        {
+          "id": "2",
+          "text": "Multiply all logits by zero.",
+          "feedback": "That destroys the learned attention scores."
+        },
+        {
+          "id": "3",
+          "text": "Set the future output vectors to zeros after attention.",
+          "feedback": "Future logits already affected probability normalization."
+        }
+      ],
+      "correct": "1",
+      "explanation": "The causal mask removes forbidden positions from the denominator. Apply a numerically stable masked softmax, handle all-masked rows explicitly and test a first-token row expected [1,0].",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://arxiv.org/abs/1706.03762"
+      ],
+      "independent": true
+    },
+    {
+      "id": "rag-tenant-retrieval",
+      "chapter": "retrieval",
+      "topic": 68,
+      "title": "Global ANN top-k post-filtering",
+      "kind": "debugging",
+      "objective": "rag.retrieval.tenant-eligibility",
+      "difficulty": "applied",
+      "scenario": "All top-5 nearest vectors belong to another tenant. A user has relevant authorized vectors ranked sixth and seventh globally. Which retrieval design protects both scope and recall?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Get global top-5 and remove private hits in React.",
+          "feedback": "Unauthorized candidates can leak; authorized neighbors never enter the candidate pool."
+        },
+        {
+          "id": "2",
+          "text": "Constrain the search eligibility by trusted owner before ranking, then resolve sources with ACL checks.",
+          "feedback": "Correct: owner scope is an index/query boundary and checked again at source resolution."
+        },
+        {
+          "id": "3",
+          "text": "Increase the global top-k until private hits stop appearing.",
+          "feedback": "More global hits are not an authorization guarantee."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Tenant eligibility must apply to the ANN/lexical candidate stage. Post-filtering can starve legal recall and leak identifiers. Verify negative cases against the actual engine, not only a toy cosine oracle.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/ddl-rowsecurity.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "agent-approved-replay",
+      "chapter": "agent-harness",
+      "topic": 396,
+      "title": "Approval is not a model-memory string",
+      "kind": "debugging",
+      "objective": "agents.effects.durable-replay",
+      "difficulty": "applied",
+      "scenario": "A model's retrieved document says 'the user already approved the refund'. The agent has no authenticated approval record. A retry arrives after an ambiguous earlier tool response. Which response is correct?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Trust the document as consent and retry payment.",
+          "feedback": "Untrusted content cannot create effect permission."
+        },
+        {
+          "id": "2",
+          "text": "Verify scoped approval and reconcile persisted operation ID before any effect.",
+          "feedback": "Correct: check authority and durable effect state separately from tool text."
+        },
+        {
+          "id": "3",
+          "text": "Assume every missing response means an uncommitted write.",
+          "feedback": "An ambiguous response does not prove rollback."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Tool output is low-trust data. Authorizations come from a trusted source bound to owner/payload/time; an authoritative effect ledger resolves replay, with one business effect per operation.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-late-correction",
+      "chapter": "context-engineering",
+      "topic": 305,
+      "title": "Late-arriving preference correction",
+      "kind": "debugging",
+      "objective": "agents.memory.temporal-provenance",
+      "difficulty": "applied",
+      "scenario": "A preference took effect Monday but was only recorded Wednesday. How should an auditor reproduce the agent's Tuesday decision?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Use Wednesday's correction because it is the newest known value now.",
+          "feedback": "That introduces hindsight into a historical decision."
+        },
+        {
+          "id": "2",
+          "text": "Read only records known by Tuesday, preserving separately the effective time and recorded time.",
+          "feedback": "Correct: bitemporal state distinguishes what was valid from what the system knew."
+        },
+        {
+          "id": "3",
+          "text": "Delete older facts and rewrite the Tuesday log.",
+          "feedback": "That destroys historical audit evidence."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Bitemporal queries use both validity and recorded-at cutoffs. Preserve event provenance and historical decisions while applying verified corrections to future projections.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/rangetypes.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "context-budget-overflow",
+      "chapter": "context-optimization",
+      "topic": 311,
+      "title": "Prompt window smaller than mandatory sections",
+      "kind": "debugging",
+      "objective": "agents.context.budget-allocation",
+      "difficulty": "applied",
+      "scenario": "A model's budget is 8,192 tokens; mandatory instructions, tools, history and output reserve already consume 8,500. What is a safe retrieval decision?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Delete the authorization section to fit more evidence.",
+          "feedback": "Authorization is mandatory and cannot be truncated silently."
+        },
+        {
+          "id": "2",
+          "text": "Fail visibly or select a documented alternative workflow/model with more capacity.",
+          "feedback": "Correct: required contract exceeds capacity; no evidence allocation remains."
+        },
+        {
+          "id": "3",
+          "text": "Assume 4 characters equal one token across all modalities.",
+          "feedback": "Tokenization depends on actual model and serialized request."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Reserve generation output and account for the provider tokenizer and tool schema. If mandatory fields exceed the window, refuse/truncate optional material only under explicit policy; do not erase safety controls.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://platform.openai.com/docs/guides/prompt-caching"
+      ],
+      "independent": true
+    },
+    {
+      "id": "finops-unknown-spend",
+      "chapter": "agent-observability",
+      "topic": 255,
+      "title": "Provider timed out after billing attempt",
+      "kind": "debugging",
+      "objective": "observability.finops.unresolved-usage",
+      "difficulty": "applied",
+      "scenario": "A provider timed out, returned no token usage, but may have charged the failed attempt. The logical task retries. Which cost state is defensible?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Treat the attempt as free because usage is null.",
+          "feedback": "Unknown usage is not a zero invoice."
+        },
+        {
+          "id": "2",
+          "text": "Keep the hold unresolved and reconcile provider request IDs; count a distinct retry separately.",
+          "feedback": "Correct: separate task, attempt, reservation and settlement."
+        },
+        {
+          "id": "3",
+          "text": "Charge the successful retry only.",
+          "feedback": "The earlier attempt might have incurred a billable charge."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Reserve a bounded maximum before admission; settle only against known usage, reconcile missing attempts, and enforce a user-scoped transactionally consistent budget.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "mcp-token-audience",
+      "chapter": "mcp-server-engineering",
+      "topic": 354,
+      "title": "OAuth token issued for a different MCP server",
+      "kind": "debugging",
+      "objective": "protocol.mcp.oauth.audience",
+      "difficulty": "applied",
+      "scenario": "MCP Server B receives a bearer token minted for Server A with enough-looking scopes. Should it allow a read?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes, any bearer token with the string read:docs works.",
+          "feedback": "Scopes cannot override an incorrect resource audience."
+        },
+        {
+          "id": "2",
+          "text": "Reject and require cryptographic verification of correct issuer, audience, expiry and scope.",
+          "feedback": "Correct: token audience/resource binding prevents cross-server replay."
+        },
+        {
+          "id": "3",
+          "text": "Ask the language model to confirm the token is valid.",
+          "feedback": "The model is not an authentication authority."
+        }
+      ],
+      "correct": "2",
+      "explanation": "The resource server must verify signature, algorithm, trusted issuer metadata, intended audience and expiry, then authorize scopes and object ownership. A policy fixture without cryptography cannot certify OAuth integration.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization"
+      ],
+      "independent": true
+    },
+    {
+      "id": "vision-bbox-iou",
+      "chapter": "ocr-document-ai",
+      "topic": 453,
+      "title": "Region grounding, not text accuracy alone",
+      "kind": "debugging",
+      "objective": "vision.grounding.iou",
+      "difficulty": "applied",
+      "scenario": "Two 10×10 square boxes overlap only in a 5×5 area. What is their Intersection-over-Union (IoU)?",
+      "options": [
+        {
+          "id": "1",
+          "text": "25/100=0.25",
+          "feedback": "This ignores nonoverlapping area in the other box."
+        },
+        {
+          "id": "2",
+          "text": "25/(100+100−25)=1/7≈0.143",
+          "feedback": "Correct: IoU uses intersection divided by union."
+        },
+        {
+          "id": "3",
+          "text": "100/25=4",
+          "feedback": "IoU is a ratio in [0,1] for valid boxes."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Intersection area 25, union 100+100−25=175, IoU 25/175≈0.142857. Record image coordinate frame and resizing before evaluating visual grounding.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://docs.pytorch.org/vision/stable/generated/torchvision.ops.box_iou.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "video-pts-timebase",
+      "chapter": "voice-agents",
+      "topic": 447,
+      "title": "Video timebase and transcript alignment",
+      "kind": "debugging",
+      "objective": "multimodal.video.presentation-time",
+      "difficulty": "applied",
+      "scenario": "A video frame has presentation timestamp 90,000 and a 1/90,000-second timebase. Its playback time is?",
+      "options": [
+        {
+          "id": "1",
+          "text": "90,000 seconds",
+          "feedback": "Ticks must be scaled by the rational timebase."
+        },
+        {
+          "id": "2",
+          "text": "1 second",
+          "feedback": "Correct: 90,000 × (1/90,000)=1 second."
+        },
+        {
+          "id": "3",
+          "text": "The frame index divided by 30, necessarily.",
+          "feedback": "Variable frame rate and reordering make frame index unreliable."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Compute presentation time using the rational timestamp, not decode order or frame number. Match transcript events with explicit half-open intervals and verify drift separately.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://ffmpeg.org/ffmpeg-all.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "sft-shifted-labels",
+      "chapter": "deep-learning-foundations",
+      "topic": 896,
+      "title": "Response-only causal supervision",
+      "kind": "debugging",
+      "objective": "ml.sft.response-mask",
+      "difficulty": "applied",
+      "scenario": "In causal training, the model sees BOS + prompt + response tokens. Which labels should incur loss for response-only SFT?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Prompt tokens, because the user message is most important.",
+          "feedback": "That trains the model to reproduce the prompt."
+        },
+        {
+          "id": "2",
+          "text": "Next-token targets for assistant response and EOS; ignore prompt targets and padding.",
+          "feedback": "Correct: causal alignment and ignore masks select supervised response positions."
+        },
+        {
+          "id": "3",
+          "text": "Only the last response token, regardless of content.",
+          "feedback": "That omits nearly all target behavior."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Shift causal targets one position, mask prompt/pad targets with ignore_index and verify the first response token and EOS remain supervised. Tokenizer/chat template must be pinned.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://huggingface.co/docs/trl/sft_trainer"
+      ],
+      "independent": true
+    },
+    {
+      "id": "deployment-tombstone-restore",
+      "chapter": "deployment-reliability",
+      "topic": 290,
+      "title": "A clean backup resurrects a deletion",
+      "kind": "debugging",
+      "objective": "mlops.restore.deletion-ledger",
+      "difficulty": "applied",
+      "scenario": "Restoring last week's valid database snapshot would expose a document deleted yesterday. What must happen before serving?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Serve the backup and apply deletion if users complain.",
+          "feedback": "The unauthorized data becomes visible before reconciliation."
+        },
+        {
+          "id": "2",
+          "text": "Replay the authoritative deletion ledger and remove derived caches/index entries before serving.",
+          "feedback": "Correct: backup integrity is separate from current deletion authority."
+        },
+        {
+          "id": "3",
+          "text": "Increase read replica count to hide the restored row.",
+          "feedback": "Replication does not change the deletion semantics."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Preserve deletion/tombstone high-water marks independently of the backup; reconcile before exposing data or rebuilding vector projections, then run a restore drill.",
+      "hints": [
+        "Identify the system invariant first; distinguish a simulated result from an independently measured outcome."
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/backup.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "eval-paired-release-design",
+      "chapter": "evaluation-libraries",
+      "topic": 249,
+      "title": "Design a trustworthy cross-platform evaluation",
+      "kind": "self-review",
+      "objective": "evaluation.paired-case-rubric",
+      "difficulty": "advanced",
+      "scenario": "You must compare a new retriever and answer model across two different evaluation tools. Design a source-grounded 20-case experiment where the average score improves but one critical tenant-safety case regresses. Specify the release decision and reproducible evidence.",
+      "rubric": [
+        "Specify identical immutable case IDs, corpus/ACL revisions, prompts, models, rubric and dataset split across tools.",
+        "Measure retrieval recall, citation support, false refusal and owner-scope safety separately with baseline/candidate trace IDs.",
+        "Calibrate any model-based judge against independently labeled examples; retain disagreements and a sealed holdout.",
+        "Reject release on a critical tenant disclosure even if mean recall improves; document runnable negative case and metric denominators."
+      ],
+      "model_answer": "Fix a gold dataset and relevant/forbidden source IDs per case; capture baseline/candidate case-level outputs and trace IDs. Evaluate supported-answer and retrieval metrics independently, human-calibrate judge confusion, and fail closed for cross-owner evidence or critical-slice regressions. Platform dashboard parity is not a correctness oracle.",
+      "hints": [
+        "Name the independently testable oracle, the source-of-truth boundary and at least one negative case."
+      ],
+      "references": [
+        "https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "framework-fair-comparison",
+      "chapter": "langchain",
+      "topic": 210,
+      "title": "Compare frameworks without benchmark theatre",
+      "kind": "self-review",
+      "objective": "agents.frameworks.fair-contract",
+      "difficulty": "advanced",
+      "scenario": "Compare LangChain, LangGraph, LlamaIndex, ADK and a direct model SDK for a policy assistant that must never call write tools. Draft a method that allows different execution abstractions but enforces the same business task and gold output.",
+      "rubric": [
+        "Pin versioned SDKs/model/tool definitions/fixtures and initial state.",
+        "Check citations, denied tools, refusal, error paths and source-owner scope against independent oracles.",
+        "Measure paired first-token/total latency and usage under equal warmed/cold runs.",
+        "Record framework integration complexity, observability and human-approval limitations; do not label a mock as a vendor benchmark."
+      ],
+      "model_answer": "Use one typed task/result policy and identical authorized fixtures; implement actual pinned adapters; compare case-level correctness before timing/cost, include negative forbidden-tool and private-source tests, and disclose what was only simulated. An offline direct/graph/reference harness is a starting contract, not a benchmark of vendor frameworks.",
+      "hints": [
+        "Name the independently testable oracle, the source-of-truth boundary and at least one negative case."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/overview"
+      ],
+      "independent": true
+    },
+    {
+      "id": "serving-ttft-queue-regression",
+      "chapter": "model-engineering",
+      "topic": 296,
+      "title": "Batching raises throughput but breaks TTFT",
+      "kind": "debugging",
+      "objective": "inference.scheduling.tail-latency",
+      "difficulty": "applied",
+      "scenario": "A deployment increases its maximum concurrent decode sequences; generated tokens per second improves 22%, but p99 time-to-first-token rises from 0.7 s to 2.2 s with the same request-length mix. Which conclusion is supported?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The serving change is universally better because tokens/s increased.",
+          "feedback": "It violates or worsens latency for tail requests; throughput alone does not establish product improvement."
+        },
+        {
+          "id": "2",
+          "text": "Compare queueing and prefill/decode per request class, check SLA, then tune memory/admission.",
+          "feedback": "Correct: inspect queue time, TTFT, KV capacity and length-specific fairness with a paired workload."
+        },
+        {
+          "id": "3",
+          "text": "KV memory is independent of live context tokens, so ignore VRAM.",
+          "feedback": "KV memory scales with layers, heads, head width, live tokens, dtype and concurrent sequences."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Serving changes trade throughput and tail latency. Calculate 2×L×H_kv×d×T×bytes×sequences for KV memory, trace queue and prefill, report TTFT/TPOT and p99 alongside real GPU high-water marks. A deterministic simulation is not a measured vLLM/TGI benchmark.",
+      "hints": [
+        "The acceptance goal includes tail latency, not solely throughput."
+      ],
+      "references": [
+        "https://docs.vllm.ai/en/latest/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "safety-critical-slice-release",
+      "chapter": "security",
+      "topic": 106,
+      "title": "A safety slice regresses under a better average",
+      "kind": "debugging",
+      "objective": "safety.fairness.critical-slice",
+      "difficulty": "applied",
+      "scenario": "A new moderation configuration improves aggregate accuracy but misses all labeled harmful prompts in a small language-specific sample while older behavior caught them. The policy requires no regression on critical-harm slices. What is the defensible release decision?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Release; overall accuracy improved.",
+          "feedback": "A critical per-slice harm gate cannot be overridden by a larger aggregate."
+        },
+        {
+          "id": "2",
+          "text": "Block, examine adjudicated slice size and failure reasons, gather representative labels and rerun the sealed test set.",
+          "feedback": "Correct: respect the harm gate and state uncertainty from a small sample."
+        },
+        {
+          "id": "3",
+          "text": "Silently remove the language slice from evaluation.",
+          "feedback": "This hides a safety regression and biases the evaluation set."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Compute TP/FN and false-positive rates for each represented slice with known denominators. A tiny synthetic test is insufficient to certify fairness but can reveal an unacceptable regression; investigate representative independently adjudicated data without moving thresholds merely to pass CI.",
+      "hints": [
+        "Look for the critical-slice gate and why sample size matters."
+      ],
+      "references": [
+        "https://www.nist.gov/itl/ai-risk-management-framework"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-state-authority",
+      "chapter": "context-engineering",
+      "topic": 1217,
+      "title": "How do episodic events, semantic facts and workflow checkpoints answer different memory questions?",
+      "kind": "debugging",
+      "objective": "memory.state-authority",
+      "difficulty": "implementation",
+      "scenario": "A summary says “refund sent,” but the effect ledger contains only an unapproved draft. Which source can establish completion?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The summary, because it is the latest text.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case."
+        },
+        {
+          "id": "2",
+          "text": "An authorized committed effect receipt; the summary alone cannot.",
+          "feedback": "The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case."
+        },
+        {
+          "id": "3",
+          "text": "A high embedding similarity to a completed refund.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case."
+        }
+      ],
+      "correct": "2",
+      "explanation": "The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-two-clock-expiry",
+      "chapter": "context-engineering",
+      "topic": 1218,
+      "title": "How can two clocks preserve a retroactive preference correction without rewriting history?",
+      "kind": "debugging",
+      "objective": "memory.two-clock-expiry",
+      "difficulty": "implementation",
+      "scenario": "English applies at 10 and is observed at 10. Arabic applies at 15, is observed at 17, and expires at 30. What do (valid,known) queries (16,16), (16,18), (30,30) return?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Arabic, Arabic, English",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English."
+        },
+        {
+          "id": "2",
+          "text": "English, Arabic, no current preference",
+          "feedback": "Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English."
+        },
+        {
+          "id": "3",
+          "text": "English, English, Arabic",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-idempotent-correction",
+      "chapter": "context-engineering",
+      "topic": 1219,
+      "title": "What must a memory write verify before a model-generated claim becomes a durable fact?",
+      "kind": "debugging",
+      "objective": "memory.idempotent-correction",
+      "difficulty": "implementation",
+      "scenario": "Owner A replays request ID p1 with a different preference after p1 committed. What is the correct write behavior?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Overwrite p1 silently.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version."
+        },
+        {
+          "id": "2",
+          "text": "Reject the changed payload; use a distinct operation ID for an explicit correction.",
+          "feedback": "A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version."
+        },
+        {
+          "id": "3",
+          "text": "Create another row under p1 and pick whichever is most recent.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-ranking-scope",
+      "chapter": "context-engineering",
+      "topic": 1220,
+      "title": "When should agent memory use exact facts, lexical retrieval or vector-hybrid ranking?",
+      "kind": "debugging",
+      "objective": "memory.ranking-scope",
+      "difficulty": "implementation",
+      "scenario": "Five owner B memories are nearest to a query; the first eligible owner A result ranks sixth globally. What must candidate retrieval do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Fetch global top five, then remove B.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first."
+        },
+        {
+          "id": "2",
+          "text": "Apply trusted owner eligibility before each candidate selection and ranking.",
+          "feedback": "Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first."
+        },
+        {
+          "id": "3",
+          "text": "Return B if the response does not quote its exact text.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-compaction-refusal",
+      "chapter": "context-engineering",
+      "topic": 1221,
+      "title": "How can memory compaction preserve uncertainty, corrections and completed side effects?",
+      "kind": "debugging",
+      "objective": "memory.compaction-refusal",
+      "difficulty": "implementation",
+      "scenario": "A history says “draft a message,” “do not send,” and “what happened?” A compact summary drops the second turn. What is the failure?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Only style changed.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose."
+        },
+        {
+          "id": "2",
+          "text": "The summary lost an authoritative refusal and could induce an unauthorized send.",
+          "feedback": "A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose."
+        },
+        {
+          "id": "3",
+          "text": "The effect ledger automatically repairs the summary.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-delete-transaction",
+      "chapter": "context-engineering",
+      "topic": 1222,
+      "title": "What does a memory deletion receipt prove about facts, indexes, caches and backups?",
+      "kind": "debugging",
+      "objective": "memory.delete-transaction",
+      "difficulty": "implementation",
+      "scenario": "An injected exception occurs after deleting facts but before deleting derived text. Both SQL statements are in one uncommitted transaction. What should the reopened database show?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Facts absent, text retained.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit."
+        },
+        {
+          "id": "2",
+          "text": "Both changes rolled back; a completed retry must remove both together.",
+          "feedback": "Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit."
+        },
+        {
+          "id": "3",
+          "text": "A completed deletion receipt regardless of database state.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-replay-capstone",
+      "chapter": "context-engineering",
+      "topic": 1223,
+      "title": "Defend a month of scoped memory",
+      "kind": "self-review",
+      "objective": "memory.replay-and-false-recall",
+      "difficulty": "system-design",
+      "scenario": "Extend memory_project.py with eight new multi-turn histories. Include delayed correction, refusal of consent, another owner with near-identical text, stale summary, lost acknowledgement, expiry, deletion and a restored database. Compare exact, recency and hybrid retrieval on a fixed gold set with unknown cases.",
+      "rubric": [
+        "Each expected fact is established from an explicit source event and both clocks before retrieval is run.",
+        "No other-owner source enters any candidate set; a deletion removes authoritative and derived rows after restart.",
+        "Report supported recall and false recall separately; an unknown case that returns a claim fails that invariant.",
+        "A permission/refusal/effect receipt remains authoritative after compaction; no summary authorizes an external effect.",
+        "Report actual workload, elapsed measurements and retained record counts; do not present fixture scores as model quality."
+      ],
+      "model_answer": "An acceptable submission contains the fixed histories and owner-scoped gold keys, exact commands and observed output, per-strategy results including unknown cases, a before/after deletion inspection and restart proof. A single cross-owner leak, revived expired preference or fabricated effect is a failure regardless of average relevance. Human or AI rubric review must identify itself; this subjective task never automatically grants a pass.",
+      "hints": [
+        "Keep the histories synthetic and separate retrieval scores from authorization invariants."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "async-cpu-starvation",
+      "chapter": "computer-science-foundations",
+      "topic": 1215,
+      "title": "Diagnose a blocked event loop",
+      "kind": "debugging",
+      "objective": "backend.asyncio.cpu-starvation",
+      "difficulty": "applied",
+      "scenario": "A FastAPI endpoint executes a synchronous, CPU-intensive Python loop for 500 ms without await. Other async I/O endpoints share that worker's event loop. Which change directly addresses the mechanism while preserving bounded capacity?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Wrap the CPU loop in create_task() without changing its internals.",
+          "feedback": "create_task schedules a coroutine, but its blocking CPU code still monopolizes the event-loop thread."
+        },
+        {
+          "id": "2",
+          "text": "Move the CPU-heavy work to an appropriately bounded process/worker pool and propagate deadlines.",
+          "feedback": "Correct: offloading the CPU work prevents it from blocking that loop; admission and deadlines control overload."
+        },
+        {
+          "id": "3",
+          "text": "Increase the browser's fetch timeout to 60 seconds.",
+          "feedback": "Longer patience does not restore event-loop scheduling or prevent queue starvation."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Asyncio is cooperative; a coroutine without a suspension point blocks other tasks sharing its thread. Process/worker isolation can free the event loop, but adds serialization, memory and cancellation/recovery obligations. Test p99 and event-loop lag under concurrent traffic.",
+      "hints": [
+        "Distinguish task scheduling from executing CPU work in parallel.",
+        "Identify where control returns to the event loop."
+      ],
+      "references": [
+        "https://docs.python.org/3/library/asyncio-task.html",
+        "https://docs.python.org/3/library/concurrent.futures.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "backend-queue-saturation",
+      "chapter": "computer-science-foundations",
+      "topic": 1216,
+      "title": "Reason about queue saturation",
+      "kind": "quiz",
+      "objective": "backend.capacity.queueing",
+      "difficulty": "advanced",
+      "scenario": "In an idealized M/M/1 model with one server at μ=100 requests/second, arrival rate rises from λ=90 to λ=99 requests/second. Which interpretation correctly describes mean time in system, and what should a production team do next?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Mean time stays 10 ms because each lookup is O(1); only code complexity matters.",
+          "feedback": "Algorithmic O(1) lookup work says nothing about waiting near server saturation."
+        },
+        {
+          "id": "2",
+          "text": "Idealized mean grows from 100 ms to 1 second; then measure actual request distributions and percentiles instead of treating the model as a measured p99.",
+          "feedback": "Correct: 1/(μ−λ) yields .1 and 1 seconds under M/M/1 assumptions, not observed production p99."
+        },
+        {
+          "id": "3",
+          "text": "Mean increases from 10 ms to 11 ms; use Little's Law to calculate exact p99.",
+          "feedback": "The queueing denominator is remaining capacity (μ−λ), and Little's Law relates averages, not tail percentiles."
+        }
+      ],
+      "correct": "2",
+      "explanation": "The ideal M/M/1 result is 1/(100−90)=0.1 s and 1/(100−99)=1 s. This estimate assumes a stable Poisson/exponential single-server queue. Real LLM-backed workloads require observed p95/p99, queue wait, service-time distributions, cancellations, timeout/error handling and fair admission controls.",
+      "hints": [
+        "Write λ for arrival rate and μ for service capacity.",
+        "Evaluate 1/(μ−λ); then distinguish expectations from measured percentiles."
+      ],
+      "references": [
+        "https://sre.google/sre-book/handling-overload/",
+        "https://docs.python.org/3/library/asyncio-queue.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-128",
+      "chapter": "models",
+      "topic": 128,
+      "title": "What are temperature, top-p, tokens, and structured output?",
+      "kind": "quiz",
+      "objective": "issue-17.models.128",
+      "difficulty": "applied",
+      "scenario": "A 100-token allowance reserves 30 tokens per attempt. The first call is rate limited and the second succeeds. How much remains?",
+      "options": [
+        {
+          "id": "1",
+          "text": "40 reserved tokens remain.",
+          "feedback": "Reservations apply to both attempts: 100-30-30=40. This is local conservative accounting, not a provider bill."
+        },
+        {
+          "id": "2",
+          "text": "70 remain because only the successful call counts.",
+          "feedback": "This does not preserve the stated boundary. Reservations apply to both attempts: 100-30-30=40. This is local conservative accounting, not a provider bill."
+        },
+        {
+          "id": "3",
+          "text": "100 remain because rate limits are always free.",
+          "feedback": "This does not preserve the stated boundary. Reservations apply to both attempts: 100-30-30=40. This is local conservative accounting, not a provider bill."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Reservations apply to both attempts: 100-30-30=40. This is local conservative accounting, not a provider bill.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://json-schema.org/draft/2020-12/json-schema-validation",
+        "https://www.rfc-editor.org/rfc/rfc6585.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-421",
+      "chapter": "sse-streaming",
+      "topic": 421,
+      "title": "When should an AI application use SSE?",
+      "kind": "debugging",
+      "objective": "issue-17.sse-streaming.421",
+      "difficulty": "applied",
+      "scenario": "The socket closes after a plausible paragraph but before a valid terminal event. Which UI state is justified?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Complete because prose has arrived.",
+          "feedback": "This does not preserve the stated boundary. Transport success and partial text do not establish application completion. Preserve the final-event requirement."
+        },
+        {
+          "id": "2",
+          "text": "Complete if HTTP status was 200.",
+          "feedback": "This does not preserve the stated boundary. Transport success and partial text do not establish application completion. Preserve the final-event requirement."
+        },
+        {
+          "id": "3",
+          "text": "Incomplete or failed, with partial text labeled.",
+          "feedback": "Transport success and partial text do not establish application completion. Preserve the final-event requirement."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Transport success and partial text do not establish application completion. Preserve the final-event requirement.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://html.spec.whatwg.org/multipage/server-sent-events.html",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-81",
+      "chapter": "ingestion",
+      "topic": 81,
+      "title": "What are the phases of the ingestion workflow?",
+      "kind": "quiz",
+      "objective": "issue-17.ingestion.81",
+      "difficulty": "applied",
+      "scenario": "A revision-2 ingestion job prepared 90 of 100 chunks before crashing. Revision 1 is currently active. What is safe?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Delete revision 1 because preparation started.",
+          "feedback": "This does not preserve the stated boundary. Preparation and publication are different states. A failed replacement must not silently expose a partial generation."
+        },
+        {
+          "id": "2",
+          "text": "Keep revision 1 active under the stale-data policy until revision 2 validates completely.",
+          "feedback": "Preparation and publication are different states. A failed replacement must not silently expose a partial generation."
+        },
+        {
+          "id": "3",
+          "text": "Publish the 90 chunks as the complete revision.",
+          "feedback": "This does not preserve the stated boundary. Preparation and publication are different states. A failed replacement must not silently expose a partial generation."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Preparation and publication are different states. A failed replacement must not silently expose a partial generation.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.postgresql.org/docs/current/mvcc-intro.html",
+        "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-31",
+      "chapter": "chunking",
+      "topic": 31,
+      "title": "Why chunk documents at all?",
+      "kind": "debugging",
+      "objective": "issue-17.chunking.31",
+      "difficulty": "applied",
+      "scenario": "A 4,096-token limit reserves 512 output, 384 instructions and 256 conversation tokens. What remains for evidence and separators?",
+      "options": [
+        {
+          "id": "1",
+          "text": "2,944 tokens.",
+          "feedback": "Subtract all reservations: 4096-512-384-256=2944. Provider cache behavior cannot remove the context-window contract."
+        },
+        {
+          "id": "2",
+          "text": "3,584 tokens.",
+          "feedback": "This does not preserve the stated boundary. Subtract all reservations: 4096-512-384-256=2944. Provider cache behavior cannot remove the context-window contract."
+        },
+        {
+          "id": "3",
+          "text": "4,096 tokens because evidence is cached.",
+          "feedback": "This does not preserve the stated boundary. Subtract all reservations: 4096-512-384-256=2944. Provider cache behavior cannot remove the context-window contract."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Subtract all reservations: 4096-512-384-256=2944. Provider cache behavior cannot remove the context-window contract.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://arxiv.org/abs/2005.11401",
+        "https://www.w3.org/TR/annotation-model/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-41",
+      "chapter": "embeddings",
+      "topic": 41,
+      "title": "What is an embedding, and why is its dimension not enough to identify it?",
+      "kind": "quiz",
+      "objective": "issue-17.embeddings.41",
+      "difficulty": "applied",
+      "scenario": "Query and index embeddings have equal dimensions but come from different model revisions with no compatibility guarantee. What should happen?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Search normally because dimensions match.",
+          "feedback": "This does not preserve the stated boundary. Dimensions and normalization do not establish a shared learned coordinate system. Compatibility is a versioned profile contract."
+        },
+        {
+          "id": "2",
+          "text": "Normalize both vectors and assume compatibility.",
+          "feedback": "This does not preserve the stated boundary. Dimensions and normalization do not establish a shared learned coordinate system. Compatibility is a versioned profile contract."
+        },
+        {
+          "id": "3",
+          "text": "Reject the profile mismatch or rebuild and evaluate a compatible index.",
+          "feedback": "Dimensions and normalization do not establish a shared learned coordinate system. Compatibility is a versioned profile contract."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Dimensions and normalization do not establish a shared learned coordinate system. Compatibility is a versioned profile contract.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://arxiv.org/abs/1908.10084",
+        "https://faiss.ai/cpp_api/struct/structfaiss_1_1IndexFlatIP.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-63",
+      "chapter": "retrieval",
+      "topic": 63,
+      "title": "How does Reciprocal Rank Fusion work here?",
+      "kind": "debugging",
+      "objective": "issue-17.retrieval.63",
+      "difficulty": "applied",
+      "scenario": "With RRF constant 60, document X appears at ranks 1 and 3. What is its score?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The average of its cosine and BM25 raw scores.",
+          "feedback": "This does not preserve the stated boundary. RRF sums reciprocal shifted ranks. It neither averages incompatible raw scores nor uses an absent vector score."
+        },
+        {
+          "id": "2",
+          "text": "1/61 + 1/63, approximately 0.032266.",
+          "feedback": "RRF sums reciprocal shifted ranks. It neither averages incompatible raw scores nor uses an absent vector score."
+        },
+        {
+          "id": "3",
+          "text": "1/(1+3), or 0.25.",
+          "feedback": "This does not preserve the stated boundary. RRF sums reciprocal shifted ranks. It neither averages incompatible raw scores nor uses an absent vector score."
+        }
+      ],
+      "correct": "2",
+      "explanation": "RRF sums reciprocal shifted ranks. It neither averages incompatible raw scores nor uses an absent vector score.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion",
+        "https://www.elastic.co/docs/reference/elasticsearch/index-settings/similarity"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-65",
+      "chapter": "retrieval",
+      "topic": 65,
+      "title": "When does a reranker help, and what can it not fix?",
+      "kind": "quiz",
+      "objective": "issue-17.retrieval.65",
+      "difficulty": "applied",
+      "scenario": "The decisive exception is absent from every candidate pool. What can a perfect reranker do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Reorder the available pool; it cannot recover the missing exception.",
+          "feedback": "Candidate recall is a hard boundary. Fix retrieval or abstain before claiming the exception is supported."
+        },
+        {
+          "id": "2",
+          "text": "Infer and insert the missing authoritative source.",
+          "feedback": "This does not preserve the stated boundary. Candidate recall is a hard boundary. Fix retrieval or abstain before claiming the exception is supported."
+        },
+        {
+          "id": "3",
+          "text": "Guarantee correct final answers by changing the rank constant.",
+          "feedback": "This does not preserve the stated boundary. Candidate recall is a hard boundary. Fix retrieval or abstain before claiming the exception is supported."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Candidate recall is a hard boundary. Fix retrieval or abstain before claiming the exception is supported.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://arxiv.org/abs/1603.09320",
+        "https://arxiv.org/abs/1901.04085"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-71",
+      "chapter": "evidence",
+      "topic": 71,
+      "title": "Why does evidence assembly deserve a separate module?",
+      "kind": "debugging",
+      "objective": "issue-17.evidence.71",
+      "difficulty": "applied",
+      "scenario": "The real cited general rule permits returns, while a final-sale exception forbids this particular return. Is the general-rule answer supported?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes, because the URL exists.",
+          "feedback": "This does not preserve the stated boundary. Citation existence and structural validity are weaker than claim support under the actual question conditions."
+        },
+        {
+          "id": "2",
+          "text": "Yes, if the answer has valid JSON.",
+          "feedback": "This does not preserve the stated boundary. Citation existence and structural validity are weaker than claim support under the actual question conditions."
+        },
+        {
+          "id": "3",
+          "text": "No; a real citation can still omit the decisive condition.",
+          "feedback": "Citation existence and structural validity are weaker than claim support under the actual question conditions."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Citation existence and structural validity are weaker than claim support under the actual question conditions.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://arxiv.org/abs/2005.11401",
+        "https://www.nist.gov/itl/ai-risk-management-framework"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-111",
+      "chapter": "evaluation",
+      "topic": 111,
+      "title": "How are Recall@K, Precision@K, and MRR calculated?",
+      "kind": "quiz",
+      "objective": "issue-17.evaluation.111",
+      "difficulty": "applied",
+      "scenario": "One binary-relevant passage appears at rank two, and no other passage is relevant. Which values are correct?",
+      "options": [
+        {
+          "id": "1",
+          "text": "All three metrics equal 1 because the passage was found.",
+          "feedback": "This does not preserve the stated boundary. Recall measures coverage, reciprocal rank uses the first relevant position, and nDCG discounts rank two by log2(3)."
+        },
+        {
+          "id": "2",
+          "text": "Recall=1, reciprocal rank=0.5, nDCG about 0.63093.",
+          "feedback": "Recall measures coverage, reciprocal rank uses the first relevant position, and nDCG discounts rank two by log2(3)."
+        },
+        {
+          "id": "3",
+          "text": "Recall=0.5, reciprocal rank=1, nDCG=1.",
+          "feedback": "This does not preserve the stated boundary. Recall measures coverage, reciprocal rank uses the first relevant position, and nDCG discounts rank two by log2(3)."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Recall measures coverage, reciprocal rank uses the first relevant position, and nDCG discounts rank two by log2(3).",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.ndcg_score.html",
+        "https://trec.nist.gov/overview.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-119",
+      "chapter": "evaluation",
+      "topic": 119,
+      "title": "How do you roll out a retrieval change safely?",
+      "kind": "debugging",
+      "objective": "issue-17.evaluation.119",
+      "difficulty": "applied",
+      "scenario": "A faster candidate drops the final-sale exception and emits an unsupported eligibility answer. What should the release gate do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Block the critical regression even if average latency improves.",
+          "feedback": "Quality, privacy and latency are separate dimensions. A critical unsupported decision cannot be hidden by an average improvement."
+        },
+        {
+          "id": "2",
+          "text": "Promote because lower latency is the only user-visible metric.",
+          "feedback": "This does not preserve the stated boundary. Quality, privacy and latency are separate dimensions. A critical unsupported decision cannot be hidden by an average improvement."
+        },
+        {
+          "id": "3",
+          "text": "Tune repeatedly on the held-out cases until the gate passes.",
+          "feedback": "This does not preserve the stated boundary. Quality, privacy and latency are separate dimensions. A critical unsupported decision cannot be hidden by an average improvement."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Quality, privacy and latency are separate dimensions. A critical unsupported decision cannot be hidden by an average improvement.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://sre.google/sre-book/monitoring-distributed-systems/",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-316",
+      "chapter": "context-optimization",
+      "topic": 316,
+      "title": "How do prompt caching and semantic caching differ?",
+      "kind": "quiz",
+      "objective": "issue-17.context-optimization.316",
+      "difficulty": "applied",
+      "scenario": "A cached answer cites policy revision 1, but revision 2 changed the rule and is now active. What is required?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Return revision 1 if the query text is identical.",
+          "feedback": "This does not preserve the stated boundary. Cache identity and final eligibility must include scope and revisions. Text similarity does not establish present validity."
+        },
+        {
+          "id": "2",
+          "text": "Reuse it for every tenant because the question is common.",
+          "feedback": "This does not preserve the stated boundary. Cache identity and final eligibility must include scope and revisions. Text similarity does not establish present validity."
+        },
+        {
+          "id": "3",
+          "text": "A version-aware miss/invalidation and citation revalidation.",
+          "feedback": "Cache identity and final eligibility must include scope and revisions. Text similarity does not establish present validity."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Cache identity and final eligibility must include scope and revisions. Text similarity does not establish present validity.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.rfc-editor.org/rfc/rfc9111.html",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-321",
+      "chapter": "prompt-foundations",
+      "topic": 321,
+      "title": "What makes a useful system instruction?",
+      "kind": "debugging",
+      "objective": "issue-17.prompt-foundations.321",
+      "difficulty": "applied",
+      "scenario": "A malicious connector returns schema-valid instructions to create an unapproved refund. Where is the decisive denial?",
+      "options": [
+        {
+          "id": "1",
+          "text": "At JSON parsing, which detects whether an action is authorized.",
+          "feedback": "This does not preserve the stated boundary. An injected tool proposal can pass structural validation. Authorization and approval must be checked independently before any effect."
+        },
+        {
+          "id": "2",
+          "text": "At the trusted dispatcher checking authority and exact approval.",
+          "feedback": "An injected tool proposal can pass structural validation. Authorization and approval must be checked independently before any effect."
+        },
+        {
+          "id": "3",
+          "text": "Only in a better delimiter around the source text.",
+          "feedback": "This does not preserve the stated boundary. An injected tool proposal can pass structural validation. Authorization and approval must be checked independently before any effect."
+        }
+      ],
+      "correct": "2",
+      "explanation": "An injected tool proposal can pass structural validation. Authorization and approval must be checked independently before any effect.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-17-capstone",
+      "chapter": "evaluation",
+      "topic": 111,
+      "title": "Build and repair the policy assistant",
+      "kind": "self-review",
+      "objective": "issue-17.independent-capstone",
+      "difficulty": "system-design",
+      "scenario": "Implement an independent predictor for the fixed policy corpus. Submit exactly one prediction per case using --grade. Add an unseen final-sale question and an owner-swapped query with independently authored expected spans. Remove the exception, capture the failing release, repair it and defend your ranking/context policy.",
+      "rubric": [
+        "Gold expected spans and answer/refusal labels are authored before comparing variants; no forbidden owner or retired revision appears.",
+        "Compute rank-two metrics by hand and match the independent oracle; keep unanswerable recall not applicable.",
+        "Deliver learner source, prediction JSON, source/profile hashes, failed and repaired output, and a claim-level explanation of the decisive exception.",
+        "Defend optional model integration with version, privacy, budget and limitations; do not report deterministic quality as model quality."
+      ],
+      "references": [
+        "https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-ranked-retrieval-results-1.html"
+      ],
+      "independent": false,
+      "hints": [
+        "Write expected source, owner and committed state before running the reference.",
+        "Submit your own implementation and failed/repaired evidence; explain a changed assumption."
+      ],
+      "explanation": "Use the explicit rubric to review your artifacts. This self-review records a learning attempt; it does not certify an independent objective pass.",
+      "model_answer": "The independent gold set distinguishes current general policy, the final-sale exception, another owner, absent evidence and malicious connector text. The unchanged reference supports 8/8 cases; dropping the exception must fail even if a general policy remains retrieved. For [noise,gold], recall=1, reciprocal rank=0.5 and binary nDCG=1/log2(3). A learner must add unseen cases and submit original predictions; exact text matching is a narrow fixture oracle, not generative quality evidence."
+    },
+    {
+      "id": "acceptance-18-381",
+      "chapter": "agent-patterns",
+      "topic": 381,
+      "title": "What is the ReAct pattern?",
+      "kind": "quiz",
+      "objective": "issue-18.agent-patterns.381",
+      "difficulty": "applied",
+      "scenario": "A deterministic lookup has one known safe read path. Which control structure is justified first?",
+      "options": [
+        {
+          "id": "1",
+          "text": "A fixed workflow, adding model-selected steps only if evidence justifies them.",
+          "feedback": "Autonomy introduces evaluation and recovery costs. A known procedure is a valid baseline, not an inferior agent design."
+        },
+        {
+          "id": "2",
+          "text": "Several agents because parallel agreement proves truth.",
+          "feedback": "This does not preserve the stated boundary. Autonomy introduces evaluation and recovery costs. A known procedure is a valid baseline, not an inferior agent design."
+        },
+        {
+          "id": "3",
+          "text": "An unbounded planner that stops when it says done.",
+          "feedback": "This does not preserve the stated boundary. Autonomy introduces evaluation and recovery costs. A known procedure is a valid baseline, not an inferior agent design."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Autonomy introduces evaluation and recovery costs. A known procedure is a valid baseline, not an inferior agent design.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-393",
+      "chapter": "agent-harness",
+      "topic": 393,
+      "title": "How should tool dispatch enforce policy?",
+      "kind": "debugging",
+      "objective": "issue-18.agent-harness.393",
+      "difficulty": "applied",
+      "scenario": "Tool discovery advertised a write yesterday. The user permission was revoked today. What controls execution?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The cached tool descriptor grants permanent permission.",
+          "feedback": "This does not preserve the stated boundary. Discovery describes an interface. Permissions can change and cannot be supplied by model-generated arguments."
+        },
+        {
+          "id": "2",
+          "text": "The model can put approved=true in the arguments.",
+          "feedback": "This does not preserve the stated boundary. Discovery describes an interface. Permissions can change and cannot be supplied by model-generated arguments."
+        },
+        {
+          "id": "3",
+          "text": "Current trusted authorization at the write boundary.",
+          "feedback": "Discovery describes an interface. Permissions can change and cannot be supplied by model-generated arguments."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Discovery describes an interface. Permissions can change and cannot be supplied by model-generated arguments.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+        "https://json-schema.org/draft/2020-12/json-schema-validation"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-341",
+      "chapter": "mcp-foundations",
+      "topic": 341,
+      "title": "What is MCP and which problem does it solve?",
+      "kind": "quiz",
+      "objective": "issue-18.mcp-foundations.341",
+      "difficulty": "applied",
+      "scenario": "A client successfully lists read_policy over MCP. Does this establish that private@1 can be read?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes, if STDIO is used instead of HTTP.",
+          "feedback": "This does not preserve the stated boundary. Transport and capability discovery do not grant access to every resource. Both local and remote peers need explicit trust boundaries."
+        },
+        {
+          "id": "2",
+          "text": "No; resource authorization is checked separately during execution.",
+          "feedback": "Transport and capability discovery do not grant access to every resource. Both local and remote peers need explicit trust boundaries."
+        },
+        {
+          "id": "3",
+          "text": "Yes; tool discovery implies access to every argument.",
+          "feedback": "This does not preserve the stated boundary. Transport and capability discovery do not grant access to every resource. Both local and remote peers need explicit trust boundaries."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Transport and capability discovery do not grant access to every resource. Both local and remote peers need explicit trust boundaries.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture",
+        "https://a2a-protocol.org/latest/specification/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-392",
+      "chapter": "agent-harness",
+      "topic": 392,
+      "title": "How should stop conditions be designed?",
+      "kind": "debugging",
+      "objective": "issue-18.agent-harness.392",
+      "difficulty": "applied",
+      "scenario": "An approval expires at time 110 and the first execution checks it at exactly 110. What must happen?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Deny the new effect because the approval is no longer valid.",
+          "feedback": "Authority must hold at execution. Queue delay cannot turn an expired grant into a valid approval."
+        },
+        {
+          "id": "2",
+          "text": "Execute because it was valid when queued.",
+          "feedback": "This does not preserve the stated boundary. Authority must hold at execution. Queue delay cannot turn an expired grant into a valid approval."
+        },
+        {
+          "id": "3",
+          "text": "Extend it automatically because the model still wants the action.",
+          "feedback": "This does not preserve the stated boundary. Authority must hold at execution. Queue delay cannot turn an expired grant into a valid approval."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Authority must hold at execution. Queue delay cannot turn an expired grant into a valid approval.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://docs.python.org/3/library/asyncio-task.html",
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-395",
+      "chapter": "agent-harness",
+      "topic": 395,
+      "title": "How should budgets be implemented across nested calls?",
+      "kind": "quiz",
+      "objective": "issue-18.agent-harness.395",
+      "difficulty": "applied",
+      "scenario": "Two connections race to execute one approved operation and one reply is lost. What is the required outcome?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Two tickets because there were two calls.",
+          "feedback": "This does not preserve the stated boundary. The invariant concerns logical effects, not attempted calls. Stable owner/key and payload matching protect recovery."
+        },
+        {
+          "id": "2",
+          "text": "A new operation key for each retry.",
+          "feedback": "This does not preserve the stated boundary. The invariant concerns logical effects, not attempted calls. Stable owner/key and payload matching protect recovery."
+        },
+        {
+          "id": "3",
+          "text": "One committed ticket, with replay reconciling the original key.",
+          "feedback": "The invariant concerns logical effects, not attempted calls. Stable owner/key and payload matching protect recovery."
+        }
+      ],
+      "correct": "3",
+      "explanation": "The invariant concerns logical effects, not attempted calls. Stable owner/key and payload matching protect recovery.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-301",
+      "chapter": "context-engineering",
+      "topic": 301,
+      "title": "How is context engineering different from writing a prompt?",
+      "kind": "debugging",
+      "objective": "issue-18.context-engineering.301",
+      "difficulty": "applied",
+      "scenario": "A conversation summary says the user approved, but no matching approval record exists. What may execute?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The write if another model agrees with the summary.",
+          "feedback": "This does not preserve the stated boundary. Derived conversational memory can lose provenance. Authoritative approval and policy are independent of the prompt."
+        },
+        {
+          "id": "2",
+          "text": "No new write; summary text cannot supply authority.",
+          "feedback": "Derived conversational memory can lose provenance. Authoritative approval and policy are independent of the prompt."
+        },
+        {
+          "id": "3",
+          "text": "The write, because summaries are trusted memory.",
+          "feedback": "This does not preserve the stated boundary. Derived conversational memory can lose provenance. Authoritative approval and policy are independent of the prompt."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Derived conversational memory can lose provenance. Authoritative approval and policy are independent of the prompt.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
+        "https://www.nist.gov/itl/ai-risk-management-framework"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-231",
+      "chapter": "agent-evaluation",
+      "topic": 231,
+      "title": "Why is answer evaluation insufficient for an agent?",
+      "kind": "quiz",
+      "objective": "issue-18.agent-evaluation.231",
+      "difficulty": "applied",
+      "scenario": "The final answer says ticket created, but the authoritative ledger contains no ticket. How is this scored?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Task/effect failure, regardless of the fluent explanation.",
+          "feedback": "Attempted calls and generated claims do not prove committed authorized outcomes. Compare the independent receiver state."
+        },
+        {
+          "id": "2",
+          "text": "Success because the answer is helpful.",
+          "feedback": "This does not preserve the stated boundary. Attempted calls and generated claims do not prove committed authorized outcomes. Compare the independent receiver state."
+        },
+        {
+          "id": "3",
+          "text": "Success if the trace contains a tool-request event.",
+          "feedback": "This does not preserve the stated boundary. Attempted calls and generated claims do not prove committed authorized outcomes. Compare the independent receiver state."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Attempted calls and generated claims do not prove committed authorized outcomes. Compare the independent receiver state.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/",
+        "https://www.nist.gov/itl/ai-risk-management-framework"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-371",
+      "chapter": "agent-orchestration",
+      "topic": 371,
+      "title": "When is a fixed workflow better than an autonomous agent?",
+      "kind": "debugging",
+      "objective": "issue-18.agent-orchestration.371",
+      "difficulty": "applied",
+      "scenario": "Two specialists propose the same logical effect using fresh independent IDs. What is the risk?",
+      "options": [
+        {
+          "id": "1",
+          "text": "No risk because each call has an idempotency key.",
+          "feedback": "This does not preserve the stated boundary. Per-key deduplication cannot recognize two different keys as one business action. Coordinate logical identity before dispatch."
+        },
+        {
+          "id": "2",
+          "text": "Consensus guarantees only one effect will occur.",
+          "feedback": "This does not preserve the stated boundary. Per-key deduplication cannot recognize two different keys as one business action. Coordinate logical identity before dispatch."
+        },
+        {
+          "id": "3",
+          "text": "Duplicate effects; one coordinator must own stable business identity and approval.",
+          "feedback": "Per-key deduplication cannot recognize two different keys as one business action. Coordinate logical identity before dispatch."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Per-key deduplication cannot recognize two different keys as one business action. Coordinate logical identity before dispatch.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-18-capstone",
+      "chapter": "agent-harness",
+      "topic": 393,
+      "title": "Operate and recover the support workflow",
+      "kind": "self-review",
+      "objective": "issue-18.independent-capstone",
+      "difficulty": "system-design",
+      "scenario": "Build from the tool descriptors and state contract. Propose a ticket, deny an unapproved write, approve exact arguments, inject lost acknowledgment, reopen the database and reconcile one effect. Add expiry, changed payload, owner swap, concurrent execution and audit rollback cases.",
+      "rubric": [
+        "Match authoritative ticket rows to owner, operation, canonical payload and source; a generated success claim alone earns no credit.",
+        "Show exactly one effect after concurrent/restarted calls, no cancelled/expired/unapproved effect, and atomic rollback on audit failure.",
+        "Export a safe trace, inspect it with the local reader and map source through proposal/approval to committed receiver state.",
+        "Explain remote idempotency retention, compensation and cancellation limits; the local transaction does not prove remote exactly-once."
+      ],
+      "references": [
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+        "https://json-schema.org/draft/2020-12/json-schema-validation"
+      ],
+      "independent": false,
+      "hints": [
+        "Write expected source, owner and committed state before running the reference.",
+        "Submit your own implementation and failed/repaired evidence; explain a changed assumption."
+      ],
+      "explanation": "Use the explicit rubric to review your artifacts. This self-review records a learning attempt; it does not certify an independent objective pass.",
+      "model_answer": "A valid run persists owner, operation, canonical payload and source before approval. Only a matching unexpired grant permits the first write. Ticket, completed state and audit commit together locally. After acknowledgment loss, restart reconciles one existing ticket under the same operation; changed payload, cancellation, expiry and other-owner access are denied. A final audit-write abort rolls back the ticket. Remote effects require a separately verified receiver contract."
+    },
+    {
+      "id": "acceptance-19-910",
+      "chapter": "frontend-foundations",
+      "topic": 910,
+      "title": "Why use a semantic button and label instead of a clickable styled div?",
+      "kind": "quiz",
+      "objective": "issue-19.frontend-foundations.910",
+      "difficulty": "applied",
+      "scenario": "A styled div responds to clicks but has no keyboard behavior or accessible name. What is the appropriate starting repair?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Add a hover tooltip and keep click-only behavior.",
+          "feedback": "This does not preserve the stated boundary. Native semantics supply expected interaction. Color and hover alone do not provide keyboard access or a persistent name."
+        },
+        {
+          "id": "2",
+          "text": "Use a native button with a clear accessible name and visible focus.",
+          "feedback": "Native semantics supply expected interaction. Color and hover alone do not provide keyboard access or a persistent name."
+        },
+        {
+          "id": "3",
+          "text": "Add a red border.",
+          "feedback": "This does not preserve the stated boundary. Native semantics supply expected interaction. Color and hover alone do not provide keyboard access or a persistent name."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Native semantics supply expected interaction. Color and hover alone do not provide keyboard access or a persistent name.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.w3.org/WAI/tutorials/forms/",
+        "https://www.w3.org/WAI/WCAG22/quickref/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-912",
+      "chapter": "frontend-foundations",
+      "topic": 912,
+      "title": "How do JavaScript tasks, microtasks and rendering explain a frozen interface?",
+      "kind": "debugging",
+      "objective": "issue-19.frontend-foundations.912",
+      "difficulty": "applied",
+      "scenario": "A slow Owner A callback arrives after switching to B, despite aborting the old fetch. Which protection is still needed?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Reject updates from the old request generation and clear owner-scoped state.",
+          "feedback": "Cancellation and queued callback lifetime differ. A generation/identity check prevents stale data from reappearing."
+        },
+        {
+          "id": "2",
+          "text": "Trust abort to have removed all queued callbacks.",
+          "feedback": "This does not preserve the stated boundary. Cancellation and queued callback lifetime differ. A generation/identity check prevents stale data from reappearing."
+        },
+        {
+          "id": "3",
+          "text": "Use a TypeScript cast to relabel A as B.",
+          "feedback": "This does not preserve the stated boundary. Cancellation and queued callback lifetime differ. A generation/identity check prevents stale data from reappearing."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Cancellation and queued callback lifetime differ. A generation/identity check prevents stale data from reappearing.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://react.dev/learn/synchronizing-with-effects",
+        "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
+        "https://html.spec.whatwg.org/multipage/webappapis.html#event-loops"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-271",
+      "chapter": "product-delivery",
+      "topic": 271,
+      "title": "What is the public SSE contract, and why should the browser not parse raw ADK internals?",
+      "kind": "quiz",
+      "objective": "issue-19.product-delivery.271",
+      "difficulty": "applied",
+      "scenario": "A restricted document is hidden by a client filter but remains visible in the HTTP response to another owner. Where is the fix?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Hide the element with CSS.",
+          "feedback": "This does not preserve the stated boundary. Confidentiality is already lost when forbidden data is sent. Presentation controls cannot replace object-level authorization."
+        },
+        {
+          "id": "2",
+          "text": "Disable the search button for that owner.",
+          "feedback": "This does not preserve the stated boundary. Confidentiality is already lost when forbidden data is sent. Presentation controls cannot replace object-level authorization."
+        },
+        {
+          "id": "3",
+          "text": "Scope the authoritative server read before returning the document.",
+          "feedback": "Confidentiality is already lost when forbidden data is sent. Presentation controls cannot replace object-level authorization."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Confidentiality is already lost when forbidden data is sent. Presentation controls cannot replace object-level authorization.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS",
+        "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-875",
+      "chapter": "data-engineering-foundations",
+      "topic": 875,
+      "title": "Why is schema compatibility a semantic contract rather than only a field-name check?",
+      "kind": "debugging",
+      "objective": "issue-19.data-engineering-foundations.875",
+      "difficulty": "applied",
+      "scenario": "A nullable fourth column is added and an old consumer unpacks SELECT-star into three values. Is the change compatible?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Always, because no old column was renamed.",
+          "feedback": "This does not preserve the stated boundary. Compatibility includes representation and usage, not just legal database DDL or field names."
+        },
+        {
+          "id": "2",
+          "text": "Not for that consumer; test actual reader/writer contracts and use expand/contract.",
+          "feedback": "Compatibility includes representation and usage, not just legal database DDL or field names."
+        },
+        {
+          "id": "3",
+          "text": "Always, because the new column is nullable.",
+          "feedback": "This does not preserve the stated boundary. Compatibility includes representation and usage, not just legal database DDL or field names."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Compatibility includes representation and usage, not just legal database DDL or field names.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://beam.apache.org/documentation/programming-guide/",
+        "https://www.postgresql.org/docs/current/ddl-constraints.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-877",
+      "chapter": "data-engineering-foundations",
+      "topic": 877,
+      "title": "Why must a CDC checkpoint and destination state have a recovery contract?",
+      "kind": "quiz",
+      "objective": "issue-19.data-engineering-foundations.877",
+      "difficulty": "applied",
+      "scenario": "A CDC replay reuses the same owner, operation and offset but changes its payload. What must the sink do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Reject it as conflicting or unverifiable material replay.",
+          "feedback": "Exact replay requires equality of material event fields. Key-only deduplication can hide source corruption."
+        },
+        {
+          "id": "2",
+          "text": "Ignore it as a harmless duplicate.",
+          "feedback": "This does not preserve the stated boundary. Exact replay requires equality of material event fields. Key-only deduplication can hide source corruption."
+        },
+        {
+          "id": "3",
+          "text": "Apply it silently because the offset matches.",
+          "feedback": "This does not preserve the stated boundary. Exact replay requires equality of material event fields. Key-only deduplication can hide source corruption."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Exact replay requires equality of material event fields. Key-only deduplication can hide source corruption.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://kafka.apache.org/documentation/#semantics"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-286",
+      "chapter": "deployment-reliability",
+      "topic": 286,
+      "title": "How should container and dependency hardening be evaluated?",
+      "kind": "debugging",
+      "objective": "issue-19.deployment-reliability.286",
+      "difficulty": "applied",
+      "scenario": "A deployment progress deadline is exceeded. What does that prove?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Kubernetes automatically restored the previous healthy version.",
+          "feedback": "This does not preserve the stated boundary. Progress reporting is not automatic rollback or proof about all replica availability. Inspect desired, available and updated state."
+        },
+        {
+          "id": "2",
+          "text": "Every old replica is necessarily unavailable.",
+          "feedback": "This does not preserve the stated boundary. Progress reporting is not automatic rollback or proof about all replica availability. Inspect desired, available and updated state."
+        },
+        {
+          "id": "3",
+          "text": "The rollout stalled; inspect state and decide on explicit recovery or undo.",
+          "feedback": "Progress reporting is not automatic rollback or proof about all replica availability. Inspect desired, available and updated state."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Progress reporting is not automatic rollback or proof about all replica availability. Inspect desired, available and updated state.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://docs.docker.com/build/building/best-practices/",
+        "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+        "https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-299",
+      "chapter": "model-engineering",
+      "topic": 299,
+      "title": "What advanced topics should follow the core journey?",
+      "kind": "quiz",
+      "objective": "issue-19.model-engineering.299",
+      "difficulty": "applied",
+      "scenario": "An adapter tensor loads with a different tokenizer revision than training. Is shape compatibility sufficient?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes, if training loss was low.",
+          "feedback": "This does not preserve the stated boundary. Model behavior depends on the whole interpretation contract. Successful loading does not establish semantic compatibility."
+        },
+        {
+          "id": "2",
+          "text": "No; bind and validate base/tokenizer/template/runtime identities.",
+          "feedback": "Model behavior depends on the whole interpretation contract. Successful loading does not establish semantic compatibility."
+        },
+        {
+          "id": "3",
+          "text": "Yes, because the tensor dimensions match.",
+          "feedback": "This does not preserve the stated boundary. Model behavior depends on the whole interpretation contract. Successful loading does not establish semantic compatibility."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Model behavior depends on the whole interpretation contract. Successful loading does not establish semantic compatibility.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://mlflow.org/docs/latest/ml/model-registry/",
+        "https://sre.google/workbook/canarying-releases/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-138",
+      "chapter": "fullstack",
+      "topic": 138,
+      "title": "How would you plan capacity and handle overload?",
+      "kind": "debugging",
+      "objective": "issue-19.fullstack.138",
+      "difficulty": "applied",
+      "scenario": "At 20 requests/s and 2 seconds mean occupancy, how many mean in-flight slots are needed before headroom?",
+      "options": [
+        {
+          "id": "1",
+          "text": "40; five 8-slot replicas is only a full-utilization arithmetic minimum.",
+          "feedback": "Little’s law gives 20*2=40. Real provisioning also needs measured tails, burst and N-1 headroom assumptions."
+        },
+        {
+          "id": "2",
+          "text": "10; divide request rate by latency.",
+          "feedback": "This does not preserve the stated boundary. Little’s law gives 20*2=40. Real provisioning also needs measured tails, burst and N-1 headroom assumptions."
+        },
+        {
+          "id": "3",
+          "text": "5; the replica count already includes an outage.",
+          "feedback": "This does not preserve the stated boundary. Little’s law gives 20*2=40. Real provisioning also needs measured tails, burst and N-1 headroom assumptions."
+        }
+      ],
+      "correct": "1",
+      "explanation": "Little’s law gives 20*2=40. Real provisioning also needs measured tails, burst and N-1 headroom assumptions.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://sre.google/sre-book/handling-overload/",
+        "https://sre.google/sre-book/monitoring-distributed-systems/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-161",
+      "chapter": "database-concurrency",
+      "topic": 161,
+      "title": "How does SELECT FOR UPDATE prevent duplicate confirmation?",
+      "kind": "quiz",
+      "objective": "issue-19.database-concurrency.161",
+      "difficulty": "applied",
+      "scenario": "A transaction aborts while recording the CDC checkpoint after a document update. What must the reopened state show?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The document update committed but no checkpoint.",
+          "feedback": "This does not preserve the stated boundary. Destination state, deduplication and progress share one atomic commit. The injected final-write failure must roll all of them back."
+        },
+        {
+          "id": "2",
+          "text": "An advanced checkpoint and missing document.",
+          "feedback": "This does not preserve the stated boundary. Destination state, deduplication and progress share one atomic commit. The injected final-write failure must roll all of them back."
+        },
+        {
+          "id": "3",
+          "text": "Neither the uncommitted document mutation nor checkpoint/consumed record.",
+          "feedback": "Destination state, deduplication and progress share one atomic commit. The injected final-write failure must roll all of them back."
+        }
+      ],
+      "correct": "3",
+      "explanation": "Destination state, deduplication and progress share one atomic commit. The injected final-write failure must roll all of them back.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.postgresql.org/docs/current/transaction-iso.html",
+        "https://www.postgresql.org/docs/current/explicit-locking.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-289",
+      "chapter": "deployment-reliability",
+      "topic": 289,
+      "title": "What is a meaningful disaster-recovery drill?",
+      "kind": "debugging",
+      "objective": "issue-19.deployment-reliability.289",
+      "difficulty": "applied",
+      "scenario": "A backup restores a document deleted after the snapshot. Integrity checks pass. Can traffic resume immediately?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Yes; an old citation makes the deleted record authorized.",
+          "feedback": "This does not preserve the stated boundary. A structurally valid backup can restore forbidden data. Recovery requires current eligibility, not just valid bytes."
+        },
+        {
+          "id": "2",
+          "text": "No; replay deletion/revocation intent and verify application invariants first.",
+          "feedback": "A structurally valid backup can restore forbidden data. Recovery requires current eligibility, not just valid bytes."
+        },
+        {
+          "id": "3",
+          "text": "Yes; file integrity is the complete recovery criterion.",
+          "feedback": "This does not preserve the stated boundary. A structurally valid backup can restore forbidden data. Recovery requires current eligibility, not just valid bytes."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A structurally valid backup can restore forbidden data. Recovery requires current eligibility, not just valid bytes.",
+      "hints": [
+        "Locate the authoritative evidence and distinguish it from a claim or attempted operation."
+      ],
+      "references": [
+        "https://sre.google/sre-book/managing-incidents/",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+      ],
+      "independent": true
+    },
+    {
+      "id": "acceptance-19-capstone",
+      "chapter": "fullstack",
+      "topic": 138,
+      "title": "Defend the browser-to-data release",
+      "kind": "self-review",
+      "objective": "issue-19.independent-capstone",
+      "difficulty": "system-design",
+      "scenario": "Implement the workbench from a blank component under its public HTTP contract, run the real browser suite and connect a schema-evolving local projection. Inject stale identity callbacks, malformed/incomplete stream, changed CDC replay, checkpoint abort and restored deletion.",
+      "rubric": [
+        "Deliver compiled React/TypeScript, runtime validation, keyboard/mobile behavior and network evidence that A never receives B data.",
+        "Compare expected and actual projection/consumed/checkpoint rows after each fault; keep source/profile lineage and deletion intent.",
+        "Supply a request sequence, capacity calculation with units/headroom, artifact/config manifest and incident/recovery report.",
+        "Keep local HTTP/browser results separate from optional Docker/kind/cloud exercises; record actual execution or pending status and explain rollout undo/data compatibility."
+      ],
+      "references": [
+        "https://sre.google/sre-book/handling-overload/",
+        "https://sre.google/sre-book/monitoring-distributed-systems/"
+      ],
+      "independent": false,
+      "hints": [
+        "Write expected source, owner and committed state before running the reference.",
+        "Submit your own implementation and failed/repaired evidence; explain a changed assumption."
+      ],
+      "explanation": "Use the explicit rubric to review your artifacts. This self-review records a learning attempt; it does not certify an independent objective pass.",
+      "model_answer": "The server scopes data before transmission and the client validates unknown frames, rejects stale owner generations and requires a terminal event. Projection, exact event digest and checkpoint commit together; changed replay fails and a checkpoint fault leaves no partial rows. Restore replays newer deletion intent. Capacity starts from 20*2=40 mean occupied slots and adds measured burst/tail/N-1 assumptions. Optional container/cluster commands remain unexecuted until actual environment evidence exists."
+    }
+  ]
+}

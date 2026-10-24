@@ -1,0 +1,350 @@
+{
+  "id": "production-ai-engineering",
+  "title": "Production AI engineering, SLOs and incident response",
+  "description": "Connect immutable releases, capacity assumptions, privacy-preserving telemetry and recovery drills to independently checked quality and safety gates.",
+  "version": "1.1.0",
+  "updated": "2026-10-22",
+  "review_status": "Per-unit Technical curriculum review status and content-specific evidence in content/reviews.json; no human endorsement claimed.",
+  "units": [
+    {
+      "id": "artifact-release-infrastructure",
+      "title": "Containers, reproducible artifacts and infrastructure change",
+      "outcomes": [
+        "Describe an immutable application/model/data release manifest",
+        "Plan an expand/contract change that tolerates two running versions"
+      ],
+      "terms": [
+        {
+          "term": "Immutable artifact",
+          "definition": "A versioned build output identified by content or digest and promoted without rebuilding it for each environment."
+        },
+        {
+          "term": "Infrastructure as code",
+          "definition": "Reviewed configuration describing infrastructure resources and their desired state."
+        },
+        {
+          "term": "Expand/contract migration",
+          "definition": "A staged schema/interface change that allows old and new application versions to coexist during rollout."
+        }
+      ],
+      "narrative": [
+        "A release is more than a source commit. Record dependency locks, build environment, model/provider version, prompt version, data/index manifest and configuration schema. A container packages a filesystem and process environment; it does not provide data durability or isolate every security threat. Use a minimal runtime image, a non-root user where supported and an explicit process/health contract. Keep credentials out of image layers and build logs.",
+        "Build once and promote the tested artifact by digest. Rebuilding the same source for production can select changed dependencies or base-image content. Test configuration separately from the artifact and keep secrets in the deployment environment's supported secret mechanism. Infrastructure-as-code plans are reviewable proposals; inspect destructive changes, identity permissions, network exposure and state handling before applying them. State files and plans can contain sensitive values and need access control.",
+        "A rolling deployment temporarily runs multiple application versions. API and database changes must tolerate that overlap. Add a new nullable column or compatible endpoint first, deploy readers/writers that support the transition, migrate data and remove the old contract only after observing that it is no longer used. Liveness should detect a stuck process; readiness should indicate whether a replica can serve traffic. Restarting every replica because a shared dependency is briefly unavailable can worsen an outage.",
+        "Keep quality, security and deployment authority distinct. A pull request runs verification, while deployment is restricted to a trusted branch/environment after all required checks succeed. The roadmap itself remains static; this course describes optional local/container learner activities rather than provisioning infrastructure. Use the local scorecard to reject a candidate with a privacy leak even if its average task score improved. Record which artifact and evaluation manifest were accepted, so an incident can be traced back to the decision."
+      ],
+      "lab": "production_scorecard.py",
+      "practice": [
+        "Describe an immutable application/model/data release manifest",
+        "Plan an expand/contract change that tolerates two running versions",
+        "Distinguish readiness, liveness and a quality release decision"
+      ],
+      "debugging": "If only newly deployed replicas fail, compare artifact digest, environment configuration and schema compatibility before rolling all dependencies back. A source commit alone may not identify the actual runtime that served the request.",
+      "tradeoffs": "Containers and orchestration improve deployment consistency and introduce build, registry and cluster operations. A small service may need a simpler deployment. Choose the minimum environment that still supports the workload and recovery requirements.",
+      "references": [
+        "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
+        "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+        "https://developer.hashicorp.com/terraform/intro",
+        "https://mlflow.org/docs/latest/ml/tracking/"
+      ],
+      "prerequisites": [
+        "testing-delivery"
+      ],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "Version B requires a new field while version A will remain live during a rolling update.",
+          "steps": [
+            "Add a backward-compatible representation first.",
+            "Deploy B with fallback support while A still runs.",
+            "Backfill and verify the new data contract.",
+            "Remove A and the old field only after compatibility is no longer needed."
+          ],
+          "result": "Traffic continues through the transition without assuming every replica changes atomically."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why is redeploying the same Git commit not always reproducible?",
+          "spoken": "The build can select different dependencies, base images, model versions or configuration. Promote a tested immutable artifact and record the rest of the runtime manifest.",
+          "deep": "Pin dependency and image inputs, separate configuration from code and preserve evaluation/index versions. Migration and external model changes are independent release dimensions. A rollback of an application image does not reverse a destructive database migration or restore a revoked document.\n\nA source commit does not pin base-image bytes, transitive package resolution or build-time downloads. Record lockfiles, build inputs, image digest, runtime configuration and model/index profiles. Separate secrets from artifacts and run with limited privileges. A movable tag cannot identify what actually served a request.\n\nThe workbench includes a Dockerfile and disposable-kind recovery exercise, while its compiled browser/API tests run locally without a container. Treat those as different evidence: valid configuration is not an executed image or cluster rollout. IaC also needs reviewed permissions, state storage and data lifecycle because a valid plan can expose or delete resources. Promote the exact tested artifact, check schema compatibility and retain provenance for rollback or forward repair. Explain why software rollback cannot reverse destructive data changes, and keep optional infrastructure execution explicitly pending until actual outputs are captured.",
+          "follow_up": {
+            "question": "Should readiness fail whenever any dependency has a transient error?",
+            "answer": "Define it carefully. Failing every replica for a shared outage can remove all serving capacity and cause restart storms; use timeouts, degraded behavior and health policies appropriate to the dependency."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 839,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    },
+    {
+      "id": "capacity-slos-cost",
+      "title": "Capacity estimates, latency budgets and error-budget burn",
+      "outcomes": [
+        "Calculate a mean-capacity estimate and state why it does not establish p95 latency",
+        "Compute error-budget allowance and burn from declared eligible-request counts"
+      ],
+      "terms": [
+        {
+          "term": "SLO",
+          "definition": "A target for a measured user-visible service indicator over a declared window."
+        },
+        {
+          "term": "Error budget",
+          "definition": "The allowed bad-event fraction or count implied by an SLO."
+        },
+        {
+          "term": "Little’s Law",
+          "definition": "In a stable system, mean in-flight work equals arrival rate multiplied by mean time in the system."
+        }
+      ],
+      "narrative": [
+        "Begin a capacity discussion with workload assumptions: arrival rate, request classes, average and tail service times, input/output token distributions, burst shape and dependency limits. Mean concurrency is approximately arrival rate times mean latency in a stable workload. This is a planning relation, not a promise about p95 response time. Queues grow when admitted work exceeds sustainable service capacity; an average that hides long model generations can underestimate memory and connection demand.",
+        "The fixture assumes 50 requests per second, two seconds of mean slot occupancy, four independent slots per replica and a 70% target utilization. Its arithmetic yields ceil(50×2/(4×0.7))=36 replicas. Real model servers may not have independent slots: continuous batching, KV memory, input lengths and accelerator behavior alter throughput. Validate the assumptions with controlled load and measure the bottleneck before accepting the estimate. Include headroom, dependency quotas and failure of a zone or replica group.",
+        "Define an SLI from the user's perspective. A good request may require a valid authorized result within a latency threshold, rather than merely an HTTP 200. State the denominator and exclusions. At a 99.9% request-success objective, 10,000 eligible requests allow about ten bad requests. Twenty bad requests consume twice that allowance, producing 2x burn over the same measured window. Use multiple observation windows and sufficient traffic before paging; a low-volume sample can be noisy.",
+        "Cost estimation needs explicit units. Count provider attempts rather than frontend submissions, distinguish input/output token rates, include embedding and reranking work, and account for storage, idle compute and network transfer. A cache can reduce model work while introducing invalidation, privacy and stale-policy risks. Compare a proposed optimization against quality, authorization and latency invariants instead of minimizing one bill line in isolation."
+      ],
+      "lab": "production_scorecard.py",
+      "practice": [
+        "Calculate a mean-capacity estimate and state why it does not establish p95 latency",
+        "Compute error-budget allowance and burn from declared eligible-request counts",
+        "Build a cost estimate that counts failed and retried model attempts"
+      ],
+      "debugging": "When latency rises while CPU is low, inspect queue age, downstream quotas, connection pools, model token lengths and lock waits. Autoscaling frontend replicas may increase downstream contention without improving throughput.",
+      "tradeoffs": "High utilization can reduce idle cost and sharply increase queueing under bursts. Headroom improves resilience and costs money. A shorter generation limit can reduce spend while making answers less useful; test the product impact.",
+      "references": [
+        "https://opentelemetry.io/docs/concepts/signals/",
+        "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
+        "https://developers.openai.com/api/docs/guides/rate-limits",
+        "https://sre.google/sre-book/service-level-objectives/",
+        "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
+      ],
+      "prerequisites": [
+        "artifact-release-infrastructure"
+      ],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "A service handles 10,000 eligible requests under a 99.9% SLO; 20 are bad.",
+          "steps": [
+            "Allowed bad fraction is 0.001.",
+            "Allowed bad count is 10.",
+            "Observed bad fraction is 0.002.",
+            "Burn is 0.002/0.001=2, meaning twice the target allowance in the same window."
+          ],
+          "result": "The team has a defined reliability signal rather than an unexplained alert threshold."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How many replicas would you provision for an AI endpoint?",
+          "spoken": "First state the workload and service-time assumptions, estimate concurrency, divide by measured per-replica capacity with headroom, then validate tail latency and dependency limits under load.",
+          "deep": "For the fixture, 50 requests/s × 2 s means 100 mean in-flight requests; four slots at 70% target utilization gives 36 replicas after rounding. This number is not transferable to a GPU model server without measuring batching, memory and token distributions.\n\nLittle's law gives mean in-flight work L=lambda*W under a stable workload. At 20 requests/s and two seconds occupancy, 40 mean slots are needed. Five eight-slot replicas is the full-utilization arithmetic floor, not a plan for bursts, tail latency or one failed replica. Measure service-time distributions and reserve N-1 and retry headroom before choosing a deployment size.\n\nBound admission and queued work; rate limits, concurrency limits and token/cost budgets solve different problems. Long generated answers can occupy model slots much longer than short ones. Cache only under scope/revision-valid contracts and monitor unsupported answers separately from speed. Whole-request percentiles must be measured rather than adding stage p95 values. State every assumed number, unit and quality gate in the design defense, and distinguish actual local timing from an analytic capacity estimate or GPU throughput that was never measured.",
+          "follow_up": {
+            "question": "Why can a good average latency hide a bad product experience?",
+            "answer": "A small slow or error-prone slice can dominate affected users. Inspect p95/p99, request classes, failure states and queue age."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 840,
+      "assessment": "capacity-mean-versus-tail",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    },
+    {
+      "id": "telemetry-privacy-triage",
+      "title": "Traces, useful metrics and privacy-aware incident diagnosis",
+      "outcomes": [
+        "Design a trace that distinguishes an attempted tool call from a committed effect",
+        "Choose low-cardinality metrics for a user-impact alert"
+      ],
+      "terms": [
+        {
+          "term": "Trace",
+          "definition": "A representation of related operations and their causal/context relationships across a request."
+        },
+        {
+          "term": "Metric cardinality",
+          "definition": "The number of distinct label combinations emitted for a metric, affecting storage, cost and usefulness."
+        },
+        {
+          "term": "Redaction",
+          "definition": "Removing or transforming sensitive values before they enter an observable destination."
+        }
+      ],
+      "narrative": [
+        "Instrumentation should answer a question. Trace a request through admission, retrieval, model invocation and tool/effect boundaries. Record stage timings, operation/result categories, version identifiers and a safe correlation path. Distinguish an attempted call from a confirmed effect and an expected abstention from a transport failure. Preserve causal parent/child relationships so a long overall request can be explained by time spent in specific stages rather than guessed from one total.",
+        "Metrics aggregate behavior, logs describe selected events and traces connect operations. Use low-cardinality labels such as stage and outcome; avoid a separate metric series for every prompt, request ID or user ID. An alert needs a response: who owns it, which user impact it indicates and what evidence to inspect. A rising internal queue length can be useful, but queue age plus latency/error impact often tells a more actionable story.",
+        "Telemetry is another data store with readers, retention and export paths. Raw prompts, retrieved documents, tokens and tool arguments can contain sensitive material. Apply an allowlist or purpose-built redaction before export and define restricted debugging paths separately. The lab demonstrates a small span-attribute allowlist: only recognized stage/outcome values survive. This cannot cover every production privacy requirement, but it makes the boundary testable and rejects the common habit of logging arbitrary payloads.",
+        "Incident diagnosis should preserve evidence while limiting blast radius. Compare recent release/data/model changes, affected slices and dependency behavior. Form a falsifiable hypothesis and choose one observation or reversible mitigation. Do not change prompt, retriever, index and retry count simultaneously and then infer which one fixed the problem. A useful post-incident review records timeline, impact, contributing conditions, recovery and an owner/date for preventive work rather than blaming the last person to touch a file."
+      ],
+      "lab": "production_scorecard.py",
+      "practice": [
+        "Design a trace that distinguishes an attempted tool call from a committed effect",
+        "Choose low-cardinality metrics for a user-impact alert",
+        "Prove a telemetry export omits raw prompt, document and credential fields"
+      ],
+      "debugging": "A missing span can mean sampling, context propagation failure or an exporter problem rather than a missing application call. Compare the durable operation ledger and service outcome metrics before concluding that an effect never ran.",
+      "tradeoffs": "Full tracing improves debugging and increases cost and privacy exposure. Sampling reduces volume but can omit rare failures; use a documented strategy and retain independent durable audit evidence for critical effects.",
+      "references": [
+        "https://opentelemetry.io/docs/concepts/signals/traces/",
+        "https://opentelemetry.io/docs/security/handling-sensitive-data/",
+        "https://opentelemetry.io/docs/concepts/signals/",
+        "https://docs.langchain.com/langsmith/observability",
+        "https://sre.google/sre-book/service-level-objectives/",
+        "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
+      ],
+      "prerequisites": [
+        "capacity-slos-cost"
+      ],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "A new deployment doubles model-stage latency while retrieval remains unchanged.",
+          "steps": [
+            "Compare versioned traces and eligible request slices before and after rollout.",
+            "Inspect provider attempts, token lengths, retry delays and quotas.",
+            "Mitigate with a known-good artifact or bounded degraded path.",
+            "Retain safe trace/version evidence and create a regression case."
+          ],
+          "result": "The team isolates the slow stage without collecting every customer prompt."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "What would you log for an AI request in production?",
+          "spoken": "Enough safe context to explain timing, versions and outcomes, with a declared privacy and retention policy. Avoid raw prompts and secrets in routine telemetry.",
+          "deep": "Use spans for stages, low-cardinality metrics for rates/latency and minimal structured events for important decisions. Bind effects to durable operation IDs. Restricted diagnostic payload capture, if justified, needs separate access control, redaction and expiry.\n\nRecord safe request, run, attempt and operation identities, stage durations, stop reasons, source/profile revisions and reported usage categories. Logical requests and provider attempts differ when retries occur. A valid citation ID can be useful diagnostic metadata without retaining the entire private passage; raw prompts, credentials and connector text need a separate restricted retention policy.\n\nDuring an incident, compare queueing, retrieval, reranking, first token and completion, plus unsupported answers, false refusals and owner leakage. Do not infer service correctness from HTTP 200 or high trace volume. Use an explicit telemetry allowlist and test it with sensitive fixture fields. The production scorecard checks local decision rules; it does not establish a live provider bill or deployed SLO. An interview defense should connect a concrete symptom to authoritative state and describe what cannot be concluded when usage or trace evidence is missing.",
+          "follow_up": {
+            "question": "Can traces replace an effect ledger?",
+            "answer": "No. Sampling or export loss can omit traces, while a business effect needs durable authoritative state and recovery semantics."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 841,
+      "incident": {
+        "symptom": "Provider attempts double and p95 latency rises after a retry-policy release; CPU utilization remains low.",
+        "evidence": "Compare logical requests, provider attempts, retry delays, token distributions, queue age, model version and downstream quota responses.",
+        "investigation": "Test whether the added latency comes from retry backoff or downstream saturation before increasing replicas. Examine the changed policy with a scripted rate-limit fixture.",
+        "recovery": "Restore the known-good bounded policy or a deliberate degraded route, preserving stable operation identities for uncertain effects.",
+        "prevention": "Gate request budgets and latency separately, alert on user impact and keep safe low-cardinality traces for diagnosis."
+      },
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    },
+    {
+      "id": "recovery-governance-release",
+      "title": "Recovery drills, quality gates and accountable AI releases",
+      "outcomes": [
+        "Design an isolated restore drill with explicit RPO/RTO evidence",
+        "Demonstrate a release gate that refuses a privacy leak despite higher task quality"
+      ],
+      "terms": [
+        {
+          "term": "RPO",
+          "definition": "Recovery point objective: the acceptable amount of data loss expressed relative to a recovery point."
+        },
+        {
+          "term": "RTO",
+          "definition": "Recovery time objective: the target time to restore a defined service capability after disruption."
+        },
+        {
+          "term": "Canary release",
+          "definition": "A rollout that exposes a limited slice to a candidate while monitoring predefined comparison and rollback criteria."
+        }
+      ],
+      "narrative": [
+        "A backup is not a demonstrated recovery plan. Define which authoritative stores, secrets, model artifacts, index manifests and configuration are needed to restore useful service. State RPO and RTO for each critical capability, then run a restore into an isolated environment and verify integrity, authorization and application behavior. Replication can copy an accidental deletion or corruption, so it is not equivalent to an independent recoverable backup.",
+        "Quality gates need a versioned baseline, a fixed case set, critical invariants and measured operating limits. The scorecard rejects a candidate with one privacy leak even if its task score improved. It separately rejects latency beyond the budget and non-finite metric values. Aggregate improvements should not compensate for a forbidden side effect. Record enough dataset, model, prompt and index lineage to reproduce the decision and identify what changed when the gate fails.",
+        "A canary can reduce blast radius but does not make rare failures impossible. Choose a representative permitted population, monitor the relevant request classes and set rollback triggers before rollout. Control exposure and avoid treating live users as a substitute for basic safety/authorization testing. An external provider can change behavior independently of your source release; keep a fallback, capability contract and periodic evaluation where the risk justifies it.",
+        "Governance connects technical evidence to responsibility. Record intended use, known exclusions, data handling, review status, incident contacts and who can approve changes to sensitive actions. The NIST profile is a risk-management reference, not an automatic certification stamp. A learner's capstone should end with a reproducible evidence bundle and an explicit list of unresolved risks. A small synthetic fixture is valuable for regression but cannot establish that a production assistant is safe across every customer, language and deployment condition."
+      ],
+      "lab": "production_scorecard.py",
+      "practice": [
+        "Design an isolated restore drill with explicit RPO/RTO evidence",
+        "Demonstrate a release gate that refuses a privacy leak despite higher task quality",
+        "Write a canary/rollback decision with versioned inputs and named responsibility"
+      ],
+      "debugging": "If restoring a database does not restore service, inventory missing secrets, artifact digests, schemas and external dependencies. Measure from the actual service-recovery definition, not from the moment the backup command finished.",
+      "tradeoffs": "A strict gate can delay useful releases and a weak gate can hide harmful regressions. Critical invariants should remain explicit; use reviewed exceptions with owners and expiry for justified noncritical trade-offs rather than silently lowering thresholds.",
+      "references": [
+        "https://www.postgresql.org/docs/current/backup.html",
+        "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+        "https://mlflow.org/docs/latest/ml/tracking/"
+      ],
+      "prerequisites": [
+        "telemetry-privacy-triage",
+        "evidence-citations-abstention"
+      ],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "A candidate raises task quality from 0.90 to 0.94, but leaks one other-tenant source.",
+          "steps": [
+            "Evaluate the fixed authorization-negative cases independently of quality.",
+            "Record the critical leak count of one.",
+            "Reject promotion even though the aggregate quality improved.",
+            "Repair the access boundary and rerun the same regression before reconsidering rollout."
+          ],
+          "result": "A hard privacy invariant cannot be traded for a better average answer score."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "A backup job reports success every night. What evidence would you still require?",
+          "spoken": "An isolated restore drill proving data integrity, usable application behavior and the stated recovery objectives, including the dependencies needed to serve users.",
+          "deep": "Verify the restored artifact/configuration versions, access controls, indexes, secrets and reconciliation of effects committed after the recovery point. Document any unavoidable data loss and how uncertain external effects will be inspected.\n\nA backup success message does not prove the application can recover. Restore into isolation, verify integrity and business state, reapply post-backup deletion/revocation intent and test repeat-safe effects before traffic. State the actual recovered point and measured scope of recovery; target RTO/RPO and observed outcomes are different evidence.\n\nA release couples application, schema, model/tokenizer, index and configuration versions. A rollback can restore old code while leaving incompatible data or resurrected sources, so rehearse forward repair and compatible migrations. The local restore drill records a copy/integrity/tombstone sequence; the optional kind exercise injects an unavailable image and requires explicit rollout undo. Neither should be reported as executed production recovery without the environment/logs. Deliver a runbook, failure timeline, independent outcome checks and a short design defense explaining the highest-impact remaining uncertainty.",
+          "follow_up": {
+            "question": "Can you blindly replay all pending tool calls after a restore?",
+            "answer": "No. Some receivers may already have committed effects; recover stable identities and reconcile before retrying."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 842,
+      "assessment": "privacy-gate-over-average",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    }
+  ]
+}

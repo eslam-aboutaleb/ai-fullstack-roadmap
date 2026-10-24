@@ -1,0 +1,50 @@
+[
+  {
+    "Q": "What is stored in an embedding, in ordinary terms?",
+    "explain": "It is a list of numbers produced by a model to represent input for a comparison task. The coordinates are not readable policy facts. Keep the original text and identity because the answer still needs inspectable evidence.",
+    "example": "Exchange and swap may map near each other, allowing a search match without an exact shared word.",
+    "takeaway": "Vectors help find text; they do not replace the text."
+  },
+  {
+    "Q": "Why can't two equal-length vectors always be compared?",
+    "explain": "Different models or preprocessing can create different representation spaces with the same dimension. Comparing their coordinates as if they shared meaning can produce meaningless rankings. Record the model and processing profile with the index.",
+    "example": "Both models produce 768 numbers, but one encodes documents differently. Re-embed the corpus before querying it with the new profile.",
+    "takeaway": "Dimension checks are necessary but incomplete compatibility checks."
+  },
+  {
+    "Q": "Why use different query and document modes?",
+    "explain": "Some embedding models are trained to distinguish the text being searched from the text asking for it. Follow the model's documented contract and evaluate the pair together. A mode change can require index migration.",
+    "example": "A short question and a long article play different roles even though both are strings.",
+    "takeaway": "Match the representation contract to the retrieval task."
+  },
+  {
+    "Q": "What should be rejected before vectors enter storage?",
+    "explain": "Reject wrong dimensions, non-finite values, missing outputs, and mismatched batch ordering. Preserve which input produced each vector so a provider error cannot attach the right vector to the wrong document.",
+    "example": "A NaN coordinate can break similarity operations; a reordered batch can quietly return unrelated text.",
+    "takeaway": "Validate numerical shape and identity together."
+  },
+  {
+    "Q": "How do you migrate an embedding model safely?",
+    "explain": "Build a separate compatible index generation, evaluate it against the old one, switch readers deliberately, and retain rollback. Do not mix incompatible vectors during an in-place rollout.",
+    "example": "Keep queries on profile A while profile B is prepared, then change the active profile and index together.",
+    "takeaway": "Model migration is also a data migration."
+  },
+  {
+    "Q": "When would better training examples help more than a larger model?",
+    "explain": "If your domain uses subtle distinctions, reviewed hard negatives can expose ranking mistakes that ordinary examples miss. First establish a baseline and avoid training on mislabeled true answers or the held-out evaluation set.",
+    "example": "Approved and not approved share most words but require different treatment. Include reviewed contrastive cases.",
+    "takeaway": "Improve the representation for the error you actually observe."
+  },
+  {
+    "Q": "How do cosine similarity and normalization work numerically?",
+    "explain": "The dot product of [1,0] and [1,1] is 1. Their lengths are 1 and square-root-of-2, so cosine similarity is 1 divided by square-root-of-2, approximately 0.707. Normalizing a nonzero vector divides each coordinate by its length; normalized dot product equals cosine similarity. A zero vector has no cosine direction and needs an explicit policy.",
+    "example": "Comparing [2,0] with [1,0] gives cosine 1 despite different magnitudes. Whether that is useful depends on the embedding model and the index metric. Never infer a universal relevance probability from the score.",
+    "takeaway": "Understand the metric and valid input assumptions before choosing a threshold."
+  },
+  {
+    "Q": "Why is embedding compatibility more than vector dimension?",
+    "explain": "Record the model and revision, preprocessing, dimensions, normalization, query/document conventions, and index metric. Two models can emit vectors of the same size in incompatible spaces. Batch by token and request limits, not only item count, and classify errors as retryable, permanent, or invalid output. A migration generally needs a new index generation and a matched query encoder.",
+    "example": "A new model also returns 768 coordinates. Searching its query vectors against the old index still mixes spaces and can silently reduce quality. Build and evaluate a new generation before switching both sides.",
+    "takeaway": "An embedding profile is a representation contract."
+  }
+]

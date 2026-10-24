@@ -1,0 +1,140 @@
+[
+  {
+    "Q": "Why does check-then-write race?",
+    "explain": "Both callers can read pending before either writes. Each then believes it may create the record. The problem is the gap between checking and enforcing the invariant, not whether the code contains await.",
+    "example": "Worker A and B both pass an if pending check. A database lock or guarded transition must decide which can actually proceed.",
+    "takeaway": "Observe the interleaving, not just one function's order."
+  },
+  {
+    "Q": "What does a transaction make atomic?",
+    "explain": "A successful transaction commits its included database changes together. It does not automatically include a model call, email, or another service's database. Keep transaction ownership explicit so nested code cannot commit only part of the intended operation.",
+    "example": "Request creation and an outbox event share one transaction; sending the email happens later.",
+    "takeaway": "Atomicity applies to the actual transaction boundary."
+  },
+  {
+    "Q": "How does optimistic concurrency detect a stale edit?",
+    "explain": "Read a version with the record and include that expected version in the update predicate. If another writer advanced it, your update affects no rows. Reload and reconsider the user's intent rather than silently overwriting the new state.",
+    "example": "Update R17 only where version = 4. If it is now version 5, show a conflict instead of losing someone else's change.",
+    "takeaway": "A zero-row update is a meaningful outcome."
+  },
+  {
+    "Q": "What does SELECT FOR UPDATE protect?",
+    "explain": "It coordinates cooperating transactions over selected rows for the lock's lifetime. Recheck the pending operation inside that protected transaction. Keep slow external work outside the lock and understand which other writes can bypass the chosen coordination.",
+    "example": "Lock the owner-scoped pending confirmation, verify expiry, create the request, and mark completion before committing.",
+    "takeaway": "Locks protect a defined invariant, not an entire distributed system."
+  },
+  {
+    "Q": "Why does a persisted JSON session still lose updates?",
+    "explain": "Two workers may load the same object, modify different fields, and save the whole object. The later save replaces the earlier worker's change. Persistence prevents process-local loss but does not define merge semantics.",
+    "example": "One worker stores an address while another stores a preference from an old copy. Use serialization, guarded versions, or a deliberately safe field merge.",
+    "takeaway": "Durable storage and concurrency correctness are separate properties."
+  },
+  {
+    "Q": "How do you test a race deliberately?",
+    "explain": "Control the boundary under test using a barrier rather than random sleeps. Here two independent connections target the same file-backed SQLite database and wait just before inserting one slot key. The unique constraint, not the preliminary availability check, guarantees one reservation. Inspect both caller outcomes and the committed row count; the test does not prescribe which thread wins or claim to reproduce every stale-read schedule.",
+    "example": "Synchronize two connections immediately before inserting the same primary key. Assert one reserved result, one integrity conflict and exactly one committed row; the winning thread is deliberately unspecified.",
+    "takeaway": "A concurrency test should prove which race it exercised.",
+    "estimated_time_minutes": 12,
+    "prerequisites": [
+      "Read and run a small Python function",
+      "Understand database transactions and check-then-write races"
+    ],
+    "version": "1.0.0",
+    "references": [
+      "https://sqlite.org/lang_transaction.html",
+      "https://sqlite.org/lang_createtable.html#the_primary_key",
+      "https://docs.python.org/3.12/library/threading.html#barrier-objects"
+    ],
+    "outcomes": [
+      "Arrange a controlled interleaving between two callers",
+      "Assert exactly one record is created despite two attempts",
+      "Distinguish a race test from a flaky timing test"
+    ],
+    "conceptual_narrative": "A deterministic concurrency test fixes the relative order of reads and writes across callers so the same race reproduces on every run. Instead of hoping a context switch lands at the wrong moment, use barriers or test hooks to pause all participants at a precise point, then release them together. The assertion checks durable state (what the database actually contains) and each caller's observed outcome, proving which race was exercised rather than relying on timing luck.",
+    "glossary_terms": [
+      {
+        "term": "Race condition",
+        "definition": "A bug where program correctness depends on the relative timing of uncontrollable events, such as thread scheduling."
+      },
+      {
+        "term": "Barrier",
+        "definition": "A synchronization primitive that makes threads wait until all participants reach a point before proceeding."
+      },
+      {
+        "term": "Idempotency",
+        "definition": "A property where applying an operation multiple times has the same effect as applying it once."
+      }
+    ],
+    "worked_examples": [
+      {
+        "title": "Deterministic reservation race test",
+        "code": "\"\"\"Python 3.11+: two local SQLite connections contend for one unique slot.\"\"\"\nfrom contextlib import closing\nimport queue\nimport sqlite3\nimport tempfile\nimport threading\nfrom pathlib import Path\n\n\ndef run_race():\n    with tempfile.TemporaryDirectory() as folder:\n        path = Path(folder) / 'reservations.db'\n        with closing(sqlite3.connect(path)) as db:\n            db.execute('CREATE TABLE reservations (slot TEXT PRIMARY KEY, owner TEXT)')\n        barrier = threading.Barrier(2, timeout=5)\n        outcomes = queue.Queue()\n\n        def reserve(owner):\n            # Each thread owns its connection; :memory: would create separate DBs.\n            try:\n                with closing(sqlite3.connect(path, timeout=5)) as connection:\n                    barrier.wait()\n                    try:\n                        connection.execute('INSERT INTO reservations VALUES (?, ?)', ('slot-1', owner))\n                        connection.commit()\n                        outcomes.put('reserved')\n                    except sqlite3.IntegrityError:\n                        outcomes.put('conflict')\n            except Exception as error:\n                outcomes.put(type(error).__name__)\n\n        workers = [threading.Thread(target=reserve, args=(owner,)) for owner in ('alice', 'bob')]\n        for worker in workers:\n            worker.start()\n        for worker in workers:\n            worker.join(timeout=10)\n            assert not worker.is_alive(), 'Worker did not finish'\n        result = sorted(outcomes.get_nowait() for _ in workers)\n        with closing(sqlite3.connect(path)) as db:\n            count = db.execute('SELECT count(*) FROM reservations').fetchone()[0]\n        assert result == ['conflict', 'reserved'], result\n        assert count == 1, count\n        return result, count\n\n\nif __name__ == '__main__':\n    result, count = run_race()\n    print(f'outcomes={result}; rows={count}')\n",
+        "explanation": "Both threads use separate connections to the same temporary file. The barrier aligns their insert attempts, the primary key permits one reservation, and assertions inspect both outcomes and the committed row count. This tests a unique constraint under contention; it does not force every possible read/write interleaving."
+      }
+    ],
+    "syntax_highlighted_source": "\"\"\"Python 3.11+: two local SQLite connections contend for one unique slot.\"\"\"\nfrom contextlib import closing\nimport queue\nimport sqlite3\nimport tempfile\nimport threading\nfrom pathlib import Path\n\n\ndef run_race():\n    with tempfile.TemporaryDirectory() as folder:\n        path = Path(folder) / 'reservations.db'\n        with closing(sqlite3.connect(path)) as db:\n            db.execute('CREATE TABLE reservations (slot TEXT PRIMARY KEY, owner TEXT)')\n        barrier = threading.Barrier(2, timeout=5)\n        outcomes = queue.Queue()\n\n        def reserve(owner):\n            # Each thread owns its connection; :memory: would create separate DBs.\n            try:\n                with closing(sqlite3.connect(path, timeout=5)) as connection:\n                    barrier.wait()\n                    try:\n                        connection.execute('INSERT INTO reservations VALUES (?, ?)', ('slot-1', owner))\n                        connection.commit()\n                        outcomes.put('reserved')\n                    except sqlite3.IntegrityError:\n                        outcomes.put('conflict')\n            except Exception as error:\n                outcomes.put(type(error).__name__)\n\n        workers = [threading.Thread(target=reserve, args=(owner,)) for owner in ('alice', 'bob')]\n        for worker in workers:\n            worker.start()\n        for worker in workers:\n            worker.join(timeout=10)\n            assert not worker.is_alive(), 'Worker did not finish'\n        result = sorted(outcomes.get_nowait() for _ in workers)\n        with closing(sqlite3.connect(path)) as db:\n            count = db.execute('SELECT count(*) FROM reservations').fetchone()[0]\n        assert result == ['conflict', 'reserved'], result\n        assert count == 1, count\n        return result, count\n\n\nif __name__ == '__main__':\n    result, count = run_race()\n    print(f'outcomes={result}; rows={count}')\n",
+    "expected_output": "outcomes=['conflict', 'reserved']; rows=1",
+    "visualizations": [
+      {
+        "alt": "Two threads racing on a shared slot",
+        "description": "Both threads reach a barrier before INSERT into the same file-backed database. The primary-key constraint permits one committed slot; the other attempt reports an integrity conflict. No pending-state read occurs.",
+        "svg": "<svg width=\"400\" height=\"200\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"50\" y=\"50\" width=\"100\" height=\"80\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"100\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Thread A</text><rect x=\"250\" y=\"50\" width=\"100\" height=\"80\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"300\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Thread B</text><rect x=\"150\" y=\"140\" width=\"100\" height=\"40\" fill=\"var(--accent)\" stroke=\"var(--line)\"/><text x=\"200\" y=\"165\" text-anchor=\"middle\" fill=\"#fff\">One insert wins</text><line x1=\"100\" y1=\"130\" x2=\"200\" y2=\"160\" stroke=\"var(--muted)\" stroke-width=\"2\"/><line x1=\"300\" y1=\"130\" x2=\"200\" y2=\"160\" stroke=\"var(--muted)\" stroke-width=\"2\"/></svg>"
+      }
+    ],
+    "assumed_knowledge": "You can read and run a small Python function, understand database transactions, and have seen the check-then-write race.",
+    "motivating_problem": "A reservation service lets two agents book the same slot because the availability check and the write are not coordinated under test conditions.",
+    "underlying_mechanics": "Two threads open independent SQLite connections to one temporary file, then wait at a barrier immediately before INSERT. SQLite serializes writers and the slot primary key rejects the second committed reservation. The test aligns attempts, not a predetermined winner or a stale-read interleaving. Separate :memory: connections would create different databases and invalidate this fixture.",
+    "line_by_line": [
+      "Create a temporary file-backed database with a primary key on slot.",
+      "Open one connection per worker and synchronize before INSERT with a bounded barrier.",
+      "Insert the same slot; commit success or record the IntegrityError conflict.",
+      "Join both threads with timeouts and collect both outcomes.",
+      "Query the shared database and assert one committed row and one conflict."
+    ],
+    "edge_cases": [
+      "A worker fails before reaching the barrier: the barrier timeout fails the test.",
+      "Separate :memory: connections create different databases rather than a shared race.",
+      "The winner can be either owner; assert invariant outcomes rather than thread order."
+    ],
+    "tradeoffs": "Barriers make races reproducible but couple the test to timing. Property-based or randomized schedules explore more interleavings but may not reproduce a specific failure.",
+    "security_implications": "A missed race can authorize duplicate actions. Test the boundary where authorization is checked, not just where data is written.",
+    "performance_implications": "Locks and serialization reduce throughput under contention. Measure contention before choosing pessimistic locking over optimistic version checks.",
+    "debugging": "If both inserts succeed, the unique constraint or the transaction boundary is missing. Add a regression case at that exact boundary.",
+    "practice": "Write a test that reserves one slot with two concurrent callers. Add a unique constraint on the slot key and assert the second caller receives a conflict.",
+    "recap": "Controlled interleavings make concurrency races reproducible. Assert durable state and caller outcomes, not just that no exception occurred.",
+    "mastery_checks": [
+      "Explain why random sleeps do not reliably exercise a race.",
+      "Describe how a unique constraint prevents a duplicate reservation.",
+      "Show where authorization is checked relative to the write."
+    ],
+    "local_lab": "labs/reservation_race.py",
+    "independent_tasks": [
+      "Add a third caller; adjust the barrier and assert two conflicts and one reservation.",
+      "Remove only the primary-key constraint in a temporary copy and show the row-count oracle rejects duplicate rows.",
+      "Add a pre-insert availability read in a separate exercise; explain why a stale read cannot replace the unique constraint."
+    ],
+    "review_and_answer_keys": {
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-23",
+      "known_limitations": "SQLite serializes writers; this is not a PostgreSQL row-lock or isolation-level test. Winner identity is deliberately unspecified."
+    },
+    "added": true,
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-23"
+    }
+  },
+  {
+    "Q": "What is a lost update and how can a conditional write prevent it?",
+    "explain": "Two requests can read the same old state and each write a result that ignores the other. Use database-supported atomic updates, version predicates, or appropriate row locking to express the invariant. Check affected-row counts and return a conflict or exhausted outcome when the predicate fails. An application lock in one process does not coordinate other replicas.",
+    "example": "Both workers see quota=1. An atomic UPDATE that decrements only WHERE quota>0 lets one succeed and the other affect zero rows, preserving the nonnegative invariant.",
+    "takeaway": "Express concurrency rules at the authoritative write boundary."
+  },
+  {
+    "Q": "What should be retried after a serialization failure or deadlock?",
+    "explain": "Some concurrency failures require rerunning the transaction from a fresh snapshot. Bound attempts and use jitter where appropriate. Keep remote effects outside a blindly retried transaction, or connect them through an idempotent operation ledger and an outbox. Reusing old calculated values can reproduce the conflict or violate a rule even if the second write succeeds.",
+    "example": "A transaction reserves quota and inserts an outbox row with a unique operation key. On retry it rereads quota; the dispatcher later sends the external request with the same operation identity.",
+    "takeaway": "Retry a well-defined unit of work with fresh state and duplicate-effect protection."
+  }
+]

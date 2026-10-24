@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "What is an agent skill?",
+    "A": "A skill is a reusable package of task instructions and optional resources or scripts. It tells a compatible agent how to perform a category of work using available capabilities.",
+    "Why": "Discover concise metadata first, then load detailed instructions when relevant. Keep the skill's purpose, triggers, dependencies, and limits explicit.",
+    "Risk": "Loading a skill does not establish that its instructions are trustworthy or that its scripts are safe.",
+    "Trade": "Packaging expertise reduces repeated prompting while adding version and supply-chain management.",
+    "Try": "Write a skill for reviewing a support response against an evidence rubric."
+  },
+  {
+    "Q": "How do skills differ from tools and system instructions?",
+    "A": "System instructions define product behavior and constraints. Skills supply task-specific methods. Tools provide executable capabilities. A skill can explain tool use without granting tool authority.",
+    "Why": "Resolve instructions through the actual host's precedence rules and enforce permissions in backend execution. Different products may package skills differently.",
+    "Risk": "A skill that claims to override host policy creates confusion and potential unsafe behavior.",
+    "Trade": "Separate layers improve reuse and require clear ownership.",
+    "Try": "Draw which layer can propose a refund and which layer can authorize it."
+  },
+  {
+    "Q": "What is progressive disclosure for skills?",
+    "A": "Load a small description for routing, the main skill instructions when needed, and supporting references only for the selected task. This avoids inserting every skill into every turn.",
+    "Why": "Keep the entry document short and link narrowly scoped supporting material. Measure both skill-selection accuracy and context cost.",
+    "Risk": "Vague metadata can select the wrong skill or hide a useful one.",
+    "Trade": "Fine-grained skills save context and increase discovery complexity.",
+    "Try": "Compare loading ten complete skills with metadata-first discovery on the same tasks."
+  },
+  {
+    "Q": "How should skill layers be organized?",
+    "A": "Separate organization-wide rules, application policy, role-specific methods, task skills, and local working context. The host must define actual precedence and conflict behavior.",
+    "Why": "Keep stable constraints outside editable task packages. Skills should reference reviewed policy rather than duplicate it inconsistently.",
+    "Risk": "An outdated copied policy can silently disagree with a newer application rule.",
+    "Trade": "Centralized policy supports consistency and may reduce team autonomy.",
+    "Try": "Create a conflict fixture where a task skill requests a prohibited data export."
+  },
+  {
+    "Q": "How should a skill invoke scripts safely?",
+    "A": "A skill may describe scripts, but execution requires a controlled runtime, known inputs, constrained filesystem access, and appropriate credentials. Review code and dependencies separately from prose.",
+    "Why": "Prefer deterministic utilities with narrow arguments and synthetic fixtures. Run untrusted scripts in a sandbox with explicit resource and network limits.",
+    "Risk": "Prompt text cannot make arbitrary shell execution safe.",
+    "Trade": "Sandboxing limits flexibility and contains failures.",
+    "Try": "Add a script that validates an answer schema without network access or secrets."
+  },
+  {
+    "Q": "How should skills be versioned and tested?",
+    "A": "Version the package, referenced resources, scripts, dependencies, and supported tool contracts. Evaluate whether the skill is selected and whether it improves task completion.",
+    "Why": "Maintain positive, negative, and conflict-trigger examples, plus an end-to-end task suite. Record the loaded skill version in traces.",
+    "Risk": "A changed tool schema can invalidate an unchanged skill.",
+    "Trade": "Compatibility metadata adds effort and enables reproducible use.",
+    "Try": "Release a revised skill against both old and new tool contracts and document the boundary."
+  },
+  {
+    "Q": "How do you prevent skill sprawl?",
+    "A": "Consolidate overlapping methods only when they share a real responsibility. Give each skill a clear trigger and measurable outcome rather than creating one for every small preference.",
+    "Why": "Review retrieval collisions, unused skills, and duplicated policy. Keep references task-oriented and remove obsolete instructions through a controlled review.",
+    "Risk": "Overlapping skills can introduce conflicting workflows and waste context.",
+    "Trade": "Broad skills are easy to discover and may load unnecessary detail.",
+    "Try": "Audit five overlapping writing skills and define the smallest useful set."
+  },
+  {
+    "Q": "How should secrets and customer data be handled in skills?",
+    "A": "Store neither credentials nor live customer examples in reusable skill files. Use runtime secret injection and synthetic or approved redacted examples.",
+    "Why": "Treat uploaded resources and referenced URLs as potentially untrusted. Scope any fetched data to the current principal and task.",
+    "Risk": "A private repository does not prevent accidental secret exposure in model context or logs.",
+    "Trade": "Redaction reduces diagnostic detail and supports safer reuse.",
+    "Try": "Scan a skill package for embedded tokens, real identifiers, and unsupported external fetches."
+  },
+  {
+    "Q": "Can one skill be portable across agent frameworks?",
+    "A": "The procedure may be portable while discovery metadata, filesystem conventions, tool binding, and execution policy remain host-specific. Separate the reusable method from integration adapters.",
+    "Why": "Document required capabilities and provide framework-specific wrappers only when needed. Test the same task contract in each supported host.",
+    "Risk": "Claiming portability without testing can conceal missing tools or different instruction precedence.",
+    "Trade": "A common core reduces duplication while adapters add maintenance.",
+    "Try": "Port a read-only review skill between two runtimes without copying secret configuration."
+  },
+  {
+    "Q": "What should a skills portfolio demonstrate?",
+    "A": "Show task selection, progressive loading, safe tool use, controlled scripts, measurable quality improvement, and conflict handling. A directory of instruction files alone proves little about outcomes.",
+    "Why": "Publish synthetic fixtures, before-and-after evaluations, a version manifest, and a short failure walkthrough.",
+    "Risk": "Overfitting a skill to demonstration prompts can inflate apparent quality.",
+    "Trade": "A narrow well-evaluated skill is easier to trust than a broad unsupported capability claim.",
+    "Try": "Build one skill and demonstrate a task it deliberately refuses or escalates."
+  }
+]

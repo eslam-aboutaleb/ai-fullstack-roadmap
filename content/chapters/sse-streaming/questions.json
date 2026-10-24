@@ -1,0 +1,102 @@
+[
+  {
+    "Q": "When should an AI application use SSE?",
+    "A": "**Choose SSE when the browser needs a one-way stream of server events over HTTP**, such as task progress or an answer transcript. Ordinary HTTP can submit/cancel the task; use WebSocket when genuine bidirectional realtime messaging justifies its additional lifecycle. A public SSE contract names the events, payload schema, identity, cursor, terminal states and reconnection policy.\n\n**Streaming is a delivery mode, not evidence of completion.** HTTP byte chunks are arbitrary transport pieces: one UTF-8 character or JSON event may span several chunks, and one chunk may contain several events. A correct client uses an incremental decoder and the declared framing grammar. Server-sent events (SSE) end an event at a blank line and combine data fields; the workbench project instead uses newline-delimited JSON and deliberately documents that difference.\n\nA useful application contract distinguishes accepted, running, partial, completed, failed and cancelled. Bind every frame to a task/request identity and monotonic sequence; accept an identical replay at most once and reject a conflicting replay. Only a valid terminal frame permits Complete. EOF after plausible text is an incomplete answer. Expose that state to sighted and assistive-technology users rather than making an interrupted paragraph look authoritative.\n\n**Walk a boundary failure.** The server sends half a JSON line, the network disconnects, and the UI already shows 'Returns are allowed'. The parser must retain the fragment until a delimiter, then reject the unfinished stream; it must not manufacture the missing citation or terminal event. On identity switch, abort the fetch, advance a generation ID and discard queued callbacks with the old identity/generation. Abort alone cannot recall a callback already queued, and cancelling presentation cannot undo a committed backend effect.\n\nUse bounded frame and total-output sizes, deadlines and backpressure. A slow browser should not accumulate an unlimited transcript. If resumption is supported, authenticate every reconnect, define retention and cursor gaps, and replay from authoritative history. An SSE id is a cursor, not authorization or business idempotency. Test split multibyte characters, multiple frames per read, stale callbacks, malformed JSON, missing final state and cancellation. `projects/evidence-workbench` compiles the actual React/TypeScript client and exercises these failures over loopback HTTP; `labs/streaming_app.py` supplies a separate optional SSE service. Neither fixture proves a provider's token-generation behavior.",
+    "Why": "An old Owner A response arrives after switching to Owner B. Aborting and clearing the screen is insufficient if a queued callback still appends A text; a generation check prevents that stale write.",
+    "Risk": "Rendering partial text as final can turn a network failure into a wrong business decision. Logging raw frames can also retain private material beyond the UI lifetime.",
+    "Trade": "Buffering reduces UI work but delays first visible text. Announcing every token overwhelms screen readers; announce meaningful status changes and provide a readable final transcript.",
+    "Try": "Build the evidence-workbench, run its browser checker, and preserve a failure trace for disconnect-before-final and identity-switch-during-slow-response. Explain which state is authoritative.",
+    "worked_case": "An old Owner A response arrives after switching to Owner B. Aborting and clearing the screen is insufficient if a queued callback still appends A text; a generation check prevents that stale write.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://html.spec.whatwg.org/multipage/server-sent-events.html",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can a reconnect safely repeat the original request?",
+        "A": "Only under an explicit request/effect contract. Resume a retained stream with its cursor where supported; creating a fresh model request may duplicate cost or tools. Reauthorize the task and deduplicate durable effects independently of presentation replay."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "sse-streaming"
+  },
+  {
+    "Q": "How is an SSE message framed?",
+    "A": "An event consists of text fields followed by a blank line. Data may span multiple data lines, which the receiver combines according to SSE rules. Network chunks do not align with event boundaries.",
+    "Why": "Decode UTF-8 incrementally, accumulate lines, and dispatch only at the event delimiter. Normalize supported line endings and impose limits.",
+    "Risk": "Parsing each received chunk as JSON fails when characters or messages split across chunks.",
+    "Trade": "Correct incremental parsing adds state and avoids intermittent corruption.",
+    "Try": "Split a Unicode event at every byte boundary and verify equivalent decoding."
+  },
+  {
+    "Q": "How should EventSource and fetch streaming be compared?",
+    "A": "Browser EventSource handles an SSE GET connection and reconnection behavior. Fetch streaming gives control over methods, headers, and request bodies but requires application parsing and retry logic.",
+    "Why": "Choose based on authentication, request semantics, and resume requirements. Do not assume EventSource accepts arbitrary authorization headers.",
+    "Risk": "Putting bearer tokens in query parameters can expose them in logs and history.",
+    "Trade": "Fetch offers flexibility while EventSource supplies useful protocol behavior.",
+    "Try": "Design a cookie-authenticated EventSource flow and a header-authenticated fetch flow."
+  },
+  {
+    "Q": "What should a public AI event schema contain?",
+    "A": "Include schema version, task ID, ordered sequence, event type, and typed payload. Distinguish text deltas, tool activity, final results, recoverable notices, and terminal errors.",
+    "Why": "Convert provider events through an adapter. The UI should reduce these events into explicit states rather than concatenate every payload into answer text.",
+    "Risk": "Provider-internal messages can leak private arguments or confuse partial output with completion.",
+    "Trade": "Stable schemas add adapter maintenance and protect the UI from provider churn.",
+    "Try": "Document how a tool error changes state differently from an answer delta."
+  },
+  {
+    "Q": "How should reconnection and replay work?",
+    "A": "Give events durable sequence IDs and define a retention window. Resume from the last acknowledged or processed event, and deduplicate repeated sequence numbers.",
+    "Why": "If replay history expired, return a snapshot or a clear resume failure. Revalidate ownership on every connection.",
+    "Risk": "Reconnecting without a replay contract can lose events or duplicate displayed text.",
+    "Trade": "Durable event storage adds cost and enables recovery.",
+    "Try": "Disconnect after event seven and resume without repeating the final business operation."
+  },
+  {
+    "Q": "How do heartbeats and proxy buffering affect streams?",
+    "A": "Intermediaries may buffer output or close idle connections. Heartbeats can keep an otherwise idle stream active, but infrastructure behavior must be measured.",
+    "Why": "Use appropriate content type and cache policy, disable buffering where supported, and send bounded periodic comments. Check actual arrival times through the production proxy.",
+    "Risk": "Application flushes alone do not establish that the browser receives each event promptly.",
+    "Trade": "Frequent heartbeats consume connections and bandwidth.",
+    "Try": "Record server-send and browser-receive timestamps behind your actual ingress."
+  },
+  {
+    "Q": "How should cancellation work with SSE?",
+    "A": "Closing a stream should stop unnecessary generation according to product policy, while durable tasks may continue independently. Expose a task cancellation endpoint for explicit control.",
+    "Why": "Propagate cancellation to providers when supported and record the final task state. Preserve committed operation IDs for later lookup.",
+    "Risk": "A disconnected stream does not prove that external effects were cancelled.",
+    "Trade": "Separating task and stream lifetimes adds complexity and enables background completion.",
+    "Try": "Close the stream during a pending tool call and inspect the authoritative task status."
+  },
+  {
+    "Q": "How should backpressure be handled?",
+    "A": "Bound producer-to-writer queues and prevent slow clients from retaining unlimited memory. Decide which progress events can be coalesced and which terminal events must be retained.",
+    "Why": "Await writable capacity where the framework supports it, monitor queue depth, and disconnect consumers that cannot keep up under the contract.",
+    "Risk": "Dropping arbitrary text deltas corrupts the answer.",
+    "Trade": "Strong limits may disconnect slow clients and protect the server.",
+    "Try": "Simulate a client reading one event per second while the producer emits many more."
+  },
+  {
+    "Q": "What should completion mean in an SSE stream?",
+    "A": "A completion event should identify the persisted result or authoritative final task state. A finished model token sequence is not necessarily a completed application operation.",
+    "Why": "Persist the final record before emitting completion and support owner-scoped result retrieval after disconnect.",
+    "Risk": "A crash after sending done but before commit creates a false success.",
+    "Trade": "Persist-before-complete adds final latency and strengthens recovery.",
+    "Try": "Crash at the completion boundary and verify the UI can recover from the result endpoint."
+  },
+  {
+    "Q": "How should SSE be tested?",
+    "A": "Test UTF-8 boundaries, multiline data, line endings, comments, empty data, malformed payloads, replay, authorization, disconnects, and slow consumers. Test through the real proxy as well as in process.",
+    "Why": "Keep transport decoding separate from JSON schema validation and UI reduction. Assert both event order and terminal state.",
+    "Risk": "A happy-path mock stream misses buffering and network fragmentation.",
+    "Trade": "Real transport tests cost more and catch difficult intermittent failures.",
+    "Try": "Build a replay fixture containing a duplicate event and an expired resume token."
+  }
+]

@@ -1,0 +1,56 @@
+[
+  {
+    "Q": "What does predicting the next token mean in practice?",
+    "explain": "The model assigns probabilities to possible continuations given its input. Decoding chooses a continuation and repeats the process. This can produce sophisticated useful text, but the objective does not itself verify that a shipping statement matches your database.",
+    "example": "The package will arrive on can be followed by a plausible day even when the model has never seen this package's tracking record.",
+    "takeaway": "Language plausibility and application truth need different checks."
+  },
+  {
+    "Q": "Why learn vectors before embeddings and attention?",
+    "explain": "A vector is a list of numbers. Dot products compare vectors through their coordinates, and matrix multiplication combines many such operations. These calculations underlie retrieval representations and attention, but a numerical similarity is meaningful only within the model and preprocessing that produced it.",
+    "example": "Two document vectors can be close even when one sentence denies what the other permits. Compare the words before treating similarity as factual agreement.",
+    "takeaway": "Mathematical closeness is a ranking signal, not a truth test."
+  },
+  {
+    "Q": "What does attention help a model do?",
+    "explain": "Attention combines information from input positions according to learned relevance scores. It helps a token representation use other parts of the available sequence. More context increases available material, but does not guarantee every important passage will influence the answer correctly.",
+    "example": "A return rule includes an exception several paragraphs later. The exception must be available and correctly used; fitting both paragraphs into the window is only the first requirement.",
+    "takeaway": "Context capacity is different from reliable context use."
+  },
+  {
+    "Q": "How are training, fine-tuning, and inference different?",
+    "explain": "Training changes model weights using an objective and examples. Fine-tuning continues adaptation for a narrower purpose. Inference uses the resulting model to answer a request. Adding a source passage to a request changes inference context without updating the model's weights.",
+    "example": "Update an article today and retrieve it tomorrow. The answer can use the new rule even though the model weights are unchanged.",
+    "takeaway": "Keep changing knowledge separate from learning model behavior."
+  },
+  {
+    "Q": "What should an application test about a model?",
+    "explain": "Test the tasks and interfaces you rely on: evidence use, tool selection, structured output, refusals, latency, and cost. A model that writes excellent prose may be unsuitable for a strict extraction task or a low-latency voice turn.",
+    "example": "Compare two models on the same missing-date extraction cases and count invented dates, not just readable responses.",
+    "takeaway": "Select models using product evidence rather than one general score."
+  },
+  {
+    "Q": "How do prediction, loss, and a gradient update fit together?",
+    "explain": "Consider a predictor y_hat = w*x. With x=2, target y=6, and w=1, the prediction is 2 and squared loss (w*x-y)^2 is 16. The derivative with respect to w is 2*x*(w*x-y), which is -16. A learning rate of 0.1 updates w to 1-0.1*(-16)=2.6; the next prediction is 5.2 and loss is 0.64. A gradient points toward increasing loss, so gradient descent subtracts it.",
+    "example": "Repeat the calculation with learning rate 1. The new weight is 17 and loss is much worse. In an automatic-differentiation training loop, clear old gradients, calculate predictions and loss, backpropagate, and take an optimizer step.",
+    "takeaway": "Learning changes weights through an objective; inference uses the resulting weights."
+  },
+  {
+    "Q": "Why learn probability, classification, and a baseline alongside generation?",
+    "explain": "Classification predicts a category, regression predicts a numerical value, and generation predicts a sequence. A majority-category or constant-value baseline tells you what a simple system achieves. For classification, precision is true positives divided by predicted positives; recall is true positives divided by actual positives. Their trade-off depends on the decision threshold and the cost of each error. A model probability is not automatically a calibrated estimate of real-world correctness.",
+    "example": "A router flags 8 requests, 6 correctly, while 10 requests truly need escalation. Precision is 6/8 and recall is 6/10. Compare a learned router with a keyword rule before replacing it with a language model.",
+    "takeaway": "Choose the task and measure a simple alternative before increasing model complexity."
+  },
+  {
+    "Q": "How do train, validation, and test data prevent misleading learning?",
+    "explain": "Fit parameters on training data, choose hyperparameters using validation data, and reserve test data for the final comparison. Overfitting occurs when a model captures training-specific patterns that fail on new cases. Split by the entity or time boundary relevant to deployment, and fit transformations only on the training portion. Repeatedly inspecting test performance while tuning turns that test set into development feedback.",
+    "example": "Put all messages from the same synthetic customer in one partition. Otherwise a classifier may recognize duplicated customer wording instead of learning a transferable decision. Compare training and validation loss as training continues.",
+    "takeaway": "Generalization depends on an honest data boundary."
+  },
+  {
+    "Q": "How do attention shapes explain what a transformer computes?",
+    "explain": "A tensor is an array with axes. For T tokens with d features, the representation has shape T by d. Learned projections produce queries Q, keys K, and values V. The matrix Q*K-transpose compares each token with allowed tokens; scaling and a row-wise softmax produce attention weights that combine V. A causal mask hides future positions during next-token prediction. Multiple heads learn different projections, and positional information helps represent order.",
+    "example": "For three tokens and one head, draw a 3 by 3 score matrix. Cross out entries above the diagonal for a causal decoder. Each row can combine only its current and earlier value vectors.",
+    "takeaway": "Attention mixes representations under a visibility rule; it does not check factual truth."
+  }
+]

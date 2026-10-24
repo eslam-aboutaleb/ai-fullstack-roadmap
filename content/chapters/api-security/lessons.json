@@ -1,0 +1,38 @@
+[
+  {
+    "Q": "Why is logging in not the whole security check?",
+    "explain": "Login establishes identity. The service must still check whether that identity may access this particular record and perform this operation. Do this inside the business service used by all adapters, not only in one UI screen.",
+    "example": "User A submits User B's request ID through a tool. The service rejects it even though User A is authenticated.",
+    "takeaway": "A resource identifier selects an object; it does not authorize access."
+  },
+  {
+    "Q": "What should a token validator establish?",
+    "explain": "Validate the token under an explicit issuer, audience, signature algorithm, and lifetime profile. Resolve its subject into a trusted principal and apply the product's revocation strategy. Do not store private facts in a signed token assuming it is encrypted.",
+    "example": "A valid token issued for a different service should fail your audience check.",
+    "takeaway": "A cryptographically valid token can still be wrong for this resource."
+  },
+  {
+    "Q": "How do cookie controls fit together?",
+    "explain": "HttpOnly limits script reading, Secure requires HTTPS transport, and SameSite changes some cross-site sending. CORS and CSRF address other browser interactions. None replaces ownership checks, and XSS may still perform actions through the user's session.",
+    "example": "A hidden cookie can remain usable by malicious script executing within your page.",
+    "takeaway": "Browser controls reduce different risks and need a coherent policy."
+  },
+  {
+    "Q": "Why must the model not choose its own user ID?",
+    "explain": "Model arguments are untrusted proposals. Bind the authenticated user and tenant through trusted runtime context or explicit service arguments before executing a tool. Reset task-local identity reliably across concurrent requests.",
+    "example": "The model can propose request R17; the server supplies the principal used to authorize R17.",
+    "takeaway": "Keep authority out of editable language input."
+  },
+  {
+    "Q": "How do authentication, authorization, CORS, and CSRF differ?",
+    "explain": "Authentication establishes a principal; authorization decides whether that principal may perform a specific action. CORS controls browser access to cross-origin responses and does not authorize backend operations. CSRF occurs when a browser sends ambient credentials on an unwanted cross-site request. For cookie sessions, select Secure, HttpOnly, and an appropriate SameSite policy, and apply CSRF defenses for the actual deployment. Do not implement cryptography or password hashing yourself.",
+    "example": "A signed-in user requests another user's task ID. A valid cookie establishes identity but the server must still reject access to the task. Hiding the task link in the UI provides no server protection.",
+    "takeaway": "Apply identity, object permission, and browser-request defenses at their respective boundaries."
+  },
+  {
+    "Q": "Why are outbound fetches and uploads also API security problems?",
+    "explain": "A connector that accepts a URL can be abused for server-side request forgery. Restrict schemes and destinations, validate resolved addresses and redirects, and enforce outbound network policy. Uploaded files need limits on bytes, expanded size, types, processing time, and parser privileges. Filenames and content-type headers are untrusted hints.",
+    "example": "An apparently public URL redirects to a private address. Check every permitted redirect and reject the destination before fetching, while an egress policy provides an independent restriction.",
+    "takeaway": "Validate what the server reaches and processes as carefully as who calls it."
+  }
+]

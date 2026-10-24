@@ -1,0 +1,115 @@
+[
+  {
+    "Q": "How do FlashAttention-2 and FlashAttention-3 achieve IO-awareness, and why does avoiding HBM read/writes yield a 2-4x speedup over standard attention?",
+    "A": "**FlashAttention is an exact, IO-aware algorithm that computes scaled dot-product attention without materializing the intermediate $N \\times N$ attention matrix in High Bandwidth Memory (HBM).** In standard attention implementations (such as native PyTorch naive attention), computing $\\text{Softmax}(QK^T / \\sqrt{d})V$ requires multiple round-trips to GPU global memory (HBM): first materializing the $N \\times N$ logits matrix, writing it to HBM, reading it back to compute row-wise softmax max and sum normalization factors, writing normalized probabilities back to HBM, and finally reading them to multiply with $V$. For context lengths of 8k or 32k tokens, memory reads and writes scale quadratically ($O(N^2)$), causing compute units (Tensor Cores) to sit idle waiting for memory bandwidth (memory-bound bottleneck).\\n\\n**Tiling and Online Softmax in SRAM.** FlashAttention leverages the GPU's fast, on-chip Shared Memory (SRAM) by tiling the $Q$, $K$, and $V$ matrices into smaller blocks that fit completely within SRAM.\n\nIt uses the mathematical trick of *Online Softmax* (Milakov & Gimelshein, 2018): as new tiles of $K$ and $V$ are streamed from HBM into SRAM, FlashAttention maintains running row-maxima and normalization denominators. It rescales the accumulated output vector incrementally without ever writing the massive intermediate attention matrix back to HBM.\\n\\n**FlashAttention-2 and FlashAttention-3 optimizations.** FlashAttention-2 optimizes work partitioning across thread blocks and warps, reducing non-matmul FLOPs and increasing Tensor Core occupancy. FlashAttention-3 specifically targets the NVIDIA Hopper (H100) architecture, exploiting asynchronous Tensor Memory Accelerator (TMA) hardware, FP8 low-precision Tensor Cores, and ping-pong GEMM scheduling to overlap asynchronous data transfers with computation, approaching the theoretical hardware compute limit.",
+    "Why": "Serving a 32,000-token prompt on an A100 GPU with naive attention fails with an Out-Of-Memory (OOM) error because materializing the float16 attention matrix requires tens of gigabytes of HBM. FlashAttention computes the exact same mathematical output within 128KB of SRAM per SM, running 3x faster and requiring only $O(N)$ memory.",
+    "worked_case": "Serving a 32,000-token prompt on an A100 GPU with naive attention fails with an Out-Of-Memory (OOM) error because materializing the float16 attention matrix requires tens of gigabytes of HBM. FlashAttention computes the exact same mathematical output within 128KB of SRAM per SM, running 3x faster and requiring only $O(N)$ memory.",
+    "Risk": "Assuming FlashAttention changes model accuracy: FlashAttention is numerically identical (modulo floating-point associativity) to standard attention, unlike approximate sparse attention methods.",
+    "Trade": "FlashAttention drastically cuts memory footprint and latency for long sequences, but requires custom CUDA/Triton kernels tailored to specific GPU architectures (Ampere, Hopper, Blackwell).",
+    "Try": "Benchmark `torch.nn.functional.scaled_dot_product_attention` with `enable_flash=True` versus naive matrix multiplication on sequence lengths from 512 to 16,384 tokens. Plot GPU memory usage and kernel runtime.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "machine-learning",
+    "subdomain": "deep-learning",
+    "citations": [
+      "https://arxiv.org/abs/2205.14135",
+      "https://arxiv.org/abs/2307.08691",
+      "https://tridao.me/blog/2024/flashdecoding/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is FlashDecoding and how does it optimize the autoregressive generation phase?",
+        "A": "FlashDecoding parallelizes along the sequence length dimension (K/V cache) during the single-token decode phase, avoiding SM underutilization when batch sizes are small."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do Rotary Position Embeddings (RoPE) encode relative token distance, and how do NTK-aware scaling and YaRN extrapolate context windows?",
+    "A": "**Rotary Position Embedding (RoPE) encodes relative positional information by rotating query and key vectors in complex 2D planes proportional to their absolute sequence positions.** Traditional sinusoidal absolute positional embeddings add position vectors directly to token embeddings ($x_m + p_m$), which degrades as sequence length grows because the dot product does not preserve purely relative distance. RoPE instead represents 2D slices of token representations as complex numbers and multiplies them by orthogonal rotation matrices: $R_{\\Theta, m} q_m$, where each coordinate pair $(2i, 2i+1)$ is rotated by angle $m \\theta_i$ with frequency $\\theta_i = 10000^{-2i/d}$.\\n\\n**Relative distance preservation.** When calculating the inner product between query at position $m$ and key at position $n$, the rotation matrices satisfy: $\\langle R_m q, R_n k \\rangle = q^T R_{n-m} k$.\n\nThe attention score depends strictly on the relative distance $(m - n)$, decaying naturally as relative distance increases.\\n\\n**Context length extrapolation challenges.** When a model trained on 4k tokens encounters token 8,000, the rotation angles $m \\theta_i$ enter unseen frequency regimes, causing catastrophic perplexity explosion.\\n\\n**Linear Scaling, NTK-aware scaling, and YaRN.** Direct linear interpolation (Position Interpolation / PI) compresses all frequencies uniformly by a scale factor $s = L_{\\text{target}} / L_{\\text{train}}$, but this damages high-frequency components that distinguish adjacent tokens. *NTK-aware scaling* distributes interpolation non-uniformly across frequencies: high frequencies (local token syntax) are preserved with little interpolation, while low frequencies (global context) are scaled down. *YaRN (Yet another RoPE extensioN)* refines this further by partitioning dimensions into unscaled high frequencies, interpolated low frequencies, and blended mid frequencies, combined with temperature scaling to counteract attention entropy dilution, enabling models trained on 4k context to generalize cleanly to 128k context with minimal fine-tuning.",
+    "Why": "A team deploys an open-weights LLM pre-trained on 4,096 tokens to analyze 32,000-token legal contracts. Simply feeding 32k tokens causes repetitive hallucinations. Applying YaRN RoPE scaling extends the effective context window to 32k without requiring multi-million-dollar full re-training.",
+    "worked_case": "A team deploys an open-weights LLM pre-trained on 4,096 tokens to analyze 32,000-token legal contracts. Simply feeding 32k tokens causes repetitive hallucinations. Applying YaRN RoPE scaling extends the effective context window to 32k without requiring multi-million-dollar full re-training.",
+    "Risk": "Applying naive linear position interpolation without temperature adjustment dilutes attention sharpness, causing the model to struggle with 'Needle In A Haystack' retrieval tasks.",
+    "Trade": "RoPE extrapolation techniques enable massive context expansions with negligible fine-tuning, but slightly increase perplexity on short-range tasks compared to native long-context pre-training.",
+    "Try": "Implement a toy 2D RoPE rotation function in NumPy. Compute the dot product between two identical vectors at positions $m=2, n=5$ versus $m=10, n=13$. Verify that both inner products are identical because their relative offset is 3.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "machine-learning",
+    "subdomain": "deep-learning",
+    "citations": [
+      "https://arxiv.org/abs/2104.09864",
+      "https://arxiv.org/abs/2309.00071"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the base frequency $\\theta$ parameter in RoPE, and why did Llama 3 increase it from 10,000 to 500,000?",
+        "A": "Increasing the base frequency slows down rotation of low-frequency dimensions, naturally extending the theoretical context window before phase wrapping occurs."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do Multi-Head Attention (MHA), Multi-Query Attention (MQA), and Grouped-Query Attention (GQA) trade off memory bandwidth, KV cache size, and model expressiveness?",
+    "A": "**Grouped-Query Attention (GQA) is an architectural interpolation between standard Multi-Head Attention (MHA) and Multi-Query Attention (MQA) that slashes KV cache memory consumption by an order of magnitude with negligible loss in model accuracy.** In standard MHA (e.g., GPT-3, original LLaMA), each of the $H$ attention heads has its own independent Query ($Q$), Key ($K$), and Value ($V$) projection matrices: $H_Q = H_K = H_V = H$. During autoregressive decoding, every generated token requires loading the entire accumulated $K$ and $V$ cache for all heads from HBM into SRAM, turning inference into a severe memory-bandwidth-bound workload.\\n\\n**The MQA extreme.** Multi-Query Attention (Shazeer, 2019) collapses this by using multiple Query heads ($H_Q = H$) but only a single shared Key head and Value head ($H_K = H_V = 1$). This reduces the KV cache size by a factor of $H$ (typically 32x or 64x), dramatically increasing batch throughput and decoding speed.\n\nHowever, MQA can suffer from capacity degradation, instability during fine-tuning, and quality loss on complex reasoning tasks because all query heads are forced to attend over identical key/value representations.\\n\\n**Grouped-Query Attention as the golden mean.** GQA (Ainslie et al., 2023; adopted in LLaMA-2 70B, LLaMA-3, and Mistral) groups query heads into $G$ groups, where each group shares a single key and value head ($H_K = H_V = G$, where $1 < G < H$). For example, with $H=32$ query heads and $G=8$ KV heads, each KV pair is shared across 4 query heads (an 8:1 compression ratio). GQA delivers nearly the same high decoding throughput and low VRAM footprint as MQA while retaining the representational expressiveness and downstream quality of full MHA.",
+    "Why": "Serving a 70B parameter model with 32k context on an 8x H100 node under MHA requires 160GB of VRAM solely for the KV cache of a single batch of 8 concurrent requests, capping maximum concurrency. With GQA (8 groups), KV cache VRAM drops to 20GB, enabling an 8x increase in concurrent user throughput.",
+    "worked_case": "Serving a 70B parameter model with 32k context on an 8x H100 node under MHA requires 160GB of VRAM solely for the KV cache of a single batch of 8 concurrent requests, capping maximum concurrency. With GQA (8 groups), KV cache VRAM drops to 20GB, enabling an 8x increase in concurrent user throughput.",
+    "Risk": "Assuming KV cache size is determined solely by hidden dimension: KV cache per token per layer is $2 \\times \\text{n\\_kv\\_heads} \\times \\text{head\\_dim} \\times \\text{dtype\\_bytes}$. Failing to account for $H_K$ leads to dramatic VRAM capacity miscalculations.",
+    "Trade": "GQA sacrifices a negligible fraction of attention diversity in exchange for an 8x reduction in KV cache memory bandwidth pressure and proportional gains in serving concurrency.",
+    "Try": "Calculate the exact KV cache memory footprint in gigabytes for 1,000 concurrent streams of 4,096 tokens on a 32-layer model under MHA (32 heads) vs GQA (8 heads) vs MQA (1 head) in FP16.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "machine-learning",
+    "subdomain": "deep-learning",
+    "citations": [
+      "https://arxiv.org/abs/2305.13245",
+      "https://arxiv.org/abs/1911.02150"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can an existing MHA pre-trained checkpoint be converted to GQA during fine-tuning?",
+        "A": "Yes, 'uptraining' collapses MHA heads into GQA groups by mean-pooling the projection weights, requiring only ~5% of pre-training tokens to recover full benchmark scores."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do Sparse Mixture of Experts (MoE) architectures route tokens, and why are auxiliary load balancing loss and expert capacity factors necessary to prevent routing collapse?",
+    "A": "**Sparse Mixture of Experts (MoE) replaces dense feed-forward networks (FFN) with multiple parallel expert networks, activating only a small subset of experts per token to decouple total parameter capacity from compute cost per token.** In standard dense models (e.g., standard GPT), every token activates 100% of the model's weights. In a Sparse MoE (such as Mixtral 8x7B or DeepSeek-V2), the dense FFN is replaced by $E$ distinct expert FFNs, coordinated by a parameterized gating (router) network $W_g$.\\n\\n**Top-$k$ routing mechanism.** For a given token representation $x$, the router computes logits $H(x) = x \\cdot W_g$, applies a softmax over all experts, and selects the top-$k$ experts (typically $k=2$): $y = \\sum_{i \\in \\text{Top-}k} \\text{Softmax}(H(x))_i \\cdot E_i(x)$. While the model may possess 47B total parameters, each token executes compute on only 13B active parameters, providing high model knowledge with the inference latency of a much smaller model.\\n\\n**The routing collapse pathology.** Without intervention, the gating network quickly suffers from *routing collapse*: early in training, small random weight initialization causes the router to send slightly more tokens to Expert 1.\n\nExpert 1 receives more gradient updates and improves faster, incentivizing the router to send even more tokens to Expert 1. Soon, 1 or 2 'celebrity experts' process 95% of all tokens, while the remaining experts starve and never learn, degrading the MoE into an underparameterized dense network.\\n\\n**Auxiliary load balancing loss and expert capacity factors.** To enforce uniform load distribution, models introduce an auxiliary load balancing loss $\\mathcal{L}_{\\text{aux}} = \\alpha \\cdot E \\sum_{i=1}^E f_i \\cdot P_i$, where $f_i$ is the actual fraction of tokens assigned to expert $i$, and $P_i$ is the router's average softmax probability for expert $i$. This penalizes uneven distributions. Additionally, distributed hardware clusters enforce an *Expert Capacity Factor* (e.g., $1.0$ to $1.25 \\times \\text{tokens} / E$): if an expert receives more tokens than its fixed buffer allocation, excess tokens are dropped (bypassed via residual connections) to prevent distributed stragglers from stalling pipeline parallelism.",
+    "Why": "Deploying an MoE model across 8 GPUs without load balancing causes GPU 0 (hosting the overloaded expert) to run at 100% compute while the other 7 GPUs sit idle at 5% compute, causing catastrophic latency spikes and pipeline bubbles. Load balancing loss restores equal device utilization.",
+    "worked_case": "Deploying an MoE model across 8 GPUs without load balancing causes GPU 0 (hosting the overloaded expert) to run at 100% compute while the other 7 GPUs sit idle at 5% compute, causing catastrophic latency spikes and pipeline bubbles. Load balancing loss restores equal device utilization.",
+    "Risk": "Setting the auxiliary loss coefficient $\\alpha$ too high forces the router to assign tokens randomly to satisfy load quotas, overriding semantic specialization and degrading reasoning quality.",
+    "Trade": "MoE delivers massive parameter capacity and low inference FLOPs, at the expense of requiring large total VRAM to store all expert weights across distributed GPU memory.",
+    "Try": "Simulate a router choosing top-2 experts among 8 experts in PyTorch. Compute the auxiliary loss across 1,024 random tokens and verify that the loss reaches minimum value when all experts receive exactly 1/8th of the probability mass.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "machine-learning",
+    "subdomain": "deep-learning",
+    "citations": [
+      "https://arxiv.org/abs/2101.03961",
+      "https://arxiv.org/abs/2401.04088"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the difference between token-choice routing and expert-choice routing?",
+        "A": "In token-choice routing, each token selects its top-k experts (risking load imbalance); in expert-choice routing, each expert selects its top-c tokens (guaranteeing perfect load balance but potentially leaving some tokens unassigned)."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  }
+]

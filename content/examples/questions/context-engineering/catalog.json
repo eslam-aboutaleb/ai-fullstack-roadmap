@@ -1,0 +1,87 @@
+[
+  {
+    "explain": "A context manifest records purpose, origin, freshness, and cost for each block. The builder excludes irrelevant or expired blocks before rendering model input.",
+    "steps": "Check relevance and expiry using the current task's state. || Keep only eligible blocks and preserve their origin metadata.",
+    "expect": "['policy']",
+    "name": "context-manifest",
+    "language": "python",
+    "filename": "context-manifest.py",
+    "questions": [
+      577,
+      580,
+      752,
+      301,
+      302,
+      304
+    ]
+  },
+  {
+    "explain": "Compaction preserves current intent and supersedes corrected facts. Derived working memory is rebuilt from the canonical current preference rather than keeping contradictory summaries.",
+    "steps": "Apply the user's correction to canonical state. || Rebuild the bounded working summary from current facts and pending action.",
+    "expect": "text confirm_exchange",
+    "name": "memory-lifecycle",
+    "language": "python",
+    "filename": "memory-lifecycle.py",
+    "questions": [
+      579,
+      753,
+      465
+    ]
+  },
+  {
+    "explain": "Ask for a missing decision-critical fact when further retrieval cannot supply it. The policy describes requirements; the user supplies the personal task attribute.",
+    "steps": "Identify required fields absent from the request. || Ask only for the missing field instead of issuing another broad search.",
+    "expect": "Ask for: purchase_date",
+    "name": "missing-slot",
+    "language": "python",
+    "filename": "missing-slot.py",
+    "questions": [
+      581,
+      310
+    ]
+  },
+  {
+    "explain": "Tool schemas add context cost and available capabilities. Select only tools applicable to the current task while retaining authoritative dispatch checks.",
+    "steps": "Filter tool descriptions by task mode. || Inspect the bounded schema set supplied to the model.",
+    "expect": "['search_policy']",
+    "name": "tool-schema-context",
+    "language": "python",
+    "filename": "tool-schema-context.py",
+    "questions": [
+      306
+    ]
+  },
+  {
+    "explain": "Compact tool results preserve authoritative identifiers and outcome summaries while storing detailed payloads behind controlled artifact references.",
+    "steps": "Separate the large internal result from the context-facing view. || Keep task identity and a reference for authorized drill-down.",
+    "expect": "{'status': 'completed', 'count': 50, 'artifact': 'artifact:T1'}",
+    "name": "retain-tool-result",
+    "language": "python",
+    "filename": "retain-tool-result.py",
+    "questions": [
+      308
+    ]
+  },
+  {
+    "explain": "Context quality depends on necessary evidence and scope, not simply token count. The check identifies a missing required source despite a small packet.",
+    "steps": "Define the evidence required for the task. || Compare the selected source identities with that requirement.",
+    "expect": "['exception']",
+    "name": "context-quality",
+    "language": "python",
+    "filename": "context-quality.py",
+    "questions": [
+      309
+    ]
+  },
+  {
+    "name": "context-packet-authority-fence",
+    "filename": "context-packet-authority-fence.py",
+    "language": "python",
+    "explain": "A context packet partitions origin and trust levels, quarantining untrusted tool outputs and enforcing authority checks in the service boundary regardless of adversarial prompt injection payloads.",
+    "steps": "Partition context blocks by trust level and origin. || Wrap untrusted tool output in isolated data envelopes. || Enforce business rules and authorization in the host execution gateway, rejecting adversarial instruction claims.",
+    "expect": "=== Testing Context Packet Authority Fence ===\n\n--- Compiled Prompt Preview (Sanitized Quarantine) ---\n<SYSTEM_POLICY>\nApplication Policy: Tier-1 support can issue refunds up to $100.00. Any refund > $100.00 strictly requires secondary supervisor cryptographic approval token.\n</SYSTEM_POLICY>\n\n<USER_INPUT>\nCustomer requests a refund for damaged item #8839 ($450.00).\n</USER_INPUT>\n\n<DATA_BLOCK origin='tool:knowledge_search' trust='UNTRUSTED_TOOL_OUTP...\n\nAttack result at execution gateway: {'action': 'execute_refund', 'status': 'DENIED', 'reason': 'Amount 450.0 exceeds limit 100.0 without verified supervisor approval', 'principal_role': 'support_tier_1'}\nLegitimate refund result: {'action': 'execute_refund', 'status': 'COMMITTED', 'refund_id': 'ref-10042', 'amount': 75.0}\n\nAll context authority fence invariants verified successfully.",
+    "questions": [
+      872
+    ]
+  }
+]

@@ -1,0 +1,142 @@
+[
+  {
+    "Q": "How does Late Chunking resolve the context-loss problem of traditional sentence-level chunking in dense vector retrieval?",
+    "A": "**Late Chunking eliminates the semantic fragmentation inherent in traditional pre-embedding chunking strategies.** In standard RAG pipelines, long documents are cut into 200–500 token segments *before* being passed to an embedding model. Consequently, pronouns, conditional clauses, and contextual references (e.g., 'it', 'this exception applies', 'as mentioned above') lose their semantic antecedents from earlier paragraphs. The resulting chunk embedding represents a fragmented snippet stripped of its global document context.\\n\\n**Full-document attention with span-specific pooling.** Late Chunking inverts this order using long-context transformer embedding models (such as jina-embeddings-v3 or modern 8k/32k token embedding backends).\n\nThe entire document (or large multi-thousand-token section) is passed through the transformer encoder as a single continuous sequence. Every token generates a contextualized representation that attends across all other tokens in the entire document. After the full-document forward pass is complete, mean-pooling is applied over the exact token offset spans corresponding to each chunk boundary.\\n\\n**Retaining granular retrieval with global context.** The resulting chunk embeddings have the identical vector dimensions and granular granularity as standard chunk embeddings, allowing exact chunk-level citation and efficient vector database indexing. However, because each token's embedding was computed under full-document self-attention, the chunk vector inherently encodes global document semantics, dramatically improving retrieval recall on queries requiring antecedent context.",
+    "Why": "A contract states: 'Section 5 applies only to European subsidiaries'. Three paragraphs later, Chunk 4 says: 'Under this section, liability is capped at $1M'. Traditional chunking embeds Chunk 4 without knowing it applies only to Europe. Late Chunking embeds Chunk 4 with full awareness of the European restriction.",
+    "worked_case": "A contract states: 'Section 5 applies only to European subsidiaries'. Three paragraphs later, Chunk 4 says: 'Under this section, liability is capped at $1M'. Traditional chunking embeds Chunk 4 without knowing it applies only to Europe. Late Chunking embeds Chunk 4 with full awareness of the European restriction.",
+    "Risk": "Late Chunking requires the embedding model to support long context windows (e.g., 8k+ tokens) and increases GPU VRAM consumption during the document ingestion forward pass.",
+    "Trade": "Late Chunking requires slightly more ingestion compute and memory per document, but produces vastly superior retrieval vectors without needing multi-vector parent-child index complexity.",
+    "Try": "Embed a multi-paragraph text with a coreferent pronoun using early chunking vs Late Chunking. Measure the cosine similarity between the chunk vector and the global antecedent entity.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://arxiv.org/abs/2409.04701",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can Late Chunking be used with dense bi-encoders that have a 512-token limit?",
+        "A": "No. Late Chunking requires long-context transformer architectures capable of attending across multiple chunk boundaries in a single forward pass."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How does ColBERT late interaction bridge the trade-off between bi-encoder latency and cross-encoder accuracy?",
+    "A": "**ColBERT resolves the core dilemma of Information Retrieval: the speed of bi-encoders versus the precision of cross-encoders.** Dense bi-encoders compress an entire passage into a single pooled vector (e.g., 768 or 1,536 floats). This single-vector bottleneck inevitably blurs fine-grained token-level details, rare entities, and exact numbers. Conversely, cross-encoders concatenate query and passage into a single transformer, evaluating full token-to-token attention; while highly accurate, cross-encoders require running full neural inference on every candidate passage at query time, creating unacceptable multi-second latency at scale.\\n\\n**Contextualized Late Interaction over BERT (ColBERT).** ColBERT eliminates the single-vector bottleneck by encoding both query and document into matrices of token-level embeddings (e.g., 128-dimensional vectors per token).\n\nInstead of computing a single dot product, ColBERT computes the MaxSim operator: for every token vector in the query, it finds the maximum cosine similarity among all token vectors in the document, and then sums these maximum scores: S(Q, D) = sum_{q in Q} max_{d in D} (q . d).\\n\\n**Offline indexing with sub-50ms query latency.** Document token embeddings are precomputed offline and indexed using vector quantization (Residual Compression) in vector search engines like Vespa or PLAID. At query time, finding the MaxSim score across millions of passages requires only fast vector lookups and additions, achieving cross-encoder ranking accuracy with sub-50ms retrieval latency.",
+    "Why": "A search query asks: 'What is the maximum torque of the 2024 turbo hybrid model?'. A dense bi-encoder conflates this with the standard non-hybrid model due to semantic overlap. ColBERT's MaxSim aligns the exact query tokens 'torque' and 'hybrid' with matching document tokens, correctly retrieving the specific specification.",
+    "worked_case": "A search query asks: 'What is the maximum torque of the 2024 turbo hybrid model?'. A dense bi-encoder conflates this with the standard non-hybrid model due to semantic overlap. ColBERT's MaxSim aligns the exact query tokens 'torque' and 'hybrid' with matching document tokens, correctly retrieving the specific specification.",
+    "Risk": "ColBERT stores multiple vectors per document chunk rather than a single vector, increasing index disk and RAM storage requirements by 3x–6x compared to standard dense vector databases.",
+    "Trade": "ColBERT requires specialized index infrastructure (such as PLAID or Vespa) and higher storage capacity, but delivers cross-encoder retrieval quality at sub-50ms query speeds.",
+    "Try": "Implement a Python prototype of the MaxSim operator using NumPy matrices representing query tokens and document tokens. Observe how exact token alignment drives the final score.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://arxiv.org/abs/2004.12832",
+      "https://arxiv.org/abs/2112.01488"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How does PLAID accelerate ColBERT search?",
+        "A": "PLAID prunes candidate documents using centroid clustering and residual quantization, avoiding computing MaxSim across documents that lack high centroid overlap."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How does Corrective RAG dynamically evaluate retrieval confidence and trigger web-search fallback?",
+    "A": "**Corrective RAG (CRAG) prevents generative hallucination by introducing an autonomous self-correction loop around retrieved evidence.** In naive RAG pipelines, top-K retrieved document chunks are unconditionally injected into the LLM prompt regardless of whether they actually contain the answer. When retrieval fails or returns irrelevant distractors, the generator either hallucinates speculative answers or fails silently.\\n\\n**The three-tier retrieval confidence gate.** Corrective RAG inserts a lightweight retrieval evaluator (a fine-tuned classifier or fast SLM) between retrieval and generation. The evaluator scores the confidence of retrieved documents into three operational bands: (1) Correct (Confidence > 0.8): The retrieved passages contain authoritative evidence.\n\nThe pipeline invokes a knowledge refinement algorithm that decomposes chunks into individual sentences, filters out irrelevant noise, and sends only verified sentences to the generator; (2) Ambiguous (0.4 <= Confidence <= 0.8): The local retrieval is partially relevant but incomplete. The pipeline combines the refined local passages with an external web search query (Google/Bing API) or secondary enterprise database lookup to patch missing details; and (3) Incorrect (Confidence < 0.4): The retrieved passages are irrelevant or misleading. The pipeline completely discards the local chunks, reformulates the user query, and executes an external web search or returns a safe, honest abstention.\\n\\n**Production impact.** By refusing to feed low-confidence chunks to the generator, CRAG dramatically reduces hallucination rates while ensuring high answer coverage across novel or out-of-domain queries.",
+    "Why": "A user asks about a breaking product announcement released today. Internal vector search returns old documentation from last year. CRAG scores the retrieval confidence as Incorrect (<0.4), discards the stale internal chunks, and falls back to a live web search to answer accurately.",
+    "worked_case": "A user asks about a breaking product announcement released today. Internal vector search returns old documentation from last year. CRAG scores the retrieval confidence as Incorrect (<0.4), discards the stale internal chunks, and falls back to a live web search to answer accurately.",
+    "Risk": "An overly strict retrieval evaluator can misclassify nuanced but correct local evidence as ambiguous, triggering unnecessary external web searches that add latency and cost.",
+    "Trade": "CRAG introduces an extra evaluation classification step (10–30ms) and dynamic branching logic, trading pipeline simplicity for vastly improved answer faithfulness and resilience.",
+    "Try": "Build a CRAG confidence routing function. Pass a query with irrelevant chunks and verify that the router routes to the web search fallback branch instead of passing bad chunks to the LLM.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://arxiv.org/abs/2401.15884",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How does knowledge refinement differ from text summarization in CRAG?",
+        "A": "Knowledge refinement strips irrelevant sentences and retains only verbatim factual clauses, whereas summarization rewrites text and risks introducing new inaccuracies."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "What is Graph RAG, and when does community-detected hierarchical summarization outperform vector similarity search?",
+    "A": "**Graph RAG bridges the architectural divide between local entity queries and global dataset-wide summarization.** Dense vector search operates on local semantic proximity: it excels at answering focused questions that map to specific document passages (e.g., 'What is the return policy for footwear?'). However, vector search fundamentally fails on holistic, corpus-wide synthesis queries (e.g., 'What are the top three strategic risks mentioned across all 500 company earnings transcripts?').\n\nBecause vector embeddings cannot aggregate across hundreds of dispersed chunks, top-K search merely retrieves a few arbitrary examples.\\n\\n**Knowledge graph extraction and hierarchical community detection.** Graph RAG solves global sensemaking through a multi-stage graph pipeline: (1) Entity and relationship extraction: an LLM extracts entities (nodes), relationships (edges), and narrative claims from all text chunks across the corpus; (2) Community detection: graph clustering algorithms (specifically the Leiden algorithm) partition the knowledge graph into hierarchical communities of closely interconnected entities at multiple granularities; and (3) Precomputed community summaries: an LLM generates structured summaries of every community at each hierarchical tier, synthesizing themes, key actors, and overarching narratives.\\n\\n**Global query routing.** When a global query arrives, Graph RAG maps the query across the precomputed community summaries at the appropriate hierarchy level, combining partial summaries into a comprehensive final synthesis. For global analytical queries, Graph RAG provides significantly higher comprehensiveness and factual coverage than standard vector retrieval.",
+    "Why": "An analyst asks: 'Summarize the common cyber vulnerabilities reported across 2,000 incident reports'. Vector search retrieves 5 specific incidents. Graph RAG traverses community summaries of vulnerability clusters, producing a comprehensive taxonomy across all 2,000 reports.",
+    "worked_case": "An analyst asks: 'Summarize the common cyber vulnerabilities reported across 2,000 incident reports'. Vector search retrieves 5 specific incidents. Graph RAG traverses community summaries of vulnerability clusters, producing a comprehensive taxonomy across all 2,000 reports.",
+    "Risk": "Extracting entities, relationships, and community summaries across an entire enterprise corpus consumes large LLM token budgets and substantial indexing compute time.",
+    "Trade": "Graph RAG indexing is computationally expensive and slow compared to simple vector embedding, but unlocks corpus-wide analytical queries that vector databases cannot answer.",
+    "Try": "Extract an entity-relationship graph from three short articles. Cluster the entities into two communities and generate a community summary for each.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://arxiv.org/abs/2404.16130",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can Graph RAG and Vector RAG be combined in a single hybrid pipeline?",
+        "A": "Yes. Production systems use an intent router: point queries are routed to fast vector search, while thematic aggregation queries are routed to Graph RAG community summaries."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How does Matryoshka Representation Learning enable multi-stage vector search with 80% RAM savings?",
+    "A": "**Matryoshka Representation Learning (MRL) enables nested vector representations that can be truncated to smaller dimensions with minimal loss in retrieval accuracy.** High-dimensional embeddings (e.g., 1,536 dimensions for OpenAI text-embedding-3-large, or 3,072 dimensions) provide exceptional semantic representation but impose massive RAM and latency costs when indexing millions of vectors in graph-based vector indexes (such as HNSW in pgvector or Qdrant).\\n\\n**Nested dimensionality loss optimization.** Traditional embedding models distribute information uniformly across all vector dimensions; slicing a 1,536-dimensional vector to 256 dimensions degrades performance catastrophically. In contrast, MRL (named after Russian nesting dolls) is trained with a composite loss function that simultaneously optimizes retrieval loss across multiple explicit prefix sub-dimensions: Loss = sum_{d in {64, 128, 256, 512, 1536}} w_d * Loss(v_{1:d}).\n\nThis forces the neural network to compress the most critical semantic variance into the earliest dimensions.\\n\\n**Two-stage search architecture with 80% RAM reduction.** Production architectures exploit MRL through a hierarchical two-stage search strategy: (1) Stage 1 (Fast candidate retrieval in RAM): only the initial 256 dimensions of each vector are held in high-speed RAM within an HNSW index, slashing memory footprint by over 80%. When a query arrives, it queries the 256-dimensional index to retrieve the top 100 candidates in milliseconds; (2) Stage 2 (Exact full-dimension reranking): the full 1,536-dimensional vectors for only those 100 candidates are fetched from disk or SSD to compute exact cosine similarities, reranking down to the final top 10. The system achieves 98%+ of full-dimensional retrieval recall while reducing memory infrastructure costs by 80%.",
+    "Why": "A vector database indexes 10 million documents. Storing 1,536-dim float32 vectors in RAM requires over 60GB of memory. Truncating to 256 dimensions using MRL reduces the in-memory index footprint to under 12GB while retaining 98% of original search recall.",
+    "worked_case": "A vector database indexes 10 million documents. Storing 1,536-dim float32 vectors in RAM requires over 60GB of memory. Truncating to 256 dimensions using MRL reduces the in-memory index footprint to under 12GB while retaining 98% of original search recall.",
+    "Risk": "Truncating an embedding model that was NOT trained with Matryoshka loss destroys representation geometry and ruins retrieval performance.",
+    "Trade": "Two-stage MRL retrieval requires managing a secondary disk fetch for full-dimensional reranking, trading a tiny I/O latency increment for massive RAM cost savings.",
+    "Try": "Take an MRL-enabled embedding vector. Truncate it to the first 256 dimensions, normalize to unit length, and compare its cosine similarity ranking against the full 1,536-dimensional baseline.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "retrieval",
+    "citations": [
+      "https://arxiv.org/abs/2205.13147",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Does Matryoshka truncation require re-normalizing the vector?",
+        "A": "Yes. After slicing a vector to its prefix sub-dimension, it must be L2-normalized so that cosine similarity can be calculated via fast dot products."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  }
+]

@@ -1,0 +1,118 @@
+[
+  {
+    "name": "bm25-scoring-mechanics",
+    "filename": "bm25-scoring-mechanics.py",
+    "language": "python",
+    "explain": "Implement Okapi BM25 scoring from first principles. Explains how parameter k1 controls term frequency saturation and parameter b penalizes long documents, preventing keyword stuffing anomalies.",
+    "steps": "Compute term frequency, document frequency, and inverse document frequency (IDF) across a sample corpus. || Score query terms using document length normalization to prevent verbose documents from dominating results.",
+    "expect": "BM25 scoring verified: top_doc=0, scores=[1.7693, 0.7057, 0.0]",
+    "questions": [
+      564
+    ]
+  },
+  {
+    "name": "hnsw-graph-navigation",
+    "filename": "hnsw-graph-navigation.py",
+    "language": "python",
+    "explain": "Demonstrate Hierarchical Navigable Small World (HNSW) multi-layer graph navigation. Traverses sparse long-range express layers down to the dense base layer in O(log N) greedy hops.",
+    "steps": "Start greedy nearest-neighbor walk from entry point at top sparse expressway layer. || Descend down hierarchical layers to identify nearest neighbor in the dense base layer.",
+    "expect": "HNSW search verified: target=(8.8, 8.9), nearest=N4, navigation_path=[(2, 'N3'), (1, 'N4'), (0, 'N4')]",
+    "questions": [
+      565
+    ]
+  },
+  {
+    "name": "pre-filtering-vs-post-filtering",
+    "filename": "pre-filtering-vs-post-filtering.py",
+    "language": "python",
+    "explain": "Demonstrate candidate starvation in vector post-filtering vs single-stage pre-filtering. Post-filtering global nearest neighbors drops valid tenant documents; pre-filtering constrains graph traversal to admissible predicates.",
+    "steps": "Execute post-filtering and demonstrate candidate starvation returning 0 matching results. || Execute pre-filtered vector search and verify all matching tenant documents are recalled.",
+    "expect": "Pre-filtering vs Post-filtering: post_filter_hits=0 (starvation), pre_filter_hits=3",
+    "questions": [
+      566,
+      68
+    ]
+  },
+  {
+    "name": "hybrid-dense-sparse-fusion",
+    "filename": "hybrid-dense-sparse-fusion.py",
+    "language": "python",
+    "explain": "Implement Reciprocal Rank Fusion (RRF) combining Dense semantic embeddings and Sparse lexical (BM25) rankings. Smooths ranking discrepancies and catches both exact code tokens and conceptual synonyms.",
+    "steps": "Retrieve candidate rankings from dense semantic and sparse lexical retrieval stages. || Compute RRF score 1/(k + rank) for each candidate and sort by fused consensus score.",
+    "expect": "RRF Hybrid Fusion verified: top_doc=doc_B, score=0.03227, rankings=[('doc_B', 0.03227), ('doc_A', 0.03227), ('doc_C', 0.01613), ('doc_D', 0.01613)]",
+    "questions": [
+      567,
+      67
+    ]
+  },
+  {
+    "name": "bi-encoder-vs-cross-encoder",
+    "filename": "bi-encoder-vs-cross-encoder.py",
+    "language": "python",
+    "explain": "Compare Bi-Encoder fast candidate retrieval with Cross-Encoder joint-attention reranking. Bi-encoders retrieve initial candidates via fast dot products; cross-encoders evaluate query-document token cross-attention to resolve semantic negations.",
+    "steps": "Retrieve top candidate pool using bi-encoder vector similarity. || Rerank candidates with cross-encoder joint attention to correct semantic negation misclassifications.",
+    "expect": "Two-stage retrieval verified: bi_encoder_top=doc_1 -> cross_encoder_top=doc_2 (score=0.95)",
+    "questions": [
+      568,
+      62,
+      65
+    ]
+  },
+  {
+    "name": "contextual-query-rewriting",
+    "filename": "contextual-query-rewriting.py",
+    "language": "python",
+    "explain": "Rewrite multi-turn conversational queries by resolving coreferences and pronouns with conversation history, protected by deduplication and entity boundary guards.",
+    "steps": "Detect conversational follow-up pronouns and resolve subjects from prior user and assistant turns. || Bound the number of query variants and preserve exact entity identifiers.",
+    "expect": "Contextual rewriting verified: original='What about in the UK?', rewrites=['What about in the UK?', 'What about in the UK for the Enterprise Plan?']",
+    "questions": [
+      746,
+      66
+    ]
+  },
+  {
+    "name": "retrieval-offline-metrics",
+    "filename": "retrieval-offline-metrics.py",
+    "language": "python",
+    "explain": "Implement offline retrieval evaluation metrics from scratch: Mean Reciprocal Rank (MRR@k), Mean Average Precision (MAP), and Normalized Discounted Cumulative Gain (NDCG@k).",
+    "steps": "Compute reciprocal rank of the first relevant document hit. || Calculate average precision and discounted cumulative gain against graded ground-truth relevance judgments.",
+    "expect": "Retrieval offline evaluation verified: MRR@5=0.5, MAP@5=0.5, NDCG@5=0.642",
+    "questions": [
+      747
+    ]
+  },
+  {
+    "name": "typed-retrieval-pipeline",
+    "filename": "typed-retrieval-pipeline.py",
+    "language": "python",
+    "explain": "Enforce typed retrieval contracts, candidate budget bounds, and metric directionality. Normalizes cosine similarity and L2 Euclidean distance into monotonic relevance thresholds.",
+    "steps": "Validate candidate_k, final_k, and mandatory tenant filter boundaries before query execution. || Convert L2 distance and cosine similarity into normalized [0, 1] relevance scores.",
+    "expect": "Typed retrieval request validated: query='enterprise SSO SAML configuration', tenant=tenant_acme, candidate_k=40, final_k=5",
+    "questions": [
+      61,
+      69
+    ]
+  },
+  {
+    "name": "parallel-hybrid-retrieval",
+    "filename": "parallel-hybrid-retrieval.py",
+    "language": "python",
+    "explain": "Execute dense vector and sparse lexical retrieval concurrently using asyncio.gather with independent timeouts and graceful degradation.",
+    "steps": "Dispatch dense and sparse search coroutines concurrently to minimize user-visible latency. || Merge retrieved results preserving candidate provenance and degrading gracefully if a provider times out.",
+    "expect": "Parallel hybrid retrieval completed: dense=2, lexical=2, total_unique=3",
+    "questions": [
+      64
+    ]
+  },
+  {
+    "name": "candidate-pool-sizing",
+    "filename": "candidate-pool-sizing.py",
+    "language": "python",
+    "explain": "Analyze candidate pool sizing failure modes. Undersized candidate pools cause starvation by excluding decisive edge cases from downstream rerankers; calibrated pools recover decisive evidence.",
+    "steps": "Demonstrate that candidate_k=5 truncates a decisive exception ranked #8 in vector similarity. || Expand candidate_k=30, allowing the cross-encoder reranker to promote the decisive evidence to rank 1.",
+    "expect": "Candidate pool sizing verified: candidate_k=5 failed (starvation); candidate_k=30 recovered decisive evidence to rank 1",
+    "questions": [
+      967
+    ]
+  }
+]

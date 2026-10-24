@@ -1,0 +1,68 @@
+[
+  {
+    "Q": "What problem does RAG solve before we discuss any architecture?",
+    "explain": "Imagine a new employee who writes well but has never read your return policy. Asking more confidently will not give them the missing rule. RAG gives the model relevant reading material before it answers. It changes what information is available for this request; it does not teach the model permanently.",
+    "example": "Ask Can I return a sale item? Give the model the actual sentence Sale items can be exchanged within 14 days. Now it can explain that rule instead of guessing.",
+    "takeaway": "The benefit comes from supplying the right evidence, not from the acronym."
+  },
+  {
+    "Q": "What happens when a document becomes searchable?",
+    "explain": "Your application reads the document, extracts its text, divides it into useful passages, and stores searchable representations with source identifiers. This preparation is often called indexing. It usually happens before the customer asks a question. The original text must remain available because the model needs words it can read, not just numerical vectors.",
+    "example": "A three-page returns document becomes several passages. Each passage records its page and document revision so the answer can later point back to it.",
+    "takeaway": "Indexing prepares knowledge; it does not produce the customer's answer."
+  },
+  {
+    "Q": "What happens after the customer submits a question?",
+    "explain": "The application searches the index, selects applicable passages, and adds their text to the model request alongside instructions and the customer's question. The model then writes a new answer using that supplied context. The application should check the answer's format and whether its factual statements are supported before presenting completion.",
+    "example": "Search finds a sale-item clause and a general returns clause. Selecting the specific clause avoids applying the general refund rule to excluded items.",
+    "takeaway": "Search, selection, generation, and checking are separate operations."
+  },
+  {
+    "Q": "What does the model actually receive?",
+    "explain": "It receives a structured request containing instructions, the user question, and selected evidence. It does not automatically receive the entire database. You decide which information crosses that boundary, including permissions, amount of text, and source labels. Treat retrieved instructions as document content rather than commands the model may obey.",
+    "example": "Instructions: answer only from evidence. Evidence D7: sale items allow exchange. Question: can I get a refund? A suitable answer distinguishes exchange from an unsupported refund promise.",
+    "takeaway": "The prompt is the model's immediate reading packet."
+  },
+  {
+    "Q": "What if the search finds nothing or the search service is down?",
+    "explain": "These situations need different responses. No matching passage means the search completed but did not supply evidence. An outage means the application could not establish what evidence exists. Neither result licenses a made-up policy. Ask for a useful missing detail, abstain, or explain temporary unavailability according to the actual state.",
+    "example": "No product category: ask which item. Database timeout: offer retry. A completed search with no rule: say the available material does not answer it.",
+    "takeaway": "Preserve the reason you could not answer."
+  },
+  {
+    "Q": "Does a citation prove the answer is correct?",
+    "explain": "A citation gives the reader something to inspect. It proves little if the passage is irrelevant, outdated, or does not support the attached statement. Verify the relationship between the answer and the source, and preserve the exact revision when the rule can change. Access checks still apply when opening a citation.",
+    "example": "An answer says refunds are allowed but cites a passage about exchanges. The link works; the factual support is still wrong.",
+    "takeaway": "A usable citation must support the specific statement."
+  },
+  {
+    "Q": "When is RAG the wrong tool?",
+    "explain": "Use an exact database operation for facts such as an order's status or the total paid this month. Use a small fixed prompt for stable text transformation that needs no external facts. Consider model adaptation for repeated behavior problems, but do not expect fine-tuning alone to maintain changing customer records.",
+    "example": "What is order R17's status? should reach an authorized record lookup. What does the return policy say? is a document-evidence question.",
+    "takeaway": "Choose the information source from the task, not from a fashionable architecture."
+  },
+  {
+    "Q": "How do I turn a code example into a reproducible program?",
+    "explain": "A program needs a runtime, an entry point, inputs, and declared dependencies. Start by running python3 --version in a terminal, creating a project folder, and placing a function and its call in a .py file. A virtual environment keeps installed Python packages separate from other projects: create it with python3 -m venv .venv and use .venv/bin/python to run your file. Install only declared dependencies, exclude credentials and the environment folder from Git, and write the exact setup and run commands in a README.",
+    "example": "Write def answer(question): return {'status': 'not_found'} and print(answer('refund?')). Run the file, change the input, and inspect the printed dictionary. Add one assertion that checks the status. This first exercise requires only Python.",
+    "takeaway": "Reproduce a small local result before adding a remote provider."
+  },
+  {
+    "Q": "How do functions, collections, and errors describe the retrieval boundary?",
+    "explain": "A function receives arguments and returns a value. A list keeps an ordered collection; a dictionary maps names to values. Represent a passage with named fields such as text and revision, and return a list of eligible passages. An empty list is a successful search with no hits. A raised timeout is an execution failure; handle it at the boundary where you can choose a meaningful response. Type annotations explain expected shapes, but external data still needs runtime validation.",
+    "example": "A search returns [{'text': 'Exchange only', 'revision': 2}]. The answer function selects its text and source. If search raises TimeoutError, return a temporary_failure outcome rather than converting the exception to an empty list.",
+    "takeaway": "Preserve the difference between missing information and failed execution in ordinary code."
+  },
+  {
+    "Q": "How do I debug an answer that looks reasonable but is wrong?",
+    "explain": "Reproduce the input on a tiny fixture, inspect intermediate values, and stop at the first boundary where actual output differs from expectation. A traceback identifies the sequence of calls leading to an exception; read its final error and inspect the relevant arguments. For a logical error there may be no traceback, so compare source revision, selected text, assembled request, and final claim explicitly. Keep safe debug metadata separate from private document contents.",
+    "example": "An answer promises a refund. Search found the correct exchange clause, but the prompt assembler inserted an old cached paragraph. Fix the cache identity and add a regression case at that boundary.",
+    "takeaway": "Debug by locating the first wrong transformation."
+  },
+  {
+    "Q": "What does Git contribute to a learning experiment?",
+    "explain": "Git records snapshots of tracked files so you can inspect changes, compare experiments, and return to a known implementation. Begin with git init, git status, git add for the intended files, and git commit with a concrete description. Review git diff before committing. Use a branch for an experiment and keep its code, dataset version, and measured result connected. A commit records source history; it does not automatically preserve untracked data or secrets safely.",
+    "example": "Commit the baseline keyword search, create a branch for a new ranking rule, and compare the same three queries on both revisions. Exclude .env and .venv before adding files.",
+    "takeaway": "Make each learning claim traceable to code and inputs."
+  }
+]

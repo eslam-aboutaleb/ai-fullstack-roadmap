@@ -1,0 +1,135 @@
+[
+  {
+    "Q": "When should WebSockets replace SSE?",
+    "A": "Use WebSockets when the client and server need low-latency bidirectional messaging during an active session, such as audio frames or collaborative control. SSE remains sufficient for many one-way progress streams.",
+    "Why": "Compare required message direction, infrastructure, binary data needs, reconnect behavior, and authentication.",
+    "Risk": "Choosing WebSockets does not automatically improve application latency.",
+    "Trade": "Duplex sessions add lifecycle and routing complexity.",
+    "Try": "Specify the messages that genuinely require a persistent bidirectional channel.",
+    "spoken": "Use WebSocket when bidirectional application messaging justifies it. Choose an authentication approach compatible with the client, authorize every resource/action, bound unauthenticated work and revalidate expiring sessions. Define envelopes, sequence/replay, flow control and close/error behavior explicitly.",
+    "domain": "frontend",
+    "subdomain": "websocket",
+    "module": "websocket-streaming",
+    "concept": "When should WebSockets replace SSE",
+    "difficulty": "implementation",
+    "misconception_target": "WebSocket connections are secure by default",
+    "definitions": [
+      {
+        "term": "WebSocket envelope",
+        "definition": "Message wrapper with type, sequence, and payload"
+      },
+      {
+        "term": "Flow control",
+        "definition": "Regulating message rate between producer and consumer"
+      },
+      {
+        "term": "Envelope authentication",
+        "definition": "Authentication at an explicitly chosen handshake or message boundary before any protected work, with per-action authorization."
+      }
+    ],
+    "execution_timeline": "Client connects -> Send auth token as first frame -> Server validates -> Exchange envelopes -> Apply flow control -> Close cleanly",
+    "example": {
+      "code": "ws.onopen = () => ws.send(JSON.stringify({type: \"auth\", token}));\\nws.onmessage = e => { const env = JSON.parse(e.data); handle(env); };",
+      "explanation": "Send auth on open, parse envelopes on message.",
+      "output": "Authenticated bidirectional stream"
+    },
+    "production_case": "A browser reconnects with an expired session while old queued commands remain. Re-authenticate, scope replay and reconcile command identities rather than executing the queue under stale authority.",
+    "alternatives": [
+      "SSE for server-to-client only",
+      "HTTP long-polling"
+    ],
+    "pitfalls": [
+      "No authentication",
+      "No message envelopes",
+      "No flow control"
+    ],
+    "complexity": "Message handling scales with payload bytes, validation and dispatched work. Concurrent connections, buffered messages and replay retention determine memory; bidirectional transport does not create automatic flow control.",
+    "follow_ups": [
+      {
+        "Q": "Must WebSocket authentication always happen in the first frame?",
+        "A": "No. Handshake-based session patterns and explicit message protocols have different constraints. If authenticating in a message, expose no protected work beforehand and bound timeout/message size."
+      }
+    ],
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "How should WebSocket authentication work?",
+    "A": "Authenticate the handshake and authorize the session's resources, then recheck permissions for sensitive messages and long-lived sessions. Validate allowed origins for browser clients.",
+    "Why": "Use an explicit token or cookie strategy supported by the client and server. Handle expiry and revocation without logging credentials.",
+    "Risk": "A valid connection at startup can outlive the user's permission.",
+    "Trade": "Frequent revalidation adds work and limits stale access.",
+    "Try": "Revoke a user's access during an active session and verify the next protected action is denied."
+  },
+  {
+    "Q": "What belongs in a WebSocket message envelope?",
+    "A": "Include schema version, session ID, message ID, sequence, type, correlation ID, and typed payload. Distinguish commands, acknowledgments, events, errors, and terminal states.",
+    "Why": "Validate message size and schema before dispatch. Use binary frames for audio where appropriate and explicit metadata for format.",
+    "Risk": "An untyped message bus invites accidental interpretation and oversized payload abuse.",
+    "Trade": "Verbose envelopes add bandwidth and improve evolution and diagnosis.",
+    "Try": "Design a cancel command correlated with the generation it targets."
+  },
+  {
+    "Q": "How do acknowledgments and delivery guarantees work?",
+    "A": "TCP provides ordered bytes while connected; application acknowledgments establish which logical messages were processed. Reconnection needs explicit replay and deduplication rules.",
+    "Why": "Persist critical commands or outcomes with stable IDs and make repeated handling idempotent.",
+    "Risk": "Receiving a frame is not proof that a business transaction committed.",
+    "Trade": "Stronger delivery semantics add storage and protocol complexity.",
+    "Try": "Disconnect between processing a command and sending its acknowledgment."
+  },
+  {
+    "Q": "How should flow control work for WebSockets?",
+    "A": "Bound inbound and outbound queues, limit frame sizes, and define how producers pause or shed nonessential progress. Standard browser WebSocket APIs do not provide automatic application backpressure.",
+    "Why": "Monitor buffered bytes and processing latency. Prioritize control messages such as cancellation over bulk content.",
+    "Risk": "An audio producer can overwhelm a slow consumer and cause memory growth or large delays.",
+    "Trade": "Dropping stale audio reduces latency and may affect intelligibility.",
+    "Try": "Simulate a slow network and ensure cancellation still reaches the server promptly."
+  },
+  {
+    "Q": "What are ping, pong, and application heartbeats for?",
+    "A": "Transport-level ping and pong help detect connection liveness where exposed. Application heartbeats can verify end-to-end processing and carry session status.",
+    "Why": "Set timeouts compatible with proxies and mobile networks, and distinguish temporary silence from failure.",
+    "Risk": "A healthy connection does not prove that the agent or downstream service is progressing.",
+    "Trade": "Aggressive timeouts reduce dead sessions and create false disconnects.",
+    "Try": "Pause the application worker while leaving the socket open and inspect health signals."
+  },
+  {
+    "Q": "How should reconnecting clients recover state?",
+    "A": "Reauthenticate, present a resume token or last processed sequence, and receive replay or a state snapshot. The server decides whether the old session can safely resume.",
+    "Why": "Expire resume capabilities, bind them to the owner, and deduplicate commands and events.",
+    "Risk": "Replaying every outbound client message can repeat a side effect.",
+    "Trade": "Durable recovery costs state storage and supports unstable networks.",
+    "Try": "Reconnect after an ambiguous write and recover through its operation ID."
+  },
+  {
+    "Q": "How do WebSocket servers scale horizontally?",
+    "A": "Maintain durable session and task state outside one process, route active connections deliberately, and distribute events through a shared channel when needed.",
+    "Why": "Capacity-plan open connections, memory, bandwidth, worker count, and draining behavior. Sticky routing does not replace durable recovery.",
+    "Risk": "A process-local registry loses sessions on restart and cannot coordinate a fleet.",
+    "Trade": "Shared infrastructure adds latency and enables scale and recovery.",
+    "Try": "Drain one instance during active sessions and verify the expected reconnect path."
+  },
+  {
+    "Q": "How should binary audio and text events coexist?",
+    "A": "Define a protocol that identifies audio format, stream, timestamps, and sequence while using typed control events for transcripts and state. Keep ordering assumptions explicit.",
+    "Why": "Validate sample rate, channels, codec, and payload size. Maintain separate playback and control queues when useful.",
+    "Risk": "Misinterpreted encoding can produce noise, broken timing, or excessive memory use.",
+    "Trade": "A richer protocol adds implementation work and supports multimodal sessions.",
+    "Try": "Change the declared audio format midstream and verify a controlled rejection."
+  },
+  {
+    "Q": "What should a WebSocket production test include?",
+    "A": "Test authorization, origin checks, oversized frames, expired sessions, malformed messages, reconnects, duplicate commands, slow consumers, network loss, and deployment draining.",
+    "Why": "Measure end-to-end command latency and queue depth under realistic concurrency.",
+    "Risk": "A local echo server does not establish reliability of a distributed agent session.",
+    "Trade": "Load tests require representative infrastructure and reveal connection capacity limits.",
+    "Try": "Publish a capacity report with connection count, memory use, and p95 control-message latency."
+  }
+]

@@ -1,0 +1,135 @@
+[
+  {
+    "Q": "Why store support service requests in relational tables instead of only vector documents?",
+    "A": "Service requests have exact ownership, monetary amounts, lifecycle states, references, and transaction boundaries. A vector index optimizes similarity retrieval and does not replace those relational invariants. The same request can have an authoritative row and a derived search representation.",
+    "Why": "Keep authoritative ownership, state transitions, and relationships in constrained transactional records. Use vector indexes as derived search projections that can be rebuilt, not as the only source of business truth.",
+    "Risk": "Treating the vector record as the sole source of truth makes exact authorization, status transitions, and recovery dependent on a derived index. Search ranking cannot decide whether a service request exists or who owns it.",
+    "Trade": "Relational plus search modeling creates projection maintenance work but supports exact operations and flexible discovery. A text-only prototype is smaller and insufficient for authoritative workflows.",
+    "Try": "Mark every Claim column as identity, business fact, authority constraint, lifecycle metadata, or derived search data. Explain which can be rebuilt.",
+    "spoken": "Relational tables enforce structured identities, relationships, constraints and transactions for service requests. Vector documents support relevance lookup but do not replace the authoritative operation state. Model owned tasks, operation keys, revisions and effect intent explicitly, then derive searchable projections as needed.",
+    "domain": "backend",
+    "subdomain": "database-modeling",
+    "module": "database-modeling",
+    "concept": "Why store support service requests in relational tables instead of only vector documents",
+    "difficulty": "foundations",
+    "misconception_target": "More tables always means better design",
+    "definitions": [
+      {
+        "term": "Normalization",
+        "definition": "Organizing tables to reduce redundancy and dependency"
+      },
+      {
+        "term": "Foreign key",
+        "definition": "Column that references a primary key in another table"
+      },
+      {
+        "term": "Constraint",
+        "definition": "Rule enforced by the database on column values"
+      }
+    ],
+    "execution_timeline": "Identify entities → Define attributes → Choose primary keys → Map relationships → Add constraints → Review normal forms",
+    "example": {
+      "code": "CREATE TABLE documents (\n  id UUID PRIMARY KEY,\n  owner_id UUID NOT NULL REFERENCES users(id)\n);\nCREATE TABLE document_revisions (\n  document_id UUID NOT NULL REFERENCES documents(id),\n  revision INT NOT NULL CHECK (revision > 0),\n  content TEXT NOT NULL,\n  PRIMARY KEY (document_id, revision)\n);",
+      "explanation": "Document ownership is separate from per-document revision identity. Different documents owned by the same user can each have revision one. PostgreSQL fragment requires an existing users table and a disposable schema.",
+      "output": "Schema illustration; execute with its users dependency in a disposable PostgreSQL environment."
+    },
+    "production_case": "A user retries the same request after a timeout. UNIQUE(owner, operation_key) resolves it to the existing task, whereas similarity search cannot reliably decide whether two messages are the same logical operation.",
+    "alternatives": [
+      "Denormalized design for read-heavy workloads",
+      "Document store for unstructured content"
+    ],
+    "pitfalls": [
+      "Missing foreign key constraints",
+      "Storing derived data redundantly",
+      "Over-normalizing for simple read patterns"
+    ],
+    "complexity": "Query cost depends on access path, selectivity, joins, indexes and concurrency. B-tree lookup is often logarithmic in tree height plus returned/filtered rows; an index does not make every query O(log n). Inspect real query plans.",
+    "follow_ups": [
+      {
+        "Q": "Can a vector index be your transaction ledger?",
+        "A": "It is not a substitute for the uniqueness, ownership and atomic state-transition guarantees required by the operation contract."
+      }
+    ],
+    "citations": [
+      "https://www.postgresql.org/docs/current/ddl-constraints.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "Why have both a UUID primary key and a human-readable request ID?",
+    "A": "A UUID provides an internal identifier suitable for references; a separate request ID provides a support-friendly external label. They have different display and collision properties. Neither identifier should be treated as an authorization secret.",
+    "Why": "Choose immutable internal identifiers and stable public references deliberately. Scope uniqueness to the right tenant or operation and reject collisions through database constraints.",
+    "Risk": "Shortened random identifiers can collide. A production collision-handling path should distinguish a retryable uniqueness conflict from unrelated database errors, and users must still be scoped even when an ID is known.",
+    "Trade": "Friendly IDs improve support and communication while adding an extra index and identity mapping. Full opaque IDs are simpler but awkward to read aloud.",
+    "Try": "Explain how an identifier collision differs from an idempotent replay. Design a bounded generation retry that does not duplicate a pending submission."
+  },
+  {
+    "Q": "Why use Numeric and Decimal for request amounts?",
+    "A": "Decimal arithmetic and a fixed-scale Numeric column represent monetary values more predictably than binary floating point. Currency precision, rounding, allowed scale, and upper bounds are part of the domain contract rather than formatting details.",
+    "Why": "Use decimal representations and explicit currency rules. Validate scale and range before persistence, and preserve decimal strings across API serialization rather than round-tripping through binary floats.",
+    "Risk": "A Decimal column cannot retroactively undo precision lost earlier in JSON parsing, float conversion, or arithmetic. Validation and serialization must preserve the intended amount end to end.",
+    "Trade": "Decimal values need explicit JSON handling and careful provider-tool schemas. Float is convenient for generic numeric tools but weakens exact-money guarantees.",
+    "Try": "Trace an amount with cents from browser JSON through Pydantic, pending JSONB, confirmation, and SQL storage. Propose a Decimal-preserving signature and matching tests."
+  },
+  {
+    "Q": "How do foreign keys, unique constraints, and check constraints complement application validation?",
+    "A": "Application validation gives useful error messages; database constraints protect against every writer sharing the database. Foreign keys preserve references, unique constraints enforce identity rules, and check constraints reject invalid row-level values even when a route is bypassed.",
+    "Why": "Specify foreign keys, nullability, uniqueness, and state checks in migrations. Application validation improves errors; database constraints protect against concurrent callers and alternative write paths.",
+    "Risk": "Assuming all invariants are enforced because ORM types exist leaves gaps for scripts, workers, and future routes. Constraints also need deliberate delete and migration behavior.",
+    "Trade": "Strong constraints simplify consistency reasoning but can complicate staged migrations and bulk imports. Relaxing them requires another proven enforcement mechanism.",
+    "Try": "Compare the Claim, PendingRequest, an indexing job, and a request event models with their migrations. List invariants enforced only in Python and those enforced by PostgreSQL."
+  },
+  {
+    "Q": "What belongs in normalized columns versus JSONB?",
+    "A": "Put fields used for relationships, strict constraints, frequent filtering, and stable reporting in typed columns. JSONB is useful for variable event payloads or a prepared-form snapshot. Its flexibility does not remove the need for schema versions, validation, or selective indexing.",
+    "Why": "Normalize identity, ownership, status, amounts, timestamps, and relationships that need constraints. Reserve JSONB for evolving payloads whose validation and query needs are explicitly managed.",
+    "Risk": "Unversioned JSON can become unreadable after schema changes. Copying an entire stale state blob can also overwrite concurrent updates, while arbitrary JSON may retain more private data than needed.",
+    "Trade": "JSONB speeds evolving payloads and weakens some relational guarantees. Normalize stable, high-value fields instead of treating the database as a dictionary with no contracts.",
+    "Try": "Design a version field and migration reader for a prepared submission whose incident_date field was added later. Explain the fallback for older records."
+  },
+  {
+    "Q": "Why does the owner-and-created-at composite index matter?",
+    "A": "A request list filters by owner and orders by creation time. An index beginning with owner_id and then created_at can support that access pattern more directly than two unrelated indexes. Index design should follow real predicates, ordering, and pagination.",
+    "Why": "Start index design from actual predicates and ordering. Inspect query plans and representative data distributions, then balance faster reads against write cost and maintenance.",
+    "Risk": "An index declaration does not prove an efficient plan at production data sizes. Additional sort keys, selective predicates, and row estimates can change the plan; unused indexes still cost writes and storage.",
+    "Trade": "More indexes accelerate selected reads while slowing mutation and increasing maintenance. Validate with representative EXPLAIN plans rather than indexing every column reflexively.",
+    "Try": "Compare the owner-scoped listing plan with and without the composite index in a disposable database. Include a tie-breaking ID if you design keyset pagination."
+  },
+  {
+    "Q": "How do knowledge versions differ from active knowledge chunks?",
+    "A": "A knowledge version records the source and indexing configuration over time. Policy chunks are searchable material for a version. Keeping version records does not necessarily mean every historical chunk remains retained or that a query selects the contract applicable to an incident.",
+    "Why": "Track effective intervals separately from indexing time. Resolve the applicable source revision before searching its derived chunks, and retain the revision needed to verify an earlier answer.",
+    "Risk": "Current-source retrieval can answer the wrong historical question even when its text is accurately quoted. Historical evidence needs both retention and an explicit applicable-version filter.",
+    "Trade": "Retaining every version supports audits and costs storage and selection logic. Current-only indexing is simpler and must state its scope honestly.",
+    "Try": "Create two rule revisions with different deductibles and one incident between their effective dates. Define the query and citation fields required to choose correctly."
+  },
+  {
+    "Q": "Why use Alembic migrations instead of create_all for production evolution?",
+    "A": "Create_all creates missing schema objects represented in current metadata; it is not a reviewed sequence for changing existing columns, backfilling data, or coordinating old and new application versions. Migrations record explicit upgrade steps and dependencies.",
+    "Why": "Make production schema changes explicit and reviewed. Assign migration ownership, verify upgrades against existing data, and coordinate application compatibility instead of relying on runtime table creation.",
+    "Risk": "Runtime-created tables can escape a migration policy, and concurrent DDL can disrupt startup. Inventory every schema owner and make a failed migration visibly block incompatible application use.",
+    "Trade": "Migrations add review and deployment sequencing but make history inspectable. Runtime creation is convenient for framework state and harder to govern consistently.",
+    "Try": "Define which component owns each reference table and write a reviewed upgrade path for an existing populated database."
+  },
+  {
+    "Q": "What is an expand-and-contract migration?",
+    "A": "Add a compatible schema surface first, deploy code that can read old and new forms, backfill safely, switch writers, then remove the old form in a later release. The sequence allows rolling deployment and rollback without requiring every process to switch simultaneously.",
+    "Why": "Add a compatible new structure, backfill with bounded work, deploy readers and writers deliberately, and remove obsolete structure only after verifying all consumers have migrated.",
+    "Risk": "A backfill can hold locks or overload the database; a destructive cleanup can make application rollback impossible. Background jobs may also contain payloads written by an older schema version.",
+    "Trade": "Compatibility periods increase temporary complexity and reduce deployment coupling. A single destructive migration is shorter and can require a maintenance window.",
+    "Try": "Design a migration from float-shaped tool input to explicit decimal-string amounts. Include old pending submissions and jobs, not just current Claim rows."
+  },
+  {
+    "Q": "How should you model authoritative events versus derived projections?",
+    "A": "A request event records lifecycle history; a request status is a current-state projection. Embedding records and notifications are downstream projections. Agent session events describe runtime execution, while audit events describe selected high-value actions. These logs are related but not interchangeable event-sourcing systems.",
+    "Why": "Separate authoritative lifecycle records from derived search and notification projections. Define replay and reconciliation for each projection rather than calling every append-only table an event-sourced system.",
+    "Risk": "Calling any append-only table event sourcing overstates replayability. A complete event-sourced design needs sufficient immutable events, deterministic projection rebuilding, versioning, and a declared source of truth.",
+    "Trade": "Current rows plus a transition trail provide useful history with lower complexity. Full event sourcing improves replay options and adds substantial schema and operational obligations.",
+    "Try": "For each event table, state whether it can rebuild a Claim exactly. Identify missing facts before claiming replay-based recovery."
+  }
+]

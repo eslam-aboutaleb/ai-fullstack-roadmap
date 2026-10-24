@@ -1,0 +1,172 @@
+[
+  {
+    "Q": "What mathematical foundations should an AI full-stack engineer learn first?",
+    "A": "Learn vectors, norms, dot products, probability, conditional probability, cross-entropy, optimization, and basic statistics. Connect them to retrieval geometry, training, calibration, and evaluation rather than memorizing formulas without a system consequence.",
+    "Why": "Practice vector arithmetic, dot products, probability, gradients, and optimization with small executable examples. Connect each operation to embeddings, attention, training objectives, and inference instead of memorizing terms alone.",
+    "Risk": "A number can look authoritative while measuring the wrong event. Similarity is not truth probability, and judge agreement is not calibrated decision confidence.",
+    "Trade": "API skills enable quick prototypes; foundations improve diagnosis. Alternate practical exercises with theory.",
+    "Try": "Compute normalized similarity by hand and estimate uncertainty in a small benchmark. Explain what each number establishes.",
+    "spoken": "Begin with vectors/matrices and shapes, probability and conditional reasoning, derivatives/chain rule, optimization, loss functions and data-split/evaluation design. Use small verified calculations before relying on library training loops. These foundations explain representation, uncertainty and failure modes in model systems.",
+    "domain": "operations",
+    "subdomain": "model-engineering",
+    "module": "model-engineering",
+    "concept": "What mathematical foundations should an AI full-stack engineer learn first",
+    "difficulty": "implementation",
+    "misconception_target": "Treating a library training run as a substitute for probability, gradients and valid evaluation",
+    "definitions": [
+      {
+        "term": "Gradient",
+        "definition": "A vector of local derivatives of an objective with respect to parameters."
+      },
+      {
+        "term": "Conditional probability",
+        "definition": "A probability defined under additional information and explicit population assumptions."
+      },
+      {
+        "term": "Data leakage",
+        "definition": "Evaluation gains caused by information unavailable under the intended deployment boundary."
+      }
+    ],
+    "execution_timeline": "Define variables/shapes -> calculate loss -> derive gradient -> test derivative -> optimize -> evaluate on independent data",
+    "example": {
+      "code": "x, y, w, learning_rate = 2.0, 3.0, 1.0, 0.1\ngradient = 2 * x * (w*x-y)\nw -= learning_rate * gradient\nprint(round((w*x-y)**2, 2))",
+      "explanation": "A single-parameter example makes the derivative and update visible before using an autodiff library.",
+      "output": "0.04"
+    },
+    "production_case": "A classifier reports excellent held-out accuracy because preprocessing fitted on the entire dataset. Rebuild the pipeline with training-only fitting and compare grouped/time-aware validation before changing the model.",
+    "alternatives": [
+      "Full precision model",
+      "Knowledge distillation"
+    ],
+    "pitfalls": [
+      "No lineage record",
+      "Quantization without evaluation",
+      "Deploying without reliability testing"
+    ],
+    "complexity": "The scalar example is constant-size; real training cost depends on tensor shapes, architecture, data and hardware. Gradient correctness is separate from generalization.",
+    "follow_ups": [
+      {
+        "Q": "What does a gradient check establish?",
+        "A": "It compares an implemented derivative to a numerical approximation near chosen inputs; it does not prove the dataset, optimization process or model generalization is correct."
+      }
+    ],
+    "citations": [
+      "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html",
+      "https://scikit-learn.org/stable/common_pitfalls.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "How do calibration and selective answering differ from ranking?",
+    "A": "Ranking orders candidates; calibration relates predicted confidence to observed correctness; selective answering chooses when to abstain. Define correctness and harm before turning a score into a decision threshold.",
+    "Why": "Define correctness and error cost, calibrate scores on reviewed outcomes, and report accuracy alongside answer coverage. A high ranking score is not automatically a confidence probability.",
+    "Risk": "A threshold tuned only on answerable questions can accept unsupported claims. Rare severe errors require separate treatment from average accuracy.",
+    "Trade": "More abstention can improve reliability among answered cases while reducing coverage. Evaluate the risk-coverage relationship with reviewed labels.",
+    "Try": "Plot answered fraction against error rate across candidate thresholds. Separate outages, missing facts, and inapplicable knowledge rules."
+  },
+  {
+    "Q": "What are hard negatives and why can domain retrieval need them?",
+    "A": "Hard negatives appear relevant but fail a material condition, such as gradual leakage versus a sudden burst. They test whether representation and reranking distinguish the condition the user's question depends on.",
+    "Why": "Use reviewed non-relevant examples that resemble the query to teach finer distinctions. Keep false negatives out of training and compare retrieval improvements on held-out domain tasks.",
+    "Risk": "Binary labels can incorrectly mark a controlling exclusion irrelevant. Distinguish supporting, contradicting, conditional, and unrelated evidence when the task requires it.",
+    "Trade": "Rich labels cost review effort and reveal meaningful limitations. Easy random negatives produce cheaper and often flattering scores.",
+    "Try": "Build a query with a positive clause, exclusion, unrelated clause, and ambiguous condition. Evaluate candidate recall and evidence completeness separately."
+  },
+  {
+    "Q": "When should you adapt an embedding or reranker instead of changing the prompt?",
+    "A": "Adapt representation when evidence consistently fails candidate retrieval or ranking after extraction, chunking, and labeling are correct. Change answer policy when useful evidence arrives but generation ignores it or overservice requests.",
+    "Why": "Improve representation or ranking when the correct evidence consistently fails candidate recall or relevance ordering. Tune prompts when evidence is already correct and generation misuses it; evaluate each failure separately.",
+    "Risk": "Tiny-domain tuning can overfit visible questions and worsen rare exclusions or other languages. Training leakage can conceal the regression.",
+    "Trade": "Adaptation may improve difficult matching and adds training and migration cost. Structured metadata or deterministic routing can be cheaper.",
+    "Try": "Classify twenty failures by the first stage losing correctness and justify adaptation only after simpler repairs fail."
+  },
+  {
+    "Q": "What do distillation and synthetic data add to a learning plan?",
+    "A": "Distillation trains a smaller system from a stronger teacher's signals. Synthetic data expands examples, paraphrases, or adversarial cases. Both require independent validation because confident teacher errors can be copied at scale.",
+    "Why": "Distillation transfers behavior from a stronger teacher under a defined objective. Synthetic data can broaden fixtures or training examples, but needs validation, diversity checks, provenance, and separation from held-out evaluation.",
+    "Risk": "Generated questions can mirror source wording and overstate generalization. Generated answers should not become gold labels without review.",
+    "Trade": "Synthetic expansion reduces annotation effort and can reduce diversity or amplify bias. Keep a reviewed core as the anchor.",
+    "Try": "Generate toy paraphrases, review them, and compare held-out quality before and after using the accepted data."
+  },
+  {
+    "Q": "How do quantization, batching, and caching affect serving differently?",
+    "A": "**Begin with the request timeline.** A tokenizer emits input IDs. Prefill processes the prompt and computes per-layer attention key/value (KV) state. Autoregressive decoding generates subsequent tokens, one step at a time. A server must admit requests, allocate memory, schedule prefill/decode and stream data back. A fast model alone cannot compensate for head-of-line queueing, long prompts or a saturated GPU.\n\n**Why the levers differ.** Weight quantization shrinks or changes arithmetic for model parameters; it does not automatically reduce runtime KV cache, activations or host overhead. Continuous batching admits newly arrived decode requests instead of waiting for a whole fixed batch to finish. Prefix caching reuses eligible, identical prefill results only under a valid prompt/model/permission cache key. Paged attention avoids requiring a contiguous cache allocation for each sequence. Each optimization changes a different bottleneck, so measure it separately.\n\n**Memory calculation.** Simplified KV bytes = 2 × layers × KV heads × head dimension × live tokens × bytes per element × simultaneous sequences. With 32 layers, 8 KV heads, dimension 128, 4096 live tokens and 2-byte elements, one sequence requires 536,870,912 bytes = 512 MiB for the KV tensors alone. Eight such sequences imply ~4 GiB before model weights, transient activations, workspace, allocator fragmentation and headroom. Multi-query/grouped-query attention changes the KV head count; never infer fit from model parameter bytes alone.\n\n**Scheduling experiment.** Run `python3 -B labs/inference_capacity.py`. Its bounded discrete-event toy scheduler measures queue delay and simulated first-token/completion steps for competing requests; it rejects sequences that exceed configured memory and checks a nearest-rank p99. These are **illustrative step counts, not real milliseconds**. A production benchmark requires the actual GPU, model, tokenizer, hardware driver and serving engine, warm/cold runs, concurrent request mixes, TTFT, TPOT/inter-token latency, end-to-end p50/p95/p99 and GPU memory high-water marks.\n\n**Serving systems.** vLLM documents PagedAttention, continuous batching, chunked prefill and prefix caching. Hugging Face Text Generation Inference (TGI) exposes per-request and batch metrics; Hugging Face now calls TGI maintenance mode. Pin actual engine/model revision and verify which endpoint features are supported rather than assuming drop-in parity. References: https://docs.vllm.ai/en/latest/ and https://huggingface.co/docs/text-generation-inference/en/reference/metrics .\n\n**Failure and recovery.** When a long prompt arrives in a near-full batch, admission delays first token for shorter requests. Raising batch size may improve throughput but worsen tail latency or trigger OOM. Apply explicit queue/memory budgets and cancellation cleanup, replay a measured workload, then evaluate quality after a precision or quantization change.\n\n**Follow-up.** If throughput rises but the 99th-percentile time-to-first-token triples, do not call that an unqualified improvement: check request-length fairness, admission, cache hits, SLA slices and capacity limits and compare the same workload under each configuration.",
+    "Why": "Quantization, batching and caching target different resources; throughput alone can conceal queueing and tail-latency regressions.",
+    "Risk": "Cached answers may be stale after policy or permission changes. Aggressive batching can delay interactive requests, and quantization may change task quality.",
+    "Trade": "Optimizations reduce resources and add operational complexity. Measure successful task cost and tail latency rather than throughput alone.",
+    "Try": "Run the offline scheduler with capacity one and two; compute KV memory on paper and explain why real GPU p99 must be measured separately.",
+    "citations": [
+      "https://docs.vllm.ai/en/latest/",
+      "https://huggingface.co/docs/text-generation-inference/en/index",
+      "https://docs.vllm.ai/en/latest/design/metrics/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "When throughput increases but p99 time-to-first-token deteriorates, what should serving engineers investigate first?",
+        "A": "Inspect admission and queue wait per request-length/concurrency slice, token-budget saturation and prefix-cache hit rates. Compare the identical real workload under both schedulers, report TTFT/TPOT and memory peaks, and do not confuse toy step counts with GPU milliseconds."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "Why separate model quality from inference-system reliability?",
+    "A": "A capable model can fail through timeouts, rate limits, broken schemas, streaming errors, or unsupported settings. A reliable serving path can consistently deliver poor reasoning. Measure execution availability and behavioral quality separately.",
+    "Why": "Separate inference, tool, retrieval, queue, and network costs. Provider sampling settings and context size affect both quality and operational behavior, so version them with experiments.",
+    "Risk": "Replacing a model to fix a parser or transaction bug wastes effort and can introduce incompatibilities. More retries cannot repair consistently unsupported reasoning.",
+    "Trade": "Layered measurement requires instrumentation and identifies effective changes. One end-to-end score captures impact but does not locate cause.",
+    "Try": "Create incidents in model, retrieval, tool, transport, database, and frontend categories. State which signal identifies each."
+  },
+  {
+    "Q": "How should experimentation record lineage and reproducibility?",
+    "A": "Record code and dependency revisions, corpus, source versions, chunking, profiles, prompts, generation settings, judge configuration, and execution mode. Keep case identity stable without assuming temporary chunk UUIDs never change.",
+    "Why": "Store model, prompt, context, data, code, and environment identifiers with measured outputs. Distinguish configured, observed, estimated, and unknown values in reports.",
+    "Risk": "Equal model names may hide provider changes. Broad dependency ranges or a context-proxy fallback can change metrics without an obvious application diff.",
+    "Trade": "Rich lineage costs metadata and supports meaningful comparison. A screenshot of one average is easier to share and cannot reproduce a result.",
+    "Try": "Write a machine-readable experiment manifest distinguishing configured, observed, estimated, and unknown values."
+  },
+  {
+    "Q": "What advanced topics should follow the core journey?",
+    "A": "**After the core journey, study reproducible model releases, adaptation, inference scheduling and evaluation-linked operations through measured projects.** Add domain or multimodal specializations when a task justifies them, rather than collecting framework names. Each extension should identify prerequisites, a held-out success oracle, a failure case and the hardware or vendor boundary it actually exercised.\n\n**A model release couples weights with the code and data contracts needed to interpret them.** Register the base/model revision, tokenizer, prompt/template, feature and embedding profiles, training-data lineage, evaluation set, adapter configuration and serving runtime. A weights filename or a registry entry marked Production is not evidence of quality, compatibility or authorization to use the data.\n\nCI should validate source/schema contracts, execute bounded code examples, train or load the declared local reference where appropriate, and compare candidate against baseline on held-out cases. Prevent train/evaluation leakage by grouping duplicated entities or source documents across splits. A lower training loss can coexist with worse held-out quality or catastrophic forgetting. Keep fixed evaluation IDs and task-specific regression gates, not a leaderboard optimized by repeated tuning on the release set.\n\nServing introduces batching, queueing, token limits, cancellation, memory and concurrency constraints. Separate first-token latency from completion latency and report hardware/runtime/version when measuring performance. A local analytic capacity estimate or a tiny CPU model run cannot certify GPU production throughput. An adapter must be compatible with its exact base/tokenizer/template; reject a mismatch before loading or answering.\n\nPromote an immutable release bundle only after compatibility, safety, quality and recovery checks. Roll out under an explicit exposure policy, watch request/attempt usage and per-slice failures, and retain a tested rollback path. Monitor source/data drift separately from model/runtime errors. The production course's scorecard and policy fixtures make the decision rules inspectable; optional real infrastructure exercises require their own execution evidence. Model registry, orchestration and telemetry systems support this process but do not supply the missing judgment or independent labels automatically.",
+    "Why": "A LoRA adapter is loaded with a tokenizer that assigns different IDs to the same text. The weights load successfully but behavior is invalid; the release bundle must bind tokenizer and base revisions, not only tensor shapes.",
+    "Risk": "A registry promotion can publish an incompatible or leaked evaluation result. Administrative status and green build metadata do not prove held-out task quality.",
+    "Trade": "Strict release bundles improve reproducibility but require artifact storage and compatibility maintenance. Hot-swapping loosely identified components is convenient until an incident cannot be reproduced.",
+    "Try": "Use the local production scorecard and model requirements to define a release manifest. Mark each field as observed, derived or pending and show the rejection path for an incompatible tokenizer/template.",
+    "worked_case": "A LoRA adapter is loaded with a tokenizer that assigns different IDs to the same text. The weights load successfully but behavior is invalid; the release bundle must bind tokenizer and base revisions, not only tensor shapes.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://mlflow.org/docs/latest/ml/model-registry/",
+      "https://sre.google/workbook/canarying-releases/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if the new model is faster but refuses more supported policy questions?",
+        "A": "Treat latency and false refusal as separate acceptance dimensions. Compare paired held-out cases and declared thresholds; do not exchange a critical correctness regression for an unqualified average speed gain."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "model-engineering"
+  },
+  {
+    "Q": "What demonstrates completion of the full AI full-stack learning journey?",
+    "A": "Build and explain the path from source bytes to authorized evidence, conversational intent to validated tools, reviewed action to atomic commit, and measured behavior to deployment and recovery. Defend alternatives with observations rather than slogans.",
+    "Why": "Show an end-to-end application, evaluated outcomes, failure recovery, and defended decisions. Completion is demonstrated engineering ability rather than finishing a list of technology names.",
+    "Risk": "Familiarity from reading can exceed practical skill. Production service requests need real integration, security, load, and recovery evidence beyond static review.",
+    "Trade": "A sustained portfolio is slower than memorization and stronger evidence of competence. Finish one reliable product before adding orchestration layers.",
+    "Try": "Deliver the capstone with a working assistant, held-out report, write tests, trace-privacy review, restore drill, and three defended architectural alternatives."
+  }
+]

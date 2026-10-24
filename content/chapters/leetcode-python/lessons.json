@@ -1,0 +1,58 @@
+[
+  {
+    "Q": "Two Pointers, partitioning and in-place array transformations",
+    "explain": "The Two Pointers pattern replaces quadratic O(n^2) nested iterations with linear O(n) passes by exploiting sorted ordering, bidirectional symmetry, or read/write position separation. In bidirectional pointer convergence, one pointer begins at index 0 and the second begins at len(arr) - 1. Because the sequence is monotonically sorted, comparing the sum or relationship between the two boundaries dictates unambiguously which pointer must advance: increasing the lower bound strictly increases the candidate value, while decreasing the upper bound strictly decreases it. This eliminates entire sub-spaces of invalid combinations without inspecting them.\n\nIn fast-and-slow or read/write pointer partitioning (such as in-place duplicate removal or Dutch National Flag partitioning), a slow pointer tracks the boundary of verified elements while a fast pointer scans ahead across uninspected elements. When an element meets criteria, the algorithm writes it to the slow pointer position and increments the boundary, preserving O(1) auxiliary space without re-allocating new lists. For singly linked lists, Floyd's Cycle Detection algorithm uses a slow pointer advancing by one node and a fast pointer advancing by two nodes; if a cycle exists, the distance between them contracts by exactly one node per iteration until convergence in O(n) time.",
+    "example": "Demonstrate bidirectional two-pointer pair finding and in-place duplicate removal:\ndef two_sum_sorted(nums, target):\n    left, right = 0, len(nums) - 1\n    while left < right:\n        curr = nums[left] + nums[right]\n        if curr == target:\n            return [left, right]\n        elif curr < target:\n            left += 1\n        else:\n            right -= 1\n    return []\nassert two_sum_sorted([2, 7, 11, 15], 9) == [0, 1]\n# In-place duplicate removal:\ndef remove_duplicates(nums):\n    if not nums: return 0\n    write = 1\n    for read in range(1, len(nums)):\n        if nums[read] != nums[read - 1]:\n            nums[write] = nums[read]\n            write += 1\n    return write\narr = [1, 1, 2, 2, 3]\ncount = remove_duplicates(arr)\nassert count == 3 and arr[:3] == [1, 2, 3]\nResult: Two-pointer passes achieve O(n) runtime with O(1) auxiliary space.",
+    "takeaway": "Sort or exploit existing monotonic order to converge two pointers in O(n) time and O(1) space.",
+    "references": [
+      "https://docs.python.org/3/library/collections.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "Sliding Window dynamics and monotonic boundary contraction",
+    "explain": "The Sliding Window pattern is the foundational technique for problems evaluating contiguous subarrays or substrings under dynamic or fixed length constraints. Rather than recalculating metrics over every possible slice of length k (an O(n*k) operation), a sliding window maintains a running summary of the active window state—such as character frequencies, element sums, or distinct counts—and updates it in O(1) time as window boundaries shift.\n\nIn dynamically sized windows, the right boundary expands iteratively to incorporate new elements, updating the window's state representation. When the window violates a required invariant (such as having duplicate characters, exceeding a target sum, or containing more than k distinct values), the left boundary contracts inward until the invariant is restored. Because both the left and right pointers traverse the collection from index 0 to n strictly monotonically without backtracking, each element is visited at most twice (once upon entry, once upon exit), guaranteeing strict O(n) amortized time complexity.\n\nCommon pitfalls involve recalculating state over the whole window inside the inner loop, which regresses the algorithm to O(n^2). Instead, store frequency maps using dict or collections.Counter and track a state counter (such as distinct_count or matched_chars) that updates strictly in O(1) during pointer movements.",
+    "example": "Demonstrate longest substring without repeating characters using a sliding window:\ndef length_of_longest_substring(s: str) -> int:\n    last_seen = {}\n    max_len = 0\n    left = 0\n    for right, char in enumerate(s):\n        if char in last_seen and last_seen[char] >= left:\n            left = last_seen[char] + 1\n        last_seen[char] = right\n        max_len = max(max_len, right - left + 1)\n    return max_len\nassert length_of_longest_substring('abcabcbb') == 3\nassert length_of_longest_substring('bbbbb') == 1\nassert length_of_longest_substring('pwwkew') == 3\nResult: Monotonic window expansion and jumps achieve optimal O(n) time and O(min(m, n)) space.",
+    "takeaway": "Expand right to consume and contract left to restore invariants in O(n) amortized time.",
+    "references": [
+      "https://docs.python.org/3/library/collections.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "Hash table frequency indexing, prefix sums and complements",
+    "explain": "Hash tables transform multi-pass search bottlenecks into O(1) average-case dictionary lookups. The classic complement lookup pattern (exemplified by Two Sum) processes elements in a single sequential pass: before inserting the current value, the algorithm queries whether target - current has already been observed in the hash table. This eliminates the second loop entirely, trading O(n) space for an immediate reduction from quadratic O(n^2) to linear O(n) runtime.\n\nWhen combined with prefix sums, hash indexing solves contiguous subarray sum problems in linear time without sliding window monotonicity constraints. A prefix sum prefix[i] stores the cumulative sum of elements from index 0 to i. The sum of any arbitrary subarray from index j to i is simply prefix[i] - prefix[j-1]. Consequently, searching for a subarray that sums to target k is equivalent to finding an earlier prefix sum equal to prefix[i] - k. By storing seen prefix sums and their frequency in a hash map, algorithms count or extract target subarrays (even with negative numbers) in a single O(n) pass where sliding window fails.\n\nKey considerations include initializing the prefix sum hash table with {0: 1} to account for valid subarrays beginning at index 0, and handling frequency distributions with collections.defaultdict(int) to streamline counting logic.",
+    "example": "Demonstrate prefix sum hash map subarray sum lookup with negative values:\ndef subarray_sum_equals_k(nums, k):\n    prefix_counts = {0: 1}\n    curr_sum = 0\n    total_subarrays = 0\n    for x in nums:\n        curr_sum += x\n        complement = curr_sum - k\n        if complement in prefix_counts:\n            total_subarrays += prefix_counts[complement]\n        prefix_counts[curr_sum] = prefix_counts.get(curr_sum, 0) + 1\n    return total_subarrays\n# Works seamlessly even with negative numbers where sliding window is invalid:\nassert subarray_sum_equals_k([1, -1, 1, 1, 1, -1], 2) == 6\nResult: Hash table prefix indexing finds matching subarrays in O(n) time and O(n) space.",
+    "takeaway": "Store complement targets or prefix sums in a hash table to convert nested searches into O(1) lookups.",
+    "references": [
+      "https://docs.python.org/3/library/collections.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "Binary search invariants, monotonicity and range reduction",
+    "explain": "Binary search is the archetype of logarithmic O(log n) divide-and-conquer algorithms. It operates over any search space that exhibits a monotonic predicate: a condition where all candidate values evaluate to False up to a boundary point, and True thereafter (or vice-versa). Rather than being restricted to sorted arrays, binary search applies broadly to optimization problems where one can determine whether a given threshold is feasible in O(f(n)) time (binary search on the answer).\n\nCorrectness hinges on rigorously maintaining search space invariants. In the closed interval pattern [left, right], the loop condition is while left <= right. The midpoint must be computed as mid = left + (right - left) // 2 to eliminate integer overflow risks common in fixed-width languages. If nums[mid] is ruled out, the bounds must strictly advance to left = mid + 1 or right = mid - 1; failing to exclude mid creates infinite loops when right - left == 1.\n\nIn modified search spaces like rotated sorted arrays, at least one half of the current partition ([left, mid] or [mid, right]) is guaranteed to be strictly sorted. By checking whether the target falls within the boundaries of the sorted half, the algorithm discards the other half with certainty, preserving O(log n) search performance despite rotational offsets.",
+    "example": "Demonstrate binary search in a rotated sorted array:\ndef search_rotated(nums, target):\n    left, right = 0, len(nums) - 1\n    while left <= right:\n        mid = left + (right - left) // 2\n        if nums[mid] == target:\n            return mid\n        # Left half is sorted:\n        if nums[left] <= nums[mid]:\n            if nums[left] <= target < nums[mid]:\n                right = mid - 1\n            else:\n                left = mid + 1\n        # Right half is sorted:\n        else:\n            if nums[mid] < target <= nums[right]:\n                left = mid + 1\n            else:\n                right = mid - 1\n    return -1\nassert search_rotated([4, 5, 6, 7, 0, 1, 2], 0) == 4\nassert search_rotated([4, 5, 6, 7, 0, 1, 2], 3) == -1\nResult: Binary search identifies sorted halves to maintain O(log n) time.",
+    "takeaway": "Identify the monotonic invariant, compute mid = left + (right - left) // 2, and discard half every iteration.",
+    "references": [
+      "https://docs.python.org/3/library/collections.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  }
+]

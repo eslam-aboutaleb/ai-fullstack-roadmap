@@ -1,0 +1,102 @@
+[
+  {
+    "Q": "What are the phases of the ingestion workflow?",
+    "A": "**Preparation creates candidate knowledge; activation makes it searchable.** Model ingestion as discover/fetch → extract → normalize → chunk → embed → validate → activate. A document identity is different from its revision, content digest and transformation profile. Store all of them with page/character or bounding-box provenance so a citation can be resolved back to the actual input. Hash bytes before transformation; record the parser/OCR/chunker version and parameters rather than pretending equal filenames imply equal content.\n\nFor born-digital documents, extract the text and layout you need. For scanned pages, optical character recognition (OCR) estimates characters from pixels; it can confuse digits, omit negation or mix columns. Preserve page dimensions, coordinate convention and recognition confidence, then assess text and region accuracy on labeled permitted pages. Low confidence is not a calibrated correctness probability. Never turn a fabricated transcript into an alleged OCR measurement. The optional OCR lab requires a local engine and synthetic approved image; the policy capstone uses authored text and labels that boundary explicitly.\n\n**Publish atomically.** Suppose revision 2 needs 100 chunks and a worker crashes after 90 embeddings. Keep revision 1 active until revision 2 is complete and validated. Reuse prepared artifacts only when their source digest and profiles match. At activation, compare the expected generation again: another worker may already have published revision 3. A short transaction or compare-and-swap controls that race; a preliminary check before remote work does not.\n\nTreat malformed files, incomplete scans and confirmed deletions differently. Quarantine a poison item with a bounded error record; an unavailable folder is not proof its documents were deleted. Confirmed revocation should exclude results promptly even if physical cleanup lags. Impose file/page/CPU limits and isolate untrusted parsers; extension checks alone are not a sandbox. Test a failed replacement, stale activation, duplicate source revision and latest-revision tombstone. The policy project's sentence offsets and byte digests provide a small inspectable lineage oracle, not a production PDF parser.",
+    "Why": "A replacement policy crashes before all chunks exist. Keeping the prior active generation avoids publishing partial knowledge; a confirmed tombstone must nevertheless prevent a backfill from reviving an older policy.",
+    "Risk": "An OCR error changing 30 to 90 or losing the word not can invert an answer while every downstream schema remains valid. Source validation and claim review must precede activation.",
+    "Trade": "Atomic full-generation replacement simplifies reads but temporarily duplicates storage. Incremental publication reduces work but requires explicit completeness, deletion and snapshot semantics.",
+    "Try": "Run policy_assistant_project.py --check; inspect each offset against its original sentence. Design a failed 90/100-chunk replacement and show the active revision before, during and after recovery.",
+    "worked_case": "A replacement policy crashes before all chunks exist. Keeping the prior active generation avoids publishing partial knowledge; a confirmed tombstone must nevertheless prevent a backfill from reviving an older policy.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://www.postgresql.org/docs/current/mvcc-intro.html",
+      "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if an empty scan is actually an access outage?",
+        "A": "Mark the scan incomplete and retain the previous publication according to the stale-data policy. Only an authoritative complete scan or explicit deletion event can authorize removal; emit an alert rather than interpreting an exception as empty truth."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "ai-rag",
+    "subdomain": "ingestion"
+  },
+  {
+    "Q": "Why is there a second snapshot check under the lock?",
+    "A": "Two workers can both read an old snapshot, prepare identical new vectors, and then reach the write phase. The second check detects that another worker already activated the intended snapshot and avoids duplicate version mutation.",
+    "Why": "_commit_ingestion reads the active version again before retiring anything. This is double-checked coordination: the early check avoids unnecessary work in the common case; the protected check handles races during preparation.",
+    "Risk": "The recheck is only serialized when the relevant locking and transaction semantics are actually enforced. Without a supplied lock key or equivalent host coordination, concurrent writes may still race.",
+    "Trade": "A second read costs a small amount of database work and does not prevent duplicate provider calls. It protects the authoritative mutation rather than promising exactly-once preparation.",
+    "Try": "Pause two workers after their initial checks, let one commit, then release the second. Verify only one new active version appears when the lock contract is honored."
+  },
+  {
+    "Q": "What belongs in an ingestion snapshot?",
+    "A": "The snapshot should represent the inputs that determine indexed content: source manifest hash, extractor behavior, chunker identity and configuration, and embedding configuration or profile. A change to any of these can make existing vectors stale despite unchanged source text.",
+    "Why": "Read the active revision again inside the protected activation transaction. If it changed while preparation ran, compare the new state and either discard redundant work or retry under a defined conflict policy.",
+    "Risk": "Omitting hidden preprocessing or a model revision can cause false unchanged matches. Including unstable or secret-bearing fields can trigger needless rebuilds or expose credentials.",
+    "Trade": "Comprehensive snapshots improve repeatability while requiring disciplined adapter metadata. A simple content hash is easier but cannot detect pipeline changes.",
+    "Try": "List every transformation between source bytes and stored vectors in your host. Identify which are represented in the snapshot and add a documented version for any custom transformation."
+  },
+  {
+    "Q": "What is idempotency, and what is idempotent in a reference design?",
+    "A": "An idempotent operation can be repeated without producing additional logical effects after the intended state is reached. Ingestion uses snapshot comparison to skip unchanged work and rechecks before mutation. That does not mean every low-level call executes once or always reuses identical physical chunk IDs.",
+    "Why": "Serialize a stable fingerprint from source revision, extraction and chunking versions, model profile, and indexing policy. Compare fingerprints only after defining which changes require a rebuild.",
+    "Risk": "Billing side effects, external writes, or custom version-store behavior may not be idempotent. The host must use stable operation identity and ensure repeated processing does not create duplicate application effects.",
+    "Trade": "Logical idempotency enables robust retries at the cost of hashes, state checks, and identity tracking. Exactly-once execution across external services is a much stronger claim.",
+    "Try": "Run unchanged ingestion twice and count provider calls, active versions, and stored chunks. Then repeat after a forced failure immediately before commit."
+  },
+  {
+    "Q": "Who commits a caller-supplied database session?",
+    "A": "The caller owns a supplied session and its transaction. The pipeline yields it into the critical section but does not commit it. When the pipeline opens its own session, it commits after successful critical work. This ownership rule prevents a library from unexpectedly committing unrelated host changes.",
+    "Why": "_transacting_session implements the distinction and can acquire the advisory lock on a caller session when a lock key is supplied. The lock lifetime still follows the actual database and transaction behavior.",
+    "Risk": "A host that forgets to commit loses intended changes; a host that keeps the transaction open across slow preparation can retain connections and locks too long. Session ownership must be clear at integration boundaries.",
+    "Trade": "Caller ownership supports composing RAG writes with business operations, while library ownership simplifies isolated ingestion. Mixing the models implicitly is error-prone.",
+    "Try": "Add an unrelated host row before calling ingestion with the same session. Roll back and verify whether both mutations obey the host's intended transaction."
+  },
+  {
+    "Q": "What does an advisory lock protect, and what does it not protect?",
+    "A": "An advisory lock coordinates cooperating processes using the same lock key and database locking mechanism. It can serialize the mutation phase for one source. It does not force unrelated code paths to honor the lock or create a distributed transaction with an external vector service.",
+    "Why": "The pipeline obtains the lock through a SQL adapter interface when lock_key is supplied. Lock-key derivation and consistent source scope are therefore part of the host's correctness contract.",
+    "Risk": "Inconsistent keys allow concurrent writers to bypass each other; overly broad keys serialize unrelated sources. A lock also does not guarantee that the shortest possible transaction duration has been measured.",
+    "Trade": "Fine-grained keys improve throughput while increasing key-management complexity. A global ingestion lock is simple but can become a bottleneck.",
+    "Try": "Define lock keys for two tenants sharing a source name. Explain why including or excluding tenant scope changes both correctness and contention."
+  },
+  {
+    "Q": "How should authoritative emptiness differ from extraction failure?",
+    "A": "An authoritative empty dataset can mean that previously indexed content has been removed. A failed or incomplete read means the source state is unknown. The pipeline defaults empty input to a no-op and requires purge_on_empty to retire current content deliberately.",
+    "Why": "Non-authoritative a typed scan result is rejected before mutation. For a valid empty source, the purge path closes the active version and deletes its chunks inside the transacting session.",
+    "Risk": "Enabling purge for an adapter that reports failures as an ordinary empty list can destroy visibility of healthy content. Returning zero chunks is not enough information to decide deletion safely.",
+    "Trade": "Conservative defaults retain old knowledge during uncertainty but need a separate deletion and revocation policy. Aggressive replacement is simpler and more dangerous during source outages.",
+    "Try": "Test a genuine empty source, an inaccessible source, and a parser returning no chunks from nonempty input. Explain why each path should have different effects."
+  },
+  {
+    "Q": "Why abort when nonempty documents produce zero chunks?",
+    "A": "Recording a new active snapshot with no useful chunks could make later runs classify the same source as already indexed and skip it indefinitely. Aborting before version mutation preserves the previous active content and allows a later retry after the chunker or extraction issue is fixed.",
+    "Why": "The pipeline explicitly checks for no chunks before embedding and before entering the critical section. This is a small guard protecting a large lifecycle invariant: an active snapshot should correspond to successfully prepared content.",
+    "Risk": "A host may misinterpret the returned zero as successful deletion or successful replacement. Diagnostics and status handling should distinguish aborted preparation from an authoritative empty purge.",
+    "Trade": "Retaining old content favors availability while freshness is unresolved. Some products should additionally mark it stale instead of silently treating it as current.",
+    "Try": "Inject a chunker that returns an empty list for a nonempty source. Verify the old version remains active and that a subsequent valid chunker can ingest it."
+  },
+  {
+    "Q": "How does rollback interact with old-version retirement and new-vector upsert?",
+    "A": "The critical sequence retires the active version, deletes its chunks, creates the new version, stamps metadata, and upserts new chunks. With a shared transactional backend, a failure should roll all of that back. With nontransactional collaborators, this sequence alone cannot guarantee atomic replacement.",
+    "Why": "Passing one session is the mechanism for joining transactional writes. In-memory or remote adapters require their own consistency design; the manifest-based sync system addresses a different visibility model.",
+    "Risk": "Deleting old content before a remote upsert fails can leave an unavailable or inconsistent index. Do not assume a Python context manager can roll back writes in an external service.",
+    "Trade": "In-place transactional replacement is compact in one database. Generation preparation and activation use more storage and state but better fit cross-system operations.",
+    "Try": "Inject an upsert failure after retirement. Test actual visibility and active-version state with your production adapter combination, not only a recording fake."
+  },
+  {
+    "Q": "Why are fixed claims such as microsecond swaps or sub-5-ms commits unreliable?",
+    "A": "The critical section includes reads, version mutations, deletion, and upsert, not merely a pointer assignment. Its duration depends on chunk count, database load, indexes, network latency, and adapter behavior. No timing benchmark in an illustrative implementation proves a universal duration.",
+    "Why": "Moving remote embedding out of internally owned mutation sessions is a sound architectural mechanism. That mechanism supports a narrower claim about resource occupancy, not an invented service-level objective.",
+    "Risk": "Designing connection pools or latency budgets around fictional timings can cause overload. Measure lock wait, transaction duration, upsert volume, and retry behavior under representative workloads.",
+    "Trade": "Shorter transactions reduce contention but preparation may still dominate end-to-end ingestion time. Optimization should target measured bottlenecks without weakening atomicity.",
+    "Try": "Benchmark the critical section across increasing chunk counts. Report distributions and test conditions, and keep provider time separate from database time."
+  }
+]

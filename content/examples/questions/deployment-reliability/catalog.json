@@ -1,0 +1,109 @@
+[
+  {
+    "name": "connection-capacity",
+    "filename": "connection-capacity.py",
+    "language": "python",
+    "explain": "Calculate total database connection demand across distributed web replicas, multi-process servers, connection pool overflows, and asynchronous workers, comparing peak demand with database server limits.",
+    "steps": "Compute baseline and peak overflow connections across all web replicas and worker processes. || Compare unpooled demand against database capacity and verify that transaction-mode PgBouncer multiplexing maintains safe concurrency.",
+    "expect": "Database connection capacity verified: peak_demand=70, direct_safe=False, pgbouncer_pooled_safe=True",
+    "questions": [
+      695,
+      285
+    ]
+  },
+  {
+    "name": "container-config",
+    "filename": "container-config.Dockerfile",
+    "language": "dockerfile",
+    "explain": "Multi-stage production container configuration compiling dependencies in a builder stage and executing as an unprivileged non-root user with healthchecks and isolated secrets.",
+    "steps": "Compile Python wheels in an isolated builder container stage. || Deploy unprivileged non-root runtime container with explicit healthchecks and secure environment variables.",
+    "expect": "A buildable image only after the base digest and application files are supplied; no credentials are baked into the recipe.",
+    "limit": "Configuration sketch, not built here. Replace the placeholder base with a reviewed digest and supply requirements.txt and app.py; deployment, scanning, and storage need separate verification.",
+    "questions": [
+      803,
+      286
+    ]
+  },
+  {
+    "name": "delivery-gates",
+    "filename": "delivery-gates.py",
+    "language": "python",
+    "explain": "Evaluate an immutable container artifact against strict production delivery gates: cryptographic provenance signing, vulnerability thresholds, secret isolation, schema compatibility, and verified rollback rehearsals.",
+    "steps": "Check container artifact against signature verification, CVE scanning, and secret isolation gates. || Enforce verified database schema compatibility and automated rollback rehearsal tests before production promotion.",
+    "expect": "Production delivery gates verified: unsafe_promoted=False, clean_promoted=True, gates_evaluated=5",
+    "questions": [
+      804,
+      290,
+      137,
+      477
+    ]
+  },
+  {
+    "name": "capacity-estimate",
+    "filename": "capacity-estimate.py",
+    "language": "python",
+    "explain": "Model service capacity and queueing dynamics using Little's Law (L = λ * W). Computes expected in-flight request concurrency, required worker fleet sizing, and burst headroom.",
+    "steps": "Calculate average in-flight concurrency from arrival rate and mean latency using Little's Law. || Model peak burst concurrency with p99 latency to size worker thread pools at target utilization.",
+    "expect": "Capacity estimate verified: avg_inflight=10.0, peak_inflight=60.0, baseline_threads=15",
+    "questions": [
+      805,
+      138
+    ]
+  },
+  {
+    "name": "separate-indexing",
+    "filename": "separate-indexing.py",
+    "language": "python",
+    "explain": "Decouple heavy document and vector indexing from web serving replicas. Prevents startup thundering herds by enforcing distributed leader election and singleton batch indexing jobs.",
+    "steps": "Simulate concurrent boot of multiple web replicas attempting startup indexing. || Enforce distributed lock coordination, ensuring exactly one singleton job executes while redundant runs are prevented.",
+    "expect": "Separate indexing verified: web_replicas=4, executed_index_jobs=1, redundant_jobs_prevented=3",
+    "questions": [
+      283
+    ]
+  },
+  {
+    "name": "shutdown-recovery",
+    "filename": "shutdown-recovery.py",
+    "language": "python",
+    "explain": "Implement graceful worker shutdown on SIGTERM. Halts new task admission, checkpoints active task progress to durable storage, and marks incomplete work as recoverable for failover workers.",
+    "steps": "Receive OS SIGTERM signal, immediately halting admission of new background tasks. || Checkpoint active in-flight task progress and persist recoverable state so failover workers resume cleanly.",
+    "expect": "Shutdown recovery verified: accepting_new=False, interrupted_task_state=recoverable, checkpoint_offset=40, failover_completed=True",
+    "questions": [
+      287
+    ]
+  },
+  {
+    "name": "provider-degradation",
+    "filename": "provider-degradation.py",
+    "language": "python",
+    "explain": "Handle upstream LLM provider degradation using a 3-state circuit breaker (Closed, Open, Half-Open). Fast-fails during outages to return honest declared degradation envelopes or cached fallbacks.",
+    "steps": "Track consecutive upstream provider errors to trip the circuit breaker from closed to open. || Fast-fail subsequent requests with cached fallbacks and retry-after headers, transitioning to half-open upon timeout.",
+    "expect": "Provider degradation circuit breaker verified: initial_state=closed, tripped_to_open=True, fast_failed_cached=True, recovered_to_closed=True",
+    "questions": [
+      288
+    ]
+  },
+  {
+    "name": "readiness-pre-traffic-verifier",
+    "filename": "readiness-pre-traffic-verifier.py",
+    "language": "python",
+    "explain": "Enforce semantic readiness pre-traffic verification for container replicas. Validates that process HTTP 200 liveness is accompanied by correct data index generation hashes, schema migration levels, and warm cache performance.",
+    "steps": "Evaluate container candidates with HTTP 200 liveness against authoritative cluster index generation hashes. || Reject replicas serving obsolete data generations or un-migrated schemas, admitting only verified candidates.",
+    "expect": "Semantic readiness pre-traffic verifier verified: obsolete_gen_blocked=True, schema_lag_blocked=True, verified_replica_admitted=True, total_rejected=2",
+    "questions": [
+      902
+    ]
+  },
+  {
+    "name": "expand-contract-deployment",
+    "filename": "expand-contract-deployment.py",
+    "language": "python",
+    "explain": "Coordinate zero-downtime database schema changes across rolling application deployments. Expand adds nullable columns before v2 rollout; contract removes deprecated columns only after all v1 replicas terminate.",
+    "steps": "Expand database schema with backward-compatible nullable column. || Roll out v2 replicas and verify dual-write behavior across mixed version nodes. || Contract schema by dropping old column after all legacy pods terminate.",
+    "expect": "Zero-downtime deployment verified: final_columns=['id', 'normalized_address'], replicas=['v2', 'v2', 'v2']",
+    "questions": [
+      693,
+      282
+    ]
+  }
+]

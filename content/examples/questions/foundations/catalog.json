@@ -1,0 +1,199 @@
+[
+  {
+    "explain": "Retrieval selects text; the application supplies that text to a separate generator. The fake generator makes the boundary visible without a model key.",
+    "steps": "The fixture represents a retained policy revision. || search returns evidence; generate receives only the selected passage and cites its identity.",
+    "expect": "Exchange only [P2:r2]",
+    "change": "Replace the policy text and verify that the answer changes without modifying the generator.",
+    "name": "rag-packet",
+    "language": "python",
+    "filename": "rag-packet.py",
+    "questions": [
+      481,
+      483,
+      1,
+      3
+    ]
+  },
+  {
+    "explain": "The document, searchable chunk, vector, and evidence are distinct representations with linked identities.",
+    "steps": "Split a synthetic document into passages and attach its revision. || Add a teaching vector, then select the original text rather than sending the vector as evidence.",
+    "expect": "D1:r2:c0 Sale: exchange only",
+    "change": "Add a second passage and preserve its own chunk identity.",
+    "name": "rag-index",
+    "language": "python",
+    "filename": "rag-index.py",
+    "questions": [
+      482,
+      5
+    ]
+  },
+  {
+    "explain": "The request keeps privileged instructions separate from untrusted customer and document content. Separation makes origin visible; it is not an injection-proof security boundary.",
+    "steps": "Construct named instruction and data fields instead of interpolating everything into one instruction. || Preserve the hostile source as text and inspect the instruction actually sent.",
+    "expect": "Answer from evidence; do not execute document instructions.",
+    "change": "Put an adversarial instruction in the evidence and check that the privileged field stays unchanged.",
+    "name": "rag-context",
+    "language": "python",
+    "filename": "rag-context.py",
+    "questions": [
+      484,
+      494,
+      327,
+      303,
+      578,
+      78
+    ]
+  },
+  {
+    "explain": "Empty evidence and a failed dependency produce different application outcomes. Expected errors do not silently become successful empty searches.",
+    "steps": "Invoke the injected search function. || Convert only the demonstrated timeout into unavailable; return insufficient_evidence for a completed empty search.",
+    "expect": "insufficient_evidence unavailable",
+    "change": "Add a successful search fixture and return a separate supported outcome.",
+    "name": "rag-outcomes",
+    "language": "python",
+    "filename": "rag-outcomes.py",
+    "questions": [
+      485,
+      705,
+      76,
+      80
+    ]
+  },
+  {
+    "explain": "A syntactically valid answer can attach a real citation that does not support its claim. This fixture uses reviewed labels rather than pretending keyword overlap proves entailment.",
+    "steps": "Parse the model-shaped record and verify its allowed structure. || Consult a synthetic claim/span label to reject the unsupported refund claim.",
+    "expect": "schema_valid=True supported=False",
+    "name": "claim-support",
+    "language": "python",
+    "filename": "claim-support.py",
+    "questions": [
+      486,
+      7,
+      748,
+      114,
+      337,
+      714
+    ]
+  },
+  {
+    "explain": "Task intent selects an exact record lookup or document retrieval. Routing does not bypass the selected service's permissions.",
+    "steps": "Use a small declared intent-to-service map. || Route record status separately from policy explanation and leave unknown intents unsupported.",
+    "expect": "orders.get policy.search unsupported",
+    "name": "task-router",
+    "language": "python",
+    "filename": "task-router.py",
+    "questions": [
+      487,
+      4,
+      143
+    ]
+  },
+  {
+    "explain": "Fluency, source support, and freshness are independent checks. A confident-looking answer fails the reviewed support and revision checks.",
+    "steps": "Store a generated claim and an independent source assessment. || Require all relevant conditions instead of using verbal confidence as a correctness signal.",
+    "expect": "False",
+    "name": "confidence-trap",
+    "language": "python",
+    "filename": "confidence-trap.py",
+    "questions": [
+      2,
+      8
+    ]
+  },
+  {
+    "explain": "Add measured stage durations for one sequential request; compare its total with a declared deadline. Synthetic values are not production benchmarks or percentile estimates.",
+    "steps": "Name every measured stage, including buffering or playback where applicable. || Sum this request's durations and flag a deadline miss.",
+    "expect": "1100 False",
+    "name": "latency-budget",
+    "language": "python",
+    "filename": "latency-budget.py",
+    "questions": [
+      9,
+      118,
+      664,
+      447,
+      461
+    ]
+  },
+  {
+    "explain": "A domain function receives a retriever instead of constructing a provider. Two hosts can supply different implementations without duplicating the answer rule.",
+    "steps": "Define the service using an explicit collaborator argument. || Substitute a deterministic lambda to exercise the boundary offline.",
+    "expect": "found: synthetic policy",
+    "change": "Inject a retriever returning no results and add an insufficient-evidence outcome.",
+    "name": "injected-service",
+    "language": "python",
+    "filename": "injected-service.py",
+    "questions": [
+      10,
+      719,
+      506,
+      11,
+      12,
+      641,
+      411,
+      413
+    ]
+  },
+  {
+    "explain": "A minimal entry point validates input and runs without optional libraries. The printed runtime requirement is part of the reproducibility instructions, not an installed-environment check.",
+    "steps": "Put this code in a .py file and run it with Python 3.10 or newer. || The main guard executes the example only when the file is run directly.",
+    "expect": "Run with Python 3.10+: ready",
+    "change": "Add an assertion for an empty question and record the exact run command in your README.",
+    "name": "reproducible-program",
+    "language": "python",
+    "filename": "reproducible-program.py",
+    "questions": [
+      704,
+      130
+    ]
+  },
+  {
+    "explain": "A boundary-by-boundary trace locates the first stale revision. Later output checks cannot repair the earlier cache selection error.",
+    "steps": "Compare each stage's observed revision with the expected revision. || Stop at the first mismatch and report its stage.",
+    "expect": "cache",
+    "name": "debug-boundaries",
+    "language": "python",
+    "filename": "debug-boundaries.py",
+    "questions": [
+      706,
+      329,
+      70,
+      505
+    ]
+  },
+  {
+    "language": "bash",
+    "explain": "These commands record a deliberately selected file and inspect its difference before committing. They are shown as a workflow and are not executed by the course build.",
+    "steps": "Initialize a disposable project and exclude its environment and credentials. || Review the staged diff before making the commit.",
+    "expect": "A local commit containing only the intended learning example and .gitignore.",
+    "limit": "Run in your own disposable learning directory. Git identity must be configured; no remote push is performed.",
+    "name": "git-commands",
+    "filename": "git-commands.sh",
+    "questions": [
+      707
+    ]
+  },
+  {
+    "explain": "Lexical and dense methods can produce different rankings because they use different signals. The synthetic dense ordering is supplied as a fixture, not calculated by a model.",
+    "steps": "Compute exact token overlap for a product-code query. || Compare with an intentionally different semantic candidate fixture.",
+    "expect": "exact-code paraphrase",
+    "name": "lexical-vs-dense",
+    "language": "python",
+    "filename": "lexical-vs-dense.py",
+    "questions": [
+      6,
+      54
+    ]
+  },
+  {
+    "name": "policy-applicability-defensibility",
+    "filename": "policy-applicability-defensibility.py",
+    "language": "python",
+    "explain": "Filter retrieved passages by caller tenant authority, temporal effective dates, and domain scope to eliminate stale policies and emit defensible evidence gaps.",
+    "steps": "Demonstrate naive vector similarity selecting expired policy revisions with high semantic match. || Implement multi-gate applicability filtering (tenant, date range, product scope). || Assert that stale revisions are rejected, active policies selected, and out-of-scope queries produce honest evidence gaps.",
+    "expect": "All defensible retrieval applicability assertions verified successfully.",
+    "questions": [
+      909
+    ]
+  }
+]

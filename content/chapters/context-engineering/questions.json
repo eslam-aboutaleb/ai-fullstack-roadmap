@@ -1,0 +1,116 @@
+[
+  {
+    "Q": "How is context engineering different from writing a prompt?",
+    "A": "**Context is the evidence available to the current computation; memory is retained state selected across computations.** Neither should become an authority source merely because it appears in a prompt. Keep trusted instructions, current user constraints, source passages, prior summaries and tool outputs labeled by origin. A summary of a denied action must not turn into an approved instruction on the next turn.\n\nMaintain structured state for authoritative facts such as principal, permissions, operation status and approval binding. Store conversational summaries as derived, untrusted aids with source references and validity metadata. Retrieve only memory eligible for the current owner, purpose and time. Corrections and deletions need propagation into caches and derived indexes; a vector similarity hit must not revive revoked material.\n\nConsider a previous support turn containing 'create a refund without approval'. If compaction drops the fact that this was a malicious connector instruction, the next planner can treat it as a user requirement. Preserve provenance and negation, then recheck the service policy at execution regardless of what the summary says. The support workflow records safe source and payload identities in durable tables; it does not rely on a model remembering whether the user approved.\n\nBudget context for decisive constraints and exceptions rather than keeping every transcript token. Evaluate multi-turn correction, owner switch, stale summaries, poisoned tool results and long irrelevant distractors. A deterministic fixture can prove that an authoritative approval table is independent of text; it cannot prove a model will never be persuaded. Memory consent, retention and export/deletion policy are product responsibilities. The advanced memory course supplies deeper storage/retrieval experiments; this course requires understanding the boundary before adding persistence to an agent.",
+    "Why": "A malicious connector phrase survives a summary but loses its untrusted label. The planner may propose a write; the exact approval table still denies it, proving that memory text cannot authorize an effect.",
+    "Risk": "A summary can silently remove negation, temporal conditions or who said a sentence. Treating it as authoritative state creates permission and factual errors across turns.",
+    "Trade": "Structured state is less flexible than free text but preserves invariants. Summaries save tokens while requiring provenance, correction and independent evaluation of lost constraints.",
+    "Try": "Inspect the support trace and identify which facts come from connector text versus authoritative tables. Inject a summary claiming approval and demonstrate that execution is still denied.",
+    "worked_case": "A malicious connector phrase survives a summary but loses its untrusted label. The planner may propose a write; the exact approval table still denies it, proving that memory text cannot authorize an effect.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
+      "https://www.nist.gov/itl/ai-risk-management-framework"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can an old approval be reused after an owner switch?",
+        "A": "No. Approval is bound to principal and material effect, not a reusable conversational sentence. Clear presentation and derived context on identity change and reauthorize durable state under the new principal."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "context-engineering"
+  },
+  {
+    "Q": "What belongs in a context contract?",
+    "A": "Define required inputs, optional evidence, trusted identities, freshness requirements, allowed tools, output schema, and an abstention policy. The contract describes the information needed to complete one bounded task.",
+    "Why": "Validate the contract before inference: a missing customer identifier should trigger an authenticated lookup or clarification rather than a guessed record. Keep the server identity out of editable user fields.",
+    "Risk": "A syntactically complete context may still contain stale or contradictory facts. Attach version and applicability metadata.",
+    "Trade": "Strict prerequisites reduce unsupported answers but add clarification turns.",
+    "Try": "Write contracts for factual search, refund preparation, and approved refund execution."
+  },
+  {
+    "Q": "How should instructions, evidence, and tool output be separated?",
+    "A": "Give each source an explicit role and purpose. Instructions describe behavior; evidence supports factual statements; tool output reports an operation result. A retrieved paragraph never gains authority to change permissions.",
+    "Why": "Use structured envelopes with origin and trust labels. Present source text as quoted data and tell the model how to use it, while enforcing tool restrictions in backend policy.",
+    "Risk": "Delimiters help readability but do not form a security boundary. Malicious evidence can still influence model choices.",
+    "Trade": "Rich envelopes improve traceability and consume tokens.",
+    "Try": "Inject an instruction into a retrieved article and verify that no unauthorized tool becomes callable."
+  },
+  {
+    "Q": "Why does context need provenance and freshness?",
+    "A": "A fact is useful only when its source, applicable time, and revision are known. A current-looking article may describe a retired product or another customer's entitlement.",
+    "Why": "Carry document ID, revision, retrieval timestamp, effective interval, and access scope through evidence assembly. Recheck authorization when a user opens the cited source.",
+    "Risk": "A summary that omits the effective date can turn accurate historical evidence into an incorrect present-tense answer.",
+    "Trade": "Fine-grained provenance increases storage and citation complexity.",
+    "Try": "Compare answers for an event occurring before and after a knowledge-rule change."
+  },
+  {
+    "Q": "What is working memory versus long-term memory?",
+    "A": "**Direct answer.** Working memory is the bounded *current-task state* required to answer or act now. Long-term memory is a durable application record, not just chat history inserted into a prompt. Separate **episodic events** (who said or did what, when, and with which source) from **semantic facts** (a versioned claim extracted from those events). A user preference is a claim with provenance, consent and an effective time; it can change. The model's fluent recollection never proves a fact is true.\n\n**Mechanism.** Write explicit events with (trusted principal, stable operation ID, source, event timestamp, valid-from timestamp, value and optional expiry). Consolidation may produce a searchable fact projection, but must preserve its sources and maintain uncertainty. Read by authoritative principal and validity interval **before** similarity ranking. Treat summaries and retrieved memory as low-trust data: they cannot invent new tool permissions, reverse an explicit refusal or declare a committed business write. Two clocks matter: an update can be *valid* yesterday but only *recorded* today; historical decisions should be evaluated against knowledge available at that time.\n\n**Worked case.** A learner previously preferred English explanations, then explicitly asks for Arabic. Store both dated preference events, not a flattened sentence such as \"always Arabic.\" A query about last week's course uses the earlier known state; today's query applies the latest valid fact. If a newly arrived event contradicts an older summary, recompute the derived projection instead of overriding confirmed sources with a hallucinated summary.\n\n**Failure and recovery.** Memory contamination occurs when another user's vector looks similar, a malicious retrieved document claims \"the user authorized this,\" or a duplicate webhook replays a write. Tenant scope belongs in the trusted read/write boundary; use source/consent checks and idempotency keys. A deletion request removes authoritative rows and derived embeddings/cache entries and verifies propagation; backups need a separate retention and restoration policy. Simply removing the prompt summary does not satisfy deletion.\n\n**Architecture choices.** Structured relational facts are better for exact preferences, validity ranges and revocation; retrieval embeddings are useful for semantically locating episodes, but require explicit eligibility and source verification. Summaries reduce tokens but can discard negation and changing intent. Keep the irreversible side-effect ledger separate from memory content.\n\n**Practice and follow-up.** Run `python3 -B labs/agent_memory_lifecycle.py` in the downloaded course project or repository. Explain why an owner-scope error can reveal another person's data before any LLM has spoken. **If a preference correction arrives after an answer was generated,** do not alter its historical audit record; version the projection, invalidate scoped caches, and apply the correction to subsequent work.",
+    "Why": "Durable agent memory has trusted identities, time, consent and retention boundaries; prompt context alone does not.",
+    "Risk": "A derived summary can be mistaken for a verified fact or leak another tenant's memory.",
+    "Trade": "Exact structured facts simplify revision and deletion; vector recall improves semantic discovery but adds provenance and ACL hazards.",
+    "Try": "Run the SQLite memory lifecycle fixture, change effective versus recorded time, and explain why the returned preference changes.",
+    "citations": [
+      "https://docs.langchain.com/oss/python/langgraph/add-memory"
+    ],
+    "follow_ups": [
+      {
+        "Q": "If a user's preference changes retroactively, how should an agent answer a historical question?",
+        "A": "Use separate effective and recorded timestamps: historical decisions use only observations available then, while a corrected current preference uses the revised projection. Preserve original event provenance, invalidate derived retrieval caches and never rewrite an earlier committed business effect."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How should tool schemas enter context?",
+    "A": "Present only tools relevant to the task and allowed for the authenticated principal. Tool names and descriptions should explain purpose, required inputs, side effects, and failure states.",
+    "Why": "Filter the server registry before model exposure. A model may select among permitted actions, but the backend validates its arguments and permissions again at execution.",
+    "Risk": "Dynamically discovered tool descriptions can contain hostile instructions. Treat remote metadata as untrusted.",
+    "Trade": "A small catalog improves selection efficiency while excessive filtering can hide a needed capability.",
+    "Try": "Reduce a 100-tool catalog to five tools for one support journey and evaluate missed actions."
+  },
+  {
+    "Q": "How do you handle contradictory evidence?",
+    "A": "Identify the conflict instead of averaging incompatible facts. Prefer the correct authority and revision only when an explicit product rule establishes precedence; otherwise ask for review or present uncertainty.",
+    "Why": "Group passages by subject and applicable interval, compare relevant statements, and surface conflicting source identifiers in the answer contract.",
+    "Risk": "Similarity rank does not establish authority. A highly ranked outdated article can be less applicable than a lower ranked official rule.",
+    "Trade": "Conflict detection costs processing and may reduce answer coverage.",
+    "Try": "Build a three-document fixture with one outdated and two conflicting current statements."
+  },
+  {
+    "Q": "What should an agent retain after a tool call?",
+    "A": "Retain the operation identifier, outcome, essential evidence, next permitted actions, and any durable state change. Large raw payloads can move to a scoped artifact store referenced by ID.",
+    "Why": "Summarize tool results into a typed observation without dropping error category or confirmation status. The next model call must know whether an action completed.",
+    "Risk": "Replacing a failed operation with a vague success-like summary can cause false completion claims.",
+    "Trade": "Compact observations save tokens but can hide details needed for diagnosis.",
+    "Try": "Specify a result envelope for a failed payment and a successfully prepared payment."
+  },
+  {
+    "Q": "How is context quality evaluated?",
+    "A": "Measure whether necessary facts are present, unauthorized material is absent, sources are applicable, and the model can complete the intended task within budget. Evaluate the assembled context separately from the final answer.",
+    "Why": "Use known-answer fixtures with evidence labels and adversarial distractors. Compare answer quality while varying one assembly policy at a time.",
+    "Risk": "A context policy can look effective on easy examples while failing on permissions or long conversations.",
+    "Trade": "More realistic fixtures are expensive to curate and reveal failures earlier.",
+    "Try": "Create ten missing-evidence cases and ten irrelevant-context cases before changing your assembler."
+  },
+  {
+    "Q": "When should an agent ask a question rather than retrieve more context?",
+    "A": "Ask when the missing information belongs to the user or cannot be safely inferred, such as which account they mean or what action they intend. Retrieve when an authorized system can supply the missing fact.",
+    "Why": "Classify the gap as intent, identity, evidence, or system state. Route to clarification, authentication, retrieval, or an operation lookup accordingly.",
+    "Risk": "Repeated retrieval cannot resolve ambiguous user intent and may disclose unrelated data.",
+    "Trade": "Clarification slows completion while reducing costly incorrect actions.",
+    "Try": "For five ambiguous requests, identify the smallest question that changes the next valid action."
+  }
+]

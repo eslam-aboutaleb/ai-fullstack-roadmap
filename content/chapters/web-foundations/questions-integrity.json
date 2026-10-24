@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you evolve a JSON API when producers and consumers run different schema versions?",
+    "A": "**Assume deployments overlap.** A producer may emit a new field while an older consumer still runs, or a stored event may be replayed years later. Define compatibility rules for required fields, optional fields, enum values and type changes. A field addition is only compatible if actual consumers tolerate it and its absence has a truthful meaning.\n\n**Dispatch by an explicit schema version.** Validate an incoming version before translating it to the internal domain model. Use a controlled decoder or upcaster for each supported old version. Reject unsupported future versions rather than interpreting them with yesterday's defaults. Keep data revision, which tracks edits, separate from schema version, which identifies structure.\n\n**Be precise about missing and null.** A missing field can mean not supplied, while null can mean explicitly empty or unknown. Defaults should preserve documented semantics. Renaming or changing the type of a required field may need an expand-and-contract rollout: introduce compatible reads, write the new form, backfill and remove old support only after consumers and retained data permit it.\n\n**Test both directions and stored history.** Check old producer to new consumer, new producer to supported older consumer where promised, and replay of persisted payloads. Record decoder failures and avoid dropping unknown fields during a read-modify-write path when preservation is part of the contract. The example supports two explicitly defined versions and rejects a future version instead of silently guessing its structure.",
+    "Why": "A consumer knows schemas 1 and 2. It receives schema 3 from a newer producer. Treating missing familiar fields as empty strings would turn an incompatibility into apparently valid but wrong data.",
+    "worked_case": "A consumer knows schemas 1 and 2. It receives schema 3 from a newer producer. Treating missing familiar fields as empty strings would turn an incompatibility into apparently valid but wrong data.",
+    "Risk": "A permissive default can make incompatible events pass validation and contaminate downstream state.",
+    "Trade": "Long compatibility windows ease rolling upgrades but increase codec and migration maintenance.",
+    "Try": "Create a compatibility matrix for a renamed field, a new optional field, a new enum value and a missing-versus-null distinction.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "web-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/json.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a server ignore every unknown field safely?",
+        "A": "Not universally. Ignoring optional forward-compatible metadata may be fine; ignoring a misspelled authorization or money field can be dangerous. Apply explicit policy by endpoint and field semantics."
+      },
+      {
+        "Q": "How long should an old decoder remain?",
+        "A": "Base removal on supported clients, stored payload retention and replay requirements. Observing no recent live traffic does not prove that historical events no longer need decoding."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

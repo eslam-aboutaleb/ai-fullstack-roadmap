@@ -1,0 +1,145 @@
+[
+  {
+    "Q": "What happens between the chat box and the model?",
+    "explain": "The API authenticates the caller, creates a task, applies limits, and gathers permitted context. The agent runtime then calls the model and routes proposed tools. The application decides which results may reach the user and which actions may execute.",
+    "example": "Asking about R17 first establishes whether the caller can read R17. The model does not get to choose that permission.",
+    "takeaway": "Identity and policy belong before model discretion."
+  },
+  {
+    "Q": "Which part owns a real business change?",
+    "explain": "A business service validates the action and commits authoritative state. The agent can collect intent and propose parameters, but should not replace transaction and authorization rules. Keep the same service available to non-agent API callers so rules do not diverge.",
+    "example": "Both a form and an agent can prepare a request through the same validated service.",
+    "takeaway": "One business rule should have one authoritative implementation."
+  },
+  {
+    "Q": "Why can the UI and database disagree temporarily?",
+    "explain": "Indexing, notifications, and analytics often run after a business transaction. A request can exist before search can find it. Give those projections separate status and recovery rather than interpreting a search miss as absence from the database.",
+    "example": "Immediately after creation, exact lookup returns R17 while semantic search is still waiting for its indexing job.",
+    "takeaway": "Show accepted, searchable, and notified as distinct facts."
+  },
+  {
+    "Q": "How should you trace a failure across components?",
+    "explain": "Use a task ID to connect API, model, tool, database, and public events. At each boundary record a safe outcome and ask what input arrived and what output actually left. This locates the first incorrect assumption.",
+    "example": "A correct tool result followed by an unsupported answer points to synthesis; a denied lookup points to identity or scope.",
+    "takeaway": "Diagnose boundaries rather than blaming the model for every failure."
+  },
+  {
+    "Q": "What happens between clicking Submit and seeing an answer?",
+    "explain": "The browser handles a form event and sends an HTTP request to a server address. DNS resolves a host name; HTTPS protects the connection; a reverse proxy may route the request to the application. The application authenticates, validates, calls services, and returns a status, headers, and body. JSON is a text format for structured values. Parsing JSON does not validate that the values satisfy your business contract.",
+    "example": "A browser sends POST /questions with {'question': 'Can I return this?'}. The server rejects a blank question with a documented validation error and returns an accepted task ID for a valid long-running request.",
+    "takeaway": "Learn the request lifecycle before hiding it inside an SDK.",
+    "estimated_time_minutes": 10,
+    "prerequisites": [
+      "Have made an HTTP request and read a JSON response",
+      "Understand that a server returns status codes"
+    ],
+    "version": "1.0.0",
+    "references": [
+      "https://fastapi.tiangolo.com/tutorial/body/",
+      "https://fastapi.tiangolo.com/tutorial/testing/",
+      "https://docs.pydantic.dev/latest/concepts/validators/"
+    ],
+    "outcomes": [
+      "Trace an HTTP request from browser to application response",
+      "Identify where authentication, validation, and business logic execute",
+      "Explain why JSON parsing is not business validation"
+    ],
+    "conceptual_narrative": "The request lifecycle is a sequence of boundaries, each of which can reject the request before the next one runs. Transport (DNS + HTTPS) delivers the bytes. Authentication extracts the caller's identity. Validation checks required fields, types, and business constraints. The business service performs the action and commits authoritative state. Finally, the application serializes a JSON response with a status code. Each boundary is a security and correctness checkpoint; skipping or reordering them lets invalid or unauthorized requests reach business logic.",
+    "glossary_terms": [
+      {
+        "term": "DNS",
+        "definition": "Domain Name System; resolves host names to IP addresses."
+      },
+      {
+        "term": "TLS",
+        "definition": "Transport Layer Security; encrypts the connection between client and server."
+      },
+      {
+        "term": "Reverse proxy",
+        "definition": "A server that forwards client requests to backend applications, often handling TLS termination and routing."
+      },
+      {
+        "term": "JSON parsing",
+        "definition": "Converting a JSON text string into in-memory data structures; distinct from validating that the data satisfies business rules."
+      }
+    ],
+    "worked_examples": [
+      {
+        "title": "FastAPI route with validation",
+        "code": "\"\"\"Optional local FastAPI lab. Install fastapi and httpx; run this file to test.\n\nNo authentication or persistent task queue: this teaches validation only.\n\"\"\"\nfrom uuid import uuid4\nfrom fastapi import FastAPI\nfrom pydantic import BaseModel, Field, field_validator\n\napp = FastAPI()\n\n\nclass Question(BaseModel):\n    question: str = Field(min_length=1, max_length=1000)\n\n    @field_validator('question')\n    @classmethod\n    def reject_blank(cls, value):\n        if not value.strip():\n            raise ValueError('question must not be blank')\n        return value\n\n\n@app.post('/questions', status_code=202)\ndef ask(question: Question):\n    # Demonstration response only: no job is persisted or actually scheduled.\n    return {'task_id': str(uuid4()), 'status': 'demo-accepted'}\n\n\nif __name__ == '__main__':\n    from fastapi.testclient import TestClient\n    client = TestClient(app)\n    valid = client.post('/questions', json={'question': 'Can I return this?'})\n    assert valid.status_code == 202\n    assert valid.json()['status'] == 'demo-accepted'\n    for payload in ({}, {'question': ''}, {'question': '   '}, {'question': 'x' * 1001}, {'question': 12}):\n        assert client.post('/questions', json=payload).status_code == 422\n    assert client.post('/questions', content='{bad', headers={'content-type': 'application/json'}).status_code == 422\n    print('Valid request: 202. Missing, blank, oversized, wrong-type, and malformed input: 422.')\n",
+        "explanation": "Pydantic rejects missing, blank, oversized, and wrong-type input with 422. The FastAPI TestClient checks valid 202 responses and malformed JSON. This local optional example does not authenticate users, persist tasks, or demonstrate transactions."
+      }
+    ],
+    "syntax_highlighted_source": "\"\"\"Optional local FastAPI lab. Install fastapi and httpx; run this file to test.\n\nNo authentication or persistent task queue: this teaches validation only.\n\"\"\"\nfrom uuid import uuid4\nfrom fastapi import FastAPI\nfrom pydantic import BaseModel, Field, field_validator\n\napp = FastAPI()\n\n\nclass Question(BaseModel):\n    question: str = Field(min_length=1, max_length=1000)\n\n    @field_validator('question')\n    @classmethod\n    def reject_blank(cls, value):\n        if not value.strip():\n            raise ValueError('question must not be blank')\n        return value\n\n\n@app.post('/questions', status_code=202)\ndef ask(question: Question):\n    # Demonstration response only: no job is persisted or actually scheduled.\n    return {'task_id': str(uuid4()), 'status': 'demo-accepted'}\n\n\nif __name__ == '__main__':\n    from fastapi.testclient import TestClient\n    client = TestClient(app)\n    valid = client.post('/questions', json={'question': 'Can I return this?'})\n    assert valid.status_code == 202\n    assert valid.json()['status'] == 'demo-accepted'\n    for payload in ({}, {'question': ''}, {'question': '   '}, {'question': 'x' * 1001}, {'question': 12}):\n        assert client.post('/questions', json=payload).status_code == 422\n    assert client.post('/questions', content='{bad', headers={'content-type': 'application/json'}).status_code == 422\n    print('Valid request: 202. Missing, blank, oversized, wrong-type, and malformed input: 422.')\n",
+    "expected_output": "Valid request: 202. Missing, blank, oversized, wrong-type, and malformed input: 422.",
+    "visualizations": [
+      {
+        "alt": "HTTP request lifecycle boundaries",
+        "description": "Conceptual deployment path: browser → DNS/TLS → proxy → application checks → response. The downloadable pilot exercises only application validation through TestClient; it does not execute DNS/TLS, authentication or a persistent queue.",
+        "svg": "<svg width=\"440\" height=\"180\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"20\" y=\"30\" width=\"120\" height=\"50\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"80\" y=\"60\" text-anchor=\"middle\" fill=\"var(--text)\">Browser</text><rect x=\"160\" y=\"30\" width=\"120\" height=\"50\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"220\" y=\"60\" text-anchor=\"middle\" fill=\"var(--text)\">DNS + TLS</text><rect x=\"300\" y=\"30\" width=\"120\" height=\"50\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"360\" y=\"60\" text-anchor=\"middle\" fill=\"var(--text)\">App</text><line x1=\"140\" y1=\"55\" x2=\"160\" y2=\"55\" stroke=\"var(--muted)\" stroke-width=\"2\" marker-end=\"url(#arrow)\"/><line x1=\"280\" y1=\"55\" x2=\"300\" y2=\"55\" stroke=\"var(--muted)\" stroke-width=\"2\" marker-end=\"url(#arrow)\"/><defs><marker id=\"arrow\" markerWidth=\"6\" markerHeight=\"6\" refX=\"6\" refY=\"3\" orient=\"auto\"><polygon points=\"0 0, 6 3, 0 6\" fill=\"var(--muted)\"/></marker></defs></svg>"
+      }
+    ],
+    "assumed_knowledge": "You have made an HTTP request, read a JSON response, and understand that a server returns status codes.",
+    "motivating_problem": "A FastAPI endpoint accepts a client's JSON payload, parses it, and acts on fields without checking that required fields exist or that values respect business limits.",
+    "underlying_mechanics": "The browser sends an HTTP request over HTTPS. DNS and TLS terminate at the edge; a reverse proxy forwards to the application. The application framework parses headers and body, runs authentication and dependency injection, validates input against a schema, invokes the business service, and serializes the response. This describes a deployment architecture, not every step executed by the example: its TestClient bypasses real networking and the route implements validation only. A 202 demonstration ID is not evidence of durable acceptance.",
+    "line_by_line": [
+      "Create a FastAPI application and a Pydantic Question model with length/type constraints.",
+      "Reject whitespace-only questions with a field validator.",
+      "Register a POST route returning a fresh demonstration ID and status demo-accepted.",
+      "Use TestClient to assert valid input returns 202.",
+      "Assert missing, blank, oversized, wrong-type and malformed input returns 422."
+    ],
+    "edge_cases": [
+      "The client sends malformed JSON.",
+      "The authentication token is expired or missing.",
+      "The business service rejects the action after validation passes.",
+      "The connection drops before the response arrives."
+    ],
+    "tradeoffs": "Validating early rejects bad requests quickly but duplicates rules. Validating late keeps one rule location but may do unnecessary work before rejection.",
+    "security_implications": "Authentication must run before authorization. Never let the client choose its own user ID or bypass the business service.",
+    "performance_implications": "Parsing and validating every field adds CPU. Validate cheap constraints first and reject before expensive model or database calls.",
+    "debugging": "If a blank question reaches the business layer, validation is missing or ordered too late. Add a regression test at the validation boundary.",
+    "practice": "Write a FastAPI route that accepts a question, rejects blank input with a documented validation error, and returns an accepted task ID for valid input.",
+    "recap": "Each boundary in the request lifecycle can reject a request. Authentication and validation belong before business logic, and JSON parsing is not validation.",
+    "mastery_checks": [
+      "Explain where authentication runs relative to business logic.",
+      "Describe why parsing JSON is not business validation.",
+      "Show how to reject an invalid request before any model call."
+    ],
+    "local_lab": "labs/request_lifecycle.py",
+    "independent_tasks": [
+      "Add a separate authentication dependency and test missing/invalid credentials and owner scope.",
+      "Extend the field size-limit boundary tests at exactly 1000 and 1001 characters.",
+      "Replace the demonstration ID response with a persistent transaction in a separate exercise; prove a lost response can be reconciled without duplicate acceptance."
+    ],
+    "review_and_answer_keys": {
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-23",
+      "known_limitations": "Requires optional FastAPI and httpx packages. This is a validation pilot, not the complete authenticated transaction course requested in issue 3."
+    },
+    "added": true,
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-23"
+    }
+  },
+  {
+    "Q": "How do JavaScript, promises, and types make an API usable?",
+    "explain": "JavaScript connects page events to data and rendering. A promise represents a future result; await lets an async function wait without blocking other browser work. A fetch response must be checked with response.ok before its body is treated as success, because HTTP errors do not automatically reject the promise. TypeScript types help catch incompatible code, but received JSON still needs runtime checks.",
+    "example": "On submit, prevent the default navigation, read the labeled input, set loading state, await fetch, check status, validate the JSON shape, and render result text with textContent. Catch network failure separately and restore the submit control in a finally block.",
+    "takeaway": "Asynchronous transport, HTTP success, and valid data are three separate checks."
+  },
+  {
+    "Q": "How do data structures and complexity affect a first backend?",
+    "explain": "An array or list is suitable for ordered results, a map for lookup by identity, a set for membership and deduplication, and a queue for pending work. Big-O describes how work grows with input size rather than giving a measured runtime. Scanning every record for each lookup is linear; a suitable hash map has expected constant-time lookup, while database indexes have their own costs and plans. Bound result sizes even when a toy fixture is tiny.",
+    "example": "Repeatedly scanning 100,000 task rows for one ID wastes work. Use an indexed identity query and cursor pagination for lists; measure query time under a representative fixture.",
+    "takeaway": "Choose structures from access patterns and verify them with measured workloads."
+  },
+  {
+    "Q": "What is dependency injection in an ordinary application?",
+    "explain": "Pass a service its collaborators instead of having it construct remote clients internally. The answer service can receive a retriever, a generator, and a clock. A test can supply deterministic implementations; the deployed application supplies real adapters. Keep domain validation in the service so changing framework or provider does not bypass it.",
+    "example": "A fake generator always returns an exchange answer. A second fake raises TimeoutError. Both exercise the same API and UI contract before any model budget is spent.",
+    "takeaway": "A replaceable boundary makes the first vertical slice testable."
+  }
+]

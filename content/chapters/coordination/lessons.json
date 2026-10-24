@@ -1,0 +1,38 @@
+[
+  {
+    "Q": "Why write an outbox entry in the business transaction?",
+    "explain": "If request creation commits but task scheduling fails, downstream work can be lost. Recording the outbox row in the same transaction preserves the intent to perform that work. A worker executes it later.",
+    "example": "The request and pending notification become durable together even while the email service is unavailable.",
+    "takeaway": "Record work atomically; execute external effects separately."
+  },
+  {
+    "Q": "Why isn't SKIP LOCKED an exactly-once guarantee?",
+    "explain": "It helps cooperating transactions select different unlocked rows. A worker can still complete an external effect and crash before recording completion. Future retries must handle that ambiguity through operation identity and effect-specific deduplication.",
+    "example": "A second worker resends an email after reclaiming an uncompleted job unless the delivery contract prevents duplication.",
+    "takeaway": "Selection safety and effect safety are different guarantees."
+  },
+  {
+    "Q": "What does fencing protect that a heartbeat cannot?",
+    "explain": "A paused old worker can resume after its lease expires and a new worker takes over. A fencing token makes the protected resource reject writes from older ownership generations. The check must occur with the write.",
+    "example": "Worker A resumes with token 7 after Worker B owns token 8. The database rejects A's stale completion.",
+    "takeaway": "Detecting stale ownership is insufficient unless writes enforce it."
+  },
+  {
+    "Q": "How do you avoid deleting a newer worker's lease?",
+    "explain": "Give each lease an owner token and release it only when that token still matches. An unconditional delete can remove a lease that a later worker acquired after your TTL expired.",
+    "example": "A slow worker's cleanup runs after takeover; checked release leaves the newer lease intact.",
+    "takeaway": "Cleanup needs the same ownership discipline as acquisition."
+  },
+  {
+    "Q": "Why can a lease expire while its original worker is still running?",
+    "explain": "A lease is time-bounded ownership, not a command that stops a process. A paused or disconnected worker may resume after a new worker acquires the job. Attach a monotonically increasing fencing token or equivalent version to ownership and require the authoritative write to reject stale owners. Heartbeats help detect progress but do not remove the race.",
+    "example": "Worker A holds token 7, pauses, and loses its lease. Worker B gets token 8 and publishes. A write using token 7 must fail even if A still believes its local work succeeded.",
+    "takeaway": "Ownership claims need enforcement at the publication boundary."
+  },
+  {
+    "Q": "What belongs in a dead-letter and replay workflow?",
+    "explain": "After bounded attempts, record a failed job with its input identity, safe failure category, processing version, and retry history. Provide a reviewed replay action after the cause is fixed. Keep the business operation key when replaying the same intended effect, and use a new processing attempt ID for observability. Do not hide permanent failures in an infinite retry loop.",
+    "example": "An unsupported file remains failed until a new extractor is deployed. Replay creates a new attempt with the new profile while preserving the document and revision identities.",
+    "takeaway": "Recovery needs a visible terminal failure and a controlled return path."
+  }
+]

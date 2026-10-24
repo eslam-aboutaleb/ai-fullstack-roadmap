@@ -1,0 +1,29 @@
+[
+  {
+    "Q": "How should human approval be bound to an exact agent tool effect across retries and expiration?",
+    "A": "**First establish the authority boundary.** An AI model may propose a tool action, but it cannot authorize a transfer, refund or account mutation merely by predicting text. An application must bind approval to an authenticated principal, the exact operation and payload, an expiry time, any revocation status and a stable idempotency key. Render the proposed effect's important fields in a trusted approval UI; do not let a retrieved document or tool description silently set an `approved=true` argument.\n\n**Execution mechanism.** (1) The planner proposes tool `refund` with normalized order ID, amount and currency. (2) The server hashes a canonical representation of those validated arguments together with principal/tool/policy revision and a nonce or operation identifier. (3) The approval record signs or otherwise authoritatively binds that exact hash and expiry. (4) At execution, verify principal, scope, revision, expiration, revocation and payload hash before entering the effect transaction. (5) Persist an operation-id-to-result ledger so a retry after a lost acknowledgement returns the prior outcome. A changed amount with the same approval must be denied, not accepted as the original user decision.\n\n**Production failure.** A web search result contains an injected instruction claiming the user approved a refund for a different amount. It is lower-trust content, so the tool gate ignores it. A request submitted a minute after approval expiration must not execute a *new* effect. A duplicate acknowledgement received after a previously committed authorized effect can be reconciled by the durable operation ledger rather than executing again. This distinguishes new authorization decisions from recovery of a previously committed business result.\n\n**Alternatives and limitations.** A high-trust user-facing transaction confirmation is better than allowing arbitrary tool mutation; for low-risk read-only tools a separate human approval may be unnecessary. Hashing alone does not authenticate who approved: validation must come from the trusted application, not an attacker-controlled hash. Use multi-replica database uniqueness or equivalent authoritative transaction control for side effects; an in-memory Python set is only a teaching fixture.",
+    "Why": "The model, tool output and retrieved content cannot grant business permission; a trusted server must bind approval to a specific operation and scope.",
+    "Risk": "Argument swaps, expired approvals or lost acknowledgements can execute unapproved or duplicate real-world effects.",
+    "Trade": "Approval checks add UX friction and persistence costs but protect effectful operations; read-only actions may be automatically allowed under strict scope.",
+    "Try": "Design a two-user transaction fixture that rejects changed amounts, expired approvals, foreign owners and a replayed operation after commit.",
+    "worked_case": "A user approves refund(order=R9,amount=15.00,currency=USD) until 12:05. A retry with amount=150.00 fails the payload-hash check. If the exact 15.00 refund already committed but its acknowledgement was lost, retrieve its stored result without issuing another refund.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://cheatsheetseries.owasp.org/cheatsheets/Transaction_Authorization_Cheat_Sheet.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-23"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if an approved transaction commits just before its authorization record expires?",
+        "A": "The expiry controls whether a *new* effect may begin; an effect already authorized and durably committed remains historical truth. Reconciliation of its idempotency key returns the committed result, with immutable approval and commit timestamps, without granting permission to run a new or modified effect."
+      }
+    ],
+    "difficulty": "design",
+    "domain": "agents",
+    "subdomain": "agent-harness"
+  }
+]

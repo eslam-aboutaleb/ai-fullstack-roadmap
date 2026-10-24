@@ -1,0 +1,318 @@
+[
+  {
+    "Q": "Why is schema compatibility a semantic contract rather than only a field-name check?",
+    "A": "**A data pipeline turns source events into validated, queryable state.** Extract-transform-load (ETL) validates/transforms before loading the destination; extract-load-transform (ELT) first stores raw input and transforms inside the destination environment. Neither name guarantees quality or privacy. Decide which raw data may be retained, who can query it and how transformations are versioned and reproduced.\n\nDefine a data contract: identity, owner, schema version, event/source time, operation, revision and payload constraints. Validate at ingestion and at the authoritative write boundary. SQL types, NOT NULL, uniqueness, foreign keys and checks protect different invariants; an application validator alone can be bypassed by another producer. Parameterize values rather than constructing SQL from source text. Quarantine malformed items with bounded diagnostics and an explicit replay path.\n\nBatch processes a bounded snapshot; streaming processes an ongoing sequence and needs checkpoint, ordering and late-data policy. Event time describes when the business event happened; processing time describes when the system handled it. A watermark is a progress estimate, not proof no older event can arrive. Backpressure bounds in-flight work when the sink cannot keep up; unlimited buffering only moves the failure into memory.\n\n**Reason about compatibility.** Adding a nullable column can be compatible for named-column readers yet break positional SELECT-star consumers or an old writer with a fixed insert list. Use an expand/contract migration: introduce compatible fields, deploy readers/writers, backfill under versioned rules, verify then retire old fields. `data_contract_pipeline.py` exercises schema and transformation behavior; `data_rollout_contract.py` adds transactional CDC failure paths. A passing synthetic pipeline establishes its declared fixtures, not arbitrary production schemas. Save input/profile hashes, output rows, rejected records and reconstruction instructions so a learner can independently inspect lineage and quality.",
+    "Why": "An old consumer unpacks SELECT-star into three values after a fourth nullable column is added. The database change is legal but the consumer contract breaks; compatibility must be evaluated across actual readers and writers.",
+    "Risk": "Permissive parsing can silently coerce invalid timestamps or identifiers and corrupt downstream joins. Retaining raw data without purpose/retention controls can also violate privacy expectations.",
+    "Trade": "ELT preserves flexible raw evidence but expands access and storage obligations. ETL can minimize sensitive raw retention while making transformation recovery dependent on source availability.",
+    "Try": "Run data_contract_pipeline.py and data_rollout_contract.py. Design an expand/contract change with an old reader and writer, then show a negative compatibility case and a replayable quarantine decision.",
+    "worked_case": "An old consumer unpacks SELECT-star into three values after a fourth nullable column is added. The database change is legal but the consumer contract breaks; compatibility must be evaluated across actual readers and writers.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://beam.apache.org/documentation/programming-guide/",
+      "https://www.postgresql.org/docs/current/ddl-constraints.html"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Can a watermark justify deleting all older raw events?",
+        "A": "Not by itself. It describes processing progress under assumptions, not a retention authorization or guarantee of no late corrections. Apply explicit correction, retention and deletion policies with reconstructable lineage."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "data-engineering-foundations"
+  },
+  {
+    "Q": "How do ETL, ELT and incremental updates change where failures are repaired?",
+    "spoken": "ETL transforms before loading the destination, while ELT loads a retained representation before downstream transformation. Incremental processing changes only new or modified source state under a cursor or change contract. Choose from data volume, governance, latency and rebuild requirements; the acronym does not supply deduplication or correctness guarantees.",
+    "A": "ETL transforms before loading the destination, while ELT loads a retained representation before downstream transformation. Incremental processing changes only new or modified source state under a cursor or change contract. Choose from data volume, governance, latency and rebuild requirements; the acronym does not supply deduplication or correctness guarantees.\n\nEngineering case: A transformation bug has affected a month of projections. Retained versioned raw inputs allow a controlled rebuild, but deletion authority must still be applied.\n\nReasoning under a changed assumption: No. Apply access, retention and deletion policy. A convenient rebuild source can become an unauthorized long-term copy of sensitive data.",
+    "Why": "ETL transforms before loading the destination, while ELT loads a retained representation before downstream transformation. Incremental processing changes only new or modified source state under a cursor or change contract. Choose from data volume, governance, latency and rebuild requirements; the acronym does not supply deduplication or correctness guarantees.",
+    "Risk": "A transformation bug has affected a month of projections. Retained versioned raw inputs allow a controlled rebuild, but deletion authority must still be applied.",
+    "Trade": "No. Apply access, retention and deletion policy. A convenient rebuild source can become an unauthorized long-term copy of sensitive data.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering-foundations",
+    "module": "data-engineering-foundations",
+    "concept": "How do ETL, ELT and incremental updates change where failures are repaired?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated transformation placement boundary: A transformation bug has affected a month of projections. Retained versioned raw inputs allow a controlled rebuild, but deletion authority must still be applied.",
+    "definitions": [
+      {
+        "term": "Transformation placement",
+        "definition": "ETL transforms before loading the destination, while ELT loads a retained representation before downstream transformation."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A transformation bug has affected a month of projections. Retained versioned raw inputs allow a controlled rebuild, but deletion authority must still be applied.\",\n  \"decision\": \"ETL transforms before loading the destination, while ELT loads a retained representation before downstream transformation\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A transformation bug has affected a month of projections. Retained versioned raw inputs allow a controlled rebuild, but deletion authority must still be applied.",
+    "alternatives": [
+      "No. Apply access, retention and deletion policy. A convenient rebuild source can become an unauthorized long-term copy of sensitive data."
+    ],
+    "pitfalls": [
+      "A transformation bug has affected a month of projections. Retained versioned raw inputs allow a controlled rebuild, but deletion authority must still be applied."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Is retaining every raw record always appropriate?",
+        "A": "No. Apply access, retention and deletion policy. A convenient rebuild source can become an unauthorized long-term copy of sensitive data."
+      }
+    ],
+    "citations": [
+      "https://beam.apache.org/documentation/programming-guide/",
+      "https://kafka.apache.org/quickstart/",
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Why must a CDC checkpoint and destination state have a recovery contract?",
+    "A": "**Change data capture (CDC) carries source mutations to a derived view.** The source event identity, source position and business revision are different concepts. A retry repeats the same event; a correction is a new event that may update a prior business fact. Store enough lineage to distinguish them and preserve owner scope in both progress and document keys.\n\nApply destination mutation, deduplication record and checkpoint in one transaction when they share a database. If the process crashes after commit but before broker acknowledgment, replay should recognize the exact same event without applying it again. Compare a canonical digest of all material fields: accepting the same operation/offset with changed payload hides corruption. A broker's delivery guarantee cannot make an unrelated HTTP effect atomic with a database commit.\n\nIn `data_rollout_contract.py`, owner A and B can use the same document ID without sharing state. A gap or out-of-order sequence is rejected, not skipped. A tombstone excludes a deleted document and blocks an unapproved stale restoration. The checker deliberately aborts checkpoint insertion and verifies that neither the document nor consumed-event row remains. This tests transaction behavior rather than checking only a final checkpoint value.\n\nLineage connects source revision, transformation profile, derived rows/chunks and consumer output. During an index rebuild, snapshot the source, catch up changes, reconcile tombstones and validate quality before switching readers. A restored backup can contain records deleted after the backup; reapply authoritative deletion intent before serving traffic. Define freshness, null/duplicate rates, schema failures and owner leakage as separate quality signals. A count match alone can conceal swapped owners or incorrect values. Keep recovery evidence with exact input/output manifests and a rubric that requires both normal results and fault behavior.",
+    "Why": "A consumer commits a projection and crashes before acknowledgment. Exact replay must do no new work; a replay with the same offset but changed payload must fail rather than being silently treated as the original event.",
+    "Risk": "Advancing the checkpoint before durable destination state loses data. Restoring an old snapshot without reapplying deletion intent can resurrect confidential records.",
+    "Trade": "Atomic local checkpoints simplify recovery but constrain storage design. Cross-system sinks require receiver idempotency or reconciliation, with the uncertainty explicitly documented.",
+    "Try": "Run data_rollout_contract.py. Inspect the changed-payload replay and injected checkpoint failure, then explain why each catches a bug that an ordinary duplicate-event test misses.",
+    "worked_case": "A consumer commits a projection and crashes before acknowledgment. Exact replay must do no new work; a replay with the same offset but changed payload must fail rather than being silently treated as the original event.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://www.sqlite.org/lang_transaction.html",
+      "https://kafka.apache.org/documentation/#semantics"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "What if an old database has deduplication keys but no payload digests?",
+        "A": "Do not infer equality from the key alone. Preserve history, reject unverifiable replay and reconcile against authoritative source evidence or rebuild under a controlled migration policy."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "fullstack-engineering",
+    "subdomain": "data-engineering-foundations"
+  },
+  {
+    "Q": "How do event time, watermarks and accumulating panes affect a dashboard total?",
+    "spoken": "Event time describes when an event belongs logically, while watermarks and lateness policy govern when windows may be considered complete or corrected. An accumulating pane already contains earlier accepted values. A destination should upsert the authoritative window aggregate or use a deliberately different contribution contract, not blindly add cumulative results.",
+    "A": "Event time describes when an event belongs logically, while watermarks and lateness policy govern when windows may be considered complete or corrected. An accumulating pane already contains earlier accepted values. A destination should upsert the authoritative window aggregate or use a deliberately different contribution contract, not blindly add cumulative results.\n\nEngineering case: An on-time pane totals five and a late correction totals twelve. Adding them produces seventeen although twelve already includes the earlier five.\n\nReasoning under a changed assumption: No. It establishes the configured processing policy. Decide whether to discard, quarantine or backfill and how to communicate later corrections.",
+    "Why": "Event time describes when an event belongs logically, while watermarks and lateness policy govern when windows may be considered complete or corrected. An accumulating pane already contains earlier accepted values. A destination should upsert the authoritative window aggregate or use a deliberately different contribution contract, not blindly add cumulative results.",
+    "Risk": "An on-time pane totals five and a late correction totals twelve. Adding them produces seventeen although twelve already includes the earlier five.",
+    "Trade": "No. It establishes the configured processing policy. Decide whether to discard, quarantine or backfill and how to communicate later corrections.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering-foundations",
+    "module": "data-engineering-foundations",
+    "concept": "How do event time, watermarks and accumulating panes affect a dashboard total?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated accumulating pane boundary: An on-time pane totals five and a late correction totals twelve. Adding them produces seventeen although twelve already includes the earlier five.",
+    "definitions": [
+      {
+        "term": "Accumulating pane",
+        "definition": "Event time describes when an event belongs logically, while watermarks and lateness policy govern when windows may be considered complete or corrected."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"An on-time pane totals five and a late correction totals twelve. Adding them produces seventeen although twelve already includes the earlier five.\",\n  \"decision\": \"Event time describes when an event belongs logically, while watermarks and lateness policy govern when windows may be considered complete or corrected\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "An on-time pane totals five and a late correction totals twelve. Adding them produces seventeen although twelve already includes the earlier five.",
+    "alternatives": [
+      "No. It establishes the configured processing policy. Decide whether to discard, quarantine or backfill and how to communicate later corrections."
+    ],
+    "pitfalls": [
+      "An on-time pane totals five and a late correction totals twelve. Adding them produces seventeen although twelve already includes the earlier five."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does an expired lateness window prove an event never existed?",
+        "A": "No. It establishes the configured processing policy. Decide whether to discard, quarantine or backfill and how to communicate later corrections."
+      }
+    ],
+    "citations": [
+      "https://beam.apache.org/documentation/programming-guide/",
+      "https://kafka.apache.org/quickstart/",
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How do lineage and immutable manifests make a derived index rebuild auditable?",
+    "spoken": "Record source revisions, transformation and schema versions, embedding/model identity where applicable, and destination generation. A rebuild should identify exactly which source set it used and allow safe promotion or rollback. A mutable path called latest is insufficient evidence of input identity.",
+    "A": "Record source revisions, transformation and schema versions, embedding/model identity where applicable, and destination generation. A rebuild should identify exactly which source set it used and allow safe promotion or rollback. A mutable path called latest is insufficient evidence of input identity.\n\nEngineering case: Two indexes built from different source revisions share the same label. A retrieval regression cannot be traced to either data or code.\n\nReasoning under a changed assumption: Only under a valid retention and access policy. Reproducibility requirements do not override deletion authority or justify an undeclared data store.",
+    "Why": "Record source revisions, transformation and schema versions, embedding/model identity where applicable, and destination generation. A rebuild should identify exactly which source set it used and allow safe promotion or rollback. A mutable path called latest is insufficient evidence of input identity.",
+    "Risk": "Two indexes built from different source revisions share the same label. A retrieval regression cannot be traced to either data or code.",
+    "Trade": "Only under a valid retention and access policy. Reproducibility requirements do not override deletion authority or justify an undeclared data store.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering-foundations",
+    "module": "data-engineering-foundations",
+    "concept": "How do lineage and immutable manifests make a derived index rebuild auditable?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated artifact lineage boundary: Two indexes built from different source revisions share the same label. A retrieval regression cannot be traced to either data or code.",
+    "definitions": [
+      {
+        "term": "Artifact lineage",
+        "definition": "Record source revisions, transformation and schema versions, embedding/model identity where applicable, and destination generation."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"Two indexes built from different source revisions share the same label. A retrieval regression cannot be traced to either data or code.\",\n  \"decision\": \"Record source revisions, transformation and schema versions, embedding/model identity where applicable, and destination generation\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "Two indexes built from different source revisions share the same label. A retrieval regression cannot be traced to either data or code.",
+    "alternatives": [
+      "Only under a valid retention and access policy. Reproducibility requirements do not override deletion authority or justify an undeclared data store."
+    ],
+    "pitfalls": [
+      "Two indexes built from different source revisions share the same label. A retrieval regression cannot be traced to either data or code."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Can you reproduce a deleted source by keeping a private shadow copy?",
+        "A": "Only under a valid retention and access policy. Reproducibility requirements do not override deletion authority or justify an undeclared data store."
+      }
+    ],
+    "citations": [
+      "https://beam.apache.org/documentation/programming-guide/",
+      "https://kafka.apache.org/quickstart/",
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "How should data-quality quarantine avoid silently losing or exposing records?",
+    "spoken": "Declare which violations stop processing and which are quarantined while progress continues. Retain safe reason codes, source identity and repair provenance without copying sensitive bodies into unrestricted logs. Track quarantine counts and age so the system cannot appear healthy while excluding a growing slice of source data.",
+    "A": "Declare which violations stop processing and which are quarantined while progress continues. Retain safe reason codes, source identity and repair provenance without copying sensitive bodies into unrestricted logs. Track quarantine counts and age so the system cannot appear healthy while excluding a growing slice of source data.\n\nEngineering case: A new event schema is quarantined for every record while the pipeline continues advancing offsets. Throughput looks normal but the served projection becomes stale.\n\nReasoning under a changed assumption: No. Preserve immutable source identity or use an explicit repair/reprocessing contract. Changed content under a reused identity must be detected.",
+    "Why": "Declare which violations stop processing and which are quarantined while progress continues. Retain safe reason codes, source identity and repair provenance without copying sensitive bodies into unrestricted logs. Track quarantine counts and age so the system cannot appear healthy while excluding a growing slice of source data.",
+    "Risk": "A new event schema is quarantined for every record while the pipeline continues advancing offsets. Throughput looks normal but the served projection becomes stale.",
+    "Trade": "No. Preserve immutable source identity or use an explicit repair/reprocessing contract. Changed content under a reused identity must be detected.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering-foundations",
+    "module": "data-engineering-foundations",
+    "concept": "How should data-quality quarantine avoid silently losing or exposing records?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated quarantine contract boundary: A new event schema is quarantined for every record while the pipeline continues advancing offsets. Throughput looks normal but the served projection becomes stale.",
+    "definitions": [
+      {
+        "term": "Quarantine contract",
+        "definition": "Declare which violations stop processing and which are quarantined while progress continues."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A new event schema is quarantined for every record while the pipeline continues advancing offsets. Throughput looks normal but the served projection becomes stale.\",\n  \"decision\": \"Declare which violations stop processing and which are quarantined while progress continues\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A new event schema is quarantined for every record while the pipeline continues advancing offsets. Throughput looks normal but the served projection becomes stale.",
+    "alternatives": [
+      "No. Preserve immutable source identity or use an explicit repair/reprocessing contract. Changed content under a reused identity must be detected."
+    ],
+    "pitfalls": [
+      "A new event schema is quarantined for every record while the pipeline continues advancing offsets. Throughput looks normal but the served projection becomes stale."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Should an operator simply overwrite the old event under the same identity?",
+        "A": "No. Preserve immutable source identity or use an explicit repair/reprocessing contract. Changed content under a reused identity must be detected."
+      }
+    ],
+    "citations": [
+      "https://beam.apache.org/documentation/programming-guide/",
+      "https://kafka.apache.org/quickstart/",
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  },
+  {
+    "Q": "Why can a restore or backfill resurrect data deleted after its snapshot?",
+    "spoken": "A snapshot represents an older state and may contain a record whose newer deletion is authoritative. Preserve deletion intent independently and apply it before a restored or rebuilt projection becomes visible. Include caches, indexes, replicas and retained backups in the policy rather than checking only one table.",
+    "A": "A snapshot represents an older state and may contain a record whose newer deletion is authoritative. Preserve deletion intent independently and apply it before a restored or rebuilt projection becomes visible. Include caches, indexes, replicas and retained backups in the policy rather than checking only one table.\n\nEngineering case: A restored database passes integrity checks but serves a customer document that was deleted after the backup.\n\nReasoning under a changed assumption: No. It proves the snapshot bytes match the recorded artifact. It does not establish current visibility authority or application-level recovery correctness.",
+    "Why": "A snapshot represents an older state and may contain a record whose newer deletion is authoritative. Preserve deletion intent independently and apply it before a restored or rebuilt projection becomes visible. Include caches, indexes, replicas and retained backups in the policy rather than checking only one table.",
+    "Risk": "A restored database passes integrity checks but serves a customer document that was deleted after the backup.",
+    "Trade": "No. It proves the snapshot bytes match the recorded artifact. It does not establish current visibility authority or application-level recovery correctness.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering-foundations",
+    "module": "data-engineering-foundations",
+    "concept": "Why can a restore or backfill resurrect data deleted after its snapshot?",
+    "difficulty": "interview",
+    "misconception_target": "Missing the stated deletion authority boundary: A restored database passes integrity checks but serves a customer document that was deleted after the backup.",
+    "definitions": [
+      {
+        "term": "Deletion authority",
+        "definition": "A snapshot represents an older state and may contain a record whose newer deletion is authoritative."
+      }
+    ],
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "example": {
+      "code": "{\n  \"case\": \"A restored database passes integrity checks but serves a customer document that was deleted after the backup.\",\n  \"decision\": \"A snapshot represents an older state and may contain a record whose newer deletion is authoritative\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
+    },
+    "production_case": "A restored database passes integrity checks but serves a customer document that was deleted after the backup.",
+    "alternatives": [
+      "No. It proves the snapshot bytes match the recorded artifact. It does not establish current visibility authority or application-level recovery correctness."
+    ],
+    "pitfalls": [
+      "A restored database passes integrity checks but serves a customer document that was deleted after the backup."
+    ],
+    "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
+    "follow_ups": [
+      {
+        "Q": "Does a valid backup digest prevent this?",
+        "A": "No. It proves the snapshot bytes match the recorded artifact. It does not establish current visibility authority or application-level recovery correctness."
+      }
+    ],
+    "citations": [
+      "https://beam.apache.org/documentation/programming-guide/",
+      "https://kafka.apache.org/quickstart/",
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-21"
+    }
+  }
+]

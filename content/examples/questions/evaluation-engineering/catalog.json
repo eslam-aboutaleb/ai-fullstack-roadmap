@@ -1,0 +1,38 @@
+[
+  {
+    "explain": "Compare judge decisions with independently reviewed labels and inspect disagreements. A judge's confidence is not a substitute for calibration.",
+    "steps": "Pair human and judge labels for the same cases. || Count agreement and list mismatches for review.",
+    "expect": "0.666667 ['C2']",
+    "name": "judge-calibration",
+    "language": "python",
+    "filename": "judge-calibration.py",
+    "questions": [
+      675,
+      237,
+      404
+    ]
+  },
+  {
+    "explain": "Offline gates precede a limited online rollout, whose guardrails observe actual impact. A failed online latency guardrail triggers rollback despite passing offline quality.",
+    "steps": "Keep offline evidence and online health separate. || Choose rollback when a predeclared production guardrail fails.",
+    "expect": "rollback",
+    "name": "online-rollout",
+    "language": "python",
+    "filename": "online-rollout.py",
+    "questions": [
+      795,
+      409
+    ]
+  },
+  {
+    "name": "evaluation-set-leakage-contamination",
+    "filename": "evaluation-set-leakage-contamination.py",
+    "language": "python",
+    "explain": "A rigorous three-partition evaluation harness isolates prompt tuning from validation and sealed holdouts, demonstrating how repeated candidate selection inflates scores and verifying true generalization with bootstrap confidence intervals.",
+    "steps": "Isolate dataset partitions into development, validation, and sealed holdout sets. || Simulate candidate selection bias across multiple prompt variations. || Evaluate the frozen winner once against the blind holdout and calculate 95% bootstrap confidence intervals.",
+    "expect": "=== Testing Evaluation Set Leakage & Blind Holdout Verification ===\n\n--- Simulated Prompt Search Over 25 Variants ---\nAverage Candidate Score on Validation Set: 68.32%\nBest Candidate Selected ('prompt_v8'): 75.00%\nApparent Gain from 'Prompt Optimization': +6.68%\n\n--- Unbiased Verification on Sealed Holdout ---\nUnbiased Holdout Score: 67.00%\nOverfitting Degradation Delta: -8.00%\n95% Bootstrap CI on Holdout: [56.00%, 73.00%]\n\nAll evaluation set integrity and holdout isolation invariants verified successfully.",
+    "questions": [
+      905
+    ]
+  }
+]

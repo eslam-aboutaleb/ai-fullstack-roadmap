@@ -1,0 +1,31 @@
+[
+  {
+    "Q": "Why can a citation to a real policy document still be wrong after a source revision or deletion?",
+    "A": "**Citations establish provenance, not timeless correctness.** A retrieved passage can accurately quote a real document yet be obsolete for the user's requested time, superseded by a later policy revision or no longer authorized for this principal. Grounding therefore needs *which* source, *which* revision, a relevant effective/validity interval, trusted owner eligibility and evidence that the answer's claim actually follows from the cited span. A URL or a high semantic score alone proves none of these.\n\n**A reproducible retrieval path.** Index each passage with a stable document ID, content digest, version/revision, source span, validity/effective time and trusted access labels. At question time, resolve the requested temporal context, filter eligible owner/document revisions *before* dense/BM25 ranking and select evidence. Before rendering a citation, recheck its access policy and active revision, especially when search and document reads cross different stores or caches. Treat tombstones and revocations as independent authoritative events and propagate them through vector indexes and output caches; don't allow a background backfill to resurrect deleted records.\n\n**Worked version conflict.** A policy v1, effective until September 30, permits refunds for 60 days; v2, effective October 1, permits 30 days. A question about October 15 should cite v2, while a legitimate historical question about August might need v1 under a documented archive policy. If v1 and v2 share near-identical text embeddings, naive top-k can prefer v1 even though its relevance score is high. Use an effective-date predicate and version-aware citation resolution; if the valid policy cannot be verified, abstain rather than assert the wrong rule.\n\n**Failure and trade-offs.** Over-aggressive recency filters can incorrectly hide historical data, and unscoped approximate search can leak foreign tenant candidates. State snapshot/version semantics, keep immutable source evidence for audits where legally permitted, and benchmark true relevance and citation support separately. A synthetic exact-cosine fixture can verify the filtering invariant but cannot certify ANN filtering semantics, real policy ingestion or a production service's cache invalidation.",
+    "Why": "Correct wording from an outdated or unauthorized source is still not correct evidence for the question's principal and requested time.",
+    "Risk": "Stale cached passages, deleted records and backfilled older embeddings can reintroduce invalid citations despite a high retrieval score.",
+    "Trade": "Revision and validity filters complicate indexing and historical queries, but make answers auditable and prevent policy-version errors.",
+    "Try": "Index two revisions with different effective dates, add a tombstone and ask current and historical questions; verify citation revision and owner eligibility.",
+    "worked_case": "Refund policy v1 allows 60 days through September 30, but v2 changes the limit to 30 days from October 1. A current October request must cite v2; an archive query may reference v1 only with valid time and access evidence. A v1 vector hit must not overrule the effective revision.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://www.postgresql.org/docs/current/mvcc-intro.html",
+      "https://www.postgresql.org/docs/18/ddl-rowsecurity.html",
+      "https://www.sqlite.org/lang_expr.html#the_between_operator"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-23"
+    },
+    "follow_ups": [
+      {
+        "Q": "Does a high Recall@5 certify that the generated answer uses the correct policy revision?",
+        "A": "No. Recall@5 may count an outdated source as relevant if the gold set ignores validity. Evaluate eligible revision-specific evidence, citation-to-claim support, freshness and false refusal separately; high retrieval recall does not guarantee that the generator cited or interpreted the right passage."
+      }
+    ],
+    "difficulty": "design",
+    "domain": "ai-rag",
+    "subdomain": "retrieval"
+  }
+]

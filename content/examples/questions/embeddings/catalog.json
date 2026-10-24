@@ -1,0 +1,104 @@
+[
+  {
+    "name": "contrastive-infonce-loss",
+    "filename": "contrastive-infonce-loss.py",
+    "language": "python",
+    "explain": "Implement InfoNCE (Noise-Contrastive Estimation) loss from first principles for Bi-Encoder training. Explains temperature-scaled softmax dynamics pulling query and positive passage vectors together while repelling in-batch negative passages.",
+    "steps": "Compute dot product similarities between query and positive versus in-batch negative passages. || Scale similarities by temperature and compute softmax cross-entropy loss across the candidate batch.",
+    "expect": "InfoNCE contrastive loss verified: loss=1e-06, positive_probability=0.999999",
+    "questions": [
+      546,
+      49
+    ]
+  },
+  {
+    "name": "asymmetric-task-prefixes",
+    "filename": "asymmetric-task-prefixes.py",
+    "language": "python",
+    "explain": "Demonstrate instruction-tuned asymmetric task prefixes in dense embeddings. Short conversational queries require instruction prefixes (e.g. 'query: ') to align with declarative document embeddings in shared vector space.",
+    "steps": "Format asymmetric query and passage inputs with designated instruction prefixes. || Demonstrate that omitting instruction prefixes causes semantic drift and drops cosine similarity.",
+    "expect": "Asymmetric task prefix verified: aligned_similarity=0.9929, unaligned_drift=0.378",
+    "questions": [
+      547,
+      42
+    ]
+  },
+  {
+    "name": "matryoshka-representation-truncation",
+    "filename": "matryoshka-representation-truncation.py",
+    "language": "python",
+    "explain": "Demonstrate Matryoshka Representation Learning (MRL) dimension truncation and L2 re-normalization. Slicing early dimensions and re-normalizing reduces index storage and RAM by 75% with minimal recall degradation.",
+    "steps": "Truncate full 1024-dimensional embedding to 256 dimensions. || Re-apply L2 normalization to unit norm and evaluate relative cosine ranking preservation.",
+    "expect": "MRL truncation verified: full_1024_sim=0.97277, trunc_256_sim=0.99398, trunc_128_sim=0.9977",
+    "questions": [
+      548
+    ]
+  },
+  {
+    "name": "l2-normalization-euclidean-dot",
+    "filename": "l2-normalization-euclidean-dot.py",
+    "language": "python",
+    "explain": "Demonstrate the mathematical equivalence of Cosine Similarity, Dot Product, and squared Euclidean Distance for L2-normalized unit vectors: ||u - v||^2 = 2 - 2(u . v). Hardware accelerators compute dot products in a single SIMD instruction.",
+    "steps": "Normalize arbitrary vectors to unit L2 norm (||u|| = 1). || Prove that cosine similarity equals dot product and maps monotonically to squared Euclidean distance.",
+    "expect": "L2 normalization equivalence verified: raw_cos=0.73333, norm_dot=0.73333, dist_sq=0.53333 (2 - 2*dot)",
+    "questions": [
+      549,
+      43
+    ]
+  },
+  {
+    "name": "blue-green-embedding-migration",
+    "filename": "blue-green-embedding-migration.py",
+    "language": "python",
+    "explain": "Implement zero-downtime Blue/Green embedding migration across high-volume production stores. Executes dual-writes, background historical backfills, and atomic query routing without coordinate mismatch errors.",
+    "steps": "Dual-write incoming documents to both active Blue (v1) and staged Green (v2) collections. || Backfill historical documents into Green collection and atomically switch query traffic after parity validation.",
+    "expect": "Blue/Green embedding migration verified: active=green, green_docs=3",
+    "questions": [
+      550,
+      48,
+      903
+    ]
+  },
+  {
+    "name": "vector-response-validation",
+    "filename": "vector-response-validation.py",
+    "language": "python",
+    "explain": "Validate provider embedding arrays before database persistence. Asserts exact expected dimensionality, non-zero L2 norm, and rejects NaN, Infinity, or non-numeric coordinates.",
+    "steps": "Inspect array length against expected model dimensionality. || Validate numeric finiteness across all coordinates and reject collapsed null vectors.",
+    "expect": "Vector validation verified: valid=True, nan_rejected=True, dim_rejected=True",
+    "questions": [
+      44
+    ]
+  },
+  {
+    "name": "bounded-queue",
+    "filename": "bounded-queue.py",
+    "language": "python",
+    "explain": "Bounded admission prevents unbounded pending work. Control messages need a separate reserved path rather than being trapped behind a full ordinary queue.",
+    "steps": "Fill a bounded data queue. || Reject another data item while still admitting cancellation through a separate control queue.",
+    "expect": "rejected cancel",
+    "questions": [
+      46,
+      657,
+      787,
+      428,
+      435,
+      668,
+      468
+    ]
+  },
+  {
+    "name": "throughput-cost",
+    "filename": "throughput-cost.py",
+    "language": "python",
+    "explain": "Report measured throughput and cost with explicit denominators, including failed work. Values are synthetic, not performance claims about a provider.",
+    "steps": "Count all attempts and total elapsed time. || Divide total cost by completed tasks rather than excluding failed-call spend.",
+    "expect": "2.0 0.03",
+    "questions": [
+      50,
+      691,
+      676,
+      407
+    ]
+  }
+]

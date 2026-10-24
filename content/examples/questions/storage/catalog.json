@@ -1,0 +1,87 @@
+[
+  {
+    "name": "vector-ram-sizing-precision",
+    "filename": "vector-ram-sizing-precision.py",
+    "language": "python",
+    "explain": "Calculate vector database RAM and storage sizing across precision formats (float32, fp16, int8, binary) and HNSW graph connectivity overhead. Demonstrates how int8 scalar quantization cuts memory by 75% for 1M vectors.",
+    "steps": "Compute raw vector byte allocations across float32 (4B) and int8 (1B) representations. || Add HNSW edge connectivity and metadata payloads to calculate total recommended host RAM.",
+    "expect": "Vector RAM sizing verified: 1M vectors fp32=7.9GB RAM, int8=2.32GB RAM",
+    "questions": [
+      552,
+      51
+    ]
+  },
+  {
+    "name": "ivf-flat-vs-hnsw-indexing",
+    "filename": "ivf-flat-vs-hnsw-indexing.py",
+    "language": "python",
+    "explain": "Compare IVF-Flat (Inverted File) and HNSW indexing structures and search mechanics. IVF-Flat partitions vector space into Voronoi cells and searches nprobe nearest centroids; HNSW navigates small-world graphs for sub-millisecond search.",
+    "steps": "Index vectors into Voronoi centroid clusters using an inverted file list. || Search nearest centroids with nprobe=1, pruning distant clusters from search comparisons.",
+    "expect": "IVF-Flat index verified: query=[1.0, 0.9], top_matches=['doc_L2', 'doc_L1'] (pruned cluster_right)",
+    "questions": [
+      553,
+      740,
+      53
+    ]
+  },
+  {
+    "name": "filtered-hnsw-predicate-traversal",
+    "filename": "filtered-hnsw-predicate-traversal.py",
+    "language": "python",
+    "explain": "Implement single-stage Filtered HNSW graph traversal using metadata predicate masks. Prevents candidate starvation by applying tenant and status constraints during graph traversal.",
+    "steps": "Traverse HNSW graph evaluating metadata predicates at each neighbor expansion step. || Filter out cross-tenant nodes while ensuring eligible tenant documents are recalled.",
+    "expect": "Filtered HNSW verified: query=[1.1, 1.0], target_tenant=tenant_acme, selected_nodes=['n1', 'n3']",
+    "questions": [
+      554,
+      97
+    ]
+  },
+  {
+    "name": "vector-wal-crash-recovery",
+    "filename": "vector-wal-crash-recovery.py",
+    "language": "python",
+    "explain": "Demonstrate Write-Ahead Logging (WAL) and crash recovery for in-memory vector index persistence. Appends operations to an append-only disk log with fsync before mutating in-memory graphs, recovering full state after process crashes.",
+    "steps": "Append vector insert operations to append-only WAL with fsync disk guarantees. || Simulate sudden crash and replay WAL on startup to restore 100% of persisted vector state.",
+    "expect": "Vector WAL crash recovery verified: restored_records=2 from WAL log",
+    "questions": [
+      555,
+      57,
+      60
+    ]
+  },
+  {
+    "name": "transactional-outbox-pgvector",
+    "filename": "transactional-outbox-pgvector.py",
+    "language": "python",
+    "explain": "Demonstrate unified PostgreSQL + pgvector storage. Commits relational documents, audit trails, and vector embeddings in the same atomic ACID transaction, eliminating distributed split-brain dual-write risks.",
+    "steps": "Insert document records, audit trails, and vector metadata atomically inside one transaction. || Verify that a constraint violation rolls back both vector state and audit logs with zero dirty data.",
+    "expect": "Unified pgvector ACID atomicity verified: active_documents=1, audit_entries=1",
+    "questions": [
+      52,
+      56,
+      85
+    ]
+  },
+  {
+    "name": "storage-error-semantics",
+    "filename": "storage-error-semantics.py",
+    "language": "python",
+    "explain": "Implement typed storage error semantics. Differentiates successful empty matches (zero hits is valid, not an error), retriable network timeouts, and non-retriable authorization violations.",
+    "steps": "Model empty search results as successful operations with empty list payloads. || Differentiate retriable connection timeouts from permanent authorization rejections.",
+    "expect": "Storage error semantics verified: empty_is_ok=True, timeout_retriable=True, forbidden_retriable=False",
+    "questions": [
+      58
+    ]
+  },
+  {
+    "name": "hnsw-latency-parameters",
+    "filename": "hnsw-latency-parameters.py",
+    "language": "python",
+    "explain": "Analyze HNSW query latency parameters beyond vector count: efSearch candidate expansion, graph connectivity M, filter selectivity, and SIMD hardware acceleration.",
+    "steps": "Simulate query cost scaling from fast efSearch=32 to high-recall efSearch=128. || Measure latency amplification when sparse filter selectivity forces deep graph exploration.",
+    "expect": "HNSW latency factors verified: ef_32=0.018ms, ef_128=0.071ms, ef_128_filtered=0.714ms",
+    "questions": [
+      972
+    ]
+  }
+]

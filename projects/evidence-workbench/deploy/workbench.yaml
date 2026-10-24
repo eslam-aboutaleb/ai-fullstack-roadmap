@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evidence-workbench
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 120
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: evidence-workbench
+  template:
+    metadata:
+      labels:
+        app: evidence-workbench
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: workbench
+          image: evidence-workbench:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8787
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8787
+            periodSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8787
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: evidence-workbench
+spec:
+  selector:
+    app: evidence-workbench
+  ports:
+    - port: 8787
+      targetPort: 8787

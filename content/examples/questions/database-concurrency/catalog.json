@@ -1,0 +1,139 @@
+[
+  {
+    "name": "check-then-act-race",
+    "filename": "check-then-act-race.py",
+    "language": "python",
+    "explain": "Demonstrate Time-of-Check to Time-of-Use (TOCTOU) lost update races when application code checks balance before updating. Atomic conditional update predicates (UPDATE ... WHERE balance >= amount) prevent concurrent overdrafts.",
+    "steps": "Simulate two concurrent transactions reading account balance before deducting funds. || Enforce atomic database-level update predicates to reject the second transaction when funds are exhausted.",
+    "expect": "Atomic conditional write verified: tx1=True, tx2=False, final_balance=30",
+    "questions": [
+      514,
+      728,
+      518,
+      167
+    ]
+  },
+  {
+    "name": "transaction-atomicity-rollback",
+    "filename": "transaction-atomicity-rollback.py",
+    "language": "python",
+    "explain": "Demonstrate ACID transaction atomicity across multiple tables. When an invariant fails mid-stream, uncommitted changes roll back completely with zero persistent dirty state.",
+    "steps": "Execute multi-table ledger and audit log operations inside an atomic transaction. || Trigger a constraint violation and verify that ledger updates and audit entries roll back completely.",
+    "expect": "Transaction atomicity verified: rollback=True, balances={'A': 60, 'B': 90}",
+    "questions": [
+      515,
+      162,
+      89
+    ]
+  },
+  {
+    "name": "optimistic-concurrency-control",
+    "filename": "optimistic-concurrency-control.sql",
+    "language": "sql",
+    "explain": "Implement Optimistic Concurrency Control (OCC) using an integer version column. Concurrent writes verify that the row's version matches the version read; stale overwrites affect zero rows and raise 409 Conflict.",
+    "steps": "Read row revision and submit conditional update asserting matching version. || Verify that a concurrent update based on a stale revision affects 0 rows, detecting the conflict.",
+    "expect": "First update increments version to 2; second update matches 0 rows and raises conflict.",
+    "questions": [
+      516,
+      164
+    ]
+  },
+  {
+    "name": "select-for-update-pessimistic",
+    "filename": "select-for-update-pessimistic.sql",
+    "language": "sql",
+    "explain": "Use SELECT FOR UPDATE to acquire exclusive row locks and prevent double-confirmation in transactional workflows. Use FOR UPDATE SKIP LOCKED for lock-free work queues.",
+    "steps": "Acquire exclusive row lock with SELECT FOR UPDATE to prevent concurrent confirmation. || Query pending work queues with FOR UPDATE SKIP LOCKED to distribute jobs across workers without lock contention.",
+    "expect": "SELECT FOR UPDATE blocks conflicting transactions; SKIP LOCKED bypasses locked jobs immediately.",
+    "questions": [
+      517,
+      161
+    ]
+  },
+  {
+    "name": "read-committed-nonrepeatable-read",
+    "filename": "read-committed-nonrepeatable-read.py",
+    "language": "python",
+    "explain": "Demonstrate PostgreSQL Read Committed isolation mechanics. Each query acquires a fresh database snapshot, meaning reading the same row twice within an open transaction can return mutated values if another transaction committed.",
+    "steps": "Open an application transaction and read baseline product state. || Commit a concurrent modification in another session and observe that re-reading within the first transaction yields mutated data.",
+    "expect": "Read Committed non-repeatable read verified: step1_price=100, step3_price=150",
+    "questions": [
+      163
+    ]
+  },
+  {
+    "name": "queue-lease-vs-selection",
+    "filename": "queue-lease-vs-selection.py",
+    "language": "python",
+    "explain": "Implement durable job queue leases with heartbeat expiration and crash recovery. Tasks become eligible for re-lease if a worker fails to complete before lease expiration.",
+    "steps": "Atomically claim a queued task with a time-bounded lease. || Recover and reassign an abandoned task after its lease timestamp expires without completion.",
+    "expect": "Task lease recovery verified: claimed by None, attempts=2",
+    "questions": [
+      165,
+      561,
+      99
+    ]
+  },
+  {
+    "name": "async-session-isolation",
+    "filename": "async-session-isolation.py",
+    "language": "python",
+    "explain": "Demonstrate why async database frameworks (SQLAlchemy AsyncSession) require one session per concurrent task. Sharing sessions across concurrent coroutines causes interleaved statement corruption.",
+    "steps": "Demonstrate concurrency errors when multiple coroutines interleave queries on a shared session. || Isolate concurrent tasks using dedicated scoped sessions executing in parallel.",
+    "expect": "Async session isolation: shared_conflict=True, isolated_results=2",
+    "questions": [
+      166
+    ]
+  },
+  {
+    "name": "transient-error-retry-policy",
+    "filename": "transient-error-retry-policy.py",
+    "language": "python",
+    "explain": "Implement an exponential backoff retry loop with full jitter for database transient errors (serialization failure 40001 and deadlock 40P01). Distinguishes retriable transient errors from non-retriable constraint violations.",
+    "steps": "Catch transient serialization errors and retry with jittered exponential backoff. || Fail immediately on permanent errors such as unique constraint violations without retrying.",
+    "expect": "Retry policy verified: transient_succeeded=TRANSACTION_COMMITTED in 3 attempts; permanent_fail_fast=True",
+    "questions": [
+      729,
+      169,
+      45
+    ]
+  },
+  {
+    "name": "deterministic-race-barrier",
+    "filename": "deterministic-race-barrier.py",
+    "language": "python",
+    "explain": "Test concurrent race conditions deterministically using thread synchronization barriers. Synchronizing worker threads eliminates sleep delays and produces 100% reproducible race conditions in automated tests.",
+    "steps": "Synchronize worker threads at a shared barrier immediately prior to critical section execution. || Release both threads simultaneously to reliably reproduce lost updates in test suites.",
+    "expect": "Deterministic barrier test verified: expected_serial=20, actual_race=60, lost_update=True",
+    "questions": [
+      519,
+      170
+    ]
+  },
+  {
+    "name": "idempotency-key-two-phase",
+    "filename": "idempotency-key-two-phase.py",
+    "language": "python",
+    "explain": "Implement two-phase distributed idempotency combining Redis fast in-memory mutexes with a durable PostgreSQL unique ledger. Ensures exactly-once business semantics across server restarts.",
+    "steps": "Acquire fast in-flight claim in Redis to reject concurrent duplicate requests. || Commit business transaction and durable idempotency record atomically in PostgreSQL.",
+    "expect": "Idempotent two-phase execution verified: result=confirmed, durable_records=1",
+    "questions": [
+      168,
+      559,
+      84,
+      642,
+      416
+    ]
+  },
+  {
+    "name": "insert-on-conflict-task-dedup",
+    "filename": "insert-on-conflict-task-dedup.sql",
+    "language": "sql",
+    "explain": "Prevent duplicate background task execution under concurrent client retries using PostgreSQL INSERT ... ON CONFLICT DO NOTHING with unique constraints.",
+    "steps": "Define unique constraint on idempotency_key in task queue table. || Execute atomic INSERT ON CONFLICT DO NOTHING returning task id, preventing duplicate ingestion runs.",
+    "expect": "First request inserts task; concurrent retry returns empty RETURNING set and safely reads existing task.",
+    "questions": [
+      886
+    ]
+  }
+]

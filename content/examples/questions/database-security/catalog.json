@@ -1,0 +1,155 @@
+[
+  {
+    "explain": "Application and migration roles have different capabilities. The runtime role must not inherit the migration role's schema authority.",
+    "steps": "Declare an explicit action set for each role. || Check that the web application's role cannot run DDL.",
+    "expect": "False True",
+    "name": "db-roles",
+    "language": "python",
+    "filename": "db-roles.py",
+    "questions": [
+      524,
+      726,
+      171
+    ]
+  },
+  {
+    "explain": "Bound parameters keep a hostile string in the value position. Dynamic identifiers still require an allowlist; placeholders do not bind table or column names.",
+    "steps": "Insert a known owner in an in-memory database. || Query using a hostile-looking value through a placeholder and observe no rows.",
+    "expect": "[]",
+    "name": "parameter-binding",
+    "language": "python",
+    "filename": "parameter-binding.py",
+    "questions": [
+      525,
+      173,
+      55
+    ]
+  },
+  {
+    "language": "sql",
+    "explain": "PostgreSQL row security limits rows for a restricted runtime role using a trusted request scope. The session value must be set by trusted backend code, not arbitrary caller SQL.",
+    "steps": "Enable row security and create an owner policy. || Test using the actual nonowner application role because table owners and privileged roles may bypass RLS.",
+    "expect": "As a restricted app role with owner scope A, only rows whose owner_id is A are visible.",
+    "limit": "PostgreSQL integration sketch; syntax is presented for a disposable database and is not executed by the offline examples. Configure roles and trusted connection scope separately.",
+    "name": "row-policy",
+    "filename": "row-policy.sql",
+    "questions": [
+      526,
+      172
+    ]
+  },
+  {
+    "explain": "Logical revocation excludes a source immediately while physical cleanup may happen later. Derived caches and vector hits must respect the authoritative tombstone.",
+    "steps": "Mark the source inactive. || Filter stale derived hits through the authoritative state before serving content.",
+    "expect": "[]",
+    "name": "deletion-projections",
+    "language": "python",
+    "filename": "deletion-projections.py",
+    "questions": [
+      527,
+      176,
+      459,
+      59
+    ]
+  },
+  {
+    "explain": "A result cache key includes trusted access scope and compatible content/profile identities. Sign-out invalidates the user's entries rather than leaving private results available.",
+    "steps": "Build a key from tenant, resource revision, and prompt profile. || Compare another tenant's key and clear the stored result on sign-out.",
+    "expect": "False 0",
+    "name": "scoped-cache",
+    "language": "python",
+    "filename": "scoped-cache.py",
+    "questions": [
+      727,
+      47,
+      755,
+      276,
+      646
+    ]
+  },
+  {
+    "explain": "Secret injection and server-verified TLS protect different connection properties. This gate checks declared requirements and never prints credentials.",
+    "steps": "Inspect safe boolean configuration rather than logging a connection string. || Require both identity material and verified transport.",
+    "expect": "True",
+    "name": "connection-security",
+    "language": "python",
+    "filename": "connection-security.py",
+    "questions": [
+      174
+    ]
+  },
+  {
+    "language": "sql",
+    "explain": "PostgreSQL transaction-local timeouts bound waiting and idle transaction occupancy. Values are illustrative and must match the product's workload.",
+    "steps": "Apply bounded lock and statement waits inside a transaction. || Roll back this illustrative transaction instead of leaving it idle.",
+    "expect": "Statements use the configured bounded waits for this transaction only.",
+    "limit": "PostgreSQL configuration sketch, not executed offline; verify compatibility with your deployed version and workload.",
+    "name": "db-timeouts",
+    "filename": "db-timeouts.sql",
+    "questions": [
+      175
+    ]
+  },
+  {
+    "explain": "Append-only behavior alone does not prove audit completeness or external integrity. A separate expected-operation set can reveal missing audit events.",
+    "steps": "Compare authoritative operation IDs with recorded audit IDs. || Report missing audit coverage even if existing rows were never edited.",
+    "expect": "['op2']",
+    "name": "audit-integrity",
+    "language": "python",
+    "filename": "audit-integrity.py",
+    "questions": [
+      177
+    ]
+  },
+  {
+    "explain": "A restore drill verifies data, permissions, and pending operations rather than only the presence of a backup file. This fixture simulates restored state without touching a database.",
+    "steps": "Define expected post-restore invariants. || Compare restored records with those requirements and report whether recovery is usable.",
+    "expect": "False",
+    "name": "restore-check",
+    "language": "python",
+    "filename": "restore-check.py",
+    "questions": [
+      178,
+      696,
+      289
+    ]
+  },
+  {
+    "explain": "Export an allowlist of operational metadata instead of dumping request bodies or credentials. Even safe identifiers still need an access and retention policy.",
+    "steps": "Start with an internal event containing sensitive fields. || Copy only the approved operational fields into the export.",
+    "expect": "['duration_ms', 'outcome']",
+    "name": "safe-telemetry",
+    "language": "python",
+    "filename": "safe-telemetry.py",
+    "questions": [
+      179,
+      687,
+      257,
+      368
+    ]
+  },
+  {
+    "explain": "Deterministic tests can verify object scope without calling a model. A test must inspect returned content and actual effects, not only response wording.",
+    "steps": "Run the same service for the owner and a different principal. || Assert both the permitted and denied outcomes.",
+    "expect": "isolation checks passed",
+    "name": "authorization-tests",
+    "language": "python",
+    "filename": "authorization-tests.py",
+    "questions": [
+      180,
+      757,
+      115
+    ]
+  },
+  {
+    "name": "rls-connection-role-isolation-suite",
+    "filename": "rls-connection-role-isolation-suite.py",
+    "language": "python",
+    "explain": "PostgreSQL Row-Level Security evaluation semantics demonstrate how connecting as table owner bypasses policies and how unscoped session variables cause connection pool bleeding unless guarded by unprivileged roles, FORCE RLS, and transaction-scoped SET LOCAL.",
+    "steps": "Demonstrate the table owner bypass trap where unforced RLS exposes all tenant documents. || Demonstrate connection pool state bleeding across pooled TCP connections without transaction scoping. || Apply unprivileged roles, FORCE RLS, and transaction-local set_config to enforce fail-closed tenant isolation.",
+    "expect": "=== Testing PostgreSQL Row-Level Security Connection Role & Session Isolation ===\n\n[Vulnerability] Querying as 'table_owner' returned 4 documents across ALL tenants:\n  doc_1 (tenant_alpha): Alpha Financial Strategy\n  doc_2 (tenant_alpha): Alpha Customer PII\n  doc_3 (tenant_beta): Beta Patent Submission\n  doc_4 (tenant_beta): Beta Board Minutes\n\n[Vulnerability] Request 2 on pooled connection without SET LOCAL retrieved 2 docs:\n  LEAKED -> doc_1 (tenant_alpha): Alpha Financial Strategy\n  LEAKED -> doc_2 (tenant_alpha): Alpha Customer PII\n\n[Hardened] Proper SET LOCAL query for Tenant Beta returned 2 documents:\n  doc_3 (tenant_beta): Beta Patent Submission\n  doc_4 (tenant_beta): Beta Board Minutes\n\n[Hardened] After transaction commit, querying without tenant context returns 0 documents (fails closed).\n\nAll PostgreSQL RLS connection role and session isolation invariants verified successfully.",
+    "questions": [
+      888
+    ]
+  }
+]

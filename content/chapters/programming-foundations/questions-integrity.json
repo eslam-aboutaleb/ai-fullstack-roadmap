@@ -1,0 +1,94 @@
+[
+  {
+    "Q": "How do Unicode normalization, case folding and transliteration affect multilingual identity keys?",
+    "A": "**Preserve the original value first.** Text that looks identical can have different code-point sequences, while text that normalizes similarly can still represent different entities. Keep the original spelling for display and provenance, and build purpose-specific comparison fields rather than overwriting it with an ASCII slug.\n\n**Choose transformations intentionally.** Canonical normalization such as NFC, Normalization Form C, can bring canonically equivalent composed and decomposed sequences into a consistent representation. Compatibility normalization such as NFKC, Normalization Form KC, additionally folds some presentation distinctions. Case folding supports caseless comparison but can expand characters and is not a complete locale-specific identity policy. Transliteration or dropping non-ASCII characters is another lossy transformation, not a substitute for Unicode normalization.\n\n**Use normalized text as evidence.** An Arabic or Chinese name can become empty under ASCII-only filtering; unrelated names may then share the same fallback key. Even a nonempty transliteration can collide. Use a stable record identifier, keep the normalized comparison field separately, and retain the transformation version. Do not assume a changed Unicode database version leaves every derived key unchanged.\n\n**Test invariants and adversarial inputs.** Cover composed/decomposed accents, mixed scripts, combining marks, empty input and scripts outside the Latin alphabet. Verify normalization idempotence under the pinned rule and that source text survives a serialization round trip. The example demonstrates equivalent accent sequences and preserved non-Latin text; it does not claim that canonical equivalence establishes entity identity.",
+    "Why": "A profile imported with a composed accented name and another with decomposed accents should compare consistently under a chosen rule. Two different Arabic names must not both become the same empty identity after ASCII filtering.",
+    "worked_case": "A profile imported with a composed accented name and another with decomposed accents should compare consistently under a chosen rule. Two different Arabic names must not both become the same empty identity after ASCII filtering.",
+    "Risk": "Lossy conversion can erase identifying information and disproportionately increase matching errors for unsupported languages.",
+    "Trade": "A permissive search field may improve recall; an identity decision needs stronger evidence and a more conservative transformation policy.",
+    "Try": "Create equivalent Unicode spellings and distinct non-Latin names. Check raw preservation, comparison behavior and empty-key rejection.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "programming-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/unicodedata.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should search and primary-key normalization use the same policy?",
+        "A": "Usually separate them. Search can maintain multiple lossy matching views while primary identity remains stable and collision-aware. Record how each derived field was produced."
+      },
+      {
+        "Q": "Does case folding solve mixed-script spoofing?",
+        "A": "No. Caseless comparison and visually confusable characters are different problems. Apply a context-appropriate display and identifier policy without assuming all mixed-script text is malicious."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "Why can a dataclass dictionary fail JSON serialization, and how do you reconstruct nested types safely?",
+    "A": "**A dictionary is not automatically a wire contract.** Dataclass conversion recursively creates ordinary containers, but values such as enumeration members, dates and bytes may still require explicit encoding. Even if encoding succeeds, the decoder receives JSON types rather than your original domain objects. A string named approved is not necessarily an instance of the application's status enumeration.\n\n**Define a schema-specific codec.** Encode each field using a documented representation: enumeration values as approved strings, timestamps with explicit timezone semantics, bytes using an agreed encoding and nested objects using their declared schemas. Avoid a catch-all string conversion that turns unsupported objects into plausible but irreversible text. Reject nonfinite numeric values when the wire contract requires strict JSON.\n\n**Validate decoding before construction.** Check the schema version, required fields, allowed enumeration values and nested shapes. Decide how unknown fields are handled to support compatibility without silently accepting misspellings in safety-relevant input. Do not assume type annotations perform runtime validation. Convert primitive wire values into domain types deliberately and enforce cross-field invariants afterward.\n\n**Specify the round-trip property.** For supported domain values, decoding an encoded value should recover equivalent meaning. Exact byte equality may be unnecessary because key order or whitespace can change. Include negative fixtures for unknown enums, missing fields and unsupported types. The example shows a normal dataclass dictionary failing direct serialization, followed by an explicit codec that restores an actual enum member.",
+    "Why": "A record has an enum-valued status. Converting its dataclass to a dictionary leaves the enum object inside. A generic JSON encoder rejects it; converting everything to strings would instead hide the missing wire-format design.",
+    "worked_case": "A record has an enum-valued status. Converting its dataclass to a dictionary leaves the enum object inside. A generic JSON encoder rejects it; converting everything to strings would instead hide the missing wire-format design.",
+    "Risk": "Loose conversion can make a serialized record look valid while losing type meaning or silently accepting unsupported states.",
+    "Trade": "Explicit codecs require maintenance but make compatibility and validation visible to reviewers.",
+    "Try": "Round-trip a nested record with enum values, then reject an unknown status and an unsupported schema version.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "programming-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/dataclasses.html",
+      "https://docs.python.org/3/library/enum.html",
+      "https://docs.python.org/3/library/json.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Does using StrEnum remove the need for a codec?",
+        "A": "It may simplify encoding, but decoding still needs schema and allowed-value validation. A string-compatible enum does not validate every incoming primitive automatically."
+      },
+      {
+        "Q": "Should unknown enum values be mapped to a default?",
+        "A": "Only if the contract explicitly defines that behavior and preserves uncertainty. Silently mapping an unknown state to an actionable default can change business meaning."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "Why does a frozen dataclass not guarantee deeply immutable or validated domain state?",
+    "A": "**Frozen controls attribute assignment, not every object reachable through an attribute.** A frozen record can still contain a mutable list or dictionary. Code holding that nested object can change its contents, altering the record's apparent value without assigning a new top-level field. Slots reduce some object-layout flexibility; they do not add deep immutability or business validation.\n\n**Choose immutable ownership boundaries.** Convert caller-owned mutable collections into tuples or other deliberately immutable representations when constructing a value object. Validate each nested value, not only the outer container. If elements contain mutable objects, a tuple alone does not freeze those elements. Decide whether the model is a true value object or an entity with controlled state transitions.\n\n**Enforce invariants at construction and update boundaries.** Dataclass type annotations generally do not validate runtime values. Reject empty required values, unsupported types and contradictory fields explicitly or through a schema validator. A default factory that constructs an invalid nested object makes ordinary construction fail unexpectedly; prefer required constructor arguments when no truthful default exists.\n\n**Test aliasing and reconstruction.** Mutate the caller's original list after construction and verify a value object does not change. Attempt unsupported nested types, invalid defaults and round-trip decoding. Use controlled replacement to create a new valid instance rather than bypassing validation with internal attribute assignment. The example contrasts shallow frozen ownership with an explicitly copied immutable boundary and checks that later caller mutation cannot change the latter.",
+    "Why": "A frozen record stores a caller's list of tags. Another function appends a tag to that same list, changing the record despite its frozen declaration. Copying to a tuple at construction prevents this particular aliasing path.",
+    "worked_case": "A frozen record stores a caller's list of tags. Another function appends a tag to that same list, changing the record despite its frozen declaration. Copying to a tuple at construction prevents this particular aliasing path.",
+    "Risk": "Assuming frozen means deeply immutable can break caching, hashing assumptions, concurrent reasoning and audit snapshots.",
+    "Trade": "Immutable values simplify reasoning but require new instances for updates and deliberate treatment of large nested structures.",
+    "Try": "Construct a record from a mutable list, mutate the original and test the result. Repeat with nested mutable elements and explain the remaining ownership boundary.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "programming-foundations",
+    "citations": [
+      "https://docs.python.org/3/library/dataclasses.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can every frozen dataclass be used safely as a dictionary key?",
+        "A": "No. Hashing depends on the field values and generated hash policy. Mutable or unhashable nested values can make hashing invalid or impossible; choose stable immutable value semantics deliberately."
+      },
+      {
+        "Q": "Is object.__setattr__ a safe general update API?",
+        "A": "No. It can bypass frozen enforcement. In this example it is confined to initialization to establish the invariant; ordinary updates should create a new validated value."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

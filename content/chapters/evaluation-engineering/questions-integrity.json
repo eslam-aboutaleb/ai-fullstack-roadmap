@@ -1,0 +1,32 @@
+[
+  {
+    "Q": "How do you evaluate an inferred proficiency or category without treating a heuristic label as a calibrated probability?",
+    "A": "**Define the target before collecting labels.** Years of experience, job title and demonstrated proficiency are related but different quantities. A rule that maps seven years to expert is an explicit heuristic, not a validated measurement of skill. Establish what outcome the label is supposed to predict and how reviewers can independently assess it.\n\n**Separate ranking, classification and confidence.** A system may rank plausible categories without having calibrated probabilities. If it emits a confidence score, evaluate whether predictions near that score are correct at the corresponding frequency on held-out data. A self-reported certainty string does not supply that evidence. Label uncertainty and disagreement may limit the precision of any calibration claim.\n\n**Measure selective performance.** Report the number of accepted predictions, accuracy or task-specific error among those predictions, and the fraction abstained. Set thresholds on a validation split and measure the frozen rule on a test split. Reject empty accepted subsets as unmeasured rather than calling them perfect. Inspect slices such as language, source format, missing context and ambiguous short terms where appropriate to the task.\n\n**Keep consequential decisions reviewable.** An inferred label should carry provenance, rule/model version and a correction path. Do not confuse profile completeness with competence, or seniority with authorization to perform a task. The local example computes selective accuracy and coverage for synthetic labeled cases; its numeric score is a fixture rather than evidence that any real model is calibrated.",
+    "Why": "A classifier accepts two high-confidence cases and abstains on one ambiguous case. Reporting only its accuracy hides the lost coverage; reporting only coverage hides whether the accepted labels were correct.",
+    "worked_case": "A classifier accepts two high-confidence cases and abstains on one ambiguous case. Reporting only its accuracy hides the lost coverage; reporting only coverage hides whether the accepted labels were correct.",
+    "Risk": "An unvalidated heuristic can look objective once it is serialized as a numeric score and reused downstream.",
+    "Trade": "Abstention improves accepted-case quality only if evaluated; aggressive abstention can make a system unhelpful.",
+    "Try": "Compare title-based, years-based and evidence-based labels against independently reviewed cases. Report disagreement, coverage and error rather than assuming one proxy is ground truth.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-integrity",
+    "subdomain": "evaluation-engineering",
+    "citations": [
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Is a years-of-experience field useless?",
+        "A": "No. It may be a relevant observed feature when accurately collected, but it is not interchangeable with demonstrated proficiency. Evaluate its contribution and preserve the difference between feature and target."
+      },
+      {
+        "Q": "Can user corrections go straight into a test set?",
+        "A": "Use a reviewed labeling and split policy. Corrections may be noisy or selected from difficult cases, and reusing tuning feedback as held-out evaluation can inflate results."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

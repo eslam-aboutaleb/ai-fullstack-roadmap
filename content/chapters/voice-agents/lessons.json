@@ -1,0 +1,56 @@
+[
+  {
+    "Q": "How does a cascaded voice pipeline work?",
+    "explain": "Capture speech, recognize text, run the text-based task, synthesize speech, and play it. Each stage has its own errors and timing. Direct speech-to-speech systems combine some boundaries but still need tool policy and outcome checks.",
+    "example": "The synthetic voice lab injects three adapters so each stage can be tested without a microphone or provider.",
+    "takeaway": "Audio interfaces do not remove backend responsibilities."
+  },
+  {
+    "Q": "Why shouldn't partial transcripts trigger consequential actions?",
+    "explain": "Recognition hypotheses can change as more audio arrives. Mark utterance and revision identities, replace earlier hypotheses, and use finalized or explicitly confirmed intent for sensitive operations.",
+    "example": "Cancel the order becomes Do not cancel the order after more speech. An early tool call would act on the wrong intent.",
+    "takeaway": "Revisable input is not stable authorization."
+  },
+  {
+    "Q": "What makes detecting the end of a turn difficult?",
+    "explain": "Silence can mean completion, hesitation, network delay, or an accessibility-related pause. Tune endpointing against representative speech and provide correction paths rather than assuming one timeout works for everyone.",
+    "example": "A user pauses while recalling a reference number; premature response interrupts the only detail needed for lookup.",
+    "takeaway": "Low latency must not come from cutting users off."
+  },
+  {
+    "Q": "What should barge-in actually stop?",
+    "explain": "Stop or duck device playback, cancel obsolete generation where supported, and reject late frames using generation IDs. Track what the user actually heard separately from what was generated.",
+    "example": "The model produced a full confirmation but the user interrupted halfway. Unplayed audio cannot be treated as reviewed content.",
+    "takeaway": "Playback state belongs in the conversation model."
+  },
+  {
+    "Q": "How should voice confirm a sensitive operation?",
+    "explain": "Review exact parameters and verify confirmation under the product's authorization policy. Recognition confidence does not prove a speaker intended a financial action. Require stronger authentication or another channel where needed.",
+    "example": "A changed amount needs new confirmation even if the prior spoken yes was recognized correctly.",
+    "takeaway": "Spoken fluency is not an approval mechanism."
+  },
+  {
+    "Q": "Which latency should you measure?",
+    "explain": "Measure capture, recognition finalization, agent and tool work, synthesis, buffering, and first audible response. Report tail delays under realistic networks. A fast first text token can coexist with a slow spoken interaction.",
+    "example": "Most delay may come from waiting for end-of-turn rather than model generation.",
+    "takeaway": "Optimize the stage the user actually waits for."
+  },
+  {
+    "Q": "What privacy choices does voice add?",
+    "explain": "Decide whether raw audio, transcripts, and summaries are retained and for how long. Make recording state visible, protect access, and provide a text alternative. Speech can reveal identity and sensitive traits beyond the words.",
+    "example": "Deletion must account for the recording, transcript, trace excerpts, and derived memory under the retention policy.",
+    "takeaway": "Audio is a richer data source with broader lifecycle obligations."
+  },
+  {
+    "Q": "How do sample rate, channels, and encoding determine audio size?",
+    "explain": "Sample rate counts samples per second; channels count parallel audio streams; bit depth describes uncompressed sample precision. For 16 kHz mono PCM at 16 bits, one second is 16,000*1*2=32,000 bytes before protocol overhead. Compressed codecs change the size relationship. Declare the actual format and resample deliberately; mislabeled audio can sound too fast or fail recognition.",
+    "example": "A 20 ms uncompressed frame in that format contains 320 samples and 640 bytes. Compare this with your queue budget before deciding how many frames to buffer.",
+    "takeaway": "Audio timing depends on an explicit format and bounded buffers."
+  },
+  {
+    "Q": "How should voice transport and fallback be selected?",
+    "explain": "WebRTC provides media-oriented transport capabilities; WebSockets provide a reliable ordered channel but require application handling for media timing and buffering. Evaluate deployment constraints, network conditions, supported clients, and interruption behavior. Ask for microphone access in context, display recording state, and retain a text input path. Record consent and retention behavior according to the product's requirements.",
+    "example": "A mobile connection stalls, leaving old speech frames queued. Drop obsolete generations under the declared audio policy and show the current transcript so the user can correct it by text.",
+    "takeaway": "Conversational quality includes recovery and an accessible alternative channel."
+  }
+]

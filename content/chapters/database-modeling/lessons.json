@@ -1,0 +1,44 @@
+[
+  {
+    "Q": "What belongs in columns rather than one large JSON object?",
+    "explain": "Use columns for fields that need constraints, joins, filtering, ordering, and stable meaning. Use JSON for evolving payloads whose validation and query requirements you understand. You can use both in one record.",
+    "example": "Owner, status, creation time, and amount are columns; a versioned optional questionnaire may be JSON.",
+    "takeaway": "Choose storage from the guarantees and access patterns you need."
+  },
+  {
+    "Q": "Why must money avoid binary floating-point round trips?",
+    "explain": "Decimal currency amounts represent exact base-ten values under defined scale and rounding rules. Binary floats can introduce small representation differences that become consequential when values are combined or compared. Keep decimal strings across the API boundary.",
+    "example": "Parse 12.30 and 0.70 as Decimal values and obtain exactly 13.00 before applying the reviewed currency rule.",
+    "takeaway": "The data type is part of the business contract."
+  },
+  {
+    "Q": "Why do constraints matter if the API already validates input?",
+    "explain": "Another worker, a second API call, or a concurrent transaction can bypass an earlier validation result. Database constraints protect the invariant at the actual write boundary. Application checks still help produce understandable errors.",
+    "example": "Two concurrent submissions use one operation key. A uniqueness constraint ensures the database cannot retain both as separate operations.",
+    "takeaway": "Check early for usability and enforce at commit for correctness."
+  },
+  {
+    "Q": "How do you choose an index from a real user screen?",
+    "explain": "Start with the screen's filters and sort order, then inspect a representative query plan. An index useful for owner-scoped recent requests differs from one useful for a global analytics report. Indexes also slow some writes and consume space.",
+    "example": "WHERE owner_id = ? ORDER BY created_at, id suggests a composite ordering and a stable pagination tie-breaker.",
+    "takeaway": "Query patterns, not a list of fashionable indexes, drive design."
+  },
+  {
+    "Q": "How do schema changes reach an existing database safely?",
+    "explain": "A migration changes existing structures and data deliberately. Coordinate old and new application versions through compatible intermediate states. Creating missing tables from current ORM models is not a substitute for a migration strategy.",
+    "example": "Add a nullable column, backfill it in bounded batches, migrate readers, and only then enforce the new requirement.",
+    "takeaway": "Schema evolution is a deployment workflow."
+  },
+  {
+    "Q": "How do tables, keys, and joins represent an application?",
+    "explain": "A table holds rows with named columns. A primary key uniquely identifies a row; a foreign key connects a row to another table; a unique constraint prevents forbidden duplicates. A join combines matching rows, while WHERE restricts them. Use a child table for repeated revisions instead of adding revision1 and revision2 columns. Decide what a missing value means before allowing NULL.",
+    "example": "documents has id and owner_id; revisions has document_id and revision_number. Joining revisions to documents exposes the owner used for authorization. A foreign key prevents a revision whose document does not exist.",
+    "takeaway": "Model identity and relationships before storing arbitrary JSON everywhere."
+  },
+  {
+    "Q": "How do indexes and migration phases change performance safely?",
+    "explain": "An index accelerates selected access patterns at the cost of space and write work. Inspect an execution plan and measure a representative query before adding indexes indiscriminately. For evolving schemas, expand with a compatible field, deploy code that can handle both shapes, backfill in bounded batches, switch reads, and remove the old field after old readers are retired. Index creation and table changes can lock resources, so rehearse on representative sizes.",
+    "example": "Add an optional normalized_title field, backfill it, verify coverage, and only then require it for new reads. Compare an owner-and-updated-time query before and after a matching composite index.",
+    "takeaway": "Evolve data with a compatibility window and measured query evidence."
+  }
+]

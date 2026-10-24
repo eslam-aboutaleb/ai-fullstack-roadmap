@@ -1,0 +1,72 @@
+[
+  {
+    "name": "telemetry-signals-triad",
+    "filename": "telemetry-signals-triad.py",
+    "language": "python",
+    "explain": "Demonstrate the unified OpenTelemetry signal triad for autonomous agents. Integrates hierarchical trace spans, correlated structured logs, aggregated low-cardinality metrics, and non-repudiable audit ledgers.",
+    "steps": "Initialize OpenTelemetry trace spans with parent-child hierarchy for nested tool invocations. || Correlate structured logs via trace and span IDs, record aggregate metrics, and write domain effects to audit ledger.",
+    "expect": "Telemetry triad verified: spans_recorded=2, logs_correlated=True, metric_incremented=True, audit_persisted=True",
+    "questions": [
+      684,
+      251
+    ]
+  },
+  {
+    "name": "outcome-vs-exception-telemetry",
+    "filename": "outcome-vs-exception-telemetry.py",
+    "language": "python",
+    "explain": "Disentangle technical exceptions from legitimate business outcomes in telemetry. Records infrastructure timeouts as span errors and system failures, while preserving clean span statuses and structured outcome attributes for valid domain results.",
+    "steps": "Execute tool search yielding zero results, asserting span status OK and zero system error increments. || Simulate network timeout, asserting span status ERROR and system failure metric increment.",
+    "expect": "Outcome vs exception verified: business_outcome_span_status=OK, system_error_span_status=ERROR, business_errors_incurred=0",
+    "questions": [
+      686,
+      254
+    ]
+  },
+  {
+    "name": "bounded-metric-cardinality",
+    "filename": "bounded-metric-cardinality.py",
+    "language": "python",
+    "explain": "Prevent metric cardinality explosion in Prometheus and OpenTelemetry collectors. Keeps metric labels restricted to bounded enums while diverting high-cardinality task and user IDs into trace span attributes.",
+    "steps": "Filter incoming request attributes to assign strictly bounded label dimensions to Prometheus metrics. || Store unique user and task identifiers in distributed trace span attributes, verifying zero time-series explosion.",
+    "expect": "Bounded metric cardinality verified: unique_requests=1000, total_timeseries=2, high_cardinality_retained_in_traces=True",
+    "questions": [
+      798,
+      256
+    ]
+  },
+  {
+    "name": "token-cost-telemetry-model",
+    "filename": "token-cost-telemetry-model.py",
+    "language": "python",
+    "explain": "Implement a multi-model token accounting and dynamic pricing engine. Preserves immutable raw token counts as ground truth, computes exact costs for known rates, and handles unknown pricing gracefully without fabricating false zero-dollar estimates.",
+    "steps": "Record raw input, output, and cached token metrics for known model tiers to compute accurate cost. || Handle unknown model pricing by marking cost as None and status as pending, preserving raw token telemetry.",
+    "expect": "Token cost telemetry verified: known_model_cost_calculated=True, unknown_model_cost_null=True, raw_tokens_preserved=True",
+    "questions": [
+      255
+    ]
+  },
+  {
+    "name": "slo-burn-rate-alerting",
+    "filename": "slo-burn-rate-alerting.py",
+    "language": "python",
+    "explain": "Implement multi-window multi-burn-rate operational alerting for agent availability SLOs. Distinguishes transient blips from critical outages, paging on-call engineers only when budget burn rates indicate real user impact with runbook links.",
+    "steps": "Evaluate 1-hour traffic windows against a 99.5% availability Service Level Objective. || Suppress alerts for transient blips, triggering critical pages only for catastrophic error budget burn rates with correlated runbook links.",
+    "expect": "SLO burn rate alerting verified: brief_blip_alerted=False, catastrophic_burn_alerted=True, runbook_linked=True",
+    "questions": [
+      799,
+      259
+    ]
+  },
+  {
+    "name": "sanitized-trace-redaction",
+    "filename": "sanitized-trace-redaction.py",
+    "language": "python",
+    "explain": "Implement privacy-preserving trace span redaction and timeout diagnostics. Redacts cleartext prompts and PII, computing salted SHA-256 fingerprints and capturing stage durations and retry counts to diagnose tool timeouts safely.",
+    "steps": "Intercept tool execution telemetry to strip cleartext user prompts and sensitive PII. || Compute salted one-way prompt fingerprint and record stage durations and retry counts for timeout diagnostics.",
+    "expect": "Sanitized trace redaction verified: prompt_cleartext_leaked=False, stage_latency_captured=True, retry_count_recorded=2",
+    "questions": [
+      855
+    ]
+  }
+]

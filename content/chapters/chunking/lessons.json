@@ -1,0 +1,44 @@
+[
+  {
+    "Q": "Why not embed the entire document as one item?",
+    "explain": "A large document mixes topics and consumes answer context when retrieved. Smaller passages can match a narrow question more precisely. Splitting too far, however, separates a statement from the conditions needed to interpret it.",
+    "example": "A handbook includes returns, shipping, and warranties. A return question should retrieve the relevant section rather than all three topics.",
+    "takeaway": "Chunking balances retrieval precision against interpretive context."
+  },
+  {
+    "Q": "How should you choose boundaries before choosing a token number?",
+    "explain": "Start with headings, paragraphs, lists, and complete rule units. Use a length limit to constrain unusually large sections, but preserve or explicitly link necessary context such as headers and exceptions.",
+    "example": "Keep items may be returned together with except final-sale items instead of splitting exactly at the word limit.",
+    "takeaway": "Meaningful units matter more than a universally fixed chunk size."
+  },
+  {
+    "Q": "What does overlap help with, and what does it cost?",
+    "explain": "Overlap repeats neighboring text so a boundary is less likely to hide a phrase. It increases storage and duplicate retrieval, and cannot guarantee that every distant qualification is included. Measure the trade-off on actual questions.",
+    "example": "Two neighboring windows both contain a product name, making either searchable; reranking must avoid filling the prompt with duplicates.",
+    "takeaway": "Overlap is a mitigation, not a substitute for good structure."
+  },
+  {
+    "Q": "What should change when the chunker changes?",
+    "explain": "Record chunking configuration as part of index identity and rebuild incompatible representations. Document content can remain identical while new boundaries change retrieval and citations. Old source references must keep their original meaning.",
+    "example": "Changing from paragraph chunks to section chunks requires a new generation even when the source file's digest is unchanged.",
+    "takeaway": "Processing configuration is part of the data lineage."
+  },
+  {
+    "Q": "How can you test whether a chunking change helped?",
+    "explain": "Use questions with known supporting passages and inspect both retrieval and answer support. Include tables, exceptions, long sections, and multi-passage answers. Change one policy at a time and count duplication and token cost too.",
+    "example": "A smaller chunk improves keyword matching but causes the answer to miss the exception. That is a regression for this task.",
+    "takeaway": "Evaluate complete information use, not only shorter passages."
+  },
+  {
+    "Q": "How do code, tables, and language change chunk boundaries?",
+    "explain": "A code block can depend on imports and function signatures; a table cell depends on row and column headers; language-specific punctuation affects sentence splitting. Preserve the smallest interpretable unit and links to necessary parent context. Record offsets against a declared source representation because normalization changes coordinates.",
+    "example": "A price of 200 without its EUR header is incomplete evidence. Store the table title, relevant header, row label, and source region together or reconstruct them during assembly.",
+    "takeaway": "A retrievable unit must remain interpretable in its content format."
+  },
+  {
+    "Q": "How do I measure a chunking change without confounding the result?",
+    "explain": "Freeze the documents, query set, embedding profile, and ranking settings for the first comparison. Rebuild each candidate index and compare relevant evidence coverage and context cost. Then test end-to-end outcomes, since better hit recall can still create confusing prompts. Track index generation and chunk identities separately from stable source identities.",
+    "example": "A larger chunk improves exception coverage but triples rendered context and introduces an unrelated rule. Record both benefits and costs before choosing the new default.",
+    "takeaway": "Judge boundaries by supported tasks, not a preferred token number."
+  }
+]

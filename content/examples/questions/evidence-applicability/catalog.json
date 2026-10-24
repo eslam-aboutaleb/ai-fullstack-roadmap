@@ -1,0 +1,97 @@
+[
+  {
+    "explain": "Choose policy by the event's effective date rather than upload order. Dates are compared as ISO date strings in this deliberately simple fixture.",
+    "steps": "Filter policies whose validity interval covers the event date. || Select from applicable policies instead of taking the latest upload.",
+    "expect": "old",
+    "name": "effective-time",
+    "language": "python",
+    "filename": "effective-time.py",
+    "questions": [
+      573,
+      750,
+      262
+    ]
+  },
+  {
+    "explain": "A positive rule and its exclusion must be evaluated together. A relevant positive sentence alone cannot authorize the outcome.",
+    "steps": "Start from a positive eligibility rule. || Apply the specific exclusion before reporting a supported result.",
+    "expect": "False",
+    "name": "retrieve-exception",
+    "language": "python",
+    "filename": "retrieve-exception.py",
+    "questions": [
+      574,
+      263
+    ]
+  },
+  {
+    "explain": "Explaining policy is a read operation, while approval requires authenticated authority and a current reviewed request. Generated text cannot stand in for the write authorization.",
+    "steps": "Keep a textual explanation separate from permission state. || Require authority and confirmation before changing the record.",
+    "expect": "False",
+    "name": "explain-vs-approve",
+    "language": "python",
+    "filename": "explain-vs-approve.py",
+    "questions": [
+      575,
+      261
+    ]
+  },
+  {
+    "explain": "A handoff is a durable record with reason, evidence, owner, and pending action. Merely writing that a human will review does not create the work item.",
+    "steps": "Construct the escalation artifact from verified task state. || Check that a review queue can identify its owner and pending decision.",
+    "expect": "T1 conflicting_rules review_queue",
+    "name": "human-handoff",
+    "language": "python",
+    "filename": "human-handoff.py",
+    "questions": [
+      576,
+      268,
+      466
+    ]
+  },
+  {
+    "explain": "A risk score is an input to reviewed decision policy, not proof of wrongdoing. The fixture routes uncertainty to review instead of automatically denying a customer outcome.",
+    "steps": "Record score and verification status separately. || Require review when a high signal lacks confirmed supporting evidence.",
+    "expect": "review",
+    "name": "risk-signal",
+    "language": "python",
+    "filename": "risk-signal.py",
+    "questions": [
+      266
+    ]
+  },
+  {
+    "explain": "Slice-level results reveal a disparity hidden by an overall average. Small sample counts must accompany rates; this fixture is not a fairness certification.",
+    "steps": "Group reviewed outcomes by supported language. || Calculate each group's rate and preserve its sample size.",
+    "expect": "[('ar', 0.5, 2), ('en', 1.0, 2)]",
+    "name": "fairness-slices",
+    "language": "python",
+    "filename": "fairness-slices.py",
+    "questions": [
+      269,
+      238
+    ]
+  },
+  {
+    "name": "temporal-policy-applicability-matrix",
+    "filename": "temporal-policy-applicability-matrix.py",
+    "language": "python",
+    "explain": "A temporal policy applicability engine resolves conflicting policy versions using effective date intervals and category priorities, requesting targeted user clarification when critical temporal anchors are missing.",
+    "steps": "Detect missing decision-critical temporal anchors and trigger structured clarification. || Filter policy clauses by temporal validity intervals and category specificity. || Resolve conflicting general and exception clauses via priority precedence.",
+    "expect": "=== Testing Temporal Policy Applicability & Targeted Clarification ===\n\nScenario 1 (No Date Provided): {'decision': 'CLARIFICATION_REQUIRED', 'missing_slot': 'transaction_date', 'reason': 'Multiple conflicting return policies exist (2024 $0 fee vs 2025 $15 fee). The exact purchase date is required to determine legal and commercial applicability.', 'applicable_policy': None}\n\nScenario 2 (2024 Holiday Purchase): {'decision': 'POLICY_RESOLVED', 'applicable_policy': 'POL-2024-HOLIDAY', 'rule_summary': 'Holiday exception: Extended return window until Jan 31, 2025 with $0 fee.', 'effective_interval': '2024-11-15 to 2024-12-31'}\n\nScenario 3 (2025 Purchase): {'decision': 'POLICY_RESOLVED', 'applicable_policy': 'POL-2025-CURRENT', 'rule_summary': 'Standard returns permitted within 30 days with mandatory $15 restocking fee.', 'effective_interval': '2025-01-01 to Indefinite'}\n\nAll temporal policy applicability and clarification invariants verified successfully.",
+    "questions": [
+      908
+    ]
+  },
+  {
+    "explain": "Deterministic calculation engine validates numerical and financial claims in generated text against source records. Calculations preserve exact decimal arithmetic rather than trusting floating-point tokens.",
+    "steps": "Compute exact subtotals and tax with Decimal arithmetic. || Compare deterministic results against claims and flag arithmetic discrepancies.",
+    "expect": "Deterministic calculation audit: accurate=True total=$356.13",
+    "name": "deterministic-calculation",
+    "language": "python",
+    "filename": "deterministic-calculation.py",
+    "questions": [
+      267
+    ]
+  }
+]

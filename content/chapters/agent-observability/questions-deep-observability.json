@@ -1,0 +1,114 @@
+[
+  {
+    "Q": "How do OpenTelemetry semantic conventions for Generative AI capture agent spans without violating data privacy or leaking customer PII?",
+    "A": "**OpenTelemetry semantic conventions for Generative AI define standardized telemetry attributes for traces, metrics, and logs while enforcing strict privacy-by-design boundaries.** When autonomous agents execute multi-step planning loops, naively serializing prompts and tool payloads into span attributes sends proprietary intellectual property, confidential user chats, and unredacted PII to third-party APM SaaS vendors (Datadog, Honeycomb, New Relic).\n\n**Standardized GenAI attributes.** The OpenTelemetry GenAI specification defines standardized span attributes: (1) Model and provider identity: `gen_ai.system` (e.g. `\"openai\"`, `\"anthropic\"`), `gen_ai.request.model`, `gen_ai.response.model`; (2) Token accounting: `gen_ai.usage.prompt_tokens`, `gen_ai.usage.completion_tokens`, `gen_ai.usage.total_tokens`; (3) Execution hyperparameters: `gen_ai.request.temperature`, `gen_ai.request.top_p`, `gen_ai.response.finish_reasons`; and (4) Tool and Agent spans: wrapping each tool invocation in a dedicated span with `gen_ai.operation.name: \"tool\"` and `gen_ai.tool.name`.\n\n**Privacy-by-design redaction policy.** To prevent telemetry from becoming a secondary breach vector, organizations enforce strict capture controls: (1) Default exclusion of prompt and completion payloads: `gen_ai.prompt` and `gen_ai.completion` must be disabled in production, capturing only token counts and latency metrics; (2) In-line PII sanitization: if payload capture is explicitly enabled for audit compliance, an OpenTelemetry Span Processor runs regex and Named Entity Recognition (NER) scrubbers to mask credit cards, API keys (`sk-...`), and personal identifiers before spans leave the process; and (3) Ephemeral, encrypted trace sinks with strict retention TTLs.",
+    "Why": "A medical assistant agent processes patient records. An unredacted OpenTelemetry exporter sends full patient medical histories as trace attributes to a third-party monitoring dashboard, causing an immediate HIPAA compliance violation. Enabling GenAI privacy-by-design masks patient data while retaining token and latency metrics.",
+    "worked_case": "A medical assistant agent processes patient records. An unredacted OpenTelemetry exporter sends full patient medical histories as trace attributes to a third-party monitoring dashboard, causing an immediate HIPAA compliance violation. Enabling GenAI privacy-by-design masks patient data while retaining token and latency metrics.",
+    "Risk": "Sending unmasked user queries and retrieved document chunks into APM trace aggregators violates compliance standards including GDPR, HIPAA, and SOC 2.",
+    "Trade": "Redacting raw text from spans increases debugging difficulty during hallucination investigations, requiring developers to reproduce bugs in dedicated, synthetic staging sandboxes.",
+    "Try": "Configure an OpenTelemetry Tracer in Python using the `opentelemetry-semantic-conventions` package. Emit a GenAI span with standard token attributes and verify that raw prompts are excluded.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-observability",
+    "citations": [
+      "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+      "https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do you trace tool call arguments under OpenTelemetry GenAI conventions?",
+        "A": "Tool calls are recorded as child spans under the model invocation span, recording the tool name and execution status while sanitizing sensitive argument values."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do you maintain distributed trace context across asynchronous message queues, background workers, and long-running agent workflows?",
+    "A": "**Maintaining distributed trace context across asynchronous boundaries requires explicit W3C Trace Context propagation across thread pools, message queues, and async tasks.** In autonomous agent systems, a single user request can trigger a cascading, long-running workflow: a FastAPI gateway receives the request, publishes an event to Kafka or RabbitMQ, a background Celery worker picks up the job, invokes an LLM, schedules two parallel sub-agents, and writes results to PostgreSQL. If trace context is lost at any hop, the workflow shatters into disconnected trace fragments, making debugging impossible.\n\n**W3C Trace Context headers (traceparent and tracestate).** OpenTelemetry standards define the `traceparent` HTTP/message header: `traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`, encoding version, 16-byte `trace_id`, 8-byte `parent_span_id`, and trace flags. When publishing a job to a message queue or background task runner, the publisher must inject active context into message headers: `inject(carrier=message.headers)`. When the background worker consumes the message, it extracts context: `context = extract(carrier=message.headers)` and starts child spans linked to the extracted context.\n\n**Python asyncio contextvars preservation.** In Python async workflows, trace context is held in `contextvars`. A frequent bug occurs when dispatching work via `asyncio.to_thread()` or `concurrent.futures.ThreadPoolExecutor`: thread boundaries do NOT automatically inherit contextvars unless explicitly copied using `contextvars.copy_context().run(func)`. Proper instrumentation ensures that child spans accurately reflect the parent span across threads and async tasks.",
+    "Why": "An agent task fails in a background Celery worker. In the APM dashboard, the Celery execution appears as an isolated root trace with a new trace_id, making it impossible to correlate with the user's original HTTP request. W3C trace injection links the frontend request, Kafka message, and worker execution into a single unified trace waterfall.",
+    "worked_case": "An agent task fails in a background Celery worker. In the APM dashboard, the Celery execution appears as an isolated root trace with a new trace_id, making it impossible to correlate with the user's original HTTP request. W3C trace injection links the frontend request, Kafka message, and worker execution into a single unified trace waterfall.",
+    "Risk": "Dropping trace headers during message queue serialization breaks causal correlation, leaving engineers blind to distributed agent latencies and failure cascades.",
+    "Trade": "Injecting and extracting W3C headers adds minor serialization logic to message producers and consumers, but provides end-to-end operational visibility across distributed workers.",
+    "Try": "Use OpenTelemetry Python SDK to inject `traceparent` into a dictionary, simulate sending it across a network boundary, extract the context, and verify the child span shares the identical `trace_id`.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-observability",
+    "citations": [
+      "https://www.w3.org/TR/trace-context/",
+      "https://opentelemetry.io/docs/languages/python/instrumentation/#context-propagation"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the difference between Span Links and Parent-Child Spans in asynchronous queues?",
+        "A": "Parent-Child spans represent direct synchronous blocking dependencies; Span Links represent causal relationships where a batch worker processes multiple independent message traces simultaneously without blocking the parent."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "What is the difference between latency profiling, token attribution accounting, and cost tracking across multi-turn agent decision graphs?",
+    "A": "**Production agent observability requires a three-dimensional accounting model that separates performance latency, resource consumption, and financial unit economics.** Monitoring basic HTTP request latency alone fails to explain why an agentic workflow was slow or expensive, because a single user turn can trigger five tool calls and three recursive LLM reasoning steps.\n\n**1. Latency Profiling (Time-to-First-Token vs Inter-Tool Delays).** Latency profiling decomposes execution time across: (a) Time-To-First-Token (TTFT): the time taken by the LLM provider to process the prompt prefix and emit the first streaming token (dominated by prompt token count and prefill compute); (b) Inter-Token Latency (ITL): generation speed per output token; (c) Tool Execution Time: wall-clock time spent inside database queries or external API requests; and (d) Client Network Overhead. Profiling reveals whether delays stem from large prompt prefill, slow third-party tool APIs, or queue scheduling.\n\n**2. Token Attribution Accounting (Prompt Bloat & Tool Footprint).** Token accounting disaggregates token spend by category: System Instructions, Tool JSON Schemas, Conversation History, Retrieved Evidence, and Generated Output. Attribution metrics pinpoint which subsystem is causing token bloat (e.g. an oversized 4,000-token tool catalog or a bloated 50-turn chat history).\n\n**3. Financial Cost Tracking (Unit Economics per User Journey).** Cost tracking maps token consumption and infrastructure compute to financial currency ($ USD) based on model pricing tiers (input vs output tokens, cached prefix discounts, image/audio token multipliers). Metrics compute: Cost per Completed Task, Cost per User Session, and Gross Margin per Tenant.",
+    "Why": "An agent response takes 18 seconds. Monitoring reveals: TTFT was only 400ms, but a custom SQL tool took 14 seconds due to a missing database index, and the LLM generated 1,200 tokens because the prompt lacked a conciseness constraint. The breakdown immediately isolates the database index as the primary bottleneck.",
+    "worked_case": "An agent response takes 18 seconds. Monitoring reveals: TTFT was only 400ms, but a custom SQL tool took 14 seconds due to a missing database index, and the LLM generated 1,200 tokens because the prompt lacked a conciseness constraint. The breakdown immediately isolates the database index as the primary bottleneck.",
+    "Risk": "Tracking only global monthly LLM API bills conceals runaway token consumption by specific abusive users or inefficient agent looping paths.",
+    "Trade": "Multi-dimensional accounting requires annotating spans with token counts and pricing matrices, trading minor telemetry instrumentation for precise financial unit economics.",
+    "Try": "Write an OpenTelemetry span processor that computes dollar cost from prompt and completion token counts based on published model price rates, attaching `app.cost_usd` to each span.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-observability",
+    "citations": [
+      "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+      "https://www.datadoghq.com/blog/llm-observability/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How does prompt caching affect token cost tracking?",
+        "A": "Providers offer 50%–75% discounts on cached prompt tokens; telemetry must record `cached_prompt_tokens` separately to calculate accurate financial costs."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do you instrument automated anomaly detection for agent death loops, runaway tool recursion, and context window bloat?",
+    "A": "**Autonomous agents running open-ended decision loops are vulnerable to catastrophic failure modes including death loops, recursive delegation thrashing, and context window bloat.** A death loop occurs when an agent encounters an unhandled tool error, reformulates the query with minor variations, and re-invokes the failing tool repeatedly until it exhausts tokens or API rate limits.\n\n**Real-time anomaly detection heuristics.** Production observability platforms deploy real-time stream processing rules on span streams to catch agent anomalies before they exhaust financial budgets: (1) Levenshtein distance on consecutive tool arguments: if an agent invokes the same tool 3 times consecutively with argument strings having >90% textual similarity, a death loop detector triggers; (2) Semantic loop detection: embedding the model's reasoning thoughts and computing cosine similarity against the prior two turns; if similarity exceeds 0.95, the agent is repeating thoughts; (3) Tool call frequency ceilings: alerting if an agent executes > 8 tool calls within a single user turn; and (4) Context bloat velocity: tracking the rate of token growth per turn; if input tokens increase by >5,000 tokens across consecutive turns, an alert fires for context leakage.\n\n**Automated circuit breaking and recovery.** Upon detecting an anomaly, the telemetry system triggers automated circuit breakers: (1) Force-terminating the active agent loop; (2) Injecting an explicit system correction message: `'[System Warning: You have repeated tool X three times without success. Halt tool calling and explain the failure to the user]'`; or (3) Gracefully escalating to a human operator.",
+    "Why": "An agent queries a weather API with an invalid zip code. The API returns an error. The agent retries 45 times in a loop, burning $15.00 in LLM tokens and locking up worker concurrency. A death loop detector intercepts the execution on attempt 3, halting the run and saving the budget.",
+    "worked_case": "An agent queries a weather API with an invalid zip code. The API returns an error. The agent retries 45 times in a loop, burning $15.00 in LLM tokens and locking up worker concurrency. A death loop detector intercepts the execution on attempt 3, halting the run and saving the budget.",
+    "Risk": "Allowing autonomous agents to run without real-time recursion and death-loop circuit breakers exposes the organization to massive unbounded cloud billing spikes.",
+    "Trade": "Real-time anomaly detection requires stateful monitoring of active agent spans, trading minor telemetry overhead for guaranteed containment of runaway agent costs.",
+    "Try": "Write an agent guard wrapper that tracks the history of tool calls in state. If the same tool is called with the same arguments twice consecutively, raise an AgentDeathLoopException.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-observability",
+    "citations": [
+      "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+      "https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can an LLM judge detect its own death loop?",
+        "A": "Rarely. Models trapped in death loops exhibit fixation bias; deterministic external heuristics (argument hashing and repetition counters) are far more reliable than model self-reflection."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  }
+]

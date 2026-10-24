@@ -1,0 +1,155 @@
+[
+  {
+    "Q": "What is MCP and which problem does it solve?",
+    "A": "**MCP separates the host application, its client connections and capability servers.** The host owns the user experience, model interaction and policy decisions. A client implements a connection to a server; a server exposes supported primitives such as tools and resources. MCP is a protocol for context/capability exchange, not an agent planner, a complete identity system or a guarantee that a tool is safe.\n\nNegotiate a supported wire profile and discover capabilities before relying on them. Tool listing exposes names, descriptions and argument schemas; tool execution returns structured/content results or errors. Keep protocol/transport errors distinct from application-level tool failures. Version-pinned SDKs reduce ambiguity, but a package version is not proof that two peers negotiated the same protocol profile.\n\nSTDIO connects a local child process through streams; keep diagnostics off its protocol stdout and control the executable/environment. Streamable HTTP uses a remote HTTP boundary with its own session, origin, authentication and authorization requirements. A process launched locally is not automatically trustworthy, and a remote tool description is not permission to transmit confidential evidence. The broader OAuth interoperability issue adds requirements beyond this introductory course.\n\n`labs/protocol_interop.py` uses actual pinned Python MCP clients over STDIO and loopback HTTP, discovers read_policy, executes a public request and rejects private/malformed requests. It also exercises a separate A2A public agent interaction; A2A task delegation and MCP tool invocation are different contracts. The support project's in-process registry is deliberately not labeled MCP wire execution. Keep those evidence types distinct when designing an adapter. Test peer version, discovery, schema errors, cancellation and denial rather than treating a successful connection as conformance or production authorization.",
+    "Why": "A host discovers read_policy over actual STDIO and HTTP, then tries an invalid source ID. Discovery succeeds while execution is denied, demonstrating that advertised capability and allowed resource access are separate decisions.",
+    "Risk": "An untrusted local executable can read its inherited environment. Remote transport adds token/resource boundaries; neither transport makes a server safe by itself.",
+    "Trade": "Local STDIO simplifies deployment for one host but couples process lifecycle. HTTP can support remote peers while adding service identity, network failure and operational complexity.",
+    "Try": "Install requirements-advanced.txt in an isolated environment and run protocol_interop.py. Record negotiated profiles and separate valid execution, tool denial and malformed arguments in the trace.",
+    "worked_case": "A host discovers read_policy over actual STDIO and HTTP, then tries an invalid source ID. Discovery succeeds while execution is denied, demonstrating that advertised capability and allowed resource access are separate decisions.",
+    "answer_format": "conceptual",
+    "citations": [
+      "https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture",
+      "https://a2a-protocol.org/latest/specification/"
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-22"
+    },
+    "follow_ups": [
+      {
+        "Q": "Does using A2A instead of MCP remove the need for tool authorization?",
+        "A": "No. A delegated agent still acts under an explicit identity, data-sharing and effect policy. Task lifecycle interoperability cannot grant access to a document or approve a payment."
+      }
+    ],
+    "difficulty": "implementation",
+    "domain": "agent-systems",
+    "subdomain": "mcp-foundations"
+  },
+  {
+    "Q": "How do tools, resources, and prompts differ?",
+    "A": "Tools perform requested operations; resources expose addressable context; prompts expose reusable interaction templates. Their selection and use are coordinated by the host.",
+    "Why": "Keep side-effecting business operations in narrowly scoped tools and use resources for read-oriented artifacts with explicit authorization.",
+    "Risk": "A resource URI can reveal private data if access checks are omitted.",
+    "Trade": "Rich capability modeling improves clarity while increasing implementation work.",
+    "Try": "Classify a search function, document URI, and review template using these three concepts.",
+    "spoken": "Tools expose callable operations with defined schemas. Resources expose addressable context/data, and prompts expose reusable prompt templates/workflows. Their discovery and use differ, but all require appropriate trust and access controls. Tool metadata is not proof that an effect is safe.",
+    "domain": "agents",
+    "subdomain": "mcp",
+    "module": "mcp-foundations",
+    "concept": "How do tools, resources, and prompts differ",
+    "difficulty": "foundations",
+    "misconception_target": "MCP is only for connecting to LLMs",
+    "definitions": [
+      {
+        "term": "MCP",
+        "definition": "Model Context Protocol: standardized interface for AI-accessible tools and resources"
+      },
+      {
+        "term": "Capability discovery",
+        "definition": "Client queries server for available tools, resources, prompts"
+      },
+      {
+        "term": "Transport",
+        "definition": "Communication channel between MCP client and server"
+      }
+    ],
+    "execution_timeline": "Client connects -> Server lists capabilities -> Client invokes tool/resource -> Server returns result -> Client uses result",
+    "example": {
+      "code": "capabilities = client.list_capabilities()\nresult = client.invoke_tool(tool_name, args)",
+      "explanation": "Discover what the server offers, then invoke a tool.",
+      "output": "Tool result data"
+    },
+    "production_case": "A service offers a read-only policy resource, a draft-response prompt and a confirm-refund tool. The write tool needs a separate operation and authorization contract even if the other two are permitted.",
+    "alternatives": [
+      "Custom API integration per tool",
+      "OpenAPI-based tool definitions"
+    ],
+    "pitfalls": [
+      "Over-exposing sensitive resources",
+      "No authorization boundary",
+      "Transport security gaps"
+    ],
+    "complexity": "Discovery can require multiple paginated network requests and authorization checks. Schema/context size affects model cost; tool execution has its own bounded resource and effect contract.",
+    "follow_ups": [
+      {
+        "Q": "Can a read-only annotation replace backend permissions?",
+        "A": "No. Validate actual behavior and scope at the authoritative boundary; metadata supplied by a server is not a security guarantee."
+      }
+    ],
+    "citations": [
+      "https://modelcontextprotocol.io/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "What does capability negotiation mean for an MCP integration?",
+    "A": "Participants communicate supported features for a protocol revision so each side can use only compatible behavior. An application must handle absent capabilities explicitly.",
+    "Why": "Test the actual client and server pair, pin compatible SDK versions, and expose feature-dependent paths only when supported.",
+    "Risk": "Assuming a newer feature exists can break an otherwise healthy integration.",
+    "Trade": "Conservative compatibility reduces features but improves interoperability.",
+    "Try": "Define a fallback when a server cannot provide a feature your UI would prefer."
+  },
+  {
+    "Q": "How should a tool's input and output contracts be designed?",
+    "A": "Use precise names, small input schemas, typed outcomes, and stable identifiers. Describe side effects and missing-input behavior clearly enough for both models and humans.",
+    "Why": "Validate arguments server-side and return minimal structured data plus a useful explanation. Keep protocol errors distinct from normal business failures.",
+    "Risk": "Descriptions and annotations are metadata, not a permission system.",
+    "Trade": "Rich output helps agents reason while consuming context.",
+    "Try": "Design a search tool that distinguishes zero matches from backend failure."
+  },
+  {
+    "Q": "How does MCP differ from A2A and REST?",
+    "A": "REST commonly exposes application resources and operations. MCP standardizes AI-facing capability access. A2A coordinates tasks between agent systems. They can wrap the same backend while serving different contracts.",
+    "Why": "Choose the smallest boundary that matches the integration. A deterministic lookup rarely needs a remote agent negotiation layer.",
+    "Risk": "Adding protocols can obscure which service owns authorization and durable writes.",
+    "Trade": "Standardization helps interoperability and adds lifecycle overhead.",
+    "Try": "Explain why your account-balance lookup uses a tool while a specialist investigation may use a remote task."
+  },
+  {
+    "Q": "Which transport should an MCP server use?",
+    "A": "Local stdio suits supervised local processes; remote HTTP transport suits network services with explicit identity and deployment controls. Supported details depend on the protocol and SDK versions.",
+    "Why": "Choose based on process ownership, trust boundary, network reachability, and operational needs. Implement the lifecycle required by the selected revision.",
+    "Risk": "Never expose a local development server broadly merely because it starts successfully.",
+    "Trade": "Local processes simplify access while remote services enable shared operations and require stronger controls.",
+    "Try": "Compare a developer desktop connector with a shared enterprise document connector."
+  },
+  {
+    "Q": "Why are remote tool descriptions a trust boundary?",
+    "A": "A server can supply text that the host places in the model's context. Hostile metadata can try to redirect behavior before any tool is called.",
+    "Why": "Approve servers, scope available tools, review metadata changes, and keep secrets outside model-visible descriptions. Backend authorization must still apply on execution.",
+    "Risk": "A read-only annotation cannot prove that a remote implementation has no side effects.",
+    "Trade": "Server review slows onboarding and reduces uncontrolled capability exposure.",
+    "Try": "Create a tool description containing a malicious instruction and verify host policy remains effective."
+  },
+  {
+    "Q": "How should MCP authorization map to backend identity?",
+    "A": "Authenticate the request and map permitted scopes to an application principal. The server must authorize the requested resource and operation using trusted identity.",
+    "Why": "Validate token issuer, audience, expiry, and required scopes according to the selected authorization profile. Do not pass arbitrary caller tokens through to unrelated services.",
+    "Risk": "A valid token for one resource may be invalid for another.",
+    "Trade": "Fine-grained scopes require lifecycle management and reduce blast radius.",
+    "Try": "Write allow and deny cases for two tenants using the same tool name."
+  },
+  {
+    "Q": "What should cancellation and timeouts mean?",
+    "A": "Cancellation stops work where possible and communicates the resulting operation state. It does not reverse an already committed side effect.",
+    "Why": "Propagate deadlines, retain operation identifiers, and provide a status lookup for uncertain outcomes. Follow the protocol revision's cancellation behavior.",
+    "Risk": "A client disconnect can leave a server operation running.",
+    "Trade": "Durable status adds storage while supporting safe recovery.",
+    "Try": "Disconnect during a simulated write and determine whether retry would duplicate it."
+  },
+  {
+    "Q": "What is a good first MCP project?",
+    "A": "Build a read-only knowledge-search server with synthetic documents, an authenticated service adapter, structured results, and clear empty versus failure outcomes.",
+    "Why": "Start with one tool, test compatible clients, and add access-control and injection cases before write tools. Keep provider secrets in server configuration.",
+    "Risk": "A toy search demo is not proof of production readiness.",
+    "Trade": "Narrow scope makes the protocol learnable before distributed security complexity.",
+    "Try": "Deliver a client transcript, authorization matrix, and failure-recovery demonstration."
+  }
+]

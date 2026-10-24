@@ -1,0 +1,3329 @@
+{
+  "954": {
+    "title": "Two names, one mutable list",
+    "description": "Follow object ownership before mutation and rebinding.",
+    "steps": [
+      {
+        "title": "Bind two names",
+        "body": "`a = [1]`; `b = a`. Both names refer to the same list.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mutate through b",
+        "body": "`b.append(2)` changes that shared object.",
+        "kind": "state"
+      },
+      {
+        "title": "Observe through a",
+        "body": "`a` now reads `[1, 2]`; no independent list was created.",
+        "kind": "state"
+      },
+      {
+        "title": "Rebind b",
+        "body": "`b = [9]` points b elsewhere. The original a still reads `[1, 2]`.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "955": {
+    "title": "Why a default list survives the next call",
+    "description": "The default is created at function definition, rather than on each invocation.",
+    "steps": [
+      {
+        "title": "Define helper",
+        "body": "A default `tags=[]` creates one list object.",
+        "kind": "normal"
+      },
+      {
+        "title": "First call",
+        "body": "Appending \"A\" mutates that default list.",
+        "kind": "state"
+      },
+      {
+        "title": "Second call",
+        "body": "The same list already contains \"A\"; another request inherits it.",
+        "kind": "warning"
+      },
+      {
+        "title": "Fresh ownership",
+        "body": "Use `None`, then create a list inside each call that needs fresh state.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1087": {
+    "title": "A generator advances instead of restarting",
+    "description": "Consumption changes iterator state. Replay requires a new iterator or retained data.",
+    "steps": [
+      {
+        "title": "Create generator",
+        "body": "The function returns a suspended iterator; its body is not fully executed.",
+        "kind": "normal"
+      },
+      {
+        "title": "Request next item",
+        "body": "Execution runs until `yield` and retains its current position.",
+        "kind": "state"
+      },
+      {
+        "title": "Reach exhaustion",
+        "body": "The iterator has no remaining items. A second consumer does not rewind it.",
+        "kind": "warning"
+      },
+      {
+        "title": "Replay deliberately",
+        "body": "Call a generator factory again or retain a bounded materialized result.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1004": {
+    "title": "A deadlock requires a circular wait",
+    "description": "These steps show a two-worker failure, not a recommended execution order.",
+    "steps": [
+      {
+        "title": "Worker A locks X",
+        "body": "A owns X and has not yet acquired Y.",
+        "kind": "state"
+      },
+      {
+        "title": "Worker B locks Y",
+        "body": "B owns Y and has not yet acquired X.",
+        "kind": "state"
+      },
+      {
+        "title": "Both request the other lock",
+        "body": "A waits for Y; B waits for X. Neither can release through normal progress.",
+        "kind": "warning"
+      },
+      {
+        "title": "Use a shared lock order",
+        "body": "Both workers acquire X before Y, preventing this particular cycle.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1005": {
+    "title": "A timeout leaves more than one possible outcome",
+    "description": "Distinguish an unknown result from a confirmed failure before retrying an effect.",
+    "steps": [
+      {
+        "title": "Client sends operation K",
+        "body": "The stable identity K describes one intended effect.",
+        "kind": "normal"
+      },
+      {
+        "title": "Server commits K",
+        "body": "The operation may be durable before its response reaches the client.",
+        "kind": "state"
+      },
+      {
+        "title": "Response is lost",
+        "body": "The client observes a timeout, not proof that K failed.",
+        "kind": "warning"
+      },
+      {
+        "title": "Reconcile K",
+        "body": "Read authoritative status or retry K under the destination deduplication contract.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "974": {
+    "title": "The request path before application code",
+    "description": "Latency and failures can occur before the framework receives the request.",
+    "steps": [
+      {
+        "title": "Resolve the name",
+        "body": "DNS locates an address under its cache and resolution policy.",
+        "kind": "normal"
+      },
+      {
+        "title": "Establish a protected channel",
+        "body": "The transport and TLS handshake establish a usable authenticated connection.",
+        "kind": "state"
+      },
+      {
+        "title": "Send HTTP request",
+        "body": "Method, target, headers and any body cross the network.",
+        "kind": "normal"
+      },
+      {
+        "title": "Handle and respond",
+        "body": "The application validates the input and returns a status and representation.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1116": {
+    "title": "Conditional reads avoid unnecessary payload transfer",
+    "description": "ETags validate representations; they do not grant access.",
+    "steps": [
+      {
+        "title": "Store representation",
+        "body": "The client retains permitted content and its ETag under the cache policy.",
+        "kind": "state"
+      },
+      {
+        "title": "Send condition",
+        "body": "A later GET includes `If-None-Match` for that representation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Server evaluates",
+        "body": "Authorization and the current representation decide the response.",
+        "kind": "decision"
+      },
+      {
+        "title": "Reuse or replace",
+        "body": "304 reuses the valid cached body; a changed representation supplies new content.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1041": {
+    "title": "A list key preserves entity identity through a reorder",
+    "description": "The component belongs to its entity, rather than to its old screen position.",
+    "steps": [
+      {
+        "title": "Render entities A and B",
+        "body": "Each editable row uses a stable entity key.",
+        "kind": "normal"
+      },
+      {
+        "title": "Edit entity A",
+        "body": "Unsaved input belongs to A’s component state.",
+        "kind": "state"
+      },
+      {
+        "title": "Reorder to B, A",
+        "body": "Stable keys preserve the association despite changed array positions.",
+        "kind": "decision"
+      },
+      {
+        "title": "Verify ownership",
+        "body": "A still displays its own edit; an index key could attach that edit to B.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "1042": {
+    "title": "Cancel resources and invalidate stale completions",
+    "description": "Cancellation helps efficiency; generation checks preserve publication ownership.",
+    "steps": [
+      {
+        "title": "Start generation 7",
+        "body": "A request belongs to the current account and view generation.",
+        "kind": "state"
+      },
+      {
+        "title": "User changes account",
+        "body": "Generation 8 becomes current; cleanup aborts obsolete work.",
+        "kind": "decision"
+      },
+      {
+        "title": "Old completion arrives",
+        "body": "A late result from generation 7 may still become observable.",
+        "kind": "warning"
+      },
+      {
+        "title": "Check before publishing",
+        "body": "Only the current identity and generation may update the view.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1018": {
+    "title": "A WHERE predicate can undo an outer join",
+    "description": "Preserve the intended population when filtering an optional relationship.",
+    "steps": [
+      {
+        "title": "Start with customers",
+        "body": "The report must retain customers even without qualifying orders.",
+        "kind": "normal"
+      },
+      {
+        "title": "LEFT JOIN orders",
+        "body": "Unmatched customer rows have NULL values for order columns.",
+        "kind": "state"
+      },
+      {
+        "title": "Filter in WHERE",
+        "body": "An ordinary right-side comparison rejects those NULL rows.",
+        "kind": "warning"
+      },
+      {
+        "title": "Choose match semantics",
+        "body": "Put the qualifying-order condition in ON when all customers must remain.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1016": {
+    "title": "A stale editor cannot overwrite a newer version",
+    "description": "The version condition and update happen as one database operation.",
+    "steps": [
+      {
+        "title": "Both read revision 5",
+        "body": "Editors A and B propose changes from the same observed revision.",
+        "kind": "normal"
+      },
+      {
+        "title": "A updates conditionally",
+        "body": "The row matching revision 5 changes to revision 6.",
+        "kind": "state"
+      },
+      {
+        "title": "B updates revision 5",
+        "body": "No row matches the stale revision; the affected-row count is zero.",
+        "kind": "warning"
+      },
+      {
+        "title": "Surface the conflict",
+        "body": "Reload or reconcile intent rather than silently overwriting revision 6.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1012": {
+    "title": "Replay after commit but before acknowledgement",
+    "description": "Delivery and destination effects need one explicit recovery contract.",
+    "steps": [
+      {
+        "title": "Read event E9",
+        "body": "The worker owns a source position for E9.",
+        "kind": "normal"
+      },
+      {
+        "title": "Commit destination",
+        "body": "The row and E9 deduplication identity become durable together.",
+        "kind": "state"
+      },
+      {
+        "title": "Crash before acknowledgement",
+        "body": "The source still considers E9 pending and may redeliver it.",
+        "kind": "warning"
+      },
+      {
+        "title": "Replay E9 safely",
+        "body": "The destination recognizes the prior commit and does not apply the effect twice.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1009": {
+    "title": "Fence the delayed writer at the destination",
+    "description": "A lease expiry does not physically stop a paused process.",
+    "steps": [
+      {
+        "title": "A owns fence 10",
+        "body": "The old worker pauses while holding its local state.",
+        "kind": "state"
+      },
+      {
+        "title": "Lease expires; B owns 11",
+        "body": "B publishes under a newer ownership generation.",
+        "kind": "decision"
+      },
+      {
+        "title": "A resumes with 10",
+        "body": "A still tries to write, even though its authority is obsolete.",
+        "kind": "warning"
+      },
+      {
+        "title": "Atomic destination check",
+        "body": "The write boundary rejects fence 10 after fence 11 has been accepted.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1060": {
+    "title": "Why high sensitivity can coexist with low alert precision",
+    "description": "Use the actual population, not a reversed conditional probability.",
+    "steps": [
+      {
+        "title": "10,000 cases",
+        "body": "100 are truly positive; 9,900 are negative.",
+        "kind": "normal"
+      },
+      {
+        "title": "Detect 90 positives",
+        "body": "Sensitivity is 90 / 100 = 90%.",
+        "kind": "state"
+      },
+      {
+        "title": "Also raise 99 false alerts",
+        "body": "Total alerts are 90 + 99 = 189.",
+        "kind": "warning"
+      },
+      {
+        "title": "Check alert precision",
+        "body": "Only 90 / 189 ≈ 47.6% of the alerts are true positives.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1062": {
+    "title": "One scalar gradient update",
+    "description": "The sign and scale follow the actual loss, input and learning rate.",
+    "steps": [
+      {
+        "title": "Predict",
+        "body": "With x=2 and w=1, the prediction is 2; target y=3.",
+        "kind": "normal"
+      },
+      {
+        "title": "Evaluate loss",
+        "body": "Squared error `(w*x-y)**2` is 1.",
+        "kind": "state"
+      },
+      {
+        "title": "Differentiate",
+        "body": "`2*(w*x-y)*x` gives gradient -4.",
+        "kind": "normal"
+      },
+      {
+        "title": "Take a small step",
+        "body": "At learning rate 0.1, w becomes 1.4 and the new loss is 0.04.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1051": {
+    "title": "Fit preprocessing inside the training boundary",
+    "description": "Validation and test data may be transformed, but must not fit the selected preprocessing.",
+    "steps": [
+      {
+        "title": "Split by the real boundary",
+        "body": "Keep related entities or future observations out of training.",
+        "kind": "decision"
+      },
+      {
+        "title": "Fit on training rows",
+        "body": "Learn imputation, scaling and model parameters using the permitted rows.",
+        "kind": "state"
+      },
+      {
+        "title": "Transform validation rows",
+        "body": "Apply the fitted transformation; choose configuration without refitting on validation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Freeze and evaluate",
+        "body": "Use the final held-out test after selection is complete.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1054": {
+    "title": "Ranking, calibration and decisions are separate contracts",
+    "description": "A useful ranking score is not automatically a probability or a policy.",
+    "steps": [
+      {
+        "title": "Score examples",
+        "body": "The model orders examples under its learned representation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Check calibration",
+        "body": "Compare predicted probabilities with observed outcomes on suitable held-out data.",
+        "kind": "decision"
+      },
+      {
+        "title": "Choose an action threshold",
+        "body": "Encode error costs, review capacity and required safeguards.",
+        "kind": "decision"
+      },
+      {
+        "title": "Monitor deployment",
+        "body": "Prevalence and other shifts can change calibration and the appropriate threshold.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "1023": {
+    "title": "A causal mask blocks answer leakage during training",
+    "description": "An earlier position must not read a future token that will be unavailable at generation time.",
+    "steps": [
+      {
+        "title": "Provide a training sequence",
+        "body": "Tokens occupy positions 0, 1, 2 and 3.",
+        "kind": "normal"
+      },
+      {
+        "title": "Build attention visibility",
+        "body": "Position 1 may use positions 0 and 1, not positions 2 and 3.",
+        "kind": "decision"
+      },
+      {
+        "title": "Predict the next token",
+        "body": "The model computes the loss without seeing its forbidden future answer.",
+        "kind": "state"
+      },
+      {
+        "title": "Test causal invariance",
+        "body": "Changing position 3 must not change earlier causal outputs.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1024": {
+    "title": "Accumulation changes the update boundary",
+    "description": "Scale losses deliberately so the intended effective batch has the correct gradient.",
+    "steps": [
+      {
+        "title": "Clear gradients",
+        "body": "Start one effective optimizer update with no retained prior gradient.",
+        "kind": "normal"
+      },
+      {
+        "title": "Process microbatches",
+        "body": "Each backward pass accumulates a correctly scaled gradient.",
+        "kind": "state"
+      },
+      {
+        "title": "Perform one optimizer step",
+        "body": "Update only after all intended microbatches are processed.",
+        "kind": "decision"
+      },
+      {
+        "title": "Check the reference",
+        "body": "Compare against a large-batch calculation where model behavior allows equivalence.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1035": {
+    "title": "Find the first failed evidence boundary",
+    "description": "Repair the missing mechanism before spending more generation tokens.",
+    "steps": [
+      {
+        "title": "Source and extraction",
+        "body": "Does the correct source revision contain the needed fact or exception?",
+        "kind": "decision"
+      },
+      {
+        "title": "Candidate retrieval",
+        "body": "Was that evidence indexed, authorized and retrieved?",
+        "kind": "decision"
+      },
+      {
+        "title": "Final context",
+        "body": "Did reranking and budget selection preserve the decisive passage?",
+        "kind": "decision"
+      },
+      {
+        "title": "Answer support",
+        "body": "Does each generated claim follow from the included applicable evidence?",
+        "kind": "decision"
+      }
+    ]
+  },
+  "998": {
+    "title": "A chunk boundary can separate a rule from its exception",
+    "description": "Chunk size is a constraint; answer support is the downstream acceptance target.",
+    "steps": [
+      {
+        "title": "Read the document structure",
+        "body": "A positive rule is followed by a qualifying exclusion.",
+        "kind": "normal"
+      },
+      {
+        "title": "Create chunks",
+        "body": "A fixed window may put the rule and exclusion in separate records.",
+        "kind": "warning"
+      },
+      {
+        "title": "Retrieve related evidence",
+        "body": "Parent or neighboring context must recover the needed qualification.",
+        "kind": "decision"
+      },
+      {
+        "title": "Verify final support",
+        "body": "The answer must include the exclusion when it changes applicability.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1110": {
+    "title": "Approximate search needs an exact eligible-set baseline",
+    "description": "Authorization, candidate breadth and final recall are all part of the measurement.",
+    "steps": [
+      {
+        "title": "Define eligible records",
+        "body": "Apply the real tenant and metadata scope.",
+        "kind": "decision"
+      },
+      {
+        "title": "Find exact neighbors",
+        "body": "Compute a reference ranking with the same representation and metric.",
+        "kind": "normal"
+      },
+      {
+        "title": "Run approximate search",
+        "body": "Vary the index search effort under the same eligibility contract.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare recall and latency",
+        "body": "Check missed relevant items as well as speed and resource use.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1105": {
+    "title": "Complementary candidates before expensive reranking",
+    "description": "A reranker can reorder retrieved items; it cannot score an absent candidate.",
+    "steps": [
+      {
+        "title": "Lexical candidates",
+        "body": "Exact identifiers and vocabulary matches supply one authorized candidate list.",
+        "kind": "normal"
+      },
+      {
+        "title": "Dense candidates",
+        "body": "Learned similarity supplies another list, including some paraphrases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Fuse and deduplicate",
+        "body": "Combine rank evidence without equating incompatible raw scores.",
+        "kind": "decision"
+      },
+      {
+        "title": "Rerank the union",
+        "body": "Jointly score the bounded candidates, then select supported evidence.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1032": {
+    "title": "A citation must support the associated claim",
+    "description": "Evaluate each claim, not only whether the answer contains a link.",
+    "steps": [
+      {
+        "title": "Split the answer into claims",
+        "body": "Separate the stated deadline from a claimed fee exemption.",
+        "kind": "normal"
+      },
+      {
+        "title": "Locate exact evidence",
+        "body": "Retain source revision and supporting span for each claim.",
+        "kind": "state"
+      },
+      {
+        "title": "Check coverage",
+        "body": "A deadline passage alone does not establish the separate exemption.",
+        "kind": "warning"
+      },
+      {
+        "title": "Publish only supported claims",
+        "body": "Omit, qualify or request the missing evidence for unsupported parts.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1033": {
+    "title": "Event time can select an older governing rule",
+    "description": "A newer document is not necessarily the rule governing a historical case.",
+    "steps": [
+      {
+        "title": "Event occurs in April",
+        "body": "Record the business event date independently of filing date.",
+        "kind": "state"
+      },
+      {
+        "title": "New rule begins in May",
+        "body": "The replacement has its own effective interval and scope.",
+        "kind": "normal"
+      },
+      {
+        "title": "Claim is filed in June",
+        "body": "Submission time does not automatically change the governing event rule.",
+        "kind": "warning"
+      },
+      {
+        "title": "Apply explicit policy",
+        "body": "Use the correct date basis, jurisdiction and precedence to choose evidence.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1030": {
+    "title": "A judge is a measurement procedure that needs validation",
+    "description": "Version the rubric and examine disagreement before treating scores as a release gate.",
+    "steps": [
+      {
+        "title": "Define the rubric",
+        "body": "State observable support, correctness and failure criteria.",
+        "kind": "normal"
+      },
+      {
+        "title": "Collect independent judgments",
+        "body": "Qualified reviewers label a suitable sample under that same rubric.",
+        "kind": "state"
+      },
+      {
+        "title": "Compare disagreements",
+        "body": "Inspect verbosity bias, missed unsafe answers and important slices.",
+        "kind": "decision"
+      },
+      {
+        "title": "Release with limits",
+        "body": "Record judge/model/prompt versions and retain ongoing reviewed samples.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "1109": {
+    "title": "A network read is not an SSE event",
+    "description": "Complete text decoding and frame parsing come before applying an application event.",
+    "steps": [
+      {
+        "title": "Receive arbitrary bytes",
+        "body": "A read may split a UTF-8 character or an event line.",
+        "kind": "normal"
+      },
+      {
+        "title": "Decode incrementally",
+        "body": "Retain partial character bytes across reads.",
+        "kind": "state"
+      },
+      {
+        "title": "Assemble a complete frame",
+        "body": "A blank-line event delimiter closes the frame; partial data stays buffered.",
+        "kind": "decision"
+      },
+      {
+        "title": "Apply with replay identity",
+        "body": "Deduplicate completed events and reconcile reconnect/retention behavior.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1111": {
+    "title": "Stopping sound does not reverse a committed effect",
+    "description": "Track input, generation, playback and operation state separately.",
+    "steps": [
+      {
+        "title": "User interrupts",
+        "body": "Speech may replace or stop the current output intent.",
+        "kind": "normal"
+      },
+      {
+        "title": "Stop obsolete playback",
+        "body": "Invalidate the old output turn and release playback resources.",
+        "kind": "decision"
+      },
+      {
+        "title": "Reconcile accepted work",
+        "body": "A tool may already have accepted an external action.",
+        "kind": "warning"
+      },
+      {
+        "title": "Report the actual outcome",
+        "body": "Use authoritative operation status rather than claiming the sound stop undid it.",
+        "kind": "state"
+      }
+    ]
+  },
+  "990": {
+    "title": "A bounded agent loop owns tool execution",
+    "description": "Planning may propose work; the harness and domain boundary decide what runs.",
+    "steps": [
+      {
+        "title": "Observe current state",
+        "body": "Use the run identity, trusted principal and remaining budget.",
+        "kind": "state"
+      },
+      {
+        "title": "Validate a proposal",
+        "body": "Check arguments, permissions and whether prior effects need reconciliation.",
+        "kind": "decision"
+      },
+      {
+        "title": "Execute or reject",
+        "body": "Accept work under its operation contract and capture the actual result.",
+        "kind": "normal"
+      },
+      {
+        "title": "Continue or stop",
+        "body": "Stop on outcome, denial or exhausted budget; record unresolved accepted work.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "992": {
+    "title": "Compensation is another operation, not time travel",
+    "description": "A distributed workflow may contain effects a local transaction cannot undo.",
+    "steps": [
+      {
+        "title": "Accept a booking",
+        "body": "The booking service commits its own operation.",
+        "kind": "state"
+      },
+      {
+        "title": "Send a notification",
+        "body": "The recipient may already observe this separate effect.",
+        "kind": "state"
+      },
+      {
+        "title": "A later step fails",
+        "body": "One local rollback cannot reverse both remote histories.",
+        "kind": "warning"
+      },
+      {
+        "title": "Compensate explicitly",
+        "body": "Cancel where allowed, record failures and escalate irreversible consequences.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1047": {
+    "title": "Checkpoint persistence does not atomically include every external effect",
+    "description": "Replay needs an independently safe effect identity.",
+    "steps": [
+      {
+        "title": "Load a checkpoint",
+        "body": "The graph resumes from its persisted execution state.",
+        "kind": "state"
+      },
+      {
+        "title": "External service accepts K",
+        "body": "The operation commits outside the checkpoint store.",
+        "kind": "state"
+      },
+      {
+        "title": "Crash before the next boundary",
+        "body": "Resume can revisit the node that proposed K.",
+        "kind": "warning"
+      },
+      {
+        "title": "Reconcile or reuse K",
+        "body": "Prevent duplicate effects at the actual destination contract.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1066": {
+    "title": "An MCP server must not lend arbitrary downstream authority",
+    "description": "Schema-valid tool arguments do not decide the caller’s privileges.",
+    "steps": [
+      {
+        "title": "Authenticate the caller",
+        "body": "Validate the intended token audience and applicable identity contract.",
+        "kind": "normal"
+      },
+      {
+        "title": "Authorize the requested action",
+        "body": "Resolve resource scope and permissions from trusted state.",
+        "kind": "decision"
+      },
+      {
+        "title": "Call the correct backend",
+        "body": "Use only the permitted delegated capability, not arbitrary token passthrough.",
+        "kind": "state"
+      },
+      {
+        "title": "Return scoped evidence",
+        "body": "Expose permitted results and safe audit identifiers.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "987": {
+    "title": "Streaming status and task truth can diverge temporarily",
+    "description": "Reconnection and cancellation require task identity and authoritative readback.",
+    "steps": [
+      {
+        "title": "Create remote task T",
+        "body": "Persist the local-to-remote identity mapping.",
+        "kind": "state"
+      },
+      {
+        "title": "Receive working status",
+        "body": "The streamed update is useful but the connection may end.",
+        "kind": "normal"
+      },
+      {
+        "title": "Cancel races completion",
+        "body": "The remote task may finish before the cancellation request arrives.",
+        "kind": "warning"
+      },
+      {
+        "title": "Read T back",
+        "body": "Display its actual allowed terminal status and accepted effects.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1027": {
+    "title": "A restore must recover acceptable state, not just readable bytes",
+    "description": "Include data loss, deletion and service behavior in recovery evidence.",
+    "steps": [
+      {
+        "title": "Choose the snapshot",
+        "body": "Record its creation time, schema and integrity.",
+        "kind": "state"
+      },
+      {
+        "title": "Restore privately",
+        "body": "Verify the artifact before exposing reads.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reconcile later intent",
+        "body": "Account for lost writes and reapply newer deletion or access decisions.",
+        "kind": "warning"
+      },
+      {
+        "title": "Validate and publish",
+        "body": "Measure recovery time and visible state against the stated objectives.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1129": {
+    "title": "How do you answer a question when the evidence exceeds the model context window?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Count",
+        "body": "Reserve output, instructions, tools and margin.",
+        "kind": "normal"
+      },
+      {
+        "title": "Select",
+        "body": "Choose retrieval, exact aggregation or structured extraction.",
+        "kind": "normal"
+      },
+      {
+        "title": "Verify",
+        "body": "Check claims against original evidence spans.",
+        "kind": "normal"
+      },
+      {
+        "title": "Respond",
+        "body": "Return supported results and unresolved scope.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1130": {
+    "title": "How do you compact a long-running agent without forgetting constraints or trusting a poisoned summary?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Persist",
+        "body": "Save constraints and effect status outside the transcript.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compact",
+        "body": "Summarize observations with source references.",
+        "kind": "normal"
+      },
+      {
+        "title": "Rehydrate",
+        "body": "Fetch original evidence when a claim matters.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reconcile",
+        "body": "Check actual effect state before continuing.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1131": {
+    "title": "How would you ingest a 100 GB file with a server that has only 2 GB of RAM?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Authorize",
+        "body": "Issue a tenant-scoped upload session.",
+        "kind": "normal"
+      },
+      {
+        "title": "Upload",
+        "body": "Client sends parts to durable object storage.",
+        "kind": "normal"
+      },
+      {
+        "title": "Process",
+        "body": "Bound parsing, chunking and embedding buffers.",
+        "kind": "normal"
+      },
+      {
+        "title": "Publish",
+        "body": "Promote only verified, complete index versions.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1132": {
+    "title": "How do you resume a huge upload safely after a disconnect or an expired upload URL?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Resume",
+        "body": "Authenticate owner and load manifest.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reconcile",
+        "body": "Compare acknowledged parts with storage.",
+        "kind": "normal"
+      },
+      {
+        "title": "Complete",
+        "body": "Validate object identity and integrity.",
+        "kind": "normal"
+      },
+      {
+        "title": "Index",
+        "body": "Start one logical ingestion job per version.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1133": {
+    "title": "How do you chunk a 100 GB stream without splitting records, losing provenance or exhausting memory?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Decode",
+        "body": "Preserve partial characters between byte reads.",
+        "kind": "normal"
+      },
+      {
+        "title": "Parse",
+        "body": "Recognize bounded records and structure.",
+        "kind": "normal"
+      },
+      {
+        "title": "Chunk",
+        "body": "Apply semantic boundaries plus token limits.",
+        "kind": "normal"
+      },
+      {
+        "title": "Checkpoint",
+        "body": "Save reproducible cursor and provenance.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1134": {
+    "title": "How do you embed millions of chunks when the provider is slower than ingestion?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Admit",
+        "body": "Validate tokens and tenant quota.",
+        "kind": "normal"
+      },
+      {
+        "title": "Batch",
+        "body": "Bound requests, tokens and live bytes.",
+        "kind": "normal"
+      },
+      {
+        "title": "Retry",
+        "body": "Persist per-chunk status with bounded retries.",
+        "kind": "normal"
+      },
+      {
+        "title": "Promote",
+        "body": "Validate a complete compatible index version.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1135": {
+    "title": "How do you recover when an ingestion worker crashes after writing vectors but before saving its checkpoint?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Write",
+        "body": "Upsert stable chunk identities.",
+        "kind": "normal"
+      },
+      {
+        "title": "Record",
+        "body": "Persist acknowledged batch progress.",
+        "kind": "normal"
+      },
+      {
+        "title": "Fence",
+        "body": "Reject stale attempts and deleted sources.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reconcile",
+        "body": "Repair missing data before promotion.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1136": {
+    "title": "When should metadata filtering happen before vector search, and when is post-filtering acceptable?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Authorize",
+        "body": "Derive mandatory predicates from identity.",
+        "kind": "normal"
+      },
+      {
+        "title": "Search",
+        "body": "Rank within the eligible set where supported.",
+        "kind": "normal"
+      },
+      {
+        "title": "Recheck",
+        "body": "Enforce current permissions before disclosure.",
+        "kind": "normal"
+      },
+      {
+        "title": "Explain",
+        "body": "Distinguish no eligible data from poor relevance.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1137": {
+    "title": "Which metadata belongs on every retrieval chunk, and how do you evolve it without a full re-embedding?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Model",
+        "body": "Define typed lineage, validity and access fields.",
+        "kind": "normal"
+      },
+      {
+        "title": "Trust",
+        "body": "Separate authoritative scope from inferred tags.",
+        "kind": "normal"
+      },
+      {
+        "title": "Index",
+        "body": "Measure predicates and update amplification.",
+        "kind": "normal"
+      },
+      {
+        "title": "Migrate",
+        "body": "Backfill safely; re-embed only affected representations.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1138": {
+    "title": "How do you stop revoked documents from leaking through cached RAG answers or stale vector metadata?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Identify",
+        "body": "Attach provenance to derived answers.",
+        "kind": "normal"
+      },
+      {
+        "title": "Revoke",
+        "body": "Invalidate caches and update indexed scope.",
+        "kind": "normal"
+      },
+      {
+        "title": "Recheck",
+        "body": "Authorize candidate sources at disclosure.",
+        "kind": "normal"
+      },
+      {
+        "title": "Cancel",
+        "body": "Stop further emission according to policy.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1139": {
+    "title": "When should you use a deterministic workflow, a single agent or multiple agents?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Classify",
+        "body": "Is the procedure known or observation-dependent?",
+        "kind": "normal"
+      },
+      {
+        "title": "Baseline",
+        "body": "Build the simplest verifiable path.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Measure success, failures, latency and cost.",
+        "kind": "normal"
+      },
+      {
+        "title": "Bound",
+        "body": "Grant only justified tools and budgets.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1140": {
+    "title": "How would you design a bounded research agent that knows when to stop searching?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Plan",
+        "body": "List claims and required evidence.",
+        "kind": "normal"
+      },
+      {
+        "title": "Search",
+        "body": "Spend a shared bounded budget.",
+        "kind": "normal"
+      },
+      {
+        "title": "Assess",
+        "body": "Check support and new information.",
+        "kind": "normal"
+      },
+      {
+        "title": "Stop",
+        "body": "Finish, report gaps or escalate.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1141": {
+    "title": "When does multi-agent research help, and how do you keep agents from duplicating or contradicting each other?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Partition",
+        "body": "Give workers distinct scopes and contracts.",
+        "kind": "normal"
+      },
+      {
+        "title": "Execute",
+        "body": "Bound fan-out and share the root budget.",
+        "kind": "normal"
+      },
+      {
+        "title": "Verify",
+        "body": "Check citations, duplicates and disagreement.",
+        "kind": "normal"
+      },
+      {
+        "title": "Synthesize",
+        "body": "Produce a coherent result with unresolved gaps.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1142": {
+    "title": "How do you prevent two agents from issuing the same irreversible action?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Propose",
+        "body": "Agents return structured intended actions.",
+        "kind": "normal"
+      },
+      {
+        "title": "Authorize",
+        "body": "Validate scope, approval and resource version.",
+        "kind": "normal"
+      },
+      {
+        "title": "Commit",
+        "body": "Use one durable idempotent operation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reconcile",
+        "body": "Resolve unknown outcomes before retries.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1143": {
+    "title": "How do you prove an agentic or multi-agent design is better than a simpler baseline?",
+    "description": "Worked design path: each stage has a different responsibility. Validate the assumptions in the answer before implementing it.",
+    "steps": [
+      {
+        "title": "Define",
+        "body": "Freeze task contracts and independent checks.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Equalize budgets and record cost-quality curves.",
+        "kind": "normal"
+      },
+      {
+        "title": "Ablate",
+        "body": "Remove components to test their contribution.",
+        "kind": "normal"
+      },
+      {
+        "title": "Release",
+        "body": "Gate rollout on measured outcomes and rollback rules.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1144": {
+    "title": "How do you publish a replacement retrieval index without exposing a partially built generation?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Build g2",
+        "body": "Write into an inactive generation while g1 serves requests.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate g2",
+        "body": "Check completeness, compatibility and eligible evidence.",
+        "kind": "normal"
+      },
+      {
+        "title": "Promote",
+        "body": "Guard the active-pointer update against stale publishers.",
+        "kind": "normal"
+      },
+      {
+        "title": "Retain g1",
+        "body": "Allow pinned requests and safe rollback before cleanup.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1145": {
+    "title": "How do ingestion fingerprints distinguish unchanged content from changed embedding or parsing behavior?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Describe inputs",
+        "body": "Record source digest and representation-affecting settings.",
+        "kind": "normal"
+      },
+      {
+        "title": "Canonicalize",
+        "body": "Serialize explicit settings with stable key order.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Distinguish payload, representation and index changes.",
+        "kind": "normal"
+      },
+      {
+        "title": "Rebuild selectively",
+        "body": "Re-embed only when representation semantics changed.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1146": {
+    "title": "Why must a background worker commit ownership before releasing its row-selection locks?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Discover candidates",
+        "body": "Selection identifies eligible jobs; it does not own them forever.",
+        "kind": "normal"
+      },
+      {
+        "title": "Arbitrate atomically",
+        "body": "Use a transaction or guarded state update.",
+        "kind": "normal"
+      },
+      {
+        "title": "Commit ownership",
+        "body": "Persist owner and attempt before slow network work.",
+        "kind": "normal"
+      },
+      {
+        "title": "Process winners",
+        "body": "Execute only rows the ownership update returned.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1147": {
+    "title": "How do you reject a stale worker result after its job has been reclaimed?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Attempt 4 pauses",
+        "body": "An expired lease does not stop an old process.",
+        "kind": "normal"
+      },
+      {
+        "title": "Attempt 5 claims",
+        "body": "Recovery assigns a new owner and generation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Attempt 5 commits",
+        "body": "Writes validate the current generation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Attempt 4 returns",
+        "body": "Reject stale completion and isolate old destination writes.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "1148": {
+    "title": "How should an idempotency service order result publication, claim release and conflicting request detection?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Claim operation",
+        "body": "Bind principal, operation identity and request fingerprint.",
+        "kind": "normal"
+      },
+      {
+        "title": "Perform or reconcile",
+        "body": "Resolve the authoritative effect outcome.",
+        "kind": "normal"
+      },
+      {
+        "title": "Publish result",
+        "body": "Durably store the result before releasing the claim.",
+        "kind": "normal"
+      },
+      {
+        "title": "Release conditionally",
+        "body": "Only the current ownership token may release its claim.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1149": {
+    "title": "What should happen to write requests when distributed idempotency coordination is unavailable?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Classify request",
+        "body": "Separate reads from potentially irreversible writes.",
+        "kind": "normal"
+      },
+      {
+        "title": "Check protection",
+        "body": "Determine whether destination deduplication is durable.",
+        "kind": "normal"
+      },
+      {
+        "title": "Choose admission",
+        "body": "Proceed, reconcile, durably queue or defer explicitly.",
+        "kind": "normal"
+      },
+      {
+        "title": "Recover",
+        "body": "Reconcile unknown operations before returning to normal.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1150": {
+    "title": "How do you guarantee a retrieved procedure contains every required step before an agent follows it?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Discover procedure",
+        "body": "Use search to identify an approved procedure.",
+        "kind": "normal"
+      },
+      {
+        "title": "Pin version",
+        "body": "Load the exact immutable manifest and ordered content.",
+        "kind": "normal"
+      },
+      {
+        "title": "Check completeness",
+        "body": "Reject missing, duplicate, reordered or mixed-version steps.",
+        "kind": "warning"
+      },
+      {
+        "title": "Execute safely",
+        "body": "Use application-enforced permissions and durable progress.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1151": {
+    "title": "How should an agent pin a procedure version when instructions change during a long-running task?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Pin approved version",
+        "body": "Store version and progress with the task.",
+        "kind": "normal"
+      },
+      {
+        "title": "Observe update",
+        "body": "Classify compatibility and mandatory revocation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Stop if revoked",
+        "body": "Pinned content cannot override current permission controls.",
+        "kind": "warning"
+      },
+      {
+        "title": "Migrate explicitly",
+        "body": "Map durable state and reconcile pending effects.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1152": {
+    "title": "How should a streaming API distinguish generated text, persisted answers and successful task completion?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Generate text",
+        "body": "Visible text may still be an unsaved draft.",
+        "kind": "normal"
+      },
+      {
+        "title": "Persist answer",
+        "body": "Commit a real message identity when required.",
+        "kind": "normal"
+      },
+      {
+        "title": "Emit terminal state",
+        "body": "Separate generation, persistence and operation outcomes.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reconcile transport",
+        "body": "A lost terminal event needs replay or status lookup.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1153": {
+    "title": "How do you bind user feedback to the exact persisted answer and its evidence version?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Persist revision",
+        "body": "Bind answer identity to model and evidence versions.",
+        "kind": "normal"
+      },
+      {
+        "title": "Return saved ID",
+        "body": "A draft display key is not a durable message identity.",
+        "kind": "normal"
+      },
+      {
+        "title": "Authorize feedback",
+        "body": "Verify owner, answer eligibility and rating bounds.",
+        "kind": "normal"
+      },
+      {
+        "title": "Record rating",
+        "body": "Apply explicit duplicate and revision semantics.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1154": {
+    "title": "How do you prevent a deterministic evaluation proxy from being reported as live agent quality?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Record execution mode",
+        "body": "Distinguish proxy, retrieval, context and live-agent runs.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate provenance",
+        "body": "Require dataset, model and execution records.",
+        "kind": "normal"
+      },
+      {
+        "title": "Match gate scope",
+        "body": "Reject evidence from the wrong evaluated system.",
+        "kind": "warning"
+      },
+      {
+        "title": "Score outcomes",
+        "body": "Apply compatible metrics and independent checks.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1155": {
+    "title": "How do you evaluate abstention without rewarding an assistant that refuses every question?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Label populations",
+        "body": "Separate answerable, unanswerable and clarification cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Count denominators",
+        "body": "Report subset sizes; empty subsets remain unmeasured.",
+        "kind": "normal"
+      },
+      {
+        "title": "Score both directions",
+        "body": "Measure correct abstention and unnecessary refusal.",
+        "kind": "normal"
+      },
+      {
+        "title": "Gate usefulness",
+        "body": "Check supported-answer quality as well as refusal behavior.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1156": {
+    "title": "How do you represent hybrid-search results when a keyword-only hit has no vector distance?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Retrieve channels",
+        "body": "Keep lexical and vector ranks and scores separate.",
+        "kind": "normal"
+      },
+      {
+        "title": "Preserve absence",
+        "body": "Missing distance stays null; exact zero stays zero.",
+        "kind": "normal"
+      },
+      {
+        "title": "Fuse explicitly",
+        "body": "Deduplicate identities and compute a separate fusion value.",
+        "kind": "normal"
+      },
+      {
+        "title": "Serialize faithfully",
+        "body": "Round-trip scores with channel and metric meaning intact.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1157": {
+    "title": "How do you build hybrid-search regression tests that survive legitimate ranking changes?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Build query matrix",
+        "body": "Cover identifiers, paraphrases, empty metadata and scope.",
+        "kind": "normal"
+      },
+      {
+        "title": "Define support sets",
+        "body": "Specify required and forbidden evidence.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare fairly",
+        "body": "Allow valid rank swaps; inspect per-category metrics.",
+        "kind": "normal"
+      },
+      {
+        "title": "Review changes",
+        "body": "Pin configurations and justify new baselines.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1158": {
+    "title": "How do you commit a business change and its notification intent atomically?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Begin transaction",
+        "body": "Business transition and notification intent share one session.",
+        "kind": "normal"
+      },
+      {
+        "title": "Write both",
+        "body": "Record an immutable logical event identity.",
+        "kind": "normal"
+      },
+      {
+        "title": "Commit or roll back",
+        "body": "Both writes survive together or neither survives.",
+        "kind": "normal"
+      },
+      {
+        "title": "Deliver later",
+        "body": "A worker sends only committed intents.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1159": {
+    "title": "How do you prevent duplicate notifications when delivery succeeds but acknowledgment is lost?",
+    "description": "Reason through the normal path, the failure window and the recovery check. This is a conceptual sequence, not a measured execution trace.",
+    "steps": [
+      {
+        "title": "Deliver event",
+        "body": "Use a stable destination idempotency identity.",
+        "kind": "normal"
+      },
+      {
+        "title": "Lose acknowledgment",
+        "body": "A crash can occur after destination commit.",
+        "kind": "normal"
+      },
+      {
+        "title": "Replay same event",
+        "body": "A unique destination key absorbs the duplicate.",
+        "kind": "normal"
+      },
+      {
+        "title": "Record outcome",
+        "body": "Acknowledge or reconcile; never invent delivery success.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1160": {
+    "title": "How do you distinguish duplicate records from different entities that happen to share the same name?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Ingest",
+        "body": "Preserve source identifiers and raw values.",
+        "kind": "normal"
+      },
+      {
+        "title": "Propose",
+        "body": "Use normalized features to generate candidate pairs.",
+        "kind": "normal"
+      },
+      {
+        "title": "Decide",
+        "body": "Match, reject or request review based on evidence.",
+        "kind": "normal"
+      },
+      {
+        "title": "Preserve",
+        "body": "Store reversible links and original provenance.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1161": {
+    "title": "How do you change canonicalization or alias rules without breaking existing record identities?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Version",
+        "body": "Record old and candidate normalization rules.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Compute candidate mappings without overwriting identities.",
+        "kind": "normal"
+      },
+      {
+        "title": "Review",
+        "body": "Inspect merges, splits, cycles and ambiguous aliases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Promote",
+        "body": "Maintain compatibility references and rollback data.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1162": {
+    "title": "How do Unicode normalization, case folding and transliteration affect multilingual identity keys?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Preserve",
+        "body": "Store the original Unicode text.",
+        "kind": "normal"
+      },
+      {
+        "title": "Normalize",
+        "body": "Build a versioned comparison field for the task.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Treat equivalent strings as a matching feature.",
+        "kind": "normal"
+      },
+      {
+        "title": "Identify",
+        "body": "Use stable IDs and collision-aware entity decisions.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1163": {
+    "title": "How do you canonicalize URLs and cap generated keys without discarding identity-bearing information?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Parse",
+        "body": "Separate host, path, query and citation fragment.",
+        "kind": "normal"
+      },
+      {
+        "title": "Apply policy",
+        "body": "Remove only known nonidentity components.",
+        "kind": "normal"
+      },
+      {
+        "title": "Bound key",
+        "body": "Reserve the digest suffix within the total limit.",
+        "kind": "normal"
+      },
+      {
+        "title": "Retain evidence",
+        "body": "Preserve the original fetch reference and identity basis.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1164": {
+    "title": "How do you bind encrypted records to the correct tenant, record and schema while detecting tampering?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Authorize",
+        "body": "Resolve the permitted tenant and record context.",
+        "kind": "normal"
+      },
+      {
+        "title": "Bind",
+        "body": "Encode public context deterministically as AAD.",
+        "kind": "normal"
+      },
+      {
+        "title": "Protect",
+        "body": "Encrypt with a fresh nonce and a managed key.",
+        "kind": "normal"
+      },
+      {
+        "title": "Verify",
+        "body": "Authenticate before parsing or disclosing plaintext.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1165": {
+    "title": "How do you rotate encryption keys without losing old records or confusing rotation with compromise recovery?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Identify",
+        "body": "Read the envelope version and approved key ID.",
+        "kind": "normal"
+      },
+      {
+        "title": "Re-encrypt",
+        "body": "Use the active key and a fresh nonce.",
+        "kind": "normal"
+      },
+      {
+        "title": "Commit safely",
+        "body": "Replace only the revision that was actually read.",
+        "kind": "normal"
+      },
+      {
+        "title": "Retire",
+        "body": "Verify records and backup requirements before removing keys.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1166": {
+    "title": "How do you migrate legacy data when the new schema requires information the old schema never stored?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Inspect",
+        "body": "Identify facts the source actually contains.",
+        "kind": "normal"
+      },
+      {
+        "title": "Convert",
+        "body": "Apply structural mappings without inventing values.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Separate usable, invalid and review-required outputs.",
+        "kind": "normal"
+      },
+      {
+        "title": "Repair",
+        "body": "Preserve provenance and request missing information.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1167": {
+    "title": "How do you make a data migration resumable, idempotent and safe against concurrent user edits?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Read",
+        "body": "Capture source schema and record revision.",
+        "kind": "normal"
+      },
+      {
+        "title": "Transform",
+        "body": "Produce a validated target representation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Commit",
+        "body": "Condition the write on unchanged source state.",
+        "kind": "normal"
+      },
+      {
+        "title": "Resume",
+        "body": "Replay safely and reconcile failed records.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1168": {
+    "title": "Why can a dataclass dictionary fail JSON serialization, and how do you reconstruct nested types safely?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Encode",
+        "body": "Map domain types to declared wire values.",
+        "kind": "normal"
+      },
+      {
+        "title": "Serialize",
+        "body": "Validate a strict JSON representation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Decode",
+        "body": "Check schema and reconstruct nested types.",
+        "kind": "normal"
+      },
+      {
+        "title": "Assert",
+        "body": "Verify semantic round-trip and rejection cases.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1169": {
+    "title": "How do you evolve a JSON API when producers and consumers run different schema versions?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Identify",
+        "body": "Read and validate the wire schema version.",
+        "kind": "normal"
+      },
+      {
+        "title": "Translate",
+        "body": "Use a supported version-specific codec.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Enforce the current domain invariants.",
+        "kind": "normal"
+      },
+      {
+        "title": "Roll out",
+        "body": "Track compatibility and retained historical payloads.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1170": {
+    "title": "Why should schema version, record revision and source version be separate fields?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Interpret",
+        "body": "Use schema version to decode structure.",
+        "kind": "normal"
+      },
+      {
+        "title": "Read",
+        "body": "Capture the current record revision.",
+        "kind": "normal"
+      },
+      {
+        "title": "Write",
+        "body": "Commit only if the expected revision matches.",
+        "kind": "normal"
+      },
+      {
+        "title": "Trace",
+        "body": "Attach relevant source versions to derived artifacts.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1171": {
+    "title": "How do you preserve extracted, inferred and user-confirmed facts without turning guesses into ground truth?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Observe",
+        "body": "Capture source evidence and proposed values.",
+        "kind": "normal"
+      },
+      {
+        "title": "Label",
+        "body": "Preserve inferred, unknown and confirmed states.",
+        "kind": "normal"
+      },
+      {
+        "title": "Resolve",
+        "body": "Apply explicit correction and promotion rules.",
+        "kind": "normal"
+      },
+      {
+        "title": "Propagate",
+        "body": "Invalidate derived artifacts when facts change.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1172": {
+    "title": "Why do substring classifiers fail on short skill names, and how should a rule baseline abstain?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Normalize",
+        "body": "Apply a reviewed phrase-comparison policy.",
+        "kind": "normal"
+      },
+      {
+        "title": "Match",
+        "body": "Use explicit aliases and boundary semantics.",
+        "kind": "normal"
+      },
+      {
+        "title": "Abstain",
+        "body": "Return unknown for unsupported or conflicting input.",
+        "kind": "normal"
+      },
+      {
+        "title": "Evaluate",
+        "body": "Measure coverage and false positives by failure class.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1173": {
+    "title": "How do you evaluate an inferred proficiency or category without treating a heuristic label as a calibrated probability?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Define",
+        "body": "Choose a target and independent labeling process.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Tune thresholds without using the test split.",
+        "kind": "normal"
+      },
+      {
+        "title": "Measure",
+        "body": "Report accepted error, coverage and uncertainty.",
+        "kind": "normal"
+      },
+      {
+        "title": "Review",
+        "body": "Preserve provenance and correction workflows.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1174": {
+    "title": "Why does a frozen dataclass not guarantee deeply immutable or validated domain state?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Receive",
+        "body": "Identify caller-owned mutable input.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Check nested types and business invariants.",
+        "kind": "normal"
+      },
+      {
+        "title": "Copy",
+        "body": "Create immutable owned values where appropriate.",
+        "kind": "normal"
+      },
+      {
+        "title": "Update",
+        "body": "Construct new valid states rather than mutate snapshots.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1175": {
+    "title": "How do you implement domain ordering without producing contradictory comparisons or hiding invalid input?",
+    "description": "Follow the data contract, its failure boundary and the verification step before implementing the design.",
+    "steps": [
+      {
+        "title": "Define",
+        "body": "Decide whether the domain is total or partially ordered.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Reject unsupported values before assigning meaning.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Use consistent supported-operand semantics.",
+        "kind": "normal"
+      },
+      {
+        "title": "Verify",
+        "body": "Check ordering laws, boundaries and type behavior.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1176": {
+    "title": "How do logistic regression and softmax turn features into decisions, and what objective is optimized?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Feature vector",
+        "body": "Apply the fitted training-only representation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Scores",
+        "body": "Compute linear class scores with the frozen coefficients.",
+        "kind": "normal"
+      },
+      {
+        "title": "Probability map",
+        "body": "Use sigmoid or softmax under the declared objective.",
+        "kind": "normal"
+      },
+      {
+        "title": "Action",
+        "body": "Apply validated thresholds or an explicit review outcome.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1177": {
+    "title": "When is Naive Bayes a useful text classifier, and why can its confidence be misleading?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Token features",
+        "body": "Build nonnegative count or occurrence features under the selected likelihood model.",
+        "kind": "normal"
+      },
+      {
+        "title": "Smoothing",
+        "body": "Keep unseen vocabulary events from producing zero likelihood.",
+        "kind": "normal"
+      },
+      {
+        "title": "Log evidence",
+        "body": "Combine class priors and conditional likelihoods in log space.",
+        "kind": "normal"
+      },
+      {
+        "title": "Evaluate",
+        "body": "Check held-out class errors and confidence calibration.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1178": {
+    "title": "How do decision trees, random forests and gradient-boosted trees differ as classifiers?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Candidate split",
+        "body": "Partition the training examples by a feature condition.",
+        "kind": "normal"
+      },
+      {
+        "title": "Impurity",
+        "body": "Compare weighted child impurity with the parent.",
+        "kind": "normal"
+      },
+      {
+        "title": "Ensemble",
+        "body": "Average randomized trees or add sequential boosting updates.",
+        "kind": "normal"
+      },
+      {
+        "title": "Holdout",
+        "body": "Measure generalization rather than training purity.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1179": {
+    "title": "How do support vector machines and nearest neighbors compare with probabilistic linear models?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "A support vector machine optimizes a margin-related objective.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Reporting a margin or a neighbor vote as a correctness probability can overstate uncertainty quality.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Scale only on training data, then compare linear, kernel and neighbor models with both classification metrics and prediction cost.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1180": {
+    "title": "How do you split classification data when messages, users or documents are correlated?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Define the generalization claim first.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Stratification preserves class proportions but does not by itself separate correlated groups or prevent temporal leakage.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Construct repeated-source messages and show the difference between row-based and group-based evaluation.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1181": {
+    "title": "How do you evaluate an imbalanced classifier without hiding minority-class failures?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Start with the confusion matrix and denominators.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "One aggregate score can hide a class with no correctly handled examples or an unusably noisy review queue.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Compare majority and learned baselines using per-class precision, recall, support and macro-F1.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1182": {
+    "title": "How do calibration, decision thresholds and out-of-domain rejection solve different problems?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Calibration describes a population-level relationship.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Treating cosine similarity or a softmax maximum as a universal confidence measure can defeat the unknown route.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Plot held-out reliability and precision-recall slices, then add unknown messages and measure accepted-case error plus coverage.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1183": {
+    "title": "How do you build multilabel and hierarchical classifiers when one input can have several valid labels?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Represent the target contract explicitly.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Forcing multilabel data into a single-label target can produce apparent evaluation errors that are actually taxonomy errors.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Write a taxonomy with two parents and several leaves. Test multi-intent input, unsupported labels and a child without its required parent.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1184": {
+    "title": "How can class descriptions or labeled examples turn embeddings into a zero-shot or few-shot classifier?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Encode",
+        "body": "Use one pinned model for messages and class descriptions or examples.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Apply the declared cosine or dot-product geometry.",
+        "kind": "normal"
+      },
+      {
+        "title": "Select",
+        "body": "Choose the nearest supported prototype under a reviewed rule.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reject",
+        "body": "Evaluate low-score, low-margin and unknown cases separately.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1185": {
+    "title": "When should you train a supervised classifier on frozen embeddings instead of fine-tuning the encoder?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Freeze encoder",
+        "body": "Record model revision, preprocessing and vector dimension.",
+        "kind": "normal"
+      },
+      {
+        "title": "Train head",
+        "body": "Use only training vectors and labels.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Select regularization, calibration and thresholds without the test labels.",
+        "kind": "normal"
+      },
+      {
+        "title": "Bundle",
+        "body": "Deploy compatible encoder, head, class order and decision policy.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1186": {
+    "title": "What do contrastive fine-tuning and SetFit change compared with training only a classification head?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Contrastive learning adapts representation geometry.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "A tiny few-shot benchmark can be highly sensitive to which labeled examples and negative pairs were sampled.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Specify positive/negative pair rules for a negation-sensitive task, then design an equal-label-budget comparison with frozen baselines.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1187": {
+    "title": "How do generative LLM classification and natural-language-inference classification differ from embedding matching?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Define labels",
+        "body": "Provide taxonomy, examples and an explicit unknown outcome.",
+        "kind": "normal"
+      },
+      {
+        "title": "Separate data",
+        "body": "Keep the message from redefining the classification instructions.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Parse the output and reject unsupported labels or references.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Measure actual decisions, invalid outputs, latency and cost.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1188": {
+    "title": "How should active learning and LLM-generated labels improve a classifier without contaminating evaluation?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Treat generated labels as proposals.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Teacher agreement and training loss can improve while actual task quality remains unchanged or worse.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Design an acquisition batch combining uncertain, disagreement and random examples. Record review effort and an untouched evaluation plan.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1189": {
+    "title": "How do you serve and monitor a classifier when labels, embeddings or class prevalence change?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Version the decision bundle.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "A silent fallback can preserve apparent availability while systematically routing messages to the wrong workflow.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Deploy a mismatched head/encoder fixture and verify rejection, then design a canary dashboard with delayed-label metrics.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1190": {
+    "title": "How do you compare classification algorithms under an equal quality, latency and labeling budget?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Choose a baseline ladder.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Benchmarking mismatched splits, label budgets or timing scopes can favor the preferred architecture without evidence.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Create a comparison table with label effort, macro-F1, accepted error, coverage, p95 latency and per-request cost for each candidate.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1191": {
+    "title": "How do you explain a classifier decision without confusing feature attribution with supporting evidence?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Separate three explanation questions.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "A fluent post-hoc explanation can hide unsupported assumptions or reveal private reference examples.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Compare an input and a negated variant, inspect model behavior and reject explanations containing unsupported evidence references.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1194": {
+    "title": "How does Lloyd's K-means algorithm work, and when is its objective a poor fit?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Initialize",
+        "body": "Choose k centers under an explicit initialization policy.",
+        "kind": "normal"
+      },
+      {
+        "title": "Assign",
+        "body": "Select the nearest center under squared Euclidean distance.",
+        "kind": "normal"
+      },
+      {
+        "title": "Update",
+        "body": "Replace each center by its assigned points' mean; handle empty groups.",
+        "kind": "normal"
+      },
+      {
+        "title": "Repeat",
+        "body": "Stop under a defined criterion and validate the resulting partition.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1195": {
+    "title": "What do K-means++ initialization and MiniBatchKMeans change, and what do they leave unsolved?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Initialization influences the local solution.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "A faster fitting phase can conceal a worse partition or a still-unbounded representation stage.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Compare full and mini-batch clusters on a fixed slice and report partition stability, noise assumptions and peak memory for the complete path.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1196": {
+    "title": "How does DBSCAN distinguish core points, border points and noise?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Neighborhoods",
+        "body": "Find points within the chosen radius and distance.",
+        "kind": "normal"
+      },
+      {
+        "title": "Core support",
+        "body": "Apply the explicit minimum-neighbor convention.",
+        "kind": "normal"
+      },
+      {
+        "title": "Connectivity",
+        "body": "Connect core regions and attach border points.",
+        "kind": "normal"
+      },
+      {
+        "title": "Noise",
+        "body": "Preserve unsupported points and report excluded coverage.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1197": {
+    "title": "How does HDBSCAN use a density hierarchy, and why is a membership score not a class probability?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Density structure",
+        "body": "Build the distance and support structure under a declared implementation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Hierarchy",
+        "body": "Explore groups across density levels.",
+        "kind": "normal"
+      },
+      {
+        "title": "Selection",
+        "body": "Choose groups with minimum-size and stability-related policies.",
+        "kind": "normal"
+      },
+      {
+        "title": "Interpret",
+        "body": "Inspect noise and examples; membership strength is not a class probability.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1198": {
+    "title": "How do agglomerative clustering and linkage choices create a hierarchy?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Start groups",
+        "body": "Initialize individual observations or an approved connectivity structure.",
+        "kind": "normal"
+      },
+      {
+        "title": "Linkage",
+        "body": "Measure group closeness with a compatible rule.",
+        "kind": "normal"
+      },
+      {
+        "title": "Merge",
+        "body": "Repeatedly join the selected closest groups.",
+        "kind": "normal"
+      },
+      {
+        "title": "Cut",
+        "body": "Choose a reviewed resolution and inspect its stability and meaning.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1199": {
+    "title": "What does a Gaussian mixture model optimize, and how do soft assignments differ from K-means?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Initialize",
+        "body": "Choose mixture weights, means and covariance assumptions.",
+        "kind": "normal"
+      },
+      {
+        "title": "E step",
+        "body": "Compute responsibilities under current component parameters.",
+        "kind": "normal"
+      },
+      {
+        "title": "M step",
+        "body": "Update the parameters using those responsibilities.",
+        "kind": "normal"
+      },
+      {
+        "title": "Validate",
+        "body": "Check convergence, regularization, complexity and actual usefulness.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1200": {
+    "title": "When does spectral clustering help, and what risks come from the similarity graph?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Affinity graph",
+        "body": "Build compatible, reviewed neighbor similarities.",
+        "kind": "normal"
+      },
+      {
+        "title": "Laplacian",
+        "body": "Derive the selected graph normalization.",
+        "kind": "normal"
+      },
+      {
+        "title": "Spectral coordinates",
+        "body": "Compute the relevant low-dimensional representation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Partition",
+        "body": "Group those coordinates and inspect connectivity sensitivity.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1201": {
+    "title": "How do you cluster sentence embeddings without confusing cosine geometry, normalization and topic meaning?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Pinned encoder",
+        "body": "Produce real compatible vectors with explicit truncation.",
+        "kind": "normal"
+      },
+      {
+        "title": "Geometry",
+        "body": "Choose normalization and distance deliberately.",
+        "kind": "normal"
+      },
+      {
+        "title": "Fit",
+        "body": "Group without passing the audit labels to the unsupervised estimator.",
+        "kind": "normal"
+      },
+      {
+        "title": "Inspect",
+        "body": "Review real representatives, noise and external agreement separately.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1202": {
+    "title": "Should you reduce embedding dimensions with PCA or UMAP before clustering?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Separate compression from visualization.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Using the visualization as an unquestioned clustering input can make an arbitrary display layout drive product decisions.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Compare original vectors, several PCA dimensions and a separately installed UMAP configuration with stability and source-example review.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1203": {
+    "title": "How do you choose the number of clusters without treating an elbow or silhouette peak as ground truth?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Selection reflects an intended resolution.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "A single optimal-looking score can hide unstable memberships, tiny groups or lost rare topics.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Compare candidate resolutions using inertia, valid silhouette, stability, group support and a written usefulness criterion.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1204": {
+    "title": "How do adjusted Rand index, cluster stability and human review answer different evaluation questions?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "External agreement compares against labels.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "A good internal score or stable grouping can still follow source formatting instead of a useful semantic distinction.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Relabel a partition with permuted IDs, compute ARI and inspect one stable but semantically irrelevant grouping.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1205": {
+    "title": "How should an LLM name or summarize clusters without changing membership or inventing a theme?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Representatives",
+        "body": "Select central, varied and boundary examples from the existing group.",
+        "kind": "normal"
+      },
+      {
+        "title": "Bounded prompt",
+        "body": "Ask for a short theme, supporting IDs and a mixed option.",
+        "kind": "normal"
+      },
+      {
+        "title": "Evidence checks",
+        "body": "Reject invented or out-of-group references.",
+        "kind": "normal"
+      },
+      {
+        "title": "Review",
+        "body": "Retain uncertainty and keep naming separate from membership edits.",
+        "kind": "normal"
+      }
+    ]
+  },
+  "1206": {
+    "title": "How do must-link constraints, cannot-link constraints and metric learning change unsupervised discovery?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Constraints introduce information about the desired grouping.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Silent constraint violations or leaked audit pairs can produce a misleading claim of controlled unsupervised discovery.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Create compatible and conflicting pair constraints, then state whether your selected estimator can enforce them or only use them for evaluation.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1207": {
+    "title": "How do you assign new records to discovered clusters and detect a genuinely new topic?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Fit-time clustering and serving are separate contracts.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Blind assignment can hide emerging topics, while overly sensitive rejection creates an unmanageable novelty queue.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Add known, boundary, distant and incompatible-representation examples. Specify accepted, rejected and refit-trigger outcomes.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1208": {
+    "title": "How do you operate clustering over millions of records while tracking drift and cluster identity?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Budget representation and fitting separately.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Comparing raw group IDs or mixing representation generations can create false trends and misleading operational alerts.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "Design a candidate-generation manifest, memory budget and split/merge reconciliation procedure for an incrementally arriving corpus.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1209": {
+    "title": "How do you choose between classification, clustering, retrieval and an agentic workflow for a text task?",
+    "description": "Trace the representation, algorithm and evaluation contract as separate responsibilities.",
+    "steps": [
+      {
+        "title": "Task contract",
+        "body": "State the required labels or grouping question, including unsupported cases.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mechanism",
+        "body": "Begin with the required output.",
+        "kind": "normal"
+      },
+      {
+        "title": "Failure boundary",
+        "body": "Using an agent to improvise every routine batch step increases uncertainty without necessarily improving the required outcome.",
+        "kind": "warning"
+      },
+      {
+        "title": "Verification",
+        "body": "For routing, topic exploration, evidence search and repository diagnosis, choose the simplest execution model and state when you would change it.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1222": {
+    "title": "Commit all local deletion effects together",
+    "description": "This diagram proves a local logical transaction, not physical wiping of backups or media.",
+    "steps": [
+      {
+        "title": "Select trusted owner",
+        "body": "Identify the scoped key; other owners are ineligible.",
+        "kind": "normal"
+      },
+      {
+        "title": "Delete fact versions",
+        "body": "Remove the retained local event values.",
+        "kind": "state"
+      },
+      {
+        "title": "Delete derived text and vectors",
+        "body": "Remove the matching projection in the same transaction.",
+        "kind": "state"
+      },
+      {
+        "title": "Advance the generation",
+        "body": "Invalidate dependent cache keys; keep a minimal receipt.",
+        "kind": "state"
+      },
+      {
+        "title": "Commit or roll back",
+        "body": "Restart checks find all changes committed or none committed.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1217": {
+    "title": "From conversation to authorized memory",
+    "description": "An event and a derived preference are different from a resumable checkpoint or a committed effect.",
+    "steps": [
+      {
+        "title": "Observe the turn",
+        "body": "Record actor, source, consent and two timestamps.",
+        "kind": "normal"
+      },
+      {
+        "title": "Propose a fact",
+        "body": "Validate the claim; retrieved text cannot grant permission.",
+        "kind": "state"
+      },
+      {
+        "title": "Version the projection",
+        "body": "Select a source-backed fact without erasing provenance.",
+        "kind": "state"
+      },
+      {
+        "title": "Retrieve under scope",
+        "body": "Filter owner and validity before relevance ranking.",
+        "kind": "state"
+      },
+      {
+        "title": "Assemble context",
+        "body": "Pass only necessary evidence; effects remain in their own ledger.",
+        "kind": "state"
+      }
+    ]
+  },
+  "1218": {
+    "title": "A late correction has two valid views",
+    "description": "English is effective/known at 10. Arabic is effective at 15, known at 17 and expires at 30.",
+    "steps": [
+      {
+        "title": "Decision at 16",
+        "body": "Known-at 16 cannot see the correction: English.",
+        "kind": "normal"
+      },
+      {
+        "title": "Reconstruction at 18",
+        "body": "Valid-at 16 and known-at 18 selects Arabic.",
+        "kind": "state"
+      },
+      {
+        "title": "Expiry at 30",
+        "body": "The latest applicable fact expires: no preference.",
+        "kind": "state"
+      },
+      {
+        "title": "Prevent resurrection",
+        "body": "Do not filter expiry before ordering and revive old English.",
+        "kind": "state"
+      }
+    ]
+  },
+  "81": {
+    "title": "Publish complete knowledge, not partial preparation",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Capture",
+        "body": "Hash input bytes and record parser/OCR/chunker profiles.",
+        "kind": "normal"
+      },
+      {
+        "title": "Prepare",
+        "body": "Create source-linked chunks and vectors outside the short activation transaction.",
+        "kind": "state"
+      },
+      {
+        "title": "Validate",
+        "body": "Confirm completeness, expected generation and deletion eligibility.",
+        "kind": "decision"
+      },
+      {
+        "title": "Activate",
+        "body": "Publish one complete generation; failure leaves the previous allowed generation intact.",
+        "kind": "state"
+      }
+    ]
+  },
+  "31": {
+    "title": "Keep the exception attached to the decision",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Source",
+        "body": "General return rule plus final-sale exception.",
+        "kind": "normal"
+      },
+      {
+        "title": "Split",
+        "body": "Record lossless spans and structural relationships.",
+        "kind": "state"
+      },
+      {
+        "title": "Pack",
+        "body": "Reserve output/instructions before selecting evidence.",
+        "kind": "decision"
+      },
+      {
+        "title": "Decide",
+        "body": "If the decisive exception is missing, do not assert eligibility.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "63": {
+    "title": "Follow permitted candidates through hybrid ranking",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Authorize",
+        "body": "Apply owner/revision/tombstone eligibility before each branch.",
+        "kind": "decision"
+      },
+      {
+        "title": "Retrieve",
+        "body": "Record lexical and dense ranks under a fixed profile.",
+        "kind": "normal"
+      },
+      {
+        "title": "Fuse",
+        "body": "Sum reciprocal shifted ranks; missing branch hit contributes zero.",
+        "kind": "state"
+      },
+      {
+        "title": "Select",
+        "body": "Rerank candidates and pack sufficient evidence under a separate budget.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "119": {
+    "title": "Make a quality regression visible before release",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Freeze",
+        "body": "Version corpus, labels, code and model/index profiles.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare",
+        "body": "Score paired baseline/candidate outcomes on identical IDs.",
+        "kind": "state"
+      },
+      {
+        "title": "Block",
+        "body": "Reject owner leaks and missing decisive policy evidence.",
+        "kind": "warning"
+      },
+      {
+        "title": "Recover",
+        "body": "Repair and rerun; retain failed output and a compatible rollback path.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "231": {
+    "title": "Compare the trajectory with authoritative effects",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Trace",
+        "body": "Capability discovery and source-linked proposal.",
+        "kind": "normal"
+      },
+      {
+        "title": "Policy",
+        "body": "Independent owner/approval/business checks.",
+        "kind": "decision"
+      },
+      {
+        "title": "Receiver",
+        "body": "Count committed ticket effects, not tool calls or generated claims.",
+        "kind": "state"
+      },
+      {
+        "title": "Assess",
+        "body": "Task success, duplicate effects, denied writes and budget are separate results.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "392": {
+    "title": "Pause before authority crosses into an effect",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Propose",
+        "body": "Persist owner, operation, exact payload and evidence source.",
+        "kind": "normal"
+      },
+      {
+        "title": "Wait",
+        "body": "Require a separate unexpired approval; data text cannot grant it.",
+        "kind": "decision"
+      },
+      {
+        "title": "Commit",
+        "body": "Atomically save local ticket, completed state and audit event.",
+        "kind": "state"
+      },
+      {
+        "title": "Reconcile",
+        "body": "After lost acknowledgment, recover the same effect identity.",
+        "kind": "state"
+      }
+    ]
+  },
+  "877": {
+    "title": "One transaction owns projection progress",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Read",
+        "body": "Validate source position, owner and exact event digest.",
+        "kind": "normal"
+      },
+      {
+        "title": "Mutate",
+        "body": "Update eligible revision/tombstone in the projection.",
+        "kind": "state"
+      },
+      {
+        "title": "Checkpoint",
+        "body": "Write consumed identity and progress in the same transaction.",
+        "kind": "state"
+      },
+      {
+        "title": "Fault",
+        "body": "Checkpoint failure rolls back all three; exact replay is safe.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "138": {
+    "title": "Trace capacity assumptions across the request",
+    "description": "Read the ordered transitions and inspect the stated failure boundary. This is a conceptual sequence, not a measured production trace.",
+    "steps": [
+      {
+        "title": "Arrivals",
+        "body": "20 requests/s is a stated mean, not a measured peak.",
+        "kind": "normal"
+      },
+      {
+        "title": "Occupancy",
+        "body": "2 s mean occupancy yields 40 mean in-flight slots.",
+        "kind": "state"
+      },
+      {
+        "title": "Headroom",
+        "body": "Account for tails, retries, bursts and one failed replica.",
+        "kind": "decision"
+      },
+      {
+        "title": "Admission",
+        "body": "Bound queue/concurrency/cost while preserving correctness gates.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "1212": {
+    "title": "A proposed tool action is not an authorized effect",
+    "description": "The approval must be bound to the exact owner, operation and payload; a retry is reconciled through durable state, not by asking the model to guess.",
+    "steps": [
+      {
+        "title": "Agent proposes a tool effect",
+        "body": "The model suggests a refund with an amount and order ID; proposal text is not permission.",
+        "kind": "normal"
+      },
+      {
+        "title": "Trusted approval gate",
+        "body": "Authenticate the principal and bind approval to the canonical payload digest, scope, policy version and expiry.",
+        "kind": "decision"
+      },
+      {
+        "title": "Revalidate before dispatch",
+        "body": "Reject expired/revoked approvals or any changed argument, even if an untrusted page claims authorization.",
+        "kind": "warning"
+      },
+      {
+        "title": "Commit with effect identity",
+        "body": "Persist one authoritative (owner,operation,request digest) outcome and execute only the permitted effect.",
+        "kind": "state"
+      },
+      {
+        "title": "Lost response and retry",
+        "body": "Look up the durable operation result; replay returns it without submitting a second refund.",
+        "kind": "decision"
+      }
+    ]
+  },
+  "1213": {
+    "title": "Current, cited and authorized are separate tests",
+    "description": "A real quotation can still be stale. Evaluate document access, validity time and revision as retrieval and citation conditions.",
+    "steps": [
+      {
+        "title": "Resolve the user's question time",
+        "body": "Specify current-versus-historical policy context, the authenticated tenant and the requested claim.",
+        "kind": "normal"
+      },
+      {
+        "title": "Apply eligibility before ranking",
+        "body": "Filter active/archived revisions, validity intervals, deletion tombstones and authorized owner scope.",
+        "kind": "decision"
+      },
+      {
+        "title": "Retrieve and rank evidence",
+        "body": "BM25 and dense retrieval work only over eligible candidates; stale v1 cannot beat valid v2 by score alone.",
+        "kind": "state"
+      },
+      {
+        "title": "Resolve the cited source again",
+        "body": "Confirm the exact source revision/span and current ACL when preparing the user-visible citation.",
+        "kind": "decision"
+      },
+      {
+        "title": "Support or abstain",
+        "body": "Answer with relevant versioned citations; reject obsolete, deleted or unsupported evidence.",
+        "kind": "warning"
+      }
+    ]
+  },
+  "1214": {
+    "title": "Trace a serving request across its independent latency stages",
+    "description": "Separate queue time, prefill, the first generated token and subsequent decoding; compare equivalent real workloads rather than toy step counts.",
+    "steps": [
+      {
+        "title": "Arrival and admission queue",
+        "body": "Record arrival time, request length, concurrency and waiting time before GPU work starts.",
+        "kind": "normal"
+      },
+      {
+        "title": "Prompt tokenization and prefill",
+        "body": "Compute the prompt representations and populate KV cache; measure prefill duration and memory.",
+        "kind": "state"
+      },
+      {
+        "title": "First streamed token",
+        "body": "Record the client's observed time-to-first-token under a clearly stated timestamp convention.",
+        "kind": "state"
+      },
+      {
+        "title": "Autoregressive decode",
+        "body": "Measure inter-token latency/TPOT, output length, cancellation and decode batch occupancy.",
+        "kind": "normal"
+      },
+      {
+        "title": "Compare user-facing reliability",
+        "body": "Report per-length p50/p95/p99, output tokens/s, error rate, GPU VRAM high-water and answer quality.",
+        "kind": "decision"
+      }
+    ]
+  }
+}

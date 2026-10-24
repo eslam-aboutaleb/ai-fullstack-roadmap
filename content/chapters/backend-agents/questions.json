@@ -1,0 +1,82 @@
+[
+  {
+    "Q": "Where should an agent sit in a backend architecture?",
+    "A": "Place the agent behind authenticated API boundaries and in front of narrowly scoped application services. The model proposes decisions while the services own validation and state changes.",
+    "Why": "Share domain services across web routes, background workers, and tool adapters. Keep framework-specific event objects out of domain models.",
+    "Risk": "Allowing a model to access persistence directly bypasses consistent policy.",
+    "Trade": "Adapters add code and allow the runtime to evolve independently.",
+    "Try": "Draw a dependency graph that prevents a tool from importing the web framework's request object."
+  },
+  {
+    "Q": "How should authenticated identity reach a tool?",
+    "A": "Derive identity from verified backend authentication and pass it through trusted runtime context or explicit service arguments. Never ask the model to supply its own tenant authority.",
+    "Why": "Bind a principal at the run boundary, reset task-local context reliably, and authorize each resource inside the service.",
+    "Risk": "A shared global variable can leak identity across concurrent requests.",
+    "Trade": "Explicit identity arguments are verbose and make ownership visible.",
+    "Try": "Run two users concurrently and assert that each tool sees only its own scope."
+  },
+  {
+    "Q": "How do tools reuse business services without duplicating rules?",
+    "A": "A tool adapter parses model arguments, calls a domain service with trusted identity, and translates a typed result. The service performs business validation and transaction ownership.",
+    "Why": "Keep the same service contract for HTTP and agent callers. Test permissions once at the service boundary and adapter behavior separately.",
+    "Risk": "Independent validation copies can diverge after a business rule changes.",
+    "Trade": "Reuse constrains adapter flexibility and preserves consistent outcomes.",
+    "Try": "Implement one request-preparation service with both an API route and a tool wrapper."
+  },
+  {
+    "Q": "How should long-running agent work be exposed over HTTP?",
+    "A": "Accept a task, return a durable task ID, process it under worker supervision, and expose status plus an optional event stream. Completion should survive a disconnected browser.",
+    "Why": "Persist task state and use owner-scoped status and cancellation endpoints. Distinguish acceptance from completion in response codes and UI text.",
+    "Risk": "Holding one request open is not durable task storage.",
+    "Trade": "Jobs add infrastructure and support recoverable long operations.",
+    "Try": "Submit a task, close the browser, and retrieve its final status later."
+  },
+  {
+    "Q": "How do transaction boundaries interact with model calls?",
+    "A": "Keep slow model and network work outside database lock windows. Revalidate current state inside the short transaction that applies a business change.",
+    "Why": "Prepare intent first, then lock or compare versions during commit and record downstream jobs atomically.",
+    "Risk": "Data can change between preparation and commit, so an earlier validation is insufficient.",
+    "Trade": "Revalidation adds complexity and avoids prolonged locks.",
+    "Try": "Change a record after planning and verify commit rejects the stale revision."
+  },
+  {
+    "Q": "How should agent-side idempotency work?",
+    "A": "Use a durable operation identity tied to the intended business effect. Repeated requests should return or recover the same authoritative result when the contract permits.",
+    "Why": "Enforce a uniqueness constraint or conditional transition in the database and keep request-level model-call deduplication separate.",
+    "Risk": "A short-lived in-memory lock cannot establish exactly-once business effects.",
+    "Trade": "Durable ledgers cost storage and enable safe retries.",
+    "Try": "Retry after a simulated response loss and verify only one business record exists."
+  },
+  {
+    "Q": "What should a typed tool result contain?",
+    "A": "Include operation ID, outcome category, safe data, retryability, and next permitted action. For writes, include the authoritative record or task reference when completed.",
+    "Why": "Translate exceptions into stable categories while retaining private diagnostic details only in protected logs.",
+    "Risk": "Returning success true after merely scheduling work can mislead the UI.",
+    "Trade": "Explicit result types require more branches and prevent ambiguous completion.",
+    "Try": "Model prepared, accepted, completed, rejected, unavailable, and uncertain outcomes separately."
+  },
+  {
+    "Q": "How should rate limits be applied to agent workloads?",
+    "A": "Limit requests, concurrent runs, model tokens, tool calls, and downstream operations according to tenant and service capacity. A single HTTP request can initiate substantial work.",
+    "Why": "Use shared fleet-wide quotas where needed and propagate an absolute deadline across retries and child tasks.",
+    "Risk": "Local process counters multiply when workers scale.",
+    "Trade": "Shared accounting adds latency and coordinates real capacity.",
+    "Try": "Calculate the worst-case tool load from ten requests with nested agent loops."
+  },
+  {
+    "Q": "How should provider adapters be designed?",
+    "A": "Normalize model invocation, cancellation, usage, errors, and public event projections behind an interface, while preserving provider-specific limitations.",
+    "Why": "Keep capability flags and compatible configuration explicit. Evaluate the same task contract when switching providers.",
+    "Risk": "A common API can hide differences in tool calls, structured outputs, or streaming semantics.",
+    "Trade": "Portability reduces coupling and may limit access to specialized features.",
+    "Try": "Switch between two stub providers with different event sequences without changing the UI contract."
+  },
+  {
+    "Q": "How should backend integration be demonstrated in a portfolio?",
+    "A": "Show one complete journey with verified identity, tool use, durable writes, streaming updates, cancellation, and recovery. Include the failure path and measured evaluation results.",
+    "Why": "Provide architecture diagrams, synthetic fixtures, a release manifest, and a recorded restart demonstration.",
+    "Risk": "A chat screenshot does not prove authorization or transactional correctness.",
+    "Trade": "A narrow robust scenario is less flashy and stronger engineering evidence.",
+    "Try": "Demonstrate the same operation through HTTP and an agent, then explain the shared service boundary."
+  }
+]

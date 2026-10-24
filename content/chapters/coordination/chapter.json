@@ -1,0 +1,48 @@
+{
+  "slug": "coordination",
+  "title": "Distributed sync, jobs, and recovery",
+  "subtitle": "Reason about stale workers and partial writes using explicit state.",
+  "goal": "Recover background work after crashes and takeovers",
+  "intro": "Workers need durable ownership and safe repeated effects, not just a queue of IDs.",
+  "terms": [
+    [
+      "Outbox",
+      "Durable downstream work recorded with a business change"
+    ],
+    [
+      "Lease",
+      "Temporary ownership"
+    ],
+    [
+      "Fencing token",
+      "An ownership revision checked during writes"
+    ],
+    [
+      "CAS",
+      "Compare-And-Swap"
+    ]
+  ],
+  "flow": [
+    [
+      "Commit",
+      "Request plus outbox entry"
+    ],
+    [
+      "Acquire",
+      "Worker owns one attempt"
+    ],
+    [
+      "Execute",
+      "Index or notify"
+    ],
+    [
+      "Record",
+      "Complete, retry, or reclaim safely"
+    ]
+  ],
+  "case": [
+    "A worker sends a notification and crashes before marking completion.",
+    "A retry must recover without assuming the previous attempt did nothing.",
+    "Exactly-once effects do not follow from row selection alone."
+  ]
+}

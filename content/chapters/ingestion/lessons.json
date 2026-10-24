@@ -1,0 +1,38 @@
+[
+  {
+    "Q": "Why separate preparation from activation?",
+    "explain": "Reading, parsing, and embedding can be slow or fail remotely. Prepare those results before entering the short database section that changes active state. Validate the assumptions again when activating.",
+    "example": "The old article remains searchable while replacement vectors are prepared. A failed provider call should not erase it.",
+    "takeaway": "Preparation failure should not corrupt published knowledge."
+  },
+  {
+    "Q": "Why check the revision a second time?",
+    "explain": "Another worker may finish while you are preparing. The early check avoids unnecessary work; the protected later check decides whether your prepared result is still applicable. These checks solve different races.",
+    "example": "Worker B activates revision 4 before Worker A finishes revision 3. A must not replace it with stale preparation.",
+    "takeaway": "Recheck assumptions at the actual write boundary."
+  },
+  {
+    "Q": "How should incomplete and genuinely empty sources differ?",
+    "explain": "A complete empty scan may authorize removal under an explicit policy. An incomplete scan means state is unknown and should preserve the previous valid index. Avoid treating every empty list as intentional deletion.",
+    "example": "A removed document and an inaccessible shared drive both yield no text, but require opposite activation decisions.",
+    "takeaway": "Absence needs evidence before it becomes a destructive update."
+  },
+  {
+    "Q": "What does safe retry require?",
+    "explain": "Keep operation and generation identities stable enough to detect repeats. Repeating preparation may incur extra model cost even when activation remains logically idempotent. Measure both business correctness and operational duplication.",
+    "example": "Two embedding calls occur after a retry, but only one intended index generation becomes active.",
+    "takeaway": "Idempotent state does not mean zero repeated work."
+  },
+  {
+    "Q": "What makes ingestion a recoverable pipeline?",
+    "explain": "Give each stage explicit inputs, output artifacts, processing profile, and completion state. A content digest can identify downloaded bytes; extraction and chunking profiles identify transformations. Reuse an artifact only when its identity and dependencies still match. Publish a complete generation through one authoritative activation step instead of exposing partially written chunks.",
+    "example": "A job embeds 90 of 100 passages and crashes. Resume the missing work from the recorded stage state, verify all required artifacts, and activate only after completion.",
+    "takeaway": "Partial preparation and active searchable state need different meanings."
+  },
+  {
+    "Q": "How should malformed documents and deletions interact with publication?",
+    "explain": "Distinguish a document that cannot be processed from a confirmed source deletion. Quarantine poison items with bounded error metadata and a review path. Decide whether a failed replacement keeps the prior revision available, marks it stale, or removes it under the product's policy. Document that decision rather than letting exception handling decide it accidentally.",
+    "example": "A corrupted replacement file must not silently erase the previous indexed revision. A confirmed removal may require immediate exclusion even while physical cleanup runs later.",
+    "takeaway": "Publication behavior should follow an explicit source-lifecycle policy."
+  }
+]

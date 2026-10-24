@@ -1,0 +1,62 @@
+[
+  {
+    "Q": "How should an idempotency service order result publication, claim release and conflicting request detection?",
+    "A": "**Idempotency identifies a logical operation, not merely identical text.** Scope the key to the authenticated principal and operation type, and bind it to a canonical request fingerprint. Reusing one key with changed parameters must produce a conflict instead of replaying an unrelated result. Two intentional identical messages may be different operations, so content hashing alone is not always the correct identity policy.\n\n**Publish the durable result before relinquishing ownership.** A successful worker records its completed result under the operation identity, then releases its coordination claim. Releasing first creates a window in which another replica sees neither a result nor an owner and executes again. Publishing first lets a retry replay the result even if the original process crashes before release.\n\n**Do not overstate what that ordering solves.** A crash after a remote effect but before durable result publication still leaves an unknown outcome. Reconcile with the effect service using the same logical operation identity. A cache lock cannot make a payment, model provider or external write participate in the result-store transaction. For durable effects, the authoritative service needs its own idempotency or reconciliation contract.\n\n**Design expiration and ownership safely.** A time-to-live (TTL) bounds how long a claim remains, but it does not stop its owner from running. Use owner tokens for conditional release and an attempt rule for stale publication. If the result retention expires, document whether the same key is rejected, reconciled or treated as new. The in-memory trace below isolates the release-before-publication race; it is not a distributed-lock implementation.",
+    "Why": "A completes work and releases its claim. Before A stores the result, B sees a miss and starts the same operation. Reversing those two steps closes this particular window, but not the earlier remote-effect-versus-result-store crash window.",
+    "worked_case": "A completes work and releases its claim. Before A stores the result, B sees a miss and starts the same operation. Reversing those two steps closes this particular window, but not the earlier remote-effect-versus-result-store crash window.",
+    "Risk": "A successful lock acquisition is not an exactly-once effect guarantee. Ignoring body fingerprints can replay a result for changed arguments.",
+    "Trade": "Longer result retention improves replay safety but increases storage and privacy obligations.",
+    "Try": "Trace crashes before effect, after effect, after result publication and after claim release. State how every retry learns the authoritative outcome.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What if publication succeeds but the response is lost?",
+        "A": "A retry with the same operation identity reads the durable result. Return the original outcome rather than invoke the operation again."
+      },
+      {
+        "Q": "Can an old owner delete a replacement claim?",
+        "A": "Only if release is unsafe. Compare the stored ownership token with the releasing token in one atomic backend operation; a plain unconditional delete can remove another worker's lease."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "What should happen to write requests when distributed idempotency coordination is unavailable?",
+    "A": "**Classify the operation before choosing a fallback.** A duplicate read or repeated model generation may waste money but leave business state intact. A duplicate settlement, account change or external notification can have a different impact. One generic fail-open rule cannot represent all these outcomes.\n\n**Separate coordination availability from effect safety.** If the authoritative effect service enforces a durable idempotency key, a request may proceed using that contract even while an optional response cache is down. If shared coordination is the only mechanism suppressing duplicate effects, falling back to an in-process dictionary loses cross-replica protection. A local mutex covers one process, not the deployment.\n\n**Use explicit degraded modes.** Permit safe reads with reduced deduplication where acceptable. For writes, either obtain durable protection from the destination, queue an operation intent in a durable transactional store, or reject temporarily with a documented retry policy. Do not acknowledge queued work until its intent is committed. Requests whose previous outcome is unknown should reconcile before starting another effect.\n\n**Expose the loss of guarantees.** Record coordination outages, degraded-mode admission counts and unknown operations using bounded telemetry labels. Communicate pending or unavailable status to the client rather than inventing success. Recovery should reconcile queued intents and completed effects before ordinary traffic assumes the cache is authoritative again. The example is an admission decision table; it validates policy choices rather than simulating an outage or network partition.",
+    "Why": "Two replicas receive the same write during a coordination outage. With destination-side durable deduplication both can safely reference the same operation. Without it, local caches cannot prevent duplicate effects, so the application must defer or reject.",
+    "worked_case": "Two replicas receive the same write during a coordination outage. With destination-side durable deduplication both can safely reference the same operation. Without it, local caches cannot prevent duplicate effects, so the application must defer or reject.",
+    "Risk": "Silent fallback can preserve HTTP availability while removing the business invariant users rely on.",
+    "Trade": "Conservative admission lowers availability; destination-enforced operation identities can preserve more availability without trusting a cache.",
+    "Try": "Build a failure matrix for cache outage, destination timeout, result-store outage and network partition. Assign proceed, queue, reconcile or reject to each operation class.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should a timeout release an operation for immediate retry?",
+        "A": "Not if the effect may have happened. Transition to an unknown or reconciling state and ask the destination about the operation identity before deciding whether it is safe to execute."
+      },
+      {
+        "Q": "Does a longer cache TTL fix the outage?",
+        "A": "It changes retention and contention, but does not restore connectivity or provide durable ownership across unavailable replicas."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

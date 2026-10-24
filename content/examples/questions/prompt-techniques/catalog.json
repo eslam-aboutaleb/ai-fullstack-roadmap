@@ -1,0 +1,110 @@
+[
+  {
+    "explain": "Compare both configurations on the same cases and count wins and losses. This is a small diagnostic comparison, not a statistically powered release claim.",
+    "steps": "Pair outcomes by case identity. || Count improvements and regressions separately rather than reporting only the aggregate gain.",
+    "expect": "1 1",
+    "name": "paired-experiment",
+    "language": "python",
+    "filename": "paired-experiment.py",
+    "questions": [
+      715,
+      330,
+      501,
+      340,
+      794
+    ]
+  },
+  {
+    "explain": "A fixed chain passes a typed intermediate result to the next step. The first step retrieves evidence; the second formats it, so failures can be assigned to a boundary.",
+    "steps": "Extract an explicit fact from a fixture. || Pass that fact to a separate formatting function instead of hiding both stages in one large prompt.",
+    "expect": "Rule: exchange only",
+    "name": "decomposition",
+    "language": "python",
+    "filename": "decomposition.py",
+    "questions": [
+      497,
+      331,
+      338
+    ]
+  },
+  {
+    "explain": "A concise user explanation links a result to evidence and conditions. It provides inspectable support instead of claiming to expose a model's private internal reasoning.",
+    "steps": "Build a result with the rule and source used. || Render only the short supported rationale.",
+    "expect": "Exchange applies because P2 excludes refunds.",
+    "name": "visible-rationale",
+    "language": "python",
+    "filename": "visible-rationale.py",
+    "questions": [
+      498,
+      332
+    ]
+  },
+  {
+    "explain": "A bounded checker can request revision when a deterministic condition fails. The fake revision removes an unsupported claim; it is not an autonomous fact checker.",
+    "steps": "Check the draft against an allowed fixture. || Permit one revision and stop after the bound.",
+    "expect": "exchange only 1",
+    "name": "bounded-critique",
+    "language": "python",
+    "filename": "bounded-critique.py",
+    "questions": [
+      499,
+      336
+    ]
+  },
+  {
+    "explain": "Agreement is a vote count, not independent factual support. All three synthetic outputs share the same stale source.",
+    "steps": "Count the most frequent answer. || Compare it with an independent reviewed current rule.",
+    "expect": "refund allowed False",
+    "name": "correlated-votes",
+    "language": "python",
+    "filename": "correlated-votes.py",
+    "questions": [
+      500,
+      333
+    ]
+  },
+  {
+    "explain": "The generation packet includes only the selected applicable evidence and a clear missing-support policy. Actual answer support still requires evaluation.",
+    "steps": "Filter sources by active revision and scope. || Build the prompt packet from the surviving passage.",
+    "expect": "['P2']",
+    "name": "grounded-prompt",
+    "language": "python",
+    "filename": "grounded-prompt.py",
+    "questions": [
+      334
+    ]
+  },
+  {
+    "explain": "A planner proposes steps but the executor validates the plan before dispatch. Tool allowlists remain authoritative even for a plausible plan.",
+    "steps": "Represent the plan as ordered tool names. || Reject a step outside the declared capability set before running any of the plan.",
+    "expect": "False",
+    "name": "plan-validation",
+    "language": "python",
+    "filename": "plan-validation.py",
+    "questions": [
+      335
+    ]
+  },
+  {
+    "explain": "A synthetic injected action is rejected by the same dispatch policy as any other request. The assertion checks effects, not whether the model sounded safe.",
+    "steps": "Supply a malicious proposed tool name. || Verify that the dispatcher never appends it to the effect ledger.",
+    "expect": "denied 0",
+    "name": "injection-fixture",
+    "language": "python",
+    "filename": "injection-fixture.py",
+    "questions": [
+      339
+    ]
+  },
+  {
+    "name": "reasoning-reliability-boundary",
+    "filename": "reasoning-reliability-boundary.py",
+    "language": "python",
+    "explain": "Contrast unconstrained chain-of-thought rationalizations against schema-validated deterministic decomposition to eliminate post-hoc confabulation and latency bloat.",
+    "steps": "Simulate unconstrained chain-of-thought generating plausible but policy-violating rationalizations. || Implement structured extraction combined with deterministic business rule execution. || Assert that policy violations are caught authoritatively without confabulated justifications.",
+    "expect": "All intermediate reasoning reliability assertions verified successfully.",
+    "questions": [
+      966
+    ]
+  }
+]

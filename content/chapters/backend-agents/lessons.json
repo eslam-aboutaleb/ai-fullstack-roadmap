@@ -1,0 +1,38 @@
+[
+  {
+    "Q": "What should the API return when work is not finished?",
+    "explain": "Return an accepted task identity and a way to query status, receive events, and request cancellation. Do not call acceptance completion. Decide whether work continues after disconnect according to product requirements.",
+    "example": "POST returns task T8; GET T8 later shows complete with request R17.",
+    "takeaway": "Give unfinished work an observable lifecycle."
+  },
+  {
+    "Q": "Why keep domain services independent of the agent runtime?",
+    "explain": "Routes, tools, and workers should share business validation, ownership checks, and transaction semantics. Runtime adapters translate formats while the service remains the authority. This keeps a framework migration from rewriting business correctness.",
+    "example": "A form and an agent both call prepare_request with the same trusted principal.",
+    "takeaway": "Multiple entry points should enforce one contract."
+  },
+  {
+    "Q": "What makes retries safe after response loss?",
+    "explain": "Preserve a durable operation identity and check the recorded result after an uncertain failure. Distinguish model-call deduplication from idempotent business effects. A short cache lock cannot replace a uniqueness or transition constraint.",
+    "example": "The browser lost a successful response; querying the operation returns the already-created record.",
+    "takeaway": "Uncertainty calls for status recovery before re-execution."
+  },
+  {
+    "Q": "How does the optional streaming backend demonstrate the boundary?",
+    "explain": "The lab exposes accepted tasks, status lookup, SSE replay, cancellation, and WebSocket control with synthetic output. Its state is intentionally process-local. Use it to observe transport behavior, then replace storage and authentication for production requirements.",
+    "example": "Restarting the lab loses tasks, demonstrating exactly why a live connection and Python dictionary are not durable infrastructure.",
+    "takeaway": "A learning demo should make its limits observable."
+  },
+  {
+    "Q": "How do async I/O and resource ownership affect a backend?",
+    "explain": "Async I/O lets a task yield while waiting for compatible network or storage operations. It does not make CPU-heavy parsing or synchronous SDK calls nonblocking. Give each request or worker its own appropriate session and close resources in structured cleanup paths. Use bounded thread/process workers for blocking or CPU-heavy work according to its behavior, and cap queue size.",
+    "example": "A synchronous PDF parser called inside an async handler blocks other tasks on that event loop. Move it to a bounded worker and expose progress through the durable task contract.",
+    "takeaway": "Concurrency requires matching execution and resource lifetimes."
+  },
+  {
+    "Q": "What should a long-running task API promise?",
+    "explain": "A create endpoint validates the request and returns a task identity with a status location when work is accepted. A status endpoint returns authorized durable state. A cancellation endpoint requests a state transition and explains any already-committed effects. Use a consistent error envelope with a safe code, message, retryability, and correlation ID rather than leaking provider exceptions.",
+    "example": "POST /tasks returns an accepted task ID. A lost response can be retried with the same operation key, and GET /tasks/id reveals whether it is running, completed, failed, or awaiting reconciliation.",
+    "takeaway": "The API contract outlives a connection and an agent framework."
+  }
+]

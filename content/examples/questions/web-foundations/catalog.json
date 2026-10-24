@@ -1,0 +1,101 @@
+[
+  {
+    "name": "fastapi-auth-validation",
+    "filename": "fastapi-auth-validation.py",
+    "language": "python",
+    "explain": "Demonstrate FastAPI-style ASGI request routing, Pydantic schema validation, and dependency-injected authorization. Enforces 422 Unprocessable Entity on schema violations and 401/403 on authorization failure before business handlers execute.",
+    "steps": "Authenticate user credentials and enforce multi-tenant authorization in a dependency function. || Validate payload types and numeric boundaries with Pydantic schema validation, returning structured 422 errors.",
+    "expect": "FastAPI validation & auth verified: valid=201, invalid_schema=422, cross_tenant=403",
+    "questions": [
+      981
+    ]
+  },
+  {
+    "name": "http-request-lifecycle",
+    "filename": "http-request-lifecycle.py",
+    "language": "python",
+    "explain": "Trace an HTTPS request from domain input to response: recursive DNS resolution, TCP 3-way handshake, TLS 1.3 cryptographic key exchange, and HTTP/2 wire framing.",
+    "steps": "Resolve domain name to server IP address through DNS. || Establish TCP transport and TLS 1.3 encrypted session before dispatching HTTP application request frames.",
+    "expect": "HTTPS request trace verified: total_latency=117ms, phases=['DNS', 'TCP_HANDSHAKE', 'TLS_1_3', 'TTFB']",
+    "questions": [
+      974
+    ]
+  },
+  {
+    "name": "http-safe-idempotent-methods",
+    "filename": "http-safe-idempotent-methods.py",
+    "language": "python",
+    "explain": "Differentiate safe methods (GET), idempotent methods (PUT, DELETE), and non-idempotent methods (POST). Demonstrates using Idempotency-Key headers to make POST requests safely retriable without duplicate record creation.",
+    "steps": "Demonstrate duplicate resource creation when repeating a non-idempotent POST without an idempotency key. || Attach Idempotency-Key header to return cached creation results on network retries.",
+    "expect": "HTTP method semantics verified: duplicate_post=doc_2, idempotent_retried=doc_3",
+    "questions": [
+      975
+    ]
+  },
+  {
+    "name": "http-status-codes-problem-details",
+    "filename": "http-status-codes-problem-details.py",
+    "language": "python",
+    "explain": "Implement the RFC 9457 Problem Details error contract across standard HTTP status codes: 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, and 422 Unprocessable Entity.",
+    "steps": "Format machine-readable problem detail envelopes with error types, titles, and invalid parameter breakdowns. || Map distinct client, authentication, and validation failure modes to appropriate HTTP status codes.",
+    "expect": "Problem details contract verified: 401=401, 403=403, 422=422",
+    "questions": [
+      976
+    ]
+  },
+  {
+    "name": "cors-preflight-defense",
+    "filename": "cors-preflight-defense.py",
+    "language": "python",
+    "explain": "Demonstrate Cross-Origin Resource Sharing (CORS) preflight OPTIONS negotiation. Proves that CORS is a browser sandbox policy, not a server firewall, showing why API authentication is mandatory.",
+    "steps": "Handle preflight OPTIONS request and return Access-Control-Allow-Origin headers for trusted origins. || Demonstrate that non-browser clients (curl, backend scripts) bypass CORS headers, requiring server-side Bearer authentication.",
+    "expect": "CORS security boundary verified: preflight_allowed=204, preflight_blocked=403, curl_bypass_handled=200",
+    "questions": [
+      977
+    ]
+  },
+  {
+    "name": "cookie-sessions-vs-bearer-tokens",
+    "filename": "cookie-sessions-vs-bearer-tokens.py",
+    "language": "python",
+    "explain": "Compare Cookie-based session storage against Bearer tokens. Cookies provide HttpOnly protection against XSS but require Anti-CSRF defense; Bearer tokens are immune to CSRF but vulnerable to XSS exfiltration if stored in localStorage.",
+    "steps": "Simulate cross-site request forgery attack on auto-attached session cookies and block it via Anti-CSRF verification. || Authenticate requests via Authorization Bearer headers to demonstrate CSRF immunity.",
+    "expect": "Auth trust boundaries verified: cookie_csrf_blocked=403, bearer_authenticated=200",
+    "questions": [
+      978
+    ]
+  },
+  {
+    "name": "keyset-cursor-pagination-api",
+    "filename": "keyset-cursor-pagination-api.py",
+    "language": "python",
+    "explain": "Implement stable Keyset cursor pagination in REST APIs using base64-encoded (created_at, id) tuples. Prevents page drift and duplicate items when records are inserted concurrently.",
+    "steps": "Encode the last record's coordinates into an opaque base64 cursor string. || Seek directly to next page coordinates using cursor predicates, verifying zero duplicate records under concurrent inserts.",
+    "expect": "Keyset pagination verified: page_1=[16, 17, 18, 19, 20], page_2=[11, 12, 13, 14, 15], zero_overlap=True",
+    "questions": [
+      979
+    ]
+  },
+  {
+    "name": "http-client-retry-backoff",
+    "filename": "http-client-retry-backoff.py",
+    "language": "python",
+    "explain": "Implement a production-grade HTTP client retry policy. Honors Retry-After headers and applies exponential backoff with full jitter on 429 and 503, while failing fast on non-retriable 400, 401, 403, and 404 errors.",
+    "steps": "Retry rate-limited 429 requests using parsed Retry-After header and exponential backoff within a deadline budget. || Fail immediately on permanent client errors (401 Unauthorized) without making wasteful retries.",
+    "expect": "HTTP retry client verified: retried_429_succeeded=200 in 3 tries; 401_fail_fast=401 in 1 try",
+    "questions": [
+      980
+    ]
+  },
+  {
+    "name": "http-wire-parsing-router",
+    "filename": "http-wire-parsing-router.py",
+    "language": "python",
+    "explain": "Parse raw HTTP/1.1 TCP byte streams into standard ASGI scope dictionaries. Demonstrates how servers parse request-lines, headers, and query parameters before routing into web frameworks.",
+    "steps": "Split TCP stream on CRLF boundaries to parse method, request path, HTTP version, and headers. || Construct standard ASGI HTTP scope dictionary containing normalized headers and query parameters.",
+    "expect": "HTTP wire parsing verified: method=POST, path=/api/v1/inference, body_bytes=27",
+    "questions": [
+      983
+    ]
+  }
+]

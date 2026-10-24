@@ -1,0 +1,139 @@
+[
+  {
+    "Q": "Why does sync need more than the basic ingestion pipeline?",
+    "A": "Sync reconciles a changing collection over repeated scans and distributed workers. It must classify document changes, track active generations, prevent stale activation, manage removals, checkpoint progress, and clean abandoned writes. A one-shot replace operation does not cover all of those concerns.",
+    "Why": "A sync coordinator composes source scans, manifests, fencing state, embeddings, vector storage, optional reconciliation jobs, and garbage collection. It prepares generations before committing visibility through manifests.",
+    "Risk": "The coordinator's logic depends on durable adapters implementing atomic fencing and batch compare-and-swap. The provided in-memory implementations demonstrate semantics within a process, not a production multi-process coordination service.",
+    "Trade": "The richer protocol improves recoverability while adding state and adapter obligations. Small single-process applications may reasonably use the simpler pipeline.",
+    "Try": "Compare the state required to replace one file with the state required to sync a million-object collection across two workers and intermittent source failures.",
+    "spoken": "Multi-worker synchronization needs durable ownership, bounded admission, idempotent revision handling and crash recovery beyond a sequential ingestion loop. Leases can expire while work continues; fencing is useful only if the storage/effect receiver rejects stale tokens. An outbox and row claiming solve different boundaries.",
+    "domain": "backend",
+    "subdomain": "coordination",
+    "module": "coordination",
+    "concept": "Why does sync need more than the basic ingestion pipeline",
+    "difficulty": "implementation",
+    "misconception_target": "A database lock coordinates across all services",
+    "definitions": [
+      {
+        "term": "Lease",
+        "definition": "Time-limited exclusive right to process a resource"
+      },
+      {
+        "term": "Fencing token",
+        "definition": "Monotonically increasing token that rejects stale writers"
+      },
+      {
+        "term": "Outbox",
+        "definition": "Table that stores events to publish after database commit"
+      },
+      {
+        "term": "SKIP LOCKED",
+        "definition": "SQL clause that skips rows locked by other transactions"
+      }
+    ],
+    "execution_timeline": "Worker claims row with SKIP LOCKED → Acquires lease → Processes task → Writes outbox events → Commits → Releases lease",
+    "example": {
+      "code": "SELECT * FROM tasks WHERE status = 'pending' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED;",
+      "explanation": "Claim an available task row without waiting for locks held by other workers.",
+      "output": "One task row claimed by this worker"
+    },
+    "production_case": "Worker A pauses until its lease expires; B acquires the job and writes revision 8. A resumes with an older fencing token. The authoritative receiver must reject A rather than trusting its expired local lease.",
+    "alternatives": [
+      "Distributed lock service (Redis, etcd)",
+      "Message queue with competing consumers"
+    ],
+    "pitfalls": [
+      "Lease expiry during long tasks",
+      "Fencing token not checked on write",
+      "Outbox events not published atomically"
+    ],
+    "complexity": "Claim latency depends on the eligible queue range, index plan, skipped locked rows and contention. Leases/fencing/outbox add durable reads and writes; none implies constant-time or exactly-once execution.",
+    "follow_ups": [
+      {
+        "Q": "Does a lease by itself prevent stale writes?",
+        "A": "No. A paused worker can continue after expiry. Enforce fencing or version predicates where the write actually commits."
+      }
+    ],
+    "citations": [
+      "https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "What are leases and fencing tokens, and why are both needed?",
+    "A": "A lease grants temporary ownership; a fencing token is a monotonically increasing epoch that lets authoritative storage reject obsolete owners. A worker can pause beyond its lease and later resume, so merely checking lease time before a write is insufficient.",
+    "Why": "A sync-state repository provides lease acquisition, renewal, token validation, and a fenced commit context. The coordinator validates tokens after preparation and performs activation inside the fenced context.",
+    "Risk": "A stale worker may already have written prepared vectors, but it must not activate them or overwrite checkpoints. Correctness depends on checking authority at the authoritative mutation boundary, not only in worker memory.",
+    "Trade": "Fencing requires shared durable state and atomic enforcement. A simple expiring lock is easier to implement but vulnerable to resumed zombie workers.",
+    "Try": "Pause worker A, expire its lease, let B acquire a newer epoch, then resume A. Identify every operation A may still perform and every authoritative write that must reject it."
+  },
+  {
+    "Q": "Why does a separate token check followed by a write still race?",
+    "A": "Another worker can take ownership after the check and before the write. This is a time-of-check to time-of-use race. The authority check and authoritative mutation need one protected context or equivalent atomic database condition.",
+    "Why": "The a sync-state repository protocol explicitly requires fenced() to exclude takeover while committing. A production adapter can use transactional row locking, advisory locking, or equivalent compare-and-swap semantics; a no-op context is not sufficient.",
+    "Risk": "Implementing validate_token correctly but fenced incorrectly creates false confidence. Unit tests that never interleave takeover with commit will miss the race.",
+    "Trade": "Holding a guard during activation can increase contention. Keep expensive embedding outside it and protect only the necessary visibility and checkpoint operations.",
+    "Try": "Write an interleaving with a successful token check, a takeover, and an obsolete write. Then show which atomic guard makes that history impossible."
+  },
+  {
+    "Q": "What does compare-and-swap do for manifest activation?",
+    "A": "Compare-and-swap updates state only if its current version matches the expected version. It detects that another operation changed the document while new content was being prepared. Batch compare-and-swap applies the intended set without a partially updated manifest snapshot.",
+    "Why": "The coordinator records expected fences, prepares vectors, and calls compare_and_swap_many during activation. Readers use a manifest snapshot to validate which generation and chunk IDs are visible.",
+    "Risk": "A loop of individually successful per-document swaps is not equivalent to an atomic batch when collection consistency is required. Adapter contracts must make the promised visibility semantics real.",
+    "Trade": "Batch atomicity simplifies reader consistency while placing stronger demands on durable storage. Per-document activation permits partial progress with weaker whole-collection simultaneity.",
+    "Try": "Simulate two prepared updates where one expected fence is stale. Verify that a batch failure does not leave only the other document activated."
+  },
+  {
+    "Q": "How do document and collection activation modes differ?",
+    "A": "Document mode can activate successful document updates even when another document fails preparation. Collection mode aims to avoid publishing a partially prepared collection and advances collection-generation state after activation. They express different consistency and availability choices.",
+    "Why": "The coordinator's preparation loop records errors; collection mode raises on preparation failure, while document mode can continue. The activation path updates manifests and collection state under the supplied coordination contracts.",
+    "Risk": "Cross-store atomicity is not created automatically by selecting collection mode. Durable adapters must preserve the fenced and batch visibility obligations, including failure between manifest commit and generation advancement.",
+    "Trade": "Collection consistency can delay fresh data because one bad document blocks a run. Document mode improves partial availability while exposing mixed document update times.",
+    "Try": "Make one of three documents fail embedding. Compare reports and visible generations in both modes and state which behavior your product requires."
+  },
+  {
+    "Q": "How do metadata-only changes avoid unnecessary re-embedding?",
+    "A": "If content and embedding-relevant processing remain unchanged, a metadata update can reuse stored vectors while writing records with new metadata. This saves provider work without pretending that all changes are harmless to vector identity.",
+    "Why": "Sync plans distinguish metadata_only updates. The coordinator fetches existing embeddings by active chunk IDs and passes them into preparation instead of calling the embedder again for that case.",
+    "Risk": "Misclassifying a semantic preprocessing change as metadata-only reuses invalid vectors. Missing stored vectors also need an explicit failure path rather than silently substituting arbitrary values.",
+    "Trade": "This optimization reduces cost but requires accurate fingerprints and a fetch-capable backend. Re-embedding everything is simpler and more expensive.",
+    "Try": "Change a display title, then change chunker configuration, then change an access field. Explain which changes can reuse vectors and which still require immediate authorization updates."
+  },
+  {
+    "Q": "How does a synchronous retrieval adapter protect against stale and tombstoned vectors?",
+    "A": "It asks the backend for scoped active candidates, oversamples, reads a manifest snapshot, and rejects results whose document is absent or non-active, whose generation differs, or whose chunk ID is not in the active manifest. Physical presence is not sufficient for visibility.",
+    "Why": "This read-time gate decouples authorization and active-state checks from eventual vector cleanup. It also checks returned metadata rather than trusting that every backend filter was honored perfectly.",
+    "Risk": "Its finite oversampling can still return fewer than the requested number of valid hits. Also, callers using the raw store bypass this protection, so integration must preserve the intended reader path.",
+    "Trade": "Additional manifest reads and filtering improve consistency while adding latency and possible underfilling. A stronger backend-native visibility index could reduce that overhead but needs equivalent guarantees.",
+    "Try": "Insert old-generation, tombstoned, wrong-scope, and valid records. Verify which survive and show a case where oversampling still cannot fill final_k."
+  },
+  {
+    "Q": "What is the transactional outbox pattern, and what must the host implement?",
+    "A": "The outbox writes a job in the same transaction as the application change it represents. A separate worker later processes that job. This prevents a committed business change from losing its intended background work because a process crashed before sending an external message.",
+    "Why": "A durable job repository and a job processor are host-implemented contracts. enqueue behavior with a supplied session must join the caller's transaction; protocol documentation describes safe claiming, including SKIP LOCKED semantics for a SQL implementation.",
+    "Risk": "A separate job insert after commit is not a transactional outbox. Likewise, the sync coordinator's optional reconciliation enqueue should not automatically be described as atomic with every remote vector write.",
+    "Trade": "An outbox adds polling, retries, and retention but avoids fragile dual writes. It still requires idempotent processing because a crash can cause a job to run again.",
+    "Try": "Draw crashes before business commit, after commit, and after processing but before completion marking. Explain how an outbox avoids lost work while permitting duplicate processing."
+  },
+  {
+    "Q": "Does SKIP LOCKED provide exactly-once job execution?",
+    "A": "No. It helps concurrent SQL workers claim different available rows without waiting on already locked rows. A worker can still finish external work and crash before recording completion, causing a later retry to repeat that work.",
+    "Why": "The job system tracks status, attempts, lock ownership, and stale-job reclamation. These mechanisms support recovery, while the processor must ensure repeated execution has safe logical effects.",
+    "Risk": "Reclaiming too early can overlap a still-running worker; never reclaiming can strand jobs forever. Production adapters must enforce ownership on completion and failure transitions, not just during initial selection.",
+    "Trade": "At-least-once processing is practical with idempotent writes and fencing. Claiming exactly-once behavior across unrelated external services would require a much stronger design.",
+    "Try": "Make the processor succeed, then simulate failure in completion marking. Run reclamation and show that the second execution does not duplicate the application's intended effect."
+  },
+  {
+    "Q": "How do shutdown, retries, checkpoints, and garbage collection work together?",
+    "A": "The drainer checks for stale jobs, processes pending work, survives failed passes, and uses a stop event for shutdown. Sync cancels heartbeats, releases leases, and cleans retired or uncommitted vectors in a finally path. Checkpoints record committed progress under the example token.",
+    "Why": "These are recovery mechanisms for different lifetimes: process shutdown, task execution, authority ownership, and storage cleanup. A completion report alone cannot replace all of them.",
+    "Risk": "Cleanup can itself fail, and process termination may prevent finally blocks from running. Durable reconciliation must discover leftovers on a later run; a successful logical activation should not be undone by deleting committed IDs as abandoned work.",
+    "Trade": "Conservative cleanup leaves temporary storage overhead while protecting visible data. Aggressive deletion reduces space and can make recovery unsafe.",
+    "Try": "Build a crash matrix for preparation, vector write, manifest activation, checkpoint, and cleanup. For each point identify visible state and the next repair action."
+  }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "Q": "How would you design a bounded research agent that knows when to stop searching?",
+    "A": "**Define completion as evidence coverage.** Translate the user's request into explicit subquestions and a checklist of required claims. Record which claims have supporting sources, which are disputed and which cannot be answered with available access. The planner may propose new queries, but the application controls tool permissions and run budgets.\n\n**Use a finite execution envelope.** Set a deadline, total token allowance, tool-call cap, maximum concurrent requests and permitted domains or data scopes. Charge retries and delegated work to the same root budget. Reject an action that cannot fit the remaining budget. A model saying it wants one more search is not a reason to reset the counter.\n\n**Stop for success, diminishing returns or failure.** Success means coverage and evidence checks pass. Diminishing returns means recent searches add no distinct useful evidence under a defined rule. Failure includes exhausted budget, inaccessible required sources or contradictory evidence that cannot be resolved. Return a structured partial result with unresolved claims instead of inventing completeness.\n\n**Make progress observable.** Show what is being researched, which sources were found and whether the user can cancel. Persist durable task state between steps. Tool output is untrusted and should not rewrite budgets or permissions. Evaluate with tasks containing impossible questions so the stop policy is tested, not merely the happy path.",
+    "Why": "A research task allows 12 searches and 90 seconds. After eight searches, two claims remain unsupported and three recent results add no new evidence. The agent reports those gaps and stops instead of looping until the provider times out.",
+    "worked_case": "A research task allows 12 searches and 90 seconds. After eight searches, two claims remain unsupported and three recent results add no new evidence. The agent reports those gaps and stops instead of looping until the provider times out.",
+    "Risk": "An unconstrained retry or delegation branch can evade a budget that counts only top-level model calls.",
+    "Trade": "More searches can improve coverage, but define the marginal evidence gain needed to justify their latency and cost.",
+    "Try": "Give the agent an unanswerable subquestion and repeated duplicate results. Verify bounded termination and an honest partial report.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "agent-orchestration",
+    "citations": [
+      "https://www.anthropic.com/research/building-effective-agents",
+      "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents"
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

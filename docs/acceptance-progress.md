@@ -1,0 +1,65 @@
+# Acceptance review and implementation progress: issues 1–21
+
+Reviewed 20 October 2026 against the issue bodies in
+[eslam-aboutaleb/ai-fullstack-roadmap](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues).
+This includes the other agent's uncommitted changes for issues 17–21, integrated
+with the continued implementation. The earlier implementation-review.md and
+review-verification.json describe the historical baseline, not the current state.
+
+The implementation now includes working study evidence, assessments, disposable
+browser coding workers, paginated question banks, four deterministic simulations,
+seven engineering courses with 40 units, four local capstones and a connected local
+application. These are static documentation and browser assets; backend examples
+run only on a learner's computer. All 810 prior study identities retain their
+numbers. Course units use IDs 811–850. The latest additions and their scope are documented in
+[content-enrichment-review.md](content-enrichment-review.md).
+
+This is not certification that every issue is complete. In particular, the broad
+syllabus requirements exceed the current long-form content, and independent
+technical review remains pending. No issues were closed or changes deployed during the local implementation review.
+The follow-up PR adds inherited CI; see [ci-inheritance.md](ci-inheritance.md).
+
+| Issue | Implemented evidence | Remaining acceptance work |
+| --- | --- | --- |
+| [1](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/1) Static architecture | Root/subpath build and browser checks; static HTML/CSS/JS/JSON/SVG/WASM; no hosted API, runtime credentials or search service. Relative URLs support downloaded reading. Public assets exclude private/source/cache files. | Verify this artifact in an actual Pages release after publishing. HTTP is required for search fetches and coding workers; downloaded core HTML remains readable. |
+| [2](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/2) Curriculum audit | All 56 chapters inventoried, seven tracks, validated prerequisites, linked SVG graph and complete table, depth flags and artifact metadata. | Exhaustive factual accuracy, overlap and concept-level gap review requires further editorial work. |
+| [3](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/3) Rigorous pilots | Bounded asyncio engine with cancellation/timeout checks; authenticated FastAPI/Postgres transactions with concurrent confirmation; retrieval gold-set regression and durable agent effect fixtures. Long-form teaching links actual source and observed outputs. | Independent SME review; expand scaffolding and coverage beyond these pilots. |
+| [4](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/4) Reader | Tracks, DAG, TOC, glossary links, themes, reading controls, lazy search, focus management, accessible copy controls and responsive/no-JS pages. | Full manual assistive-technology review and a comprehensive line-annotation UI. |
+| [5](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/5) Mastery | Versioned IndexedDB event journal, fallback, legacy migration, notes/bookmarks, conflict-safe two-tab merging, portable attempts, explicit clear and stale-write reset barrier. Evidence-derived Familiar/Practiced/Independent/Mastered and documented simple review intervals. | Browser-local evidence is learner-editable and estimates progress; it is not certification. |
+| [6](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/6) Browser labs | Four starter/hint/solution labs, two JS and two Python. Disposable Workers, stop/reset, timeout and output caps. Pinned, integrity-checked, self-hosted Pyodide; Python declared-import allowlist. | Workers are not a hardened security boundary. No hard memory quota; runtime startup allowance differs from execution timeout. Unsupported integrations remain local exercises. |
+| [7](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/7) Capstones | Async jobs, transactional API, retrieval evaluation and durable agent projects; requirements, milestones, starter interfaces, rubrics, negative cases and downloadable reference ZIP. Connected FastAPI UI integrates task identity, scoped retrieval and explicit effect confirmation. | Production deployment, distributed provider semantics and independent project review are outside the synthetic fixtures; expand architecture diagrams per capstone. |
+| [8](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/8) Visualizers | Four deterministic transition models: scheduling, locking, retrieval and retries; failure toggles, step/slider/reset controls and no-JS transcripts. Fixtures checked against model transitions. Existing chapter diagrams retained. | Separate HTTP lifecycle and richer agent/MCP trace simulations. |
+| [9](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/9) Assessments | Twenty-two objective scenarios plus one subjective rubric task; distractor feedback, hints, seeded ordering, adaptive revision and local attempt history. Self-review never automatically grants a graded pass. | Expand incident/log/deadlock coverage and assessment mapping across the full curriculum. |
+| [10](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/10) Quality factory | Recursive schemas, negative fixtures, source fidelity, lab execution, dependency audit, axe, browser flows, scale and root/subpath gates. Actions pinned, limited permissions, main-only deployment, separate CPU model gate and temporary Postgres test cluster. | External reference freshness and broad manual semantic/SME checks. CI definitions were validated locally; new hosted runs have not been observed. |
+| [11](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/11) Blueprint | Existing topics mapped; DAG and public syllabus; new course units have measurable stable outcome IDs, prerequisites, exercises, lab and assessment mappings. | Exhaustive lesson-level blueprint across every specified math, data, frontend, cloud, inference and agent subject. |
+| [12](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/12) Content contracts | Three enriched pilot lessons and 40 enriched questions; recursive schemas, definitions, examples, references and source integrity. Draft labels distinguish editorial state. | Concise interview responses are honestly labeled; not all meet a 60–120-second spoken rubric. Schema presence does not establish that every term is explained or every answer is deep and correct. |
+| [13](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/13) Scale | Forty-question pages, JSON shards, on-demand track search shards, coverage reports and no fixed authoring quota. A 1,200-record fixture builds and navigates in real JS/no-JS Chromium at root and subpath. Original anchor redirects preserve practice query and fragment. | Fixture demonstrates engineering capacity, not 1,200 independently authored questions. Published chapters have 747 deeper interview questions plus 356 foundation questions on the same pages. Lexical duplicate checks need semantic editorial review. |
+| [14](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/14) Quotes/source | Historical corruption reproduced; text-node highlighting and original-source copy. All 946 chapter source associations verified, plus 19 real-browser copy/Unicode/entity fixtures. | Publish and verify the release. |
+| [15](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/15) Python/backend | Seven progressive units cover values, protocols/resources, complexity/OS/network, asyncio, API auth, SQL/outbox and testing/delivery. Real Postgres fault/concurrency tests; optional local app. | Broader complete syllabus depth, more unworked exercises and independent technical review. |
+| [16](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/16) Math/models | Eight units; hand-derived gradients checked numerically, complete tiny train/validation/test classifier, NumPy/PyTorch autograd bridge, stable attention, byte token merges, K/V reuse and quantization error. | Broader probability, optimization, transformer training/finetuning exposition; independent mathematical review. Synthetic accuracy is not a production quality claim. |
+| [17](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/17) LLM/RAG | Existing enriched RAG/inference questions preserved; scoped deterministic retrieval, measured recall regression, abstention, hybrid ranking exercise, evaluation capstone and connected local UI. No mandatory provider account. | Full long-form API/streaming/OCR/provenance/HNSW/reranking/cost syllabus and more ranking metrics/trace analyses. Existing question enrichment is not a complete new course. |
+| [18](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/18) Agents/MCP | Durable SQLite approval/effect ledger, repeat-safe provider fixture, lost-ack recovery and ownership/payload conflict tests. Existing MCP/orchestration material and enriched authorization/recovery questions retained. | Complete research/support agent with capability discovery, policy engine, mock connector suite, replayable trace explorer and exhaustive terminology comparisons. |
+| [19](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/19) Frontend/data/cloud/design | Existing chapters and enriched frontend/design entries, accessible local app, CI-built references and project rubrics retained. | Complete dedicated courses and tested streaming React UI, schema-evolving ingestion pipeline, IaC/MLOps exercises, and capacity-estimated incident case studies. |
+| [20](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/20) Editorial publishing | Schema/example/link/quote/a11y/duplicate gates, actual-count coverage and review report. All 40 enriched questions are visibly draft; reviewed/approved labels require matching reviewer/date/notes and content digest, rejected after edits. | Human technical sign-off, semantic duplicate/fact verification, version-sensitive provenance for all legacy records and exhaustive external URL checking. Attestations record review; automation cannot authenticate a reviewer. Question gate does not certify other content types. |
+| [21](https://github.com/eslam-aboutaleb/ai-fullstack-roadmap/issues/21) Design system | Existing showcase repaired: semantic table/details/navigation, responsive titled SVGs, theme tokens, code contrast, focus/target fixes, reduced motion and print styles. Fourteen template/theme axe checks pass. Quote/copy and no-JS checks pass. | Full long-lesson showcase of every requested component (including code/output tabs, glossary popovers and richer annotation controls); manual screen-reader/zoom/high-contrast review. Automated checks are not full WCAG conformance. |
+
+The subsequent [content enrichment review](content-enrichment-review.md) records the expanded seven-course/40-unit edition and contextual corrections. The matrix above remains the earlier acceptance baseline.
+
+## Reproducing checks
+
+Run `make runtime`, `make check`, then install the pinned browser/test dependencies
+and Chromium as described in CONTRIBUTING.md. Run the browser, learning,
+accessibility and scale scripts in `tests/`. The Postgres harness creates and
+removes its own temporary cluster; it does not target a user database. The optional
+NumPy/PyTorch bridge has its own requirements and CI job. Rebuild with
+`PAGES_BASE_PATH=/ai-fullstack-roadmap/ make site` before running the browser scripts
+with `--base-path /ai-fullstack-roadmap/`.
+
+The exact current checks and practical limitations are recorded in
+[current-verification.json](current-verification.json). Earlier JSON reports remain
+historical evidence and should not be read as current coverage.
+
+The [journey review](learning-journey-review.md) supersedes the original RAG-first
+order and records 56 chapters, 356 lessons and 590 interview questions.
+
+The subsequent [interview-led chapter review](interview-led-chapters.md) records the latest same-page answer rendering and content expansion.

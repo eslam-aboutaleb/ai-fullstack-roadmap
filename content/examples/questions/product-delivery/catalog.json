@@ -1,0 +1,84 @@
+[
+  {
+    "explain": "A UI state machine preserves the difference between receiving partial text and observing authoritative completion. Unknown transitions are rejected rather than guessed.",
+    "steps": "Declare legal transitions for the task view. || Apply a delta event without marking the task complete.",
+    "expect": "streaming",
+    "name": "ui-state-machine",
+    "language": "python",
+    "filename": "ui-state-machine.py",
+    "questions": [
+      644,
+      274
+    ]
+  },
+  {
+    "language": "html",
+    "explain": "A semantic form provides labels and native keyboard controls; CSS changes layout without replacing their behavior. The result area is a restrained completion/status region.",
+    "steps": "Associate the label and input with matching identifiers. || Use a real submit button and an adaptable layout instead of clickable generic elements.",
+    "expect": "A labeled question field, submit button, and status area render in a responsive column.",
+    "limit": "Static browser example; connect its submit event to your validated API before claiming an end-to-end application.",
+    "name": "semantic-form",
+    "filename": "semantic-form.html",
+    "questions": [
+      780
+    ]
+  },
+  {
+    "language": "javascript",
+    "explain": "Draft text is local UI state while persisted tasks are keyed server state. A new draft must not mutate the saved response record.",
+    "steps": "Keep separate structures for the draft and saved tasks. || Update the draft and inspect that the saved task remains unchanged.",
+    "expect": "saved answer",
+    "name": "local-server-state",
+    "filename": "local-server-state.js",
+    "questions": [
+      781
+    ]
+  },
+  {
+    "language": "javascript",
+    "explain": "Render model content as text and announce meaningful completion once. Repeated token announcements and arbitrary model HTML can harm accessibility or execute untrusted content.",
+    "steps": "Use textContent for untrusted model output. || Update a live status region only when the task reaches a meaningful state.",
+    "expect": "The answer element displays the script-looking text literally; status announces Answer ready.",
+    "limit": "Browser integration sketch; requires elements with IDs answer and status, and a task object from your validated API.",
+    "name": "safe-render",
+    "filename": "safe-render.js",
+    "questions": [
+      647,
+      783,
+      277
+    ]
+  },
+  {
+    "explain": "Feedback binds to a persisted message identity, not a transient DOM position or the current text. Reloading or rerendering does not change which answer the feedback evaluates.",
+    "steps": "Resolve the saved message ID. || Create a feedback record referring to that identity and revision.",
+    "expect": "M7 2",
+    "name": "stable-message-feedback",
+    "language": "python",
+    "filename": "stable-message-feedback.py",
+    "questions": [
+      273
+    ]
+  },
+  {
+    "language": "javascript",
+    "explain": "Generate one operation key for an intended mutation and preserve it on retry. A server must enforce uniqueness and payload compatibility; the client key alone provides no exactly-once guarantee.",
+    "steps": "Allocate the key when the operation is created. || Reuse that operation record for subsequent send attempts.",
+    "expect": "true",
+    "name": "client-operation-key",
+    "filename": "client-operation-key.js",
+    "questions": [
+      278
+    ]
+  },
+  {
+    "name": "client-operation-idempotency-reconciliation",
+    "filename": "client-operation-idempotency-reconciliation.py",
+    "language": "python",
+    "explain": "A client operation reconciliation harness demonstrates how network timeouts after task acceptance cause double-billing when retries mint new keys, and verifies idempotent replay under stable client keys.",
+    "steps": "Simulate client submission and network ACK drop after backend task commitment. || Demonstrate the naive UI retry trap where minting a new key triggers duplicate mutations. || Enforce resilient client operation state reconciliation using stable idempotency keys.",
+    "expect": "=== Testing Client Operation Idempotency & Retry Reconciliation Suite ===\n\nAttempt 1: Submitting with client_key 'op_uuid_8844' (Simulating network ACK drop)...\n  Network timeout! Client did not receive the HTTP 200 response.\n\n[Vulnerability] Naive UI mints a new key on 'Try Again':\n  Naive Retry Result: {'status': 'COMMITTED', 'task': {'task_id': 'task_0002', 'client_key': 'op_uuid_9999', 'amount': 120.0, 'state': 'COMMITTED'}}\n\n[Resilient] Production UI retries using the STABLE client_operation_key:\n  Reconciled Retry Result: {'status': 'REPLAYED', 'task': {'task_id': 'task_0001', 'client_key': 'op_uuid_8844', 'amount': 120.0, 'state': 'COMMITTED'}}\n\nAll client operation idempotency and reconciliation invariants verified successfully.",
+    "questions": [
+      953
+    ]
+  }
+]

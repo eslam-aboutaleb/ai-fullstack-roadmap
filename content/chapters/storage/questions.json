@@ -1,0 +1,187 @@
+[
+  {
+    "Q": "What does a vector database store besides vectors?",
+    "A": "A useful retrieval record contains identity, text or a text reference, a vector, and filterable metadata. Production systems also need revision and scope information, deletion semantics, and an explicit persistence model. A fast nearest-neighbor API alone does not provide those guarantees.",
+    "Why": "The retrieval service's store contracts combine or separate writing, vector search, lexical search, fetch, and deletion. Backend capability declarations describe which operations and constraints the adapter actually supports.",
+    "Risk": "An index that returns similar vectors but cannot enforce a required tenant filter is unsuitable for that request. Capability validation rejects unsupported mandatory constraints instead of silently ignoring them.",
+    "Trade": "A general-purpose database can unify transactional metadata and vectors; a specialist engine can offer different scaling and operational features. Compare the adapter's concrete guarantees rather than category labels.",
+    "Try": "Create a decision matrix for persistence, filters, lexical search, transactions, generation visibility, and deletion latency for two candidate backends.",
+    "spoken": "A retrieval store may keep vectors, searchable text and metadata such as owner scope, document revision and source spans. Backend capabilities vary. Compare indexing, filtering, consistency, deletion and backup contracts rather than assuming every vector database provides equivalent authorization and durability.",
+    "domain": "ai-rag",
+    "subdomain": "storage",
+    "difficulty": "foundations",
+    "misconception_target": "One storage backend handles all retrieval needs",
+    "definitions": [
+      {
+        "term": "Vector storage",
+        "definition": "Stores embeddings and supports ANN similarity search"
+      },
+      {
+        "term": "Keyword storage",
+        "definition": "Indexes exact terms for lexical search"
+      },
+      {
+        "term": "Document storage",
+        "definition": "Keeps full documents with structured fields and filters"
+      }
+    ],
+    "execution_timeline": "Ingest document -> Extract embeddings and keywords -> Store in appropriate backends -> Query routes to correct backend -> Merge and rank results",
+    "example": {
+      "code": "vector_store.add(embeddings, metadata)\nkeyword_index.add(texts, doc_ids)\nresults = hybrid_query(query, vector_store, keyword_index)",
+      "explanation": "Store in both backends, query both, merge results.",
+      "output": "Merged ranked results from both backends"
+    },
+    "production_case": "A document is revoked but its vector and cached passage remain. Reconcile all derived stores and enforce current source access at retrieval and document-read boundaries.",
+    "alternatives": [
+      "Single backend with hybrid support",
+      "Separate specialized backends"
+    ],
+    "pitfalls": [
+      "Vector-only misses exact SKUs",
+      "Keyword-only misses synonyms",
+      "Inconsistent metadata across backends"
+    ],
+    "complexity": "Exact vector comparison scales with corpus size and vector dimension. Approximate-search performance and recall depend on index/settings/data; inverted-index queries depend on posting lists and filtering, not merely term count.",
+    "follow_ups": [
+      {
+        "Q": "Does a metadata filter automatically establish row-level security?",
+        "A": "No. It must be derived from trusted scope and enforced for every path, with backend semantics and negative tests understood."
+      }
+    ],
+    "citations": [
+      "https://redis.io/docs/latest/develop/search/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true,
+    "concept": "What does a vector database store besides vectors"
+  },
+  {
+    "Q": "Why use PostgreSQL with pgvector and full-text search?",
+    "A": "PostgreSQL can combine relational filters, vector distance, lexical ranking, and host-managed transactions in one database. This is attractive when the application already depends on PostgreSQL and wants retrieval to participate in existing data governance.",
+    "Why": "The PostgreSQL vector adapter builds table-agnostic SQL from validated identifiers and uses database-specific search operations. The host supplies schema and sessions; the adapter does not turn every database into PostgreSQL or own every application migration.",
+    "Risk": "Database extension setup, indexes, pool sizing, and query plans still need operational care. The presence of pgvector does not prove that an approximate index is configured or used for a particular query.",
+    "Trade": "One database reduces cross-system coordination but couples workloads and capacity. A separate vector service isolates scaling while introducing another consistency and authorization boundary.",
+    "Try": "Explain what an EXPLAIN plan would need to show before you claim a vector query uses an ANN index. Keep that distinct from the Python adapter's API.",
+    "spoken": "PostgreSQL can combine transactional source state with full-text search and vector capabilities through an extension such as pgvector. This can simplify operations and joins, but index/filter behavior, workload isolation and capacity need measurement. A dedicated search system may fit different scale or latency needs.",
+    "domain": "ai-rag",
+    "subdomain": "storage",
+    "module": "storage",
+    "concept": "Why use PostgreSQL with pgvector and full-text search",
+    "difficulty": "foundations",
+    "misconception_target": "One storage backend handles all retrieval needs",
+    "definitions": [
+      {
+        "term": "Vector storage",
+        "definition": "Stores embeddings and supports ANN similarity search"
+      },
+      {
+        "term": "Keyword storage",
+        "definition": "Indexes exact terms for lexical search"
+      },
+      {
+        "term": "Document storage",
+        "definition": "Keeps full documents with structured fields and filters"
+      }
+    ],
+    "execution_timeline": "Ingest document -> Extract embeddings and keywords -> Store in appropriate backends -> Query routes to correct backend -> Merge and rank results",
+    "example": {
+      "code": "vector_store.add(embeddings, metadata)\nkeyword_index.add(texts, doc_ids)\nresults = hybrid_query(query, vector_store, keyword_index)",
+      "explanation": "Store in both backends, query both, merge results.",
+      "output": "Merged ranked results from both backends"
+    },
+    "production_case": "A team already operates PostgreSQL and wants one authoritative ownership model. Start with a measured search baseline, inspect query plans and test mixed transactional/search workloads before adding a second storage platform.",
+    "alternatives": [
+      "Single backend with hybrid support",
+      "Separate specialized backends"
+    ],
+    "pitfalls": [
+      "Vector-only misses exact SKUs",
+      "Keyword-only misses synonyms",
+      "Inconsistent metadata across backends"
+    ],
+    "complexity": "Exact vector comparison scales with corpus size and vector dimension. Approximate-search performance and recall depend on index/settings/data; inverted-index queries depend on posting lists and filtering, not merely term count.",
+    "follow_ups": [
+      {
+        "Q": "When would you add a dedicated vector service?",
+        "A": "When measured requirements such as corpus scale, isolation, indexing throughput or query latency justify its additional operational and consistency boundaries."
+      }
+    ],
+    "citations": [
+      "https://redis.io/docs/latest/develop/search/"
+    ],
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
+    },
+    "added": true
+  },
+  {
+    "Q": "What is ANN, and how is it different from exact nearest-neighbor search?",
+    "A": "Approximate Nearest Neighbor search trades guaranteed exact ranking for faster search over large vector collections. Exact search compares against all eligible vectors and provides a useful correctness baseline. Algorithms such as HNSW and IVF have different memory, tuning, and recall behavior.",
+    "Why": "The retrieval service delegates vector operations to backends. An in-memory scan is useful for small controlled examples; a production backend may use an approximate index depending on its configuration and query plan. ANN is not universally forced by this library.",
+    "Risk": "ANN can miss relevant candidates before reranking ever sees them. Metadata filters and small candidate pools can interact with index behavior, so recall must be measured under actual constraints.",
+    "Trade": "Higher search effort usually improves recall and costs latency or memory. Exact search may be sufficient for small corpora or useful as an offline oracle.",
+    "Try": "Compare approximate results with exact results on the same authorized subset. Plot recall versus latency while varying backend search effort."
+  },
+  {
+    "Q": "Why are native lexical search and token-overlap fallback not equivalent?",
+    "A": "PostgreSQL full-text search provides language configuration, query parsing, and ranking facilities. The shared fallback tokenizes lowercase ASCII alphanumeric sequences and scores query-token overlap. It is a lightweight approximation, not BM25 and not equivalent multilingual search.",
+    "Why": "The scoring helper makes non-PostgreSQL backends usable in hybrid examples while capability declarations distinguish native and approximate lexical support. This preserves a common result shape without pretending the underlying ranking models are identical.",
+    "Risk": "Non-ASCII text and linguistic variation may behave poorly in the fallback. An evaluation that covers only English exact-word examples can miss this limitation.",
+    "Trade": "A portable fallback avoids another search service, while native full-text infrastructure generally offers richer lexical behavior. Choose according to corpus language and quality requirements.",
+    "Try": "Tokenize an Arabic query and an English product code using the fallback. Inspect the actual tokens before interpreting any hybrid score."
+  },
+  {
+    "Q": "How does the reference design prevent SQL injection in dynamic queries?",
+    "A": "SQL values use bound parameters, while table and column names require separate identifier validation because SQL drivers cannot bind identifiers as ordinary values. the retrieval service validates dynamic names before interpolation into backend SQL.",
+    "Why": "The validation helper restricts identifiers to a simple allowlisted syntax. the PostgreSQL vector adapter applies validation when constructing operations and keeps values in parameter dictionaries. This is safer than escaping arbitrary user-provided SQL fragments.",
+    "Risk": "A valid identifier is not proof of authorization to access that table. Hosts must select trusted schema configuration and limit database permissions. Application transport validation also remains necessary.",
+    "Trade": "Strict names exclude qualified or unusual identifiers unless explicitly supported. That constraint simplifies safe SQL construction at the cost of some schema flexibility.",
+    "Try": "Compare a malicious value, a malicious table name, and a syntactically valid but unauthorized table name. Explain which layer must stop each one."
+  },
+  {
+    "Q": "What does session injection buy, and when does atomicity fail?",
+    "A": "Session injection lets several operations join a transaction owned by the host or pipeline. When version mutations and vector writes truly use the same transactional database session, rollback can preserve the previous active state if a write fails.",
+    "Why": "The ingestion coordinator forwards the critical session into version storage and store upsert. Its guarantee depends on both adapters honoring that session. A remote vector service or in-memory store may not participate in the SQL transaction.",
+    "Risk": "Passing a session argument that an adapter ignores does not create cross-system atomicity. The sync path instead uses prepared generations and manifest visibility, with durable adapter obligations.",
+    "Trade": "Shared transactions simplify consistency within one database. Cross-service storage can scale independently but needs explicit visibility, retries, reconciliation, and failure recovery.",
+    "Try": "Draw a rollback scenario for PostgreSQL-only storage and another for SQL versions plus a remote vector engine. Identify the write that cannot be rolled back in the second design."
+  },
+  {
+    "Q": "How do Qdrant, Chroma, FAISS, and in-memory adapters differ operationally?",
+    "A": "They expose a common retrieval surface but use different storage and execution models. In-memory state is process-local. FAISS is an indexing library whose surrounding metadata and persistence need attention. Service-backed engines introduce network and server configuration. Adapter support, not brand identity, determines available guarantees.",
+    "Why": "Each backend has its own implementation and optional dependency. The factory and capability layer let callers choose a backend while rejecting unsupported constraints instead of claiming complete interchangeability.",
+    "Risk": "Assuming identical durability, filter semantics, or transaction participation across these adapters can violate correctness. Inspect persistence and metadata behavior in the selected implementation and deployment.",
+    "Trade": "Lightweight local execution reduces setup; service-backed deployment supports different scale and operations needs. Portability often means accepting a common subset or explicitly branching on capabilities.",
+    "Try": "Compare three public backend configurations. Record where vectors and metadata live, which constraints they enforce, and what survives a process restart."
+  },
+  {
+    "Q": "Why are strict error semantics important for storage operations?",
+    "A": "A failed query and a successful query with zero matches mean different things. Lenient APIs may log an error and return an empty list or zero count; that is convenient for some callers but dangerous when the host interprets emptiness as authoritative.",
+    "Why": "Retrieval supports strict mode and a typed retrieval error type. Mandatory capability and scope failures are designed to propagate rather than become silent fallbacks. Evidence assembly can represent backend failure distinctly when the host preserves that information.",
+    "Risk": "Forgetting strict mode can make an outage look like missing knowledge or an empty index. Health and deletion decisions should not infer success solely from an empty return value.",
+    "Trade": "Strict propagation requires explicit application error handling. Lenient fallback improves continuity only when the product can tolerate ambiguity and communicates it honestly.",
+    "Try": "Make the backend raise on search and count. Compare strict and lenient behavior and design the corresponding UI states."
+  },
+  {
+    "Q": "How should deletion differ from physical garbage collection?",
+    "A": "Logical deletion removes permission or visibility immediately; physical cleanup later reservice requests index storage. Separating the two prevents asynchronous vector deletion from remaining an access-control dependency.",
+    "Why": "Sync manifests can tombstone documents, and a synchronous retrieval adapter validates status, generation, scope, and chunk membership before returning hits. Garbage collection removes retired or uncommitted vectors after visibility decisions.",
+    "Risk": "Calling the raw vector store bypasses manifest checks. A delayed physical deletion is safe only if every reader uses the required visibility boundary and source lookup also respects revocation.",
+    "Trade": "Manifest gating adds reads and coordination but permits conservative cleanup and safer recovery. Immediate physical deletion alone is simpler but can fail or lag.",
+    "Try": "Leave a tombstoned document's vectors physically present. Verify that the supported sync retrieval path returns no evidence and explain why raw nearest-neighbor access must remain internal."
+  },
+  {
+    "Q": "What does a trustworthy backend capability contract look like?",
+    "A": "It states supported filter operators and features such as document fetch, deletion, scope enforcement, generation visibility, and transaction guarantees. Unsupported mandatory requirements produce an error before returning potentially unsafe results.",
+    "Why": "Store capability declarations validates both requested constraints and filter shapes. This makes backend selection a correctness decision rather than a best-effort call to methods that may silently ignore arguments.",
+    "Risk": "Declarations are assertions by adapter code. A falsely advertised capability is still a bug, and permissive host defaults can avoid requesting a guarantee that the product actually needs.",
+    "Trade": "Fail-closed behavior reduces surprising leakage but can reject configurations that previously appeared to work. That incompatibility is useful when the earlier behavior was unsafe or incomplete.",
+    "Try": "Build an adapter that rejects range filters and transactions. Send requests requiring each feature and verify rejection occurs before any evidence is returned."
+  }
+]

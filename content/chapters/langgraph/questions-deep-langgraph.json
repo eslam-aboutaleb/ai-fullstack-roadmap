@@ -1,0 +1,114 @@
+[
+  {
+    "Q": "How does LangGraph implement cyclical state machines using StateGraph, and how do conditional edges control agent looping versus termination?",
+    "A": "**LangGraph implements agent workflows as directed cyclical graphs where nodes represent computation steps and edges define deterministic or conditional control flow.** Traditional DAG (Directed Acyclic Graph) workflow engines (like Airflow) forbid cycles by design. However, autonomous agents inherently require cyclical loops: reasoning -> tool execution -> observing results -> re-evaluating until the goal is achieved or a termination condition is reached.\\n\\n**State schema and reducer semantics.** In LangGraph, the central data contract is the `State` dictionary or Pydantic model. When multiple nodes execute or return updates, LangGraph applies explicit reducer functions (such as `operator.add` for message arrays or custom merge logic) to evolve the state immutably: `class AgentState(TypedDict): messages: Annotated[list[BaseMessage], operator.add]`.\n\nNodes are pure functions accepting the current state and returning a dictionary of partial updates.\\n\\n**Conditional edges as decision routers.** Control flow branching is governed by conditional edges: `workflow.add_conditional_edges(\"planner\", route_decision, {\"tools\": \"tools_node\", \"end\": END})`. The routing function inspects the state (e.g. checking whether the last message contains tool calls) and returns the string identifier of the next target node. Termination is strictly guarded by routing to `END` or enforcing a maximum recursion limit (`recursion_limit=25`), preventing runaway infinite loops when an agent encounters persistent tool errors.",
+    "Why": "An agent calls a calculator tool that fails with a division-by-zero error. Without conditional edge routing and recursion limits, the agent repeatedly retries the identical tool call forever, exhausting API budgets. LangGraph conditional edges catch the error state and route to a fallback explanation node.",
+    "worked_case": "An agent calls a calculator tool that fails with a division-by-zero error. Without conditional edge routing and recursion limits, the agent repeatedly retries the identical tool call forever, exhausting API budgets. LangGraph conditional edges catch the error state and route to a fallback explanation node.",
+    "Risk": "Defining incorrect reducer functions on state fields can accidentally overwrite past conversation history instead of appending to it, wiping out agent context.",
+    "Trade": "StateGraph requires explicit state schema design and node decoupling, trading the quick setup of linear chains for robust cyclic control and debuggability.",
+    "Try": "Build a LangGraph StateGraph with a planner node, a tool node, and a conditional edge. Enforce a recursion limit of 5 and assert that the graph halts when the limit is breached.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-orchestration",
+    "citations": [
+      "https://langchain-ai.github.io/langgraph/concepts/low_level/",
+      "https://langchain-ai.github.io/langgraph/reference/graphs/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens when two parallel nodes write to the same state key?",
+        "A": "If a key has an associative reducer like operator.add, both updates are merged; if no reducer is defined, LangGraph raises an InvalidUpdateError."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How does Checkpointing in LangGraph enable persistent conversational memory and human-in-the-loop interrupt-and-resume workflows?",
+    "A": "**LangGraph checkpointers save atomic snapshots of graph state at every super-step, enabling durable multi-turn execution, state recovery, and human-in-the-loop approval.** In production applications, agent interactions span minutes, hours, or days. If an application worker crashes mid-trajectory, or if a high-impact financial mutation requires human authorization, in-memory state is lost unless backed by durable persistence.\\n\\n**Checkpointing architecture.** Checkpointers (such as `MemorySaver`, `SqliteSaver`, or `PostgresSaver`) serialize the entire state dictionary, next node pointers, and execution metadata after every node transition, indexed by `thread_id` and monotonic `checkpoint_id`. Resuming a conversation requires simply passing the identical `thread_id` in configuration: `graph.invoke(input, config={\"configurable\": {\"thread_id\": \"session_123\"}})`. The graph automatically rehydrates state from the last committed checkpoint without re-executing completed nodes.\\n\\n**Human-in-the-Loop (HITL) interrupt patterns.** LangGraph provides native breakpoint interrupts: `workflow.compile(checkpointer=checkpointer, interrupt_before=[\"execute_transfer\"])`.\n\nWhen execution reaches `execute_transfer`, the engine halts and yields control back to the caller, leaving the graph in a paused state. The user or supervisor reviews the pending state (e.g. transfer recipient and amount) via an administrative UI. Upon approval, the application invokes the graph with `graph.invoke(None, config)`, which resumes execution seamlessly from the exact breakpoint.",
+    "Why": "An agent prepares an international wire transfer. The checkpointer halts execution immediately before the transfer node. The manager inspects the pending transaction, approves it via web portal, and the graph resumes and executes the wire transfer with zero state loss.",
+    "worked_case": "An agent prepares an international wire transfer. The checkpointer halts execution immediately before the transfer node. The manager inspects the pending transaction, approves it via web portal, and the graph resumes and executes the wire transfer with zero state loss.",
+    "Risk": "Using in-memory MemorySaver in production leads to complete state loss whenever container pods restart or autoscale.",
+    "Trade": "Durable PostgreSQL checkpointing requires managing database connection overhead and snapshot storage, in exchange for crash resilience and interactive approval gates.",
+    "Try": "Compile a graph with `interrupt_before=[\"action_node\"]`. Run the graph, observe that it stops before `action_node`, inspect `graph.get_state(config)`, and resume it with `graph.invoke(None, config)`.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-orchestration",
+    "citations": [
+      "https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/",
+      "https://langchain-ai.github.io/langgraph/concepts/persistence/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a human modify the state while a graph is paused at an interrupt?",
+        "A": "Yes. `graph.update_state(config, {\"amount\": 50})` allows a human to edit parameters before resuming execution, forking or updating the trajectory."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "What is Time-Travel debugging in LangGraph, and how does state fork branching work during incident investigation?",
+    "A": "**Time-Travel debugging in LangGraph allows developers and operators to replay, inspect, and fork an agent's execution trajectory from any historical state checkpoint.** When an autonomous agent makes a catastrophic reasoning mistake or hallucinates a bad tool argument in turn 8 of a 10-turn interaction, standard debugging requires restarting the conversation from scratch and hoping the non-deterministic LLM reproduces the error.\\n\\n**Linear state lineage and checkpoint indexing.** Because LangGraph checkpointers persist an immutable append-only ledger of state snapshots tagged with unique `checkpoint_id` and parent pointer hashes, the entire execution history forms a directed acyclic version tree. An engineer can query the historical trajectory: `history = list(graph.get_state_history(config))`. Each entry contains the complete state snapshot, the node that executed, and the exact tool outputs received at that specific point in time.\\n\\n**Forking execution from historical states.** To test alternative prompt instructions or fix an erroneous tool payload, the developer selects a historical checkpoint: `config = {\"configurable\": {\"thread_id\": \"session_123\", \"checkpoint_id\": \"chk_04\"}}`.\n\nThe developer calls `graph.update_state(config, {\"corrected_data\": \"valid_value\"})`. LangGraph creates a new branch in the checkpoint tree, branching off from step 4 without mutating the original historical timeline. When `graph.invoke(None, config)` is called, the agent executes from step 4 forward under the corrected state. This transforms debugging from guesswork into deterministic, replayable scientific analysis.",
+    "Why": "An agent failed at step 7 because an API returned an unexpected date format. A developer loads checkpoint 6, patches the state with the normalized date format, and resumes the run. The agent succeeds, proving the root cause without re-running steps 1 through 5.",
+    "worked_case": "An agent failed at step 7 because an API returned an unexpected date format. A developer loads checkpoint 6, patches the state with the normalized date format, and resumes the run. The agent succeeds, proving the root cause without re-running steps 1 through 5.",
+    "Risk": "Allowing arbitrary state updates without schema validation during production replay can introduce invalid domain types into running sessions.",
+    "Trade": "Retaining complete checkpoint histories consumes database storage over time, requiring automated snapshot retention and compaction policies.",
+    "Try": "Run an agent graph for 5 steps with PostgresSaver. Retrieve the state history, pick step 2, update a state field, and resume execution to observe the branched trajectory.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-orchestration",
+    "citations": [
+      "https://langchain-ai.github.io/langgraph/concepts/time-travel/",
+      "https://langchain-ai.github.io/langgraph/reference/checkpoints/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Does forking a state checkpoint delete subsequent checkpoints in the original thread?",
+        "A": "No. Checkpointers maintain an append-only DAG of state revisions, preserving both the original execution branch and the new forked branch."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do Multi-Agent architectures coordinate state sharing and avoid infinite delegation loops in LangGraph?",
+    "A": "**Multi-agent coordination in LangGraph requires explicit topological communication patterns to prevent coordination deadlock and delegation thrashing.** When decomposing complex enterprise systems into specialized autonomous agents (e.g., a Research Agent, a Coding Agent, and a Reviewer Agent), naive implementations allow agents to delegate freely to one another.\n\nWithout centralized governance, agents easily become trapped in infinite ping-pong loops: Agent A asks Agent B for clarification, Agent B delegates back to Agent A, burning tokens indefinitely.\\n\\n**Three primary Multi-Agent topologies.** LangGraph structures multi-agent collaboration across three architectural patterns: (1) Supervisor Architecture: A centralized router agent evaluates user intent, delegates work to specialized sub-agents, aggregates their structured outputs, and decides when the task is complete. Sub-agents communicate strictly with the supervisor, never directly with each other; (2) Hierarchical Teams: Nested sub-graphs where each specialized domain (e.g., Software Engineering team) has its own internal supervisor managing child workers (Coder, Tester), reporting consolidated summaries up to a root orchestrator; and (3) Peer-to-Peer State Collaboration: Agents share a unified `AgentState` containing a shared message ledger, with conditional edges enforcing strict sequential handoffs (e.g., Coder -> Linter -> Reviewer -> End).\\n\\n**Anti-loop governance.** Production systems enforce loop guards: (1) Monotonic turn counters embedded in state: incrementing `delegation_count` and routing to an Escalation node if `count > max_turns`; and (2) Structured task status envelopes: requiring sub-agents to emit explicit status flags (`DONE`, `BLOCKED`, `NEED_INFO`) rather than open-ended natural language banter.",
+    "Why": "A Researcher agent and a Writer agent pass draft versions back and forth 30 times critiquing minor phrasing. A Supervisor topology limits critique to 2 rounds, forcing the Writer to output the final draft once the revision budget is exhausted.",
+    "worked_case": "A Researcher agent and a Writer agent pass draft versions back and forth 30 times critiquing minor phrasing. A Supervisor topology limits critique to 2 rounds, forcing the Writer to output the final draft once the revision budget is exhausted.",
+    "Risk": "Allowing unrestricted peer-to-peer agent delegation leads to exponential token consumption and non-deterministic completion times.",
+    "Trade": "A centralized supervisor agent adds an extra model invocation per handoff, trading minor routing latency for deterministic coordination and strict budget control.",
+    "Try": "Implement a Supervisor LangGraph with two worker sub-agents (MathAgent, SearchAgent). Set `max_turns=3` in state, and assert that the graph halts and returns a summary when the budget is reached.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "agents",
+    "subdomain": "agent-orchestration",
+    "citations": [
+      "https://langchain-ai.github.io/langgraph/concepts/multi_agent/",
+      "https://langchain-ai.github.io/langgraph/tutorials/multi_agent/hierarchical_agent_teams/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do sub-agents keep their private context from polluting the global state?",
+        "A": "Use isolated sub-graphs: the sub-graph executes internally with a private detailed state and maps only its final distilled answer to the parent graph's global state."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Technical curriculum review",
+      "reviewed_at": "2026-10-24"
+    }
+  }
+]

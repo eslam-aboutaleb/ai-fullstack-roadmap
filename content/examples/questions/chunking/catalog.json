@@ -1,0 +1,101 @@
+[
+  {
+    "name": "recursive-character-splitter",
+    "filename": "recursive-character-splitter.py",
+    "language": "python",
+    "explain": "Implement recursive character chunking from first principles. Evaluates hierarchical delimiters (paragraphs, sentences, words) in order to keep complete conceptual and heading units together within a token budget.",
+    "steps": "Attempt splitting on high-level paragraph boundaries before falling back to sentence or word breaks. || Merge adjacent text segments up to the chunk size while keeping section headers attached to their introductory text.",
+    "expect": "Recursive splitting verified: chunk_count=3, chunk_sizes=[156, 18, 142]",
+    "questions": [
+      541,
+      31,
+      35
+    ]
+  },
+  {
+    "name": "semantic-chunking-distance",
+    "filename": "semantic-chunking-distance.py",
+    "language": "python",
+    "explain": "Implement Semantic Chunking using embedding cosine distance variance across consecutive sentences. Dynamically places chunk boundaries at statistical topic transition spikes rather than arbitrary token counts.",
+    "steps": "Compute cosine distances between adjacent sentence embeddings across the document. || Detect statistical distance spikes exceeding the percentile threshold and create dynamic chunk boundaries.",
+    "expect": "Semantic chunking verified: chunk_count=2, transition_distance=0.8644, threshold=0.8644",
+    "questions": [
+      542
+    ]
+  },
+  {
+    "name": "token-sliding-window",
+    "filename": "token-sliding-window.py",
+    "language": "python",
+    "explain": "Implement token-aware sliding window chunking with strict stride invariants. Validates that overlap is strictly smaller than chunk_size to guarantee forward progress, and preserves token start/end coordinates for citations.",
+    "steps": "Validate that chunk size is positive and overlap is strictly less than size. || Advance by size minus overlap (stride) and track exact token spans for citation highlight mapping.",
+    "expect": "Sliding window verified: total_chunks=4, stride=3, invalid_overlap_rejected=True",
+    "questions": [
+      543,
+      32,
+      33,
+      34
+    ]
+  },
+  {
+    "name": "content-fingerprint-cache",
+    "filename": "content-fingerprint-cache.py",
+    "language": "python",
+    "explain": "Implement cryptographic content fingerprinting and chunk cache invalidation. Incorporates source text, position, and chunker configuration (size, overlap, tokenizer) into the hash, ensuring parameter changes invalidate stale embeddings.",
+    "steps": "Compute SHA-256 fingerprint from document content and pipeline transformation settings. || Verify that tuning chunker parameters deterministically invalidates the chunk cache even when source text is unchanged.",
+    "expect": "Content fingerprint verified: fp_v1=9575f808abed38c8..., fp_v2=654ae61a530d0ca0..., invalidated=True",
+    "questions": [
+      544,
+      37,
+      83,
+      739,
+      41
+    ]
+  },
+  {
+    "name": "late-chunking-global-context",
+    "filename": "late-chunking-global-context.py",
+    "language": "python",
+    "explain": "Demonstrate Late Chunking vs Early Chunking in long-context embedding models. Early chunking embeds isolated fragments losing cross-sentence context; Late chunking passes full document context through self-attention before pooling chunk spans.",
+    "steps": "Demonstrate semantic dilution and missing referents when ambiguous chunks are embedded in isolation. || Apply Late Chunking by pooling token hidden states that have attended across full document context, boosting retrieval similarity.",
+    "expect": "Late chunking verified: early_sim=0.7994, late_sim=0.9999, context_gain=0.2005",
+    "questions": [
+      545,
+      737,
+      40
+    ]
+  },
+  {
+    "name": "deterministic-chunk-id",
+    "filename": "deterministic-chunk-id.py",
+    "language": "python",
+    "explain": "Generate deterministic, idempotent chunk UUIDs using document namespaces and content hashes. Enables idempotent database upserts and prevents orphan duplicate vectors across pipeline reruns.",
+    "steps": "Construct deterministic UUIDv5 scoped to a stable document namespace and chunk position. || Re-run chunking on identical documents and assert 100% chunk ID stability across pipeline executions.",
+    "expect": "Deterministic chunk IDs verified: chunk_0=8fc59860-9f48-5f38-8ea7-439b06410527, chunk_1=5ed36329-6832-596c-99ff-f5e89a01f0c3, idempotent=True",
+    "questions": [
+      36
+    ]
+  },
+  {
+    "name": "hierarchical-parent-child-retrieval",
+    "filename": "hierarchical-parent-child-retrieval.py",
+    "language": "python",
+    "explain": "Implement Hierarchical Parent-Child chunking. Indexes small child passages for high vector similarity matching while returning the expanded parent context to LLM generation prompts to prevent context truncation.",
+    "steps": "Index fine-grained child passages mapped to a parent section identifier. || Match the child passage via vector search and expand to full parent context for generation.",
+    "expect": "Parent-child retrieval verified: matched_child=sla_section_4_c1, parent_length=342 chars",
+    "questions": [
+      38
+    ]
+  },
+  {
+    "name": "chunk-overlap-evaluation",
+    "filename": "chunk-overlap-evaluation.py",
+    "language": "python",
+    "explain": "Evaluate retrieval recall under chunk overlap without miscounting duplicate hits as extra evidence. Deduplicates overlapping results from the same source passage before measuring criteria coverage.",
+    "steps": "Demonstrate how overlapping chunk windows create false high hit counts while crowding out distinct policy exceptions. || Deduplicate by source section identity to evaluate true criteria coverage rate.",
+    "expect": "Chunk overlap evaluation verified: naive_hits=4/5, true_criteria_coverage=50.0%, missing={'exception_clause'}",
+    "questions": [
+      862
+    ]
+  }
+]

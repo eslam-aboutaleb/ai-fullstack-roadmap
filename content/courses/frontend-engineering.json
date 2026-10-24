@@ -1,0 +1,340 @@
+{
+  "id": "frontend-engineering",
+  "title": "Frontend engineering for trustworthy AI interfaces",
+  "description": "Build semantic interfaces, reason about JavaScript and React state, consume partial streams, and defend browser security and performance boundaries.",
+  "version": "1.1.0",
+  "updated": "2026-10-22",
+  "review_status": "Per-unit Technical curriculum review status and content-specific evidence in content/reviews.json; no human endorsement claimed.",
+  "units": [
+    {
+      "id": "web-semantics-accessibility",
+      "title": "Semantic HTML, responsive layout and accessible interaction",
+      "outcomes": [
+        "Build a keyboard-operable form with visible labels and retained input",
+        "Demonstrate the same reading order at narrow width and 200% zoom"
+      ],
+      "terms": [
+        {
+          "term": "Semantic element",
+          "definition": "An HTML element whose built-in meaning and behavior matches the job, such as a button for an action."
+        },
+        {
+          "term": "Accessible name",
+          "definition": "The text that identifies a control to assistive technology, commonly provided by a visible label."
+        },
+        {
+          "term": "Progressive enhancement",
+          "definition": "Deliver useful document structure first, then add optional scripted behavior."
+        }
+      ],
+      "narrative": [
+        "A web interface starts with a document: headings establish topic hierarchy, landmarks identify navigation and main content, and form labels connect a question to its control. A button receives keyboard activation and a disabled state from the platform. Replacing it with a clickable div creates extra work for focus, keyboard events and semantics. Use a link to navigate to a resource and a button to change state. Explain validation errors next to their fields and keep user input after a failed request.",
+        "Layout needs to tolerate content rather than a particular screenshot. Start with one readable column, a bounded paragraph measure and flexible spacing. A grid can add a second pane when space permits; a preformatted code block may scroll inside its container while ordinary prose wraps. Test long identifiers, translated labels and text enlarged to 200%. A narrow screen should not require horizontal scrolling just to read an explanation. A fixed toolbar must not hide focused controls.",
+        "Accessibility is part of the interaction contract. A search dialog must have a name, move focus inside on opening, contain keyboard navigation while active and return focus to the opener. Do not move focus after each generated token. A polite status region can announce transitions such as streaming, failed and complete, while text accumulates in a separate region. Announcing every token overwhelms users. Icons and color can reinforce a status but must not be its only expression.",
+        "The local fixture uses a labeled form, scenario selector, actual buttons and a status region. It displays generated-looking text through textContent, preserving literal markup as text. A complete visual answer is intentionally different from the streaming state. Core documentation can remain readable without JavaScript even though the live exercise requires scripting. These guarantees should appear in the acceptance criteria before styling begins, so a later framework migration preserves the same user behavior."
+      ],
+      "lab": "streaming_reader.html",
+      "practice": [
+        "Build a keyboard-operable form with visible labels and retained input",
+        "Demonstrate the same reading order at narrow width and 200% zoom",
+        "Test completion, failure and cancellation without relying on color"
+      ],
+      "debugging": "If keyboard activation fails, inspect the element and event path before adding more key handlers. Check the accessible name and focused element; a visible label near a control is not necessarily programmatically associated with it.",
+      "tradeoffs": "Native controls reduce behavioral code and may need visual adaptation. Highly customized widgets can fit complex needs but carry an ongoing keyboard, naming and focus-maintenance cost.",
+      "references": [
+        "https://developer.mozilla.org/en-US/curriculum/core/",
+        "https://react.dev/learn"
+      ],
+      "prerequisites": [],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "A citation inspector opens over an AI response while the user navigates by keyboard.",
+          "steps": [
+            "Record which button opened the inspector.",
+            "Give the dialog a name and move focus to its first useful control.",
+            "Make background controls inert and close on an explicit button or Escape.",
+            "Return focus to the opener; preserve the response and scroll position."
+          ],
+          "result": "The user can inspect evidence and resume the original task without losing context."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "How do you make a streaming AI interface accessible?",
+          "spoken": "Use semantic controls and labels, preserve focus, announce meaningful status changes and let users inspect partial content without treating it as a final result.",
+          "deep": "Separate the response text from the live status region. Test keyboard order, reflow, error recovery and cancellation. Automated checks catch many semantic and contrast problems, but manual keyboard and screen-reader checks are still needed for whether announcements and focus movement are useful. A fluent answer does not excuse an inaccessible approval flow.\n\nUse native form, label, input and button semantics, visible focus and error text associated with the relevant field. A placeholder or red border alone cannot replace a persistent accessible name or understandable error. Preserve logical DOM reading order as CSS rearranges the presentation, and test long source IDs, zoom and narrow viewports rather than only a desktop happy path.\n\nFor streaming, announce meaningful transitions such as Working, Incomplete or Complete, not every token. Keep cancellation reachable and retain the final transcript without stealing focus. The workbench browser suite exercises the actual compiled UI and local HTTP server, including owner switching and interrupted output. Automated axe checks cover a useful subset, while screen-reader experience remains a manual task. A learner should implement from a blank component under the fixed public contract, provide keyboard/mobile evidence and explicitly record any manual checks not performed. A green reference run alone is not an independent implementation.",
+          "follow_up": {
+            "question": "Should every new token enter an aria-live region?",
+            "answer": "Usually no. Prefer coarse status updates or deliberate bounded announcements; constant interruption makes the interface harder to use."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 826,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    },
+    {
+      "id": "javascript-types-react-state",
+      "title": "JavaScript promises, TypeScript boundaries and React snapshots",
+      "outcomes": [
+        "Trace a stale closure and replace an unsafe update with a reducer",
+        "Validate unknown JSON before accepting it into typed state"
+      ],
+      "terms": [
+        {
+          "term": "Promise",
+          "definition": "An object representing a result that may settle later; awaiting it suspends the async function rather than the whole event loop."
+        },
+        {
+          "term": "Runtime validation",
+          "definition": "Checking received values while the program runs, after static types have been erased."
+        },
+        {
+          "term": "State snapshot",
+          "definition": "The values and event handlers associated with one React render."
+        }
+      ],
+      "narrative": [
+        "JavaScript executes a synchronous stack of work and resumes asynchronous callbacks through its event loop. Await does not turn a CPU-heavy loop into background work: the loop still blocks the page while it runs. A promise resolving to an HTTP response also does not imply a successful status. Check response.ok, validate the content type and parse the body according to a declared contract. Network failure, an HTTP error, invalid JSON and a valid business rejection need different user-facing recovery paths.",
+        "TypeScript describes the values your code expects; it cannot force an external service to obey. Treat received JSON as unknown until a validator has checked required fields, types, bounds and allowed states. A cast such as payload as Result changes the compiler's view, not the payload. Prefer a discriminated union for idle, loading, streaming, complete, failed and cancelled states. It rules out contradictory combinations such as loading=false with a hidden pending approval, but the network decoder still needs real checks.",
+        "React rendering is a snapshot of state. An event handler closes over the values from its render; calling a setter schedules another render rather than rewriting that closure. When the next value depends on the previous value, a functional update or reducer avoids losing concurrent updates. Store the minimal authoritative state and derive values such as canSubmit. Avoid separately storing the same response in component state, a cache and a mutable module global with unclear ownership.",
+        "Effects synchronize with systems outside rendering, such as a subscription or connection. Return cleanup that unsubscribes or aborts the old operation. Also guard which request owns a response: cancellation can race with an already delivered callback. The fixture's generation counter rejects stale events even after a new request begins. In a React port, keep that ownership token in a ref and drive visible state through a reducer. Keep rendering free of network side effects so repeated renders do not send duplicate work."
+      ],
+      "lab": "streaming_reader.html",
+      "practice": [
+        "Trace a stale closure and replace an unsafe update with a reducer",
+        "Validate unknown JSON before accepting it into typed state",
+        "Port the fixture state model to a React reducer with effect cleanup"
+      ],
+      "debugging": "Log a synthetic request ID, render generation and event sequence without recording the prompt. If an older answer overwrites a new one, compare ownership tokens; adding a loading boolean will not establish which request won.",
+      "tradeoffs": "A reducer makes transitions explicit and supports replay. Small local forms may only need useState. Add memoization after measuring expensive rerenders; it cannot repair incorrect ownership or an unbounded synchronous task.",
+      "references": [
+        "https://react.dev/learn",
+        "https://www.typescriptlang.org/docs/handbook/intro.html",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+      ],
+      "prerequisites": [
+        "web-semantics-accessibility"
+      ],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "A user submits request A, quickly submits B, and A finishes last.",
+          "steps": [
+            "Assign each submission an increasing generation number.",
+            "Capture its generation before awaiting work.",
+            "Accept a response only when its captured generation still matches the active one.",
+            "Abort A to save work, but retain the generation check because completion may already be queued."
+          ],
+          "result": "B remains visible even if A finishes after its cancellation request."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Why can TypeScript code still fail on valid-looking API JSON?",
+          "spoken": "Types are compile-time expectations; the response is external data. Validate its runtime shape and domain constraints before storing or rendering it.",
+          "deep": "An interface cannot enforce authorization, permitted state transitions or maximum response length. A typed reducer should receive only decoded events, while the decoder rejects malformed frames and a backend enforces caller scope. React state closures create an additional temporal boundary: a response can be structurally valid and still belong to an obsolete request.\n\nThe HTTP response exists outside TypeScript's compile-time trust. Parse it as unknown and narrow the actual discriminant, required fields, types, sizes and state transitions before constructing an internal value. A cast changes what the compiler assumes; it does not inspect the received object or establish business permission.\n\nReact callbacks capture a render snapshot and may run after identity or request state changes. An Effect cleanup can abort work but cannot remove every already queued callback or undo a committed remote effect. The workbench advances a request generation and rejects stale updates after an owner switch, while the server independently scopes data. Walk the slow A-to-B test through snapshot, promise continuation, abort, generation check and rendering. Keep submissions in event handlers and use Effects for synchronization/cleanup; do not create writes merely because rendering happened. Runtime schema safety and object authorization are distinct interview requirements.",
+          "follow_up": {
+            "question": "Does AbortController alone solve stale responses?",
+            "answer": "No. Check request ownership as well; cancellation is cooperative and cannot retract callbacks already delivered."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 827,
+      "assessment": "frontend-stale-response",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    },
+    {
+      "id": "stream-framing-replay",
+      "title": "Streaming bytes, replay cursors and cancellation",
+      "outcomes": [
+        "Decode a Unicode event split across arbitrary byte boundaries",
+        "Demonstrate exact replay deduplication and protocol-gap rejection"
+      ],
+      "terms": [
+        {
+          "term": "Framing",
+          "definition": "A rule for locating complete messages inside a sequence of bytes."
+        },
+        {
+          "term": "Replay cursor",
+          "definition": "A stable position that lets a client resume after the last processed durable event."
+        },
+        {
+          "term": "Backpressure",
+          "definition": "A way for a slower consumer to limit or slow admitted work rather than accumulating unbounded buffers."
+        }
+      ],
+      "narrative": [
+        "A network chunk is not a message. The browser may receive half of a UTF-8 character, multiple events at once or an incomplete JSON object. Use a streaming TextDecoder to preserve partial character state, then buffer until the framing delimiter appears. The fixture uses newline-delimited JSON; SSE uses a different field and blank-line grammar and needs a compatible parser. Parsing each fetch chunk as JSON works in a favorable demo and fails under ordinary network segmentation.",
+        "Give each logical operation a stable identity and each replayable event an ordered sequence. Ignore an exact duplicate that has already been applied, reject conflicting content for the same sequence and diagnose gaps instead of silently concatenating misleading text. A server-side durable cursor is more useful than a timestamp alone, because multiple events can share a clock value. Protocol replay reconstructs presentation; it must not independently repeat a payment or other business effect.",
+        "Connection closure does not establish completion. Require a terminal event and validate any final citation or action metadata before showing Complete. A broken connection after three deltas leaves partial text and an explicit uncertain state. A cancellation request should stop waiting locally and request backend cancellation when supported, but must not claim that a remote effect was undone. Preserve enough operation identity to inspect the authoritative backend state afterward.",
+        "Bound buffers, output, retry count and retained history. An endless frame without a newline can otherwise consume memory even if no complete event is ever rendered. The fixture enforces frame and text limits, rejects invalid sequences and cancels an active stream when a new submission starts. A production implementation also needs server-side admission limits, deadline propagation and a reconnect strategy with jitter and an expiry policy for old cursors. Measure time to first meaningful response separately from completion latency."
+      ],
+      "lab": "streaming_reader.html",
+      "practice": [
+        "Decode a Unicode event split across arbitrary byte boundaries",
+        "Demonstrate exact replay deduplication and protocol-gap rejection",
+        "Cancel a stream while preserving a truthful partial-result status"
+      ],
+      "debugging": "Capture byte counts, framing errors and sequence transitions with synthetic input. If the UI duplicates text after reconnect, inspect the replay cursor and duplicate event handling before changing rendering code.",
+      "tradeoffs": "SSE is convenient for server-to-browser text events. WebSocket supports bidirectional messaging but requires application-level replay, flow control and authorization decisions. Transport choice does not create durable business semantics.",
+      "references": [
+        "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events",
+        "https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API",
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+      ],
+      "prerequisites": [
+        "javascript-types-react-state"
+      ],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "The server sends sequences 1, 1, 2 and then closes without a final event.",
+          "steps": [
+            "Apply sequence 1 once and verify that its duplicate has identical content.",
+            "Apply sequence 2 and retain the partial text.",
+            "Detect end of input without a terminal event.",
+            "Show Failed or Reconnecting with the last durable cursor rather than Complete."
+          ],
+          "result": "No duplicate text appears, and the user is told that completion is unknown."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "A streaming response looks complete, but the connection dropped. Can you show Success?",
+          "spoken": "Only if the protocol delivered and validated its authoritative completion event. Text that looks finished is insufficient evidence.",
+          "deep": "Separate transport connection, presentation progress, model completion and business operation status. A replayed completion frame must not dispatch a second business action. On cancellation or disconnect, preserve the operation key and reconcile any committed effect through the backend.\n\nAn HTTP read is not an application event. Decode UTF-8 incrementally and parse the declared framing grammar; SSE and NDJSON have different delimiters and metadata. The workbench uses bounded NDJSON frames and deliberately does not call them SSE. A chunk may contain half an event or several events.\n\nRequire request identity, ordered sequence and a valid terminal frame before reporting Complete. Identical replay can be ignored, conflicting replay must fail, and EOF before terminal state leaves an incomplete result even if prose looks finished. Resume only under an explicit cursor/retention/authentication contract. A stream cursor does not make a business effect idempotent. Demonstrate malformed JSON, split multibyte input, cancellation, conflicting replay and disconnect-before-final over the real server. Explain how the user's partial display differs from authoritative task status and why a client abort cannot reverse a provider write.",
+          "follow_up": {
+            "question": "What happens if an event is larger than your parser buffer?",
+            "answer": "Reject it with a clear limit error; do not keep buffering indefinitely or truncate JSON into a different meaning."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 828,
+      "incident": {
+        "symptom": "After a reconnect, a customer sees repeated text and a Success badge despite a disconnected stream.",
+        "evidence": "Collect synthetic request/generation IDs, last applied sequence, terminal-event receipt and parser errors; avoid prompt payloads.",
+        "investigation": "Replay frames split across UTF-8 boundaries, duplicate sequence 1 and omit the terminal event. Compare byte decoding, framing and reducer ownership separately.",
+        "recovery": "Keep partial content labeled incomplete, resume from an authorized durable cursor or let the user start a new operation under a declared policy.",
+        "prevention": "Add Unicode fragmentation, conflicting replay, missing-final, cancellation and stale-generation regressions."
+      },
+      "assessment": "stream-without-terminal",
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    },
+    {
+      "id": "browser-security-performance",
+      "title": "Browser trust boundaries, authentication UX and measured performance",
+      "outcomes": [
+        "Demonstrate that model-supplied HTML remains inert text",
+        "Explain cookie and bearer-token risks for a concrete threat model"
+      ],
+      "terms": [
+        {
+          "term": "XSS",
+          "definition": "Execution of attacker-controlled script in an application origin through unsafe handling of content."
+        },
+        {
+          "term": "CSRF",
+          "definition": "An unwanted request that exploits credentials a browser attaches automatically."
+        },
+        {
+          "term": "Content Security Policy",
+          "definition": "A browser policy restricting resource loading and script execution; it complements safe rendering."
+        }
+      ],
+      "narrative": [
+        "Treat model text, retrieved passages and tool output as untrusted input. A model can repeat an HTML payload without understanding it. Render plain text by default; if Markdown is required, use an explicit parser and sanitizer configuration and restrict link protocols. Do not concatenate generated text into HTML, inline event handlers or script URLs. A claimed citation needs both a permitted source identity and server-side access control before a real document can be opened.",
+        "Authentication UX must explain session expiry and permission denial without exposing data. HttpOnly cookies reduce direct JavaScript access to a session token but require appropriate CSRF defenses and cookie settings. A bearer token held by JavaScript is exposed to successful script injection. Neither storage choice replaces object authorization on the server. After login identity changes, invalidate user-scoped caches and pending responses so one user does not see another user's retained state.",
+        "Performance work begins with a user-visible target and a measurement. A fast first token can coexist with a slow final answer, excessive rendering work or a broken cancellation path. Batch incoming updates to avoid rendering once per byte, and bound retained conversation/history. Lazy load large code examples and optional runtimes. A bigger bundle or unnecessary rerender is an engineering trade-off; optimize the measured bottleneck rather than adding memoization to every component.",
+        "Use a fixture to measure repeated starts, slow consumers, long text and malformed frames. Record the device/browser, input size, number of updates and timing window so a result can be reproduced. Keep a separate accessibility check because dropping announcements or focus indicators can make an interface seem faster while harming users. Production telemetry should record stage timings and aggregate outcomes without capturing complete prompts, document bodies or credentials by default."
+      ],
+      "lab": "streaming_reader.html",
+      "practice": [
+        "Demonstrate that model-supplied HTML remains inert text",
+        "Explain cookie and bearer-token risks for a concrete threat model",
+        "Measure update count and completion latency under a slow-consumer fixture"
+      ],
+      "debugging": "If a user reports a previous account response appearing after sign-in, trace identity, cache key and pending request generation together. Purging visible text without invalidating a background request can allow the data to reappear.",
+      "tradeoffs": "A full frontend framework can improve composition and ecosystem support, while a small progressive interface can avoid bundle and runtime costs. Neither choice removes validation, auth, focus or replay responsibilities.",
+      "references": [
+        "https://developer.mozilla.org/en-US/curriculum/core/",
+        "https://api-security.owasp.org/editions/2023/en/0x11-t10",
+        "https://genai.owasp.org/llm-top-10/"
+      ],
+      "prerequisites": [
+        "stream-framing-replay"
+      ],
+      "estimated_minutes": 60,
+      "path": "core",
+      "worked_examples": [
+        {
+          "title": "Worked engineering case",
+          "setup": "A retrieved passage contains an image tag with an event handler.",
+          "steps": [
+            "Render the passage as literal text in the fixture.",
+            "If Markdown is enabled, verify sanitizer policy against the payload.",
+            "Restrict outgoing citation URLs to supported protocols and permitted source routes.",
+            "Test after a user switch to prove cached passages are scoped."
+          ],
+          "result": "The passage cannot execute script or become an authorization bypass."
+        }
+      ],
+      "interviews": [
+        {
+          "question": "Can a frontend hide a restricted document by filtering the search response?",
+          "spoken": "The backend must filter unauthorized data before sending it. Hiding a received document in the UI still discloses it to the browser.",
+          "deep": "Apply caller scope at retrieval and document-read boundaries, use user-scoped cache identities and deny cross-owner object access independently of whether a link is visible. CSP and sanitization help with script injection, not with overbroad data responses.\n\nOnce private data reaches an unauthorized browser, presentation filtering cannot restore confidentiality. The authoritative API must scope every source/task/effect query using trusted identity. Clear UI and client caches on identity changes, invalidate stale callbacks and independently scope server caches. Public demo tokens in the project illustrate identity flow; they are not a production authentication system.\n\nRender untrusted answer/source content through text nodes. Keep provider secrets out of static bundles and URLs. For real cookies, define CSRF, expiry and revocation policy; for bearer tokens, define secure handling and issuer/audience verification. Measure build size, input responsiveness, first response and terminal completion on a stated device/fixture. A quick localhost demo cannot establish concurrent production capacity. The interview defense must distinguish frontend safety, server authorization and measured performance rather than assuming a faster or more polished interface is safer.",
+          "follow_up": {
+            "question": "How would you prove the boundary?",
+            "answer": "Query with two synthetic owners, inspect network payloads and assert that the other owner’s source never arrives."
+          },
+          "rubric": [
+            "States assumptions and identifies the invariant",
+            "Explains one concrete failure and its observable evidence",
+            "Defends an alternative and names its recovery limits"
+          ]
+        }
+      ],
+      "study_id": 829,
+      "reviewer_status": {
+        "status": "reviewed",
+        "reviewer": "Technical curriculum review",
+        "reviewed_at": "2026-10-22"
+      }
+    }
+  ]
+}

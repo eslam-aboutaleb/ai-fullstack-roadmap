@@ -1,0 +1,38 @@
+[
+  {
+    "Q": "Why is an empty scan ambiguous?",
+    "explain": "It might mean the source genuinely has no documents, or that a permission, network, or parser failure prevented reading them. Return completeness and failure information so the indexer can tell these apart.",
+    "example": "A disconnected shared drive returns no files. That is not evidence that every previously indexed file was intentionally removed.",
+    "takeaway": "Unknown source state cannot authorize deletion."
+  },
+  {
+    "Q": "How do you avoid skipping a page after a crash?",
+    "explain": "Record a checkpoint only after the page's work reaches the intended durable boundary. Repeating a page should be safe. Advancing the cursor too early can skip unfinished documents forever.",
+    "example": "Crash after listing page two but before activating it; restart from the last safely processed checkpoint.",
+    "takeaway": "Listing progress and committed progress need separate meanings."
+  },
+  {
+    "Q": "Why record source revision as well as location?",
+    "explain": "A URL or path identifies where to look, but its contents can change. Preserve a revision, content digest, or source-specific version that explains which bytes produced the index and citation.",
+    "example": "A file changes between listing and download. Detect the mismatch or record the actual downloaded revision according to the source contract.",
+    "takeaway": "A location is not a reproducible snapshot."
+  },
+  {
+    "Q": "Why do change watchers need reconciliation?",
+    "explain": "Watchers provide quick notifications, but downtime and dropped events can leave the index out of sync. Periodically compare an authoritative source view with indexed state to repair missed changes.",
+    "example": "A file is removed while the watcher is offline. Reconciliation must discover the removal after restart.",
+    "takeaway": "Fast notifications and complete recovery solve different problems."
+  },
+  {
+    "Q": "How should a connector handle pagination and rate limits?",
+    "explain": "A page cursor describes continuation under the source's contract; it is not proof that its records were processed. Persist only a checkpoint with a defined recovery meaning. Respect retry hints when provided, bound concurrency, and add backoff with jitter for retryable failures. Decide how the connector behaves if the source changes during a listing.",
+    "example": "Page two returns the same document twice and then a retryable error. Deduplicate by source identity and revision, retry without advancing the committed checkpoint, and reconcile the final state.",
+    "takeaway": "Source progress must be restartable without silently losing records."
+  },
+  {
+    "Q": "How should removal, inaccessible content, and bad source quality differ?",
+    "explain": "A confirmed deletion, a temporary authorization failure, and malformed content are different source outcomes. Apply a declared policy for quarantine, retry, and removing active eligibility. Track empty extraction, encoding damage, language, duplicate content, and missing metadata before indexing. A successful download does not establish useful evidence.",
+    "example": "A credential expires and every fetch returns forbidden. Do not interpret the whole collection as deleted. Mark sync degraded, preserve the reconciliation boundary, and follow the product's freshness policy.",
+    "takeaway": "Explain why information disappeared before updating the searchable truth."
+  }
+]
