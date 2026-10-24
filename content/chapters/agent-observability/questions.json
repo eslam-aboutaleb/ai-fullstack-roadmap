@@ -34,11 +34,25 @@
   },
   {
     "Q": "How should token and cost telemetry handle unknown prices?",
-    "A": "Record observed usage, estimated cost, pricing source, and whether pricing is known. Unknown should not be silently interpreted as free. Compare cost per successful task and per stage rather than only per model request.",
+    "A": "**Direct answer.** Maintain two distinct facts: **observed usage** from a model/provider response and **priced cost** based on a documented, effective-dated catalog. Unknown usage is not zero. Unknown price is not free. Per business task, correlate each distinct provider attempt to a trusted tenant, task ID, trace ID, model revision and price revision. Keep reserved, settled and unresolved amounts separately; do not double-charge identical webhook deliveries, but do count *different billable retries* even if only one user-facing answer succeeds.\n\n**Token categories.** Input tokens, cached-read tokens, cache-write tokens, output tokens and provider-reported reasoning tokens can have different billing semantics; do not blindly add categories if the provider's fields already include them. Different models and modalities may charge per image, second, characters or other units. Preserve raw provider counters alongside normalized categories, provenance, currency, region, unit and rate version.\n\n**Worked calculation (illustrative, not a live provider tariff).** If input costs $2 per million tokens, cache reads $0.50 per million, and output $8 per million, a request with 200 input tokens (50 cached), 80 output tokens costs (150×2 + 50×0.5 + 80×8) microUSD = 965 microUSD = **$0.000965**. If an earlier attempt incurred 200 microUSD before failing, the *task* cost is 1,165 microUSD; billing it only once because the user saw one response loses the retry charge. Do not mistake a model's token **estimate** for actual settled usage.\n\n**Admit versus settle.** A high-concurrency application must reserve a bounded maximum amount before sending calls, using a transactional per-user or tenant budget gate. On completion, settle against provider usage, refund the unused reservation, and reconcile invoice anomalies. Cancellation or missing usage must not automatically erase a possibly charged attempt. Where actual spend exceeds the reservation, flag an exceptional reconciliation path rather than silently dropping the liability.\n\n**Implementation and failure modes.** `labs/finops_budget_ledger.py` demonstrates atomic SQLite holds, idempotent attempt IDs, owner scope, price version and cache rate splits. Negative tests reject concurrent overspending, changed-payload replay and unauthorized settlement. The lab does not call a provider or prove a cloud invoice. Avoid storing raw prompts, user names or sensitive content as metrics labels; use opaque correlation IDs and privacy-aware trace sampling.\n\n**Follow-up — a provider 429 spike causes retries but the application returns HTTP 200.** The HTTP success rate hides a deteriorating dependency. Alert on retry rate, model wait, budget drain, task-level correctness and saturation. Use circuit breakers/backoff and a fallback only after evaluating changes to privacy residency, quality, safety and price.",
     "Why": "Resolve usage and pricing independently, retaining unknown and estimated values explicitly. Compare total cost per completed task, including retries and failed runs, with a known pricing source.",
     "Risk": "A zero-cost metric can hide a new provider or unsupported model price. Retries, embedding, and reranking may also be omitted from a narrow generation-only dashboard.",
     "Trade": "Detailed accounting adds metadata and improves budget control. Provider invoices remain a reconciliation source rather than assuming local estimates are exact bills.",
-    "Try": "Send a synthetic unknown-model usage record and verify it is reported as unpriced, not confidently free. Attribute all calls in one successful task."
+    "Try": "Send a synthetic unknown-model usage record and verify it is reported as unpriced, not confidently free. Attribute all calls in one successful task.",
+    "citations": [
+      "https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens when an invoice shows a charged retry but the application has no token-usage response?",
+        "A": "Keep the attempt unresolved in a reserved or reconciliation state and associate the provider request identifier, model and effective price revision. Never silently record zero cost; reconcile the authoritative provider invoice before releasing reserved funds and preserve retries as separate attempts."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Why are in-process metrics different from fleet-wide monitoring?",
@@ -67,11 +81,25 @@
   },
   {
     "Q": "What SLOs and alerts are useful for a support assistant?",
-    "A": "Monitor successful authorized task completion, stream completion, backend failures, indexing lag, oldest pending job age, provider throttling, and cost per completed task. Use freshness and correctness signals alongside request latency.",
+    "A": "**Define service-level indicators around the customer task**, not only the web server's health. Useful signals include task-success fraction over independent samples, grounding/citation validity, unsupported-answer behavior, false refusal, tool-denial and effect integrity, and request availability. Track latency distributions by *task type and concurrency*: p50, p95 and p99 end-to-end; model first-token latency (TTFT), inter-token time, retrieval duration, tool queue and external operation waits. Averages hide tail latency and failures.\n\n**Set measurable objectives.** Example policy, not an existing production result: \"At least 99% of supported owner-scoped requests complete correctly within 8 seconds over a rolling 28-day window, while critical cross-tenant disclosures must be zero.\" Correctness must be independently checked, so not every unlabeled production response can claim success. Track invalid/unknown outcomes separately. Use an error budget for release and paging decisions rather than treating any single slow task as an incident.\n\n**Alerts.** Watch sustained dependency 429/5xx, reserve-budget failures, anomalous retries/cost-per-task, stale retrieval, message queue age, p99 token latency and mandatory data-owner controls. An exhausted error budget or critical disclosure triggers a release gate, irrespective of healthy mean latency. Prefer burn-rate alerts over one-off thresholds; use trace exemplars for diagnosis but avoid sensitive high-cardinality metric labels.\n\n**Production scenario.** The gateway returns 200 after a failover, but the fallback misses citations and increases output tokens per answer. Provider uptime looks green while grounding and tenant budget outcomes worsen. Correlate task spans, model attempt IDs, effective price catalog and reviewer-labeled outcomes. A sampled trace can explain a specific failure, but cannot by itself prove fleet-wide prevalence.\n\n**Follow-up — tracing is unavailable during a provider incident.** Preserve the business operation and authoritative effect ledger; degrade sampling/export safely with privacy limits. But fail closed for essential authorization/audit controls whose absence would make the action unsafe. Distinguish task telemetry from the mandatory write audit.",
     "Why": "Define SLOs around useful outcomes, response delay, evidence freshness, and recovery. Alert on sustained user impact and preserve a path from aggregate metrics to safe trace identifiers.",
     "Risk": "Alerting only on average HTTP latency misses stuck jobs and quality failures. Sampling can also miss rare severe authorization incidents, which need deterministic denial monitoring and tests.",
     "Trade": "More nuanced SLOs require definitions and ownership. A small set linked to concrete user impact is more maintainable than dozens of disconnected thresholds.",
-    "Try": "Define a stream-success SLO and an indexing-lag SLO, including numerator, denominator, window, and corrective action."
+    "Try": "Define a stream-success SLO and an indexing-lag SLO, including numerator, denominator, window, and corrective action.",
+    "citations": [
+      "https://sre.google/workbook/alerting-on-slos/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Would a successful HTTP response justify counting a task as a successful user outcome?",
+        "A": "No. HTTP 200 measures an API transport outcome, not citation accuracy, authorization, refusal appropriateness or successful side effects. Attribute task-level status from independently evaluated outcomes, then monitor latency/error-budget and quality slices with a known denominator."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should observability produce better evaluation cases?",
