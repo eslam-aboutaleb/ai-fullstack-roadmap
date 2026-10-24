@@ -1,7 +1,7 @@
 [
   {
     "Q": "How are JWTs validated and converted into database ownership?",
-    "A": "Validating JSON Web Tokens (JWT) and enforcing database-level resource ownership requires a strict multi-phase cryptographic and authorization pipeline. When a request arrives at a FastAPI application, an authentication dependency (e.g., Depends(get_current_user)) extracts the token from the Authorization: Bearer <token> header. The token signature is validated using an asymmetric public key (RS256 via PyJWT or python-jose) retrieved from a cached JSON Web Key Set (JWKS). The decoder strictly verifies token expiration (exp), not-before (nbf), trusted issuer (iss), and audience (aud) claims.\n\nOnce the cryptographic claims are verified, the subject claim (sub) identifies the caller's unique user ID, and custom claims convey their tenant_id and assigned roles. However, possessing a valid JWT does NOT constitute authorization to access arbitrary resources. The system must verify that the user account remains active in the database (querying via an AsyncSession to ensure the user has not been banned, suspended, or deleted since token issuance).\n\nCrucially, all downstream data operations must enforce database-level tenant and ownership predicates:\nSELECT * FROM cases WHERE id = :case_id AND tenant_id = :tenant_id AND (owner_id = :user_id OR :is_admin = TRUE).\nAn application must NEVER trust a caller-supplied owner_id or tenant_id passed in JSON request bodies or URL parameters. The authenticated principal's verified identity extracted from the validated JWT signature serves as the sole source of authority, preventing Broken Object-Level Authorization (BOLA).",
+    "A": "Validate the token under an explicit issuer, audience, algorithm, and lifetime profile, resolve the subject to a trusted application principal, and authorize access to each resource. A model-generated owner identifier cannot replace authenticated identity.",
     "Why": "Validate signature, allowed algorithm, issuer, audience, expiry, and required claims under the token profile. Resolve the trusted principal and enforce resource ownership in services, not model arguments.",
     "Risk": "A valid token may remain usable after access should be revoked unless the product checks revocation or session versions. Choose lifetime and refresh behavior from the threat model.",
     "Trade": "Stateless token checks scale well, while immediate revocation needs additional state or shorter-lived credentials. Database user lookup already provides one current-state validation point.",
@@ -27,7 +27,7 @@
         "definition": "Granting only the minimum access needed"
       }
     ],
-    "execution_timeline": "Request received \u2192 Extract credentials \u2192 Verify identity \u2192 Check ownership \u2192 Validate input \u2192 Execute business logic \u2192 Return response",
+    "execution_timeline": "Request received → Extract credentials → Verify identity → Check ownership → Validate input → Execute business logic → Return response",
     "example": {
       "code": "user = get_current_user(token)\nif not owns_resource(user, doc_id):\n    raise HTTPException(403)\nresult = service.process(doc_id, user)",
       "explanation": "Check ownership before executing any business logic.",
@@ -54,127 +54,82 @@
       "https://owasp.org/www-project-top-ten/"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-20",
+      "status": "draft"
     },
     "added": true
   },
   {
     "Q": "Why are HttpOnly, Secure, SameSite, CORS, and CSRF different controls?",
-    "A": "Securing web applications requires establishing precise distinctions between five interrelated browser-server security mechanisms:\n\n1. HttpOnly is a cookie attribute instructing the web browser that the cookie must never be accessible to client-side JavaScript via document.cookie. This provides essential mitigation against Cross-Site Scripting (XSS): even if an attacker successfully injects malicious JavaScript, they cannot directly read or exfiltrate the session secret.\n\n2. Secure is a cookie attribute directing the browser to transmit the cookie exclusively over encrypted HTTPS connections, preventing credential interception by adversaries sniffing unencrypted Wi-Fi or transit networks.\n\n3. SameSite (Lax, Strict, or None) governs whether cookies are attached to cross-site requests. SameSite=Strict blocks cookies on all cross-site requests (including external links); SameSite=Lax attaches cookies on top-level safe GET navigations while blocking them on cross-site POST mutations.\n\n4. Cross-Origin Resource Sharing (CORS) is a browser mechanism that restricts how scripts running in one origin can read response bodies returned from another origin. Crucially, CORS is NOT a firewall or authorization mechanism; non-browser clients (cURL, Python scripts) bypass CORS entirely.\n\n5. Cross-Site Request Forgery (CSRF) occurs when a malicious website tricks a victim's browser into submitting an unauthorized mutation to a vulnerable target where the user has active session cookies. An API that relies solely on CORS is completely vulnerable to CSRF, because simple cross-origin POST forms execute without CORS preflight checks. Robust web applications enforce SameSite=Lax/Strict combined with anti-CSRF headers (e.g., X-Requested-With or custom bearer headers).",
-    "Why": "HttpOnly prevents XSS exfiltration; Secure enforces TLS; SameSite limits cross-site cookie attachment; CORS restricts cross-origin response reading; anti-CSRF tokens prevent forged ambient requests.",
-    "Risk": "Assuming CORS protects an API against CSRF or non-browser attacks leaves endpoints exposed to forged form submissions and direct automated exploitation.",
-    "Trade": "SameSite=Strict offers maximum CSRF protection but strips session cookies when users click external links to the application, requiring SameSite=Lax for standard user workflows.",
-    "Try": "Configure a cookie in FastAPI with HttpOnly, Secure, and SameSite=Lax; verify that document.cookie in the browser devtools console cannot access the token.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "HttpOnly limits script access to cookies, Secure limits cookie transport to HTTPS, and SameSite constrains some cross-site sending. CORS controls browser access across origins. CSRF protection addresses unwanted state-changing requests made with ambient credentials. None is interchangeable with user authorization.",
+    "Why": "Set cookie and origin policies explicitly for the deployment. Review state-changing routes for CSRF and XSS exposure; CORS, SameSite, HttpOnly, and Secure address different browser behaviors.",
+    "Risk": "These settings do not establish a complete CSRF review of all mutations and deployment origins. XSS can still issue authorized actions even when it cannot read an HttpOnly cookie.",
+    "Trade": "Cookie authentication simplifies browser sessions but requires deliberate origin and state-change policy. Bearer clients have different storage and transport concerns.",
+    "Try": "Build a matrix for sign-in, confirmation, cancellation, and logout across trusted and untrusted origins. State which server-side checks enforce each result."
   },
   {
     "Q": "How does ContextVar prevent cross-request identity leakage?",
-    "A": "In asynchronous Python web applications powered by ASGI servers like Uvicorn and frameworks like FastAPI, handling thousands of concurrent requests relies on cooperative multitasking on a single operating system thread (the asyncio event loop). When an async route executes an I/O operation (e.g., await db.execute() or await httpx_client.get()), the event loop pauses the current coroutine and switches execution to another concurrent request.\n\nIn legacy multi-threaded WSGI applications (such as Flask or Django with gunicorn), request-scoped data (such as the authenticated user, tenant ID, or request correlation ID) was standardly stored in threading.local(). In an async event-loop environment, threading.local() is catastrophically broken: because multiple concurrent requests share the exact same operating system worker thread, storing user identity in threading.local() causes state to leak across requests! Request A can yield control during an await point, Request B updates the thread-local state with User B's identity, and when Request A resumes, it executes subsequent database queries using User B's tenant context.\n\nPython's contextvars.ContextVar solves this by binding state to the specific asynchronous execution context (asyncio.Task). When an async coroutine creates a child task or yields control, contextvars maintains an immutable copy-on-write context mapping. In FastAPI middleware, setting current_tenant_var.set(tenant_id) ensures that tenant isolation is preserved across all nested async function calls, database queries, and background tasks within that request's task tree, completely eliminating cross-request identity contamination.",
-    "Why": "threading.local leaks state across concurrent coroutines sharing an asyncio event loop thread; contextvars.ContextVar isolates request context per asynchronous Task tree.",
-    "Risk": "Using threading.local in async FastAPI applications causes silent cross-tenant data leakage, where one user inadvertently views or mutates another concurrent user\u2019s records.",
-    "Trade": "ContextVar provides bulletproof async safety with negligible microsecond overhead, but requires explicit context propagation when manually offloading CPU tasks to thread pools via run_in_executor.",
-    "Try": "Simulate two concurrent async coroutines setting different tenant IDs in threading.local versus ContextVar across an await asyncio.sleep(0.01) point; observe the state corruption in threading.local.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "ContextVar associates a value with an asynchronous execution context rather than one mutable process-global variable. Concurrent requests can therefore carry different identities through await boundaries. It is a context propagation mechanism, not an authorization decision or durable identity store.",
+    "Why": "Bind task-local identity at the authenticated boundary and reset it in a finally block. A background task must receive a deliberate identity rather than rely on accidental inherited context.",
+    "Risk": "Capturing context for a task that outlives a request can retain stale identity. Failing to reset temporary bindings can also confuse tests or reused execution contexts. Server code must define where identity begins and ends.",
+    "Trade": "Implicit context reduces parameter threading and can hide dependencies. Explicit identity parameters improve local clarity and require more signatures.",
+    "Try": "Run two concurrent tool calls under separate context bindings. Test missing identity and an outliving background task; verify both fail or receive an explicit service identity as intended."
   },
   {
     "Q": "Why must case ownership be checked in tools as well as routes?",
-    "A": "In modern AI architectures and agentic workflows, Large Language Models interact with backend services by selecting and executing autonomous tool calls (e.g., read_document(doc_id='...'), refund_transaction(tx_id='...'), or export_case_notes(case_id='...')). A critical architectural vulnerability is checking authorization only at the outer API gateway or FastAPI HTTP route layer (e.g., verifying that the user has an active session to chat with the agent), while treating internal tool execution functions as trusted.\n\nBecause LLMs are non-deterministic and susceptible to prompt injection, jailbreaking, and hallucination, an attacker can manipulate the conversational context to cause the model to emit tool arguments targeting arbitrary IDs belonging to other customers:\nUser prompt: 'Summarize the legal settlement in case 884-X99 (which belongs to a rival company).'\nIf the tool function read_case_file(case_id) assumes that authorization was already validated at the route boundary, it executes the query directly and returns confidential third-party data to the LLM, which summarizes it for the attacker.\n\nDefense-in-depth requires that every agent tool function enforce granular, object-level ownership checks at the tool execution boundary. The tool must accept an authenticated execution context (injected securely via FastAPI dependencies or contextvars, never generated by the LLM) and query the database with strict tenant scoping:\nWHERE case_id = :case_id AND tenant_id = :context_tenant_id.\nIf the record does not belong to the caller's tenant, the tool returns an authorization failure error to the agent, completely preventing multi-tenant data exfiltration via prompt injection.",
-    "Why": "LLMs can be tricked via prompt injection into generating tool arguments targeting other customers. Every tool must independently verify object ownership using verified context, not LLM assertions.",
-    "Risk": "Relying on outer route checks allows prompt injection attacks to invoke tools against foreign tenant IDs, exfiltrating confidential data directly through LLM conversational outputs.",
-    "Trade": "Enforcing ownership checks inside each tool adds database query logic to tool execution, but guarantees tenant isolation even if the agent is completely subverted by adversarial prompts.",
-    "Try": "Write an agent tool that queries a database record; demonstrate that passing a foreign tenant ID raises an authorization exception even when called from an authenticated agent session.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "Agent tools may execute through a runner, test harness, or future remote protocol without passing through a particular HTTP route. A protected route cannot be the only place a domain operation learns whose data it may access.",
+    "Why": "Authorize the resource inside the service called by every adapter. A protected chat endpoint cannot make a later model-selected identifier trustworthy.",
+    "Risk": "A model-supplied user_id is untrusted even if it is a valid UUID. A future LangChain adapter must not expose that internal parameter as a tool argument the model can freely choose.",
+    "Trade": "Repeated enforcement at domain boundaries adds code and protects alternate callers. Duplicated policy implementations can drift, so centralize shared service authorization where possible.",
+    "Try": "Invoke the service request-search tool directly without an HTTP request and with the wrong user context. Verify that knowing another user's request ID does not reveal it."
   },
   {
     "Q": "What is the distinction between RBAC and resource ownership here?",
-    "A": "In secure system design, Role-Based Access Control (RBAC) and Resource Ownership (Object-Level Authorization) address orthogonal dimensions of access control:\n\n1. Role-Based Access Control (RBAC): Answers the functional question: 'What operations is this user role permitted to execute in general?' For example, an RBAC policy defines that users with the ROLE_ANALYST role can execute read operations on cases, while users with ROLE_ADMIN can delete cases. RBAC checks are typically evaluated statically at the API route boundary (e.g., using FastAPI dependencies like Depends(require_role('ROLE_ANALYST'))).\n\n2. Resource Ownership (Object-Level Authorization): Answers the specific relational question: 'Does this specific user or tenant organization own or have legitimate rights to access this exact instance of the resource?' For example, Alice possesses the ROLE_ANALYST role within Acme Corp, and Bob possesses the ROLE_ANALYST role within Beta Industries. Under pure RBAC, both users are authorized to call GET /api/v1/cases/{case_id}. However, Alice must only be permitted to access Case #101 (owned by Acme Corp), never Case #202 (owned by Beta Industries).\n\nFailing to enforce resource ownership is the root cause of Broken Object-Level Authorization (BOLA / IDOR), consistently ranked as the #1 vulnerability on the OWASP API Security Top 10. Attackers exploit BOLA by authenticating as a valid user with normal permissions, then simply altering the UUID in the URL to access records belonging to other tenants. Secure systems must implement two-phase authorization: RBAC at the route boundary, followed by tenant-scoped database query filters on every object lookup.",
-    "Why": "RBAC validates whether a role can perform an action type; Resource Ownership validates whether the caller owns the specific target entity. BOLA occurs when RBAC succeeds but ownership is omitted.",
-    "Risk": "Enforcing only RBAC allows any authenticated user to view or modify every record in the entire database simply by iterating or guessing entity IDs.",
-    "Trade": "Object ownership requires compound database queries (filtering by tenant_id and resource_id), but completely eliminates multi-tenant data leakage and BOLA vulnerabilities.",
-    "Try": "Issue a request with valid credentials for User A attempting to access a resource owned by User B; verify that the endpoint rejects the call despite User A possessing the required operational role.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "Role-Based Access Control determines whether a principal may perform a category of action; ownership determines which records that principal may affect. A support operator role does not automatically justify unrestricted access to every customer's service requests.",
+    "Why": "Use roles for permitted categories of action and ownership for access to a particular resource. Check both when a privileged operation also targets tenant-scoped data.",
+    "Risk": "Replacing the allowlist with a broad role check without resource policy can overgrant authority. Tests that widen the allowlist for fixtures do not prove production administration is configured.",
+    "Trade": "Combining role and attribute checks is more expressive and more complex. A deny-by-default seam is safer than silently pretending a missing administrative policy exists.",
+    "Try": "Define reader, customer, handler, and administrator actions with both role and record-scope rules. Map each rule to its actual enforcement point."
   },
   {
     "Q": "Why does password hashing require more than naming Argon2?",
-    "A": "Cryptographic credential security requires far more than merely selecting a modern password hashing algorithm like Argon2 or bcrypt; it mandates rigorous tuning of algorithmic resource parameters, salt entropy, timing resistance, and rate-limiting infrastructure:\n\n1. Algorithm Tuning and Hardware Cost: Unlike standard cryptographic hash functions (such as SHA-256) which are designed to be fast, password hashing functions must be deliberately slow and memory-hard to neutralize massively parallelized offline cracking using GPUs and custom ASIC rigs. For Argon2id (the winner of the Password Hashing Competition), production configuration requires tuning three parameters:\n- Memory Cost (m): typically 64MB (65536 KiB) to prevent GPU memory parallelization.\n- Time Cost (t): number of iterations (typically 3 to 4 passes).\n- Parallelism (p): number of concurrent threads (typically 2 to 4 cores).\nThe parameters must be benchmarked on target production servers so that verifying a single password takes approximately 100ms to 300ms of CPU compute.\n\n2. Salt Entropy and Generation: Every password must be hashed using a unique, cryptographically secure random salt (minimum 16 bytes via os.urandom or secrets.token_bytes) generated automatically by the library (e.g., argon2-cffi). Reusing salts or using predictable seeds allows precomputed rainbow table attacks.\n\n3. Constant-Time Verification: Password verification must utilize constant-time string comparison (e.g., secrets.compare_digest) to eliminate timing side-channel attacks that leak hash character matches.\n\n4. Account Lockout and Proof of Work: Because slow hashing consumes CPU cycles, attackers can mount Denial of Service (DoS) attacks by flooding login endpoints. Systems must enforce IP rate limiting and progressive delays.",
-    "Why": "Argon2 requires explicit memory-hardness and iteration tuning to defeat GPU cracking rigs, unique cryptographic salts to prevent rainbow tables, and constant-time checks to prevent timing side channels.",
-    "Risk": "Using default fast parameters or SHA-256 allows attackers to crack stolen password dumps at billions of guesses per second using commercial GPU clusters.",
-    "Trade": "Tuning Argon2 to 200ms per verification maximizes resistance to offline brute-forcing, but requires strict rate-limiting on login endpoints to prevent CPU exhaustion DoS attacks.",
-    "Try": "Benchmark Argon2id verification latency in Python across memory parameters (16MB vs 64MB); observe how memory cost directly restricts parallel offline guessing throughput.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "A password hash uses intentionally costly computation and salt to resist offline guessing. Operational parameters, input limits, verification errors, rehash policy, and login rate limiting matter too. A hash algorithm name alone does not establish timing-safe user enumeration resistance.",
+    "Why": "Use a valid dummy hash with a reviewed work factor for unknown accounts. Compare timing distributions under load and keep authentication errors consistent without suppressing operational diagnostics.",
+    "Risk": "Malformed dummy verification can return faster than a real check. Unbounded password input or excessive concurrent hashing can also consume resources before the agent is involved.",
+    "Trade": "Higher hashing cost protects stolen hashes and increases authentication resource use. Choose measured parameters and a valid equivalent dummy path.",
+    "Try": "Benchmark known-user wrong-password and unknown-user checks with reviewed test data. Verify hash validity and compare distributions without asserting perfect constant time."
   },
   {
     "Q": "How should confirmation tokens be treated as capabilities?",
-    "A": "Confirmation tokens\u2014used for critical, out-of-band actions such as email address verification, password reset flows, invitation acceptance, and sensitive transaction approvals\u2014must be engineered as strict cryptographic capabilities rather than plain database records:\n\n1. High Entropy Cryptographic Generation: Tokens must be generated using a cryptographically secure pseudorandom number generator (CSPRNG), such as Python's secrets.token_urlsafe(32), producing at least 256 bits of entropy. This renders brute-force token guessing mathematically impossible within feasible time horizons.\n\n2. Hash-at-Rest Storage: Analogous to passwords, plain token strings must NEVER be stored in plaintext in the database. If an attacker gains read access to the database or backups, plaintext reset tokens would allow instant account takeovers. The application must compute a cryptographic hash of the token (e.g., SHA-256) and store only token_hash in the database. The client receives the raw unhashed token via email; upon presentation, the server hashes the incoming token and queries: WHERE token_hash = :hashed_input.\n\n3. Strict Temporal Validity and Single-Use Consumption: Confirmation tokens must enforce short expiration lifetimes (e.g., 15 minutes for password resets). Furthermore, tokens must be strictly single-use and consumed within an ACID database transaction:\nUPDATE confirmation_tokens SET used_at = NOW() WHERE token_hash = :hash AND used_at IS NULL AND expires_at > NOW();\nIf the update modifies 0 rows, the token is invalid, expired, or has already been used.\n\n4. Action and Principal Binding: Tokens must be strictly bound to a single action scope (e.g., scope = 'PASSWORD_RESET') and user_id, preventing an email verification token from being presented to reset a password.",
-    "Why": "Storing only SHA-256 hashes of high-entropy tokens prevents database leaks from compromising active tokens, while atomic single-use consumption and short TTLs prevent replay attacks.",
-    "Risk": "Storing plaintext tokens allows compromised database snapshots to be weaponized for instantaneous account takeovers across all pending confirmation links.",
-    "Trade": "Hashing tokens before storage adds a single SHA-256 computation on verification, while completely neutralizing token theft from database backups and read replicas.",
-    "Try": "Generate a 32-byte urlsafe token, store its SHA-256 hash in a SQLite table with a used_at column, and execute an atomic update to verify that attempting to reuse the token fails on the second call.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "A confirmation token identifies a specific prepared action and should be bound to the user, payload, pending state, and expiry. Possession alone should not bypass authentication. Material edits should produce a new reviewed operation and invalidate or supersede the old one server-side.",
+    "Why": "Bind confirmation to owner, exact parameters, revision, expiry, and pending state. Supersede earlier approvals explicitly after material changes and reject reused completed tokens.",
+    "Risk": "A model's statement cannot revoke a still-pending token. Some preparation logs also include tokens, increasing the audience that may see them even though owner binding remains required.",
+    "Trade": "Server-enforced supersession adds lifecycle bookkeeping and prevents stale confirmation. Keeping multiple live preparations is simpler but needs an honest user-visible model.",
+    "Try": "Prepare an amount, correct it, then try both tokens. Document current behavior and specify the desired supersession invariant."
   },
   {
     "Q": "Why must rate limiting, request-size limits, and tool budgets coexist?",
-    "A": "Defending production AI APIs against denial-of-service, financial exploitation (Denial of Wallet), and resource exhaustion requires a layered defense combining three distinct throttling mechanisms:\n\n1. Rate Limiting (Request Frequency): Enforces operational limits on how many requests a client can submit over time (e.g., 60 requests per minute per authenticated user, or 10 requests per minute per unauthenticated IP). In FastAPI, rate limiters (such as slowapi or Redis token-bucket algorithms) evaluate incoming requests before invoking route logic, returning HTTP 429 Too Many Requests with a Retry-After header when quotas are exceeded. Rate limiting prevents API flooding and credential stuffing.\n\n2. Request-Size Limits (Transport Payload): Restricts the maximum permitted size of incoming HTTP request bodies (e.g., 2MB for standard JSON endpoints, 10MB for document upload endpoints). In ASGI servers, request-size limits must be enforced at the middleware layer before the server buffers incoming byte streams into memory. Allowing unbounded request payloads enables attackers to send multi-gigabyte POST streams that exhaust server RAM, triggering Out-Of-Memory (OOM) process crashes.\n\n3. Tool Budgets and Token Quotas (Execution Cost): In agentic generative AI systems, a single incoming HTTP request can trigger an autonomous agent loop that executes multiple LLM calls and tool executions. Rate limiting alone cannot prevent an attacker from crafting an adversarial prompt that traps an agent in an expensive 50-step reasoning loop. Systems must enforce strict execution budgets per request: maximum LLM token usage (e.g., 8,000 tokens), maximum tool execution count (e.g., 5 tool calls), and a maximum wall-clock timeout (e.g., 30 seconds), terminating runaway agent loops immediately.",
-    "Why": "Rate limiting throttles request frequency, request-size limits prevent memory exhaustion OOM crashes, and tool budgets prevent autonomous agent loops from running up catastrophic GPU bills.",
-    "Risk": "Omitting tool budgets allows a single HTTP request to trigger an infinite agent loop that burns thousands of dollars in LLM API credits within minutes.",
-    "Trade": "Enforcing strict token and tool budgets may occasionally terminate complex legitimate user queries, requiring transparent error messaging and budget adjustment policies.",
-    "Try": "Implement an ASGI middleware in FastAPI rejecting requests where Content-Length exceeds 1MB with HTTP 413 Payload Too Large; test with a 2MB payload to verify rejection before body parsing.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "Request rate bounds arrival frequency, size limits bound per-request input, and tool or token budgets bound work initiated by one accepted request. An agent can turn one small request into many expensive provider calls, so requests per minute alone do not control cost.",
+    "Why": "Apply limits at request, run, model, and tool boundaries. Account for nested calls and retries so one accepted HTTP request cannot expand into unbounded downstream work.",
+    "Risk": "Fail-open Redis behavior preserves availability and can weaken fleet-wide limits during an outage. Model-generated loops may also stay within HTTP request limits while exhausting provider budgets.",
+    "Trade": "Layered budgets increase configuration and improve predictable resource use. Tight limits can interrupt legitimate multi-intent conversations and need explicit completion states.",
+    "Try": "Estimate worst-case cost from maximum turns, tool calls, retries, candidates, and output tokens. Test overload without using real private service requests."
   },
   {
     "Q": "How can error responses leak information even when access is denied?",
-    "A": "Error responses and exception handlers frequently become insidious side-channel information leakage vectors, exposing confidential system architecture, software dependencies, and data existence even when the request is nominally rejected:\n\n1. User and Record Enumeration: In authentication endpoints, returning 'User not found' on an invalid username but 'Incorrect password' on an existing username allows an attacker to build an automated enumeration script that maps all valid customer email addresses. Similarly, on resource endpoints (/api/v1/projects/{id}), returning 404 when an ID does not exist anywhere in the database, but returning 403 Forbidden when the ID belongs to another tenant, leaks the existence of private customer records to unauthorized adversaries.\n\n2. Stack Trace and Infrastructure Disclosure: In default development configurations, unhandled application exceptions emit full Python tracebacks to the client. These tracebacks reveal exact internal server file paths, framework versions (FastAPI, Starlette, Pydantic), database ORM schemas, database table and column names, internal microservice hostnames, and third-party library versions, providing attackers with a complete blueprint for targeted exploits.\n\n3. Error Normalization and Correlation: Production FastAPI architectures must implement a centralized global exception handler (@app.exception_handler(Exception)) that intercepts all unhandled errors. The handler logs full diagnostic tracebacks and contextual variables internally to a secure APM sink, generates an opaque unique correlation ID (e.g., error_id = uuid4()), and returns a clean, sanitized RFC 9457 Problem Details JSON payload containing only the error ID, preventing all internal infrastructure leakage.",
-    "Why": "Detailed error messages and different status codes for missing vs unauthorized resources reveal user existence and system internals to adversaries conducting reconnaissance.",
-    "Risk": "Emitting raw database exceptions or stack traces in API responses exposes table schemas, library versions, and connection strings to attackers looking for injection vulnerabilities.",
-    "Trade": "Sanitizing errors completely hides internal details from attackers, but requires developers to cross-reference customer-reported error UUIDs against secure internal log sinks for debugging.",
-    "Try": "Trigger an unhandled database exception in a FastAPI endpoint; verify that the client receives a generic RFC 9457 error with an opaque error_id while full tracebacks log only to server stdout.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "Different messages, status codes, timings, trace payloads, and raw exception strings can reveal record existence or internal details. A denial response should reveal only what the caller is entitled to learn, while internal diagnostics remain appropriately protected.",
+    "Why": "Return appropriately indistinguishable not-found or inaccessible responses when disclosure policy requires it. Keep private diagnostic detail in protected logs rather than client exception text.",
+    "Risk": "A model may repeat an internal error returned by a tool. Sanitizing only the final HTTP exception leaves tool results and streaming error events as additional channels.",
+    "Trade": "Generic external messages reduce detail for users and support; structured internal error categories preserve diagnosis without exposing private values.",
+    "Try": "Compare responses for unknown and foreign-owned request IDs, invalid tokens, provider failures, and database errors. Inspect both the streamed events and final response."
   },
   {
     "Q": "What does an effective threat-model review produce?",
-    "A": "An effective threat-model review is not a passive checklist or theoretical audit; it is an active systems-engineering deliverable that identifies attack surfaces, quantifies risks, and produces concrete, automated security controls across the application architecture:\n\n1. Data Flow Diagrams (DFDs) and Trust Boundaries: The review constructs architectural diagrams identifying every system component, data store, process boundary, and communication channel. Crucially, it maps explicit trust boundaries\u2014such as the boundary between the untrusted browser client and the edge CDN, the boundary between the edge reverse proxy and the FastAPI ASGI application, and the boundary between internal application services and external third-party LLM providers.\n\n2. Threat Enumeration via STRIDE: Evaluates each trust boundary against standard threat categories: Spoofing (identity falsification), Tampering (data modification), Repudiation (denying actions), Information Disclosure (data leakage), Denial of Service (resource exhaustion), and Elevation of Privilege (unauthorized capability acquisition). In AI systems, this specifically includes prompt injection, insecure output handling, training data poisoning, and model denial-of-wallet.\n\n3. Actionable Security Mitigations: For every identified high-severity threat, the review produces concrete architectural and code-level remediations: implementing constant-time password hashing, configuring CSP/CORS headers, enforcing object-level tenant queries, and establishing token budgets on agent loops.\n\n4. Automated Security Test Cases: The review culminates in executable automated regression test suites that continuously assert security invariants in CI/CD pipelines (e.g., verifying that cross-tenant requests return 404, rate limiters trip at 60 req/min, and invalid HMAC signatures are rejected).",
-    "Why": "Threat modeling maps trust boundaries, identifies concrete vulnerabilities across STRIDE categories, and establishes automated regression tests to prevent security regressions.",
-    "Risk": "Building applications without formal threat modeling leaves architectural blind spots (such as prompt injection exfiltrating internal tool data) that perimeter firewalls cannot detect.",
-    "Trade": "Conducting threat modeling requires upfront cross-functional engineering time, but prevents catastrophic architectural rewrites and security breaches post-launch.",
-    "Try": "Draw a simple data flow diagram for an AI chat service with an external tool call; identify the trust boundaries and document three specific failure modes under STRIDE.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending",
-      "reviewed_at": "2026-10-24"
-    }
+    "A": "It produces a concrete asset and actor map, trust boundaries, abuse cases, enforcement points, and tests. For this product, include private claim text, confirmation tokens, knowledge versions, prompt data, provider keys, session history, and traces.",
+    "Why": "List assets, actors, entry points, trust boundaries, and forbidden effects. Convert identified threats into owners, controls, and observable acceptance tests rather than a generic security checklist.",
+    "Risk": "A checklist detached from actual call sites can certify controls that are merely configured or documented. Threat modeling should include alternate paths such as evaluation, administration, scripts, and workers.",
+    "Trade": "A focused model tied to major workflows is maintainable. An exhaustive speculative catalog can consume time without improving concrete denial behavior.",
+    "Try": "Pick cross-user disclosure, duplicate submission, and malicious-source instructions. For each, identify the earliest reliable enforcement point and a test proving denial."
   }
 ]

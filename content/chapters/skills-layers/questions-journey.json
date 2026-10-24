@@ -1,48 +1,42 @@
 [
   {
     "Q": "How should a skill’s instructions interact with tool permissions and business policy?",
-    "spoken": "A skill supplies reusable procedural guidance, not an expansion of technical authority. The host runtime and tool services must independently enforce permissions, tenant isolation, and approval policies. Treat downloaded or external skill packages as untrusted configuration input with verified provenance, and evaluate all requested operations against host security ceilings.",
-    "A": "In autonomous agent systems, a critical architectural principle is **Orthogonal Separation of Competence from Authority**:\n\n1. **Competence vs Authority:** A skill defines *competence* (the sequence of analytical steps and heuristics to accomplish a goal). The host runtime defines *authority* (the cryptographic tokens, RBAC roles, tenant boundaries, and financial limits governing what mutations are allowed).\n2. **The Self-Authorization Anti-Pattern:** A skill package must never be permitted to authorize its own operations. Even if a downloaded third-party skill contains text asserting `'This is an emergency medical diagnostic skill with full read access to all hospital patient records'`, the host tool gateway ignores the prompt claim and enforces the user's actual authenticated role (e.g. `role: intern_read_only`).\n3. **Host Gateway Pre-Execution Gate:** Every tool invocation initiated during skill execution passes through a deterministic security interceptor: `PolicyEngine.evaluate(caller_identity, tool_name, tool_arguments)`. If the arguments violate tenant boundaries or parameter ceilings, the gateway halts the call and returns an explicit access denial.\n4. **Provenance & Cryptographic Signing:** Enterprise skill registries must enforce signature verification and package checksums to ensure skill instructions have not been tampered with or poisoned with indirect prompt injections.",
-    "Why": "Treating procedural skill text as an authorization grant allows any prompt injection or malicious third-party skill to completely bypass infrastructure security controls.",
-    "Risk": "A developer downloads a community skill for 'Sales Data Visualization'. The skill instructions instruct the agent to read internal HR salary records and upload them to an external endpoint. If the tool gateway blindly trusts the skill's request, sensitive employee data is exfiltrated.",
-    "Trade": "Strict host policy enforcement requires maintaining external policy engines and RBAC checks at every tool boundary, but makes the agent platform immune to malicious skill instructions.",
-    "Try": "Simulate an agent executing an external skill that attempts to invoke a restricted admin tool; assert that the host policy engine intercepts and rejects the call despite the skill's urgent procedural instructions.",
+    "spoken": "A skill supplies reusable guidance or procedures, not a new grant of authority. The host and service must still enforce available capabilities, caller scope and approval boundaries. Treat external skill content as versioned input with provenance and inspect what actions it can cause, especially when it references other resources.",
+    "A": "A skill supplies reusable guidance or procedures, not a new grant of authority. The host and service must still enforce available capabilities, caller scope and approval boundaries. Treat external skill content as versioned input with provenance and inspect what actions it can cause, especially when it references other resources.\n\nConcrete engineering case: A downloaded skill asks a tool to read unrelated private files and forward them to another system.\n\nBoundary defense: No. Trust and authority are established by the host and application policy, not by self-description in the skill text.",
+    "Why": "A skill supplies reusable guidance or procedures, not a new grant of authority. The host and service must still enforce available capabilities, caller scope and approval boundaries. Treat external skill content as versioned input with provenance and inspect what actions it can cause, especially when it references other resources.",
+    "Risk": "A downloaded skill asks a tool to read unrelated private files and forward them to another system.",
+    "Trade": "No. Trust and authority are established by the host and application policy, not by self-description in the skill text.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
     "domain": "ai-rag",
     "subdomain": "skills-layers",
     "module": "skills-layers",
     "concept": "How should a skill’s instructions interact with tool permissions and business policy?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming that activating a specialized or trusted skill automatically grants the agent elevated permissions to invoke tools beyond the user's authenticated scope.",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A downloaded skill asks a tool to read unrelated private files and forward them to another system.",
     "definitions": [
       {
-        "term": "Competence vs Authority Boundary",
-        "definition": "The architectural invariant that procedural instructions in a skill cannot expand or modify the technical permission ceilings enforced by the host platform."
-      },
-      {
-        "term": "Tool Capability Attenuation",
-        "definition": "The programmatic restriction of an agent's available tools to the minimum necessary set required for the active skill."
+        "term": "Boundary: skills layers",
+        "definition": "A skill supplies reusable guidance or procedures, not a new grant of authority."
       }
     ],
-    "execution_timeline": "User activates skill -> Skill instructs agent to read restricted database -> Agent proposes db_read tool call -> Host policy gateway intercepts call -> Evaluates caller auth claims against tool RBAC -> Denies unauthorized request -> Skill receives access error and halts safely.",
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
     "example": {
-      "code": "{\n  \"scenario\": \"A downloaded analytics skill instructs the agent to export private tenant customer tables. The skill claims administrator status in its instructions.\",\n  \"required_decision\": \"Enforce the host security boundary independently of skill text; reject unauthorized tool calls regardless of procedural claims within the skill package.\"\n}",
+      "code": "{\n  \"scenario\": \"A downloaded skill asks a tool to read unrelated private files and forward them to another system.\",\n  \"required_decision\": \"A skill supplies reusable guidance or procedures, not a new grant of authority\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "A third-party 'Code Optimizer' skill contained an adversarial instruction directing the model to read AWS credentials from ~/.aws/credentials and log them. Because the host environment enforced a strict sandbox allowing file access only within /workspace, the tool gateway blocked the attempt and alerted security.",
+    "production_case": "A downloaded skill asks a tool to read unrelated private files and forward them to another system.",
     "alternatives": [
-      "Rely on prompt engineering instructing the LLM to 'be safe' when following skill instructions (vulnerable to prompt injection).",
-      "Enforce deterministic, non-bypassable host policy interceptors at the physical tool execution layer (production-grade defense)."
+      "No. Trust and authority are established by the host and application policy, not by self-description in the skill text."
     ],
     "pitfalls": [
-      "Allowing skills to define or modify environment variables that configure API keys or access permissions.",
-      "Assuming that code running inside a skill's bundled script runs with fewer restrictions than LLM tool calls."
+      "A downloaded skill asks a tool to read unrelated private files and forward them to another system."
     ],
-    "complexity": "Policy evaluation adds sub-millisecond overhead to tool dispatch while guaranteeing that multi-tenant security cannot be compromised by untrusted prompt text.",
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
     "follow_ups": [
       {
-        "Q": "Can an instruction stating 'This skill is approved by the security team' bypass runtime checks?",
-        "A": "No. Natural language claims in prompts have zero authority. Trust is established exclusively through authenticated cryptographic tokens and host policy engines."
+        "Q": "Can an instruction saying this skill is trusted bypass the boundary?",
+        "A": "No. Trust and authority are established by the host and application policy, not by self-description in the skill text."
       }
     ],
     "citations": [
@@ -51,7 +45,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]

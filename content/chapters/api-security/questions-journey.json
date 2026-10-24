@@ -1,63 +1,56 @@
 [
   {
     "Q": "What must a signed bearer token prove before an owned resource can be returned?",
-    "spoken": "A valid cryptographic signature only establishes authentication—proving who the caller is. Before returning an owned resource, the API must validate the standard token claims (issuer, audience, and expiration) and enforce object-level authorization (BOLA defense) by asserting in the database query that the requested resource belongs to the token's authenticated subject.",
-    "A": "In modern cloud and microservice architectures, API authentication and resource authorization are two strictly distinct security boundaries.\n\n1. Token Profile & Cryptographic Claims Validation:\nA JSON Web Token (JWT) must be cryptographically verified against a trusted JSON Web Key Set (JWKS). The verification pipeline must assert:\n- Algorithm Pinning: Enforce asymmetric verification with an explicit algorithm (e.g. `algorithms=['RS256']`). Never trust the `alg` header from the client, which invites the infamous `alg: 'none'` bypass or HMAC-RSA key confusion exploits.\n- Issuer (`iss`): Verifies the token was minted by your trusted Identity Provider (e.g. Auth0, Keycloak, Google Workspace).\n- Audience (`aud`): Confirms the token was minted specifically for THIS API service (e.g. `aud='https://api.company.com/v1'`). If audience validation is omitted, an attacker can obtain a valid token for an innocuous internal service and replay it against your high-privilege payment or document API.\n- Expiration (`exp`) and Revocation: Assert `exp > NOW()` and check token revocation lists or revocation epochs for invalidated sessions.\n\n2. The BOLA / IDOR Authorization Gate (OWASP API #1):\nThe most common and catastrophic API vulnerability is Broken Object Level Authorization (BOLA, formerly IDOR). A junior developer verifies the token signature and extracts `sub = 'user_alice'`. The endpoint then executes: `SELECT * FROM documents WHERE id = :document_id;`\nIf Alice passes `document_id=999` (which belongs to Bob), the API happily returns Bob's private medical or financial records! The token was 100% valid, but authorization was completely missing.\nRule: Every query accessing an owned resource must be scoped by the authenticated subject: `SELECT * FROM documents WHERE id = :document_id AND tenant_id = :authenticated_tenant_id;`.",
-    "Why": "A valid JWT signature proves identity; resource queries must explicitly scope database lookups to the authenticated subject to prevent Broken Object Level Authorization (OWASP API1:2023).",
-    "Risk": "Validating token signatures without scoping resource queries allows any authenticated user to read or modify arbitrary resources across the entire application by simply changing the ID in the URL.",
-    "Trade": "Validating all standard claims and scoping database queries adds defensive checks to every route handler, completely preventing cross-user data exfiltration.",
-    "Try": "Write a FastAPI route with a JWT dependency. Send a request with a valid token issued for user A attempting to fetch a document owned by user B. Assert that the endpoint returns HTTP 404 or 403.",
+    "spoken": "Verify the declared token profile: trusted issuer and keys, permitted algorithm, audience, validity period and relevant claims. Map that authenticated identity to server-side authorization and scope the authoritative resource query. A valid signature alone does not prove that a token was issued for this API or that its subject owns the requested record.",
+    "A": "Verify the declared token profile: trusted issuer and keys, permitted algorithm, audience, validity period and relevant claims. Map that authenticated identity to server-side authorization and scope the authoritative resource query. A valid signature alone does not prove that a token was issued for this API or that its subject owns the requested record.\n\nConcrete engineering case: A correctly signed token for another service is accepted because the API never checks audience.\n\nBoundary defense: No. Audience identifies an intended recipient. Ownership, role and lifecycle permissions remain resource-specific decisions.",
+    "Why": "Verify the declared token profile: trusted issuer and keys, permitted algorithm, audience, validity period and relevant claims. Map that authenticated identity to server-side authorization and scope the authoritative resource query. A valid signature alone does not prove that a token was issued for this API or that its subject owns the requested record.",
+    "Risk": "A correctly signed token for another service is accepted because the API never checks audience.",
+    "Trade": "No. Audience identifies an intended recipient. Ownership, role and lifecycle permissions remain resource-specific decisions.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
     "domain": "backend",
     "subdomain": "api-security",
     "module": "api-security",
     "concept": "What must a signed bearer token prove before an owned resource can be returned?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming that verifying a JWT's cryptographic signature automatically authorizes the caller to access any resource ID specified in the request URL.",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A correctly signed token for another service is accepted because the API never checks audience.",
     "definitions": [
       {
-        "term": "BOLA (Broken Object Level Authorization)",
-        "definition": "The #1 OWASP API vulnerability where an API fails to verify whether the authenticated user has permission to access a specific resource ID."
-      },
-      {
-        "term": "JWKS (JSON Web Key Set)",
-        "definition": "A standard JSON document containing public cryptographic keys used to verify signatures on JWTs minted by an identity provider."
-      },
-      {
-        "term": "Audience ('aud') Claim",
-        "definition": "A standard JWT claim identifying the specific recipient or API for which the token was issued, preventing token replay attacks."
+        "term": "Boundary: api security",
+        "definition": "Verify the declared token profile: trusted issuer and keys, permitted algorithm, audience, validity period and relevant claims."
       }
     ],
-    "execution_timeline": "1. Extract Bearer token from Authorization header -> 2. Verify signature with JWKS public key -> 3. Validate exp, iss, and aud claims -> 4. Extract authenticated subject (sub/tenant_id) -> 5. Execute database query with `WHERE id = :id AND owner_id = :sub` -> 6. If not found or not owned, return 404 Not Found.",
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
     "example": {
-      "code": "from fastapi import FastAPI, Depends, HTTPException, status\nfrom fastapi.security import HTTPBearer, HTTPAuthorizationCredentials\nimport jwt\n\nsecurity = HTTPBearer()\n\nasync def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:\n    try:\n        payload = jwt.decode(\n            credentials.credentials,\n            key=PUBLIC_KEY,\n            algorithms=['RS256'],\n            audience='https://api.mycorp.com',\n            issuer='https://auth.mycorp.com/'\n        )\n        return payload['sub']\n    except jwt.PyJWTError:\n        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')\n\n@app.get('/documents/{document_id}')\nasync def get_document(document_id: str, user_id: str = Depends(get_current_user_id), db = Depends(get_db)):\n    # BOLA Defense: scope query strictly by authenticated user_id\n    doc = await db.fetch_one(\n        'SELECT * FROM documents WHERE id = :id AND owner_id = :owner',\n        {'id': document_id, 'owner': user_id}\n    )\n    if not doc:\n        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Document not found')\n    return doc",
-      "explanation": "Validates signature, issuer, and audience on the JWT, and enforces BOLA defense by including `owner_id = :owner` directly in the database lookup.",
-      "output": "Returns document if owned; returns 404 without leaking document existence if owned by another user."
+      "code": "{\n  \"scenario\": \"A correctly signed token for another service is accepted because the API never checks audience.\",\n  \"required_decision\": \"Verify the declared token profile: trusted issuer and keys, permitted algorithm, audience, validity period and relevant claims\"\n}",
+      "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
+      "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "A ride-sharing API allowed authenticated drivers to view trip receipts via `GET /v1/trips/{trip_id}`. An attacker with a valid driver account enumerated trip IDs and scraped passenger names, pickup addresses, and payment hashes for 2 million trips because the API verified the JWT signature but never verified trip ownership.",
+    "production_case": "A correctly signed token for another service is accepted because the API never checks audience.",
     "alternatives": [
-      "Row-Level Security (RLS): Enforce object ownership directly in the database engine using PostgreSQL RLS policies.",
-      "Opaque session cookies: Store authentication state in a server-side session store (Redis) rather than self-contained JWTs."
+      "No. Audience identifies an intended recipient. Ownership, role and lifecycle permissions remain resource-specific decisions."
     ],
     "pitfalls": [
-      "Omitting audience validation, allowing tokens issued for a third-party partner app to be replayed against internal administrative APIs.",
-      "Allowing client-controlled `alg` headers, enabling attackers to send tokens signed with HMAC using the server's public RSA key as the secret.",
-      "Returning HTTP 403 Forbidden instead of HTTP 404 Not Found when a resource is not owned, leaking resource ID existence to enumeration scanners."
+      "A correctly signed token for another service is accepted because the API never checks audience."
     ],
-    "complexity": "JWT signature verification uses asymmetric RSA/ECDSA cryptography taking <0.5ms; indexed database ownership lookup takes O(log N) B-Tree seek time.",
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
     "follow_ups": [
       {
-        "Q": "Why should an API return 404 instead of 403 when a user requests another user's resource?",
-        "A": "Returning 403 confirms to an attacker that the resource ID exists and is protected. Returning 404 prevents resource enumeration attacks by revealing nothing about the existence of IDs."
+        "Q": "Does checking audience remove the need for object authorization?",
+        "A": "No. Audience identifies an intended recipient. Ownership, role and lifecycle permissions remain resource-specific decisions."
       }
     ],
     "citations": [
-      "https://api-security.owasp.org/editions/2023/en/0x11-t10",
-      "https://www.rfc-editor.org/rfc/rfc9068.html"
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "https://www.rfc-editor.org/rfc/rfc9700.html",
+      "https://spec.openapis.org/oas/latest.html",
+      "https://json-schema.org/draft/2020-12/json-schema-validation",
+      "https://api-security.owasp.org/editions/2023/en/0x11-t10"
     ],
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-23"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]

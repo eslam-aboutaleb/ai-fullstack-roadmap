@@ -1,66 +1,36 @@
 [
   {
     "Q": "What does a tool wrapper add to an existing function?",
-    "A": "In framework ecosystems like LangChain, a tool wrapper (`@tool` or `StructuredTool`) adapts an underlying Python function into a format consumable by LLM tool-calling APIs:\n\n1. **What the Wrapper Provides:**\n   - Generates JSON Schema definitions from Python type hints and docstrings for function-calling models.\n   - Validates incoming model arguments against declared Pydantic models before execution.\n   - Catches execution errors and formats them into string tool observations for model consumption.\n\n2. **Critical Security Boundary Invariant:**\n   - The wrapper must NOT expose security or identity parameters to the model. Parameters such as `tenant_id`, `user_id`, or `database_conn` must be injected securely from request-local context (e.g., Python `ContextVar`), never parsed from model-generated JSON arguments.\n   - Business authorization checks must remain inside the domain service, not duplicated in the tool wrapper.",
-    "Why": "Exposing identity parameters (e.g., `account_id`) to model function arguments allows prompt-injected models to access arbitrary tenant data (IDOR / Broken Object Level Authorization).",
-    "Risk": "Relying on the tool wrapper for authorization rules creates duplicate, desynchronized security logic that bypasses existing API gateway policies.",
-    "Trade": "Tool wrappers streamline LLM integration and schema generation, but require strict perimeter wrapping to prevent model-injected parameter tampering.",
-    "Try": "Write a `@tool` wrapper around a customer ledger lookup function. Use `ContextVar` to inject authenticated `tenant_id` automatically while exposing only `order_id` to the LLM schema.",
     "explain": "It describes the function in a model-usable form and translates between runtime input and the service contract. It should not duplicate authorization or invent a second version of business rules. Inject trusted identity outside model-editable arguments.",
     "example": "The model supplies a request reference; the wrapper supplies the authenticated principal from runtime context.",
     "takeaway": "Adapt the interface while preserving the authority boundary."
   },
   {
     "Q": "When do you want an agent instead of a fixed composition?",
-    "A": "The architectural choice between a deterministic runnable chain (LCEL pipeline) and an autonomous agent loop depends on execution predictability:\n\n1. **Fixed LCEL Runnable Composition (`prompt | model | parser`):**\n   - Ideal when the sequence of stages is pre-determined (e.g., Query Rewrite -> Vector Search -> Rerank -> LLM Generation).\n   - Delivers low, predictable latency, zero tool-selection errors, deterministic debugging, and minimal token cost.\n2. **Dynamic Agent Loop (`AgentExecutor` / ReAct):**\n   - Required when the user query demands open-ended, multi-step investigation across diverse tools where the second action depends entirely on the first observation (e.g., checking flight availability, discovering sold-out status, and searching alternate airports).\n   - Must be bounded by max iterations, timeouts, and execution budgets.",
-    "Why": "Defaulting to autonomous agent loops for fixed workflows introduces non-deterministic branching, high token costs, latency spikes, and unnecessary failure modes.",
-    "Risk": "Using fixed chains for complex exploratory tasks causes brittle failures when unexpected observations require dynamic backtracking.",
-    "Trade": "LCEL chains maximize speed, reliability, and cost-efficiency; agent loops maximize flexibility and tool composability at higher operational cost.",
-    "Try": "Build both a 3-step LCEL pipeline and an AgentExecutor loop for document summarization. Compare latency and token costs across 20 test inputs.",
     "explain": "A fixed composition follows known stages. An agent selects actions based on observations. Use the flexibility where it solves varied intent or incomplete information, and keep deterministic paths for exact known workflows.",
     "example": "An extraction-and-validation endpoint may need no tool-selection loop at all.",
     "takeaway": "A simpler execution structure is often easier to verify."
   },
   {
     "Q": "What should middleware handle?",
-    "A": "In framework architectures, middleware (e.g., custom LCEL runnables, callbacks, or HTTP middleware) handles cross-cutting operational concerns without polluting core business logic:\n\n1. **Appropriate Middleware Responsibilities:**\n   - **Global and Per-Tenant Rate Limiting:** Enforcing token-bucket throttles before model dispatch.\n   - **Token Budget Accounting:** Tracking cumulative input/output tokens and interrupting runaway loops.\n   - **Telemetry & Tracing:** Emitting OpenTelemetry spans and correlation IDs.\n   - **PII Scrubbing:** Redacting credit cards, SSNs, and API keys before logging payloads.\n2. **What Middleware Must NOT Handle:**\n   - Domain business rules, transactional database consistency, and object-level permissions belong strictly inside domain services.",
-    "Why": "Coupling business authorization or SQL transactions into framework middleware makes background workers and non-framework endpoints vulnerable to authorization bypasses.",
-    "Risk": "Middleware that attempts to modify domain state can cause partial failures where model calls succeed but database transactions roll back silently.",
-    "Trade": "Middleware centralizes operational governance across models, but requires clear separation from domain persistence and business logic.",
-    "Try": "Implement a token-budget middleware runnable that tracks cumulative session tokens and raises a `BudgetExceededError` if an execution exceeds 1,500 tokens.",
     "explain": "Place shared budgeting, safe tracing, model routing, and context transformations around calls. Keep resource ownership and transaction invariants in the domain service so HTTP routes and background jobs enforce the same rules.",
     "example": "A budget middleware can stop a fifth model call; it cannot replace the service's check that R17 belongs to the caller.",
     "takeaway": "Cross-cutting controls and business rules occupy different layers."
   },
   {
     "Q": "How should framework output reach the frontend?",
-    "A": "Internal framework objects and events must be decoupled from the public frontend communication protocol:\n\n1. **Adapter Boundary Decoupling:**\n   - Framework-specific events (e.g., LangChain `on_chat_model_stream`, `on_tool_start`, `on_chain_end`) must be transformed into application-standard Server-Sent Events (SSE) or JSON envelopes (e.g., `event: 'token'`, `event: 'tool_call'`, `event: 'final_answer'`).\n2. **Private Data Filtering:**\n   - Strip internal system prompts, model temperatures, private database connection details, and raw stack traces before emitting events to browser clients.\n3. **Front-end Contract Stability:**\n   - The client application should never break when you upgrade the underlying framework or migrate from LangChain to native SDKs.",
-    "Why": "Streaming raw framework event dictionaries directly to the frontend couples web clients to internal framework versions, breaking mobile/web apps on routine library updates.",
-    "Risk": "Leaking raw framework payloads over SSE exposes private prompt engineering techniques, API keys, or database column names to end users.",
-    "Trade": "Event translation layers introduce minor CPU serialization overhead, but guarantee API contract stability and data privacy.",
-    "Try": "Write an async generator that consumes LangChain-style stream events, filters internal tool arguments, and yields clean standard SSE frames (`data: {...}\\n\\n`).",
     "explain": "Translate it into your own versioned event and result contract. The browser should not depend on every internal runtime event name. Filter private tool data and preserve explicit errors and final result identity.",
     "example": "A runtime upgrade changes token event shape; only the backend adapter changes, while the UI still receives text_delta.",
     "takeaway": "Stable application contracts contain framework churn."
   },
   {
     "Q": "What should remain stable when a framework is replaced?",
-    "A": "Enterprise applications must be architected so that replacing or upgrading an AI framework (e.g., migrating from LangChain to Google ADK or raw Python) requires zero changes to core domain logic:\n\n1. **Authoritative Elements That Must Remain Stable:**\n   - **Domain Services and Database Schemas:** SQL tables, ORM models, business calculations, and invariants.\n   - **Public API and Webhook Contracts:** REST endpoints, GraphQL schemas, and SSE event formats consumed by clients.\n   - **Security and Authorization Policies:** OAuth/JWT authentication, tenant scoping, and RBAC rules.\n   - **Evaluation Datasets and Ground-Truth Benchmarks:** Test suites and evaluation rubrics must remain identical to measure framework parity objectively.\n2. **The Hexagonal / Ports-and-Adapters Architecture:**\n   - Treat the AI framework purely as an external infrastructure adapter plugged into your application core.",
-    "Why": "Rewriting business logic and database queries every time a new AI framework becomes popular causes massive technical debt and regression bugs.",
-    "Risk": "Coupling domain business rules directly into framework-specific classes (e.g., `BaseCallbackHandler` or `BaseTool`) locks the enterprise into a specific third-party library.",
-    "Trade": "Maintaining strict architectural boundaries requires interface adapters and DTO mapping, but makes future framework migrations trivial.",
-    "Try": "Define a domain service interface `PricingCalculator`. Implement both a raw Python function adapter and a LangChain `@tool` adapter, showing both call the exact same domain service.",
     "explain": "The public API, domain rules, operation identity, outcome categories, and UI event meanings should not depend on a framework's private classes. Translate framework messages and errors at an adapter boundary. Keep domain fixtures unchanged so a replacement is judged by behavior rather than how many lines were rewritten.",
     "example": "A runtime emits different internal tool-progress events after migration. The adapter still publishes the application's documented task_started, progress, and terminal outcomes.",
     "takeaway": "Make framework change a contained implementation decision."
   },
   {
     "Q": "When should I stop adding framework abstractions?",
-    "A": "Framework adoption must be governed by the principle of parsimony—start with the minimal necessary abstraction and introduce additional layers only when justified by concrete operational needs:\n\n1. **The Progression of Abstraction:**\n   - *Level 0:* Raw vendor client SDK (e.g., `google-genai` or `openai`). Perfectly adequate for 80% of standard prompt and tool-call applications.\n   - *Level 1:* Deterministic LCEL chains / pipelines for multi-stage retrieval and formatting.\n   - *Level 2:* Dynamic Agent loop with 2-4 bounded tools.\n   - *Level 3:* Multi-agent orchestrators with state graphs (LangGraph).\n2. **Warning Signs of Abstraction Overkill:**\n   - You have 5 layers of nested wrapper classes to execute a single prompt.\n   - Debugging a simple TypeError requires stepping through 30 stack frames across 6 library files.\n   - The application spends more CPU time serializing internal framework objects than waiting for model inference.",
-    "Why": "Unnecessary abstractions obscure execution flow, complicate performance profiling, introduce hidden latency, and make unit testing excruciatingly difficult.",
-    "Risk": "Over-engineered multi-agent graphs for straightforward tasks lead to incomprehensible failure modes, non-converging loops, and massive API bills.",
-    "Trade": "Keeping code close to standard Python functions reduces boilerplate abstraction, providing maximum transparency, debuggability, and performance.",
-    "Try": "Audit an existing multi-agent chain. Measure if converting it to a straightforward 30-line Python function reduces latency and eliminates library dependencies while preserving 100% output quality.",
     "explain": "Begin with one runtime and one useful tool. Add middleware, memory services, or orchestration only for a demonstrated responsibility. Compare each addition with an ordinary function or service and document its operational cost. Learning every framework is not a prerequisite for shipping one reliable application.",
     "example": "A fixed classify-then-search sequence may need two functions and typed data rather than an autonomous loop, graph runtime, and supervisor agent at once.",
     "takeaway": "Adopt a framework feature when it solves a named problem you can test."

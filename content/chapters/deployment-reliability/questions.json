@@ -1,11 +1,11 @@
 [
   {
     "Q": "What must change when scaling from one process to multiple replicas?",
-    "A": "Scaling an AI backend from a single development process to multiple horizontal replicas (e.g., in Kubernetes or ECS) fundamentally breaks process-local assumptions. In a multi-replica deployment, identical code runs in isolated memory spaces across different machines. The following stateful subsystems must be externalized and re-engineered:\n\n1. Shared State & Sessions: In-memory dictionaries, chat histories, and active WebSocket connections do not span processes. Conversational state and user sessions must be externalized to distributed caches (Redis) or relational databases (PostgreSQL);\n2. Distributed Concurrency & Idempotency: Thread locks (threading.Lock, asyncio.Lock) only protect a single process. Replicas must use distributed locking (e.g., Redis Redlock or Postgres pg_advisory_lock) and persistent idempotency keys to prevent duplicate card charges or concurrent writes;\n3. Global Rate Limiting: Process-local rate limiters (e.g., 50 req/min) multiply by the number of replicas: 10 replicas allow 500 req/min, rapidly exhausting downstream LLM provider quotas. Rate limiting must use a central Redis sliding window token bucket;\n4. Connection Pool Multiplication: Every replica maintains its own database connection pool. If 10 replicas each open a pool of 20 connections, total database connections spike from 20 to 200, risking PostgreSQL max_connections exhaustion. Replicas must be sized conservatively and paired with PgBouncer connection pooling.",
-    "Why": "Externalizing state and synchronizing concurrency across replicas ensures that traffic can be routed randomly across any pod without data corruption, race conditions, or dropped user sessions.",
-    "Risk": "Assuming in-memory locks protect critical sections across multiple pods causes concurrent duplicate execution of financial disbursements and database corruption during high-traffic spikes.",
-    "Trade": "Externalizing state to Redis and PostgreSQL adds sub-millisecond network hops, but enables infinite horizontal scalability and zero-downtime rolling updates.",
-    "Try": "Deploy two local instances of an agent service behind an Nginx round-robin proxy. Verify that sending alternating requests to Instance A and Instance B continues the conversation seamlessly via Redis shared memory.",
+    "A": "Shared sessions, idempotency, rate limits, jobs, migrations, and telemetry need explicit cross-process semantics. Process-local dictionaries, locks, and counters remain local even when replicas run identical code.",
+    "Why": "Move authoritative tasks, sessions, rate accounting, and operation identity into deliberately shared stores where required. Test concurrent replicas instead of extrapolating from one process.",
+    "Risk": "Adding replicas can multiply quotas, repeat model calls, and split conversational state. A load balancer does not make local state shared.",
+    "Trade": "Shared services improve continuity and introduce network dependencies. One process with honest limitations can be a simpler initial deployment.",
+    "Try": "Test retries routed to another replica, session continuation, worker claiming, and global quota behavior during Redis failure.",
     "spoken": "Multiple replicas need shared authoritative state, scoped identities, atomic/idempotent operation handling and coordinated schema changes. In-memory tasks and locks do not span processes. Also review connection pools, downstream quotas, health semantics, rollout compatibility and recovery behavior.",
     "domain": "operations",
     "subdomain": "reliability",
@@ -27,9 +27,9 @@
     ],
     "execution_timeline": "Deploy new version -> Health checks pass -> Gradual traffic shift -> Monitor error rates -> Full rollout or rollback",
     "example": {
-      "code": "import redis.asyncio as redis\nimport time\n\nclass DistributedRateLimiter:\n    def __init__(self, client: redis.Redis, limit: int = 100, window_sec: int = 60):\n        self.client = client\n        self.limit = limit\n        self.window = window_sec\n\n    async def acquire(self, tenant_id: str) -> bool:\n        key = f\"ratelimit:{tenant_id}\"\n        now = time.time()\n        pipeline = self.client.pipeline()\n        # Clean old requests and add current timestamp\n        pipeline.zremrangebyscore(key, 0, now - self.window)\n        pipeline.zadd(key, {str(now): now})\n        pipeline.zcard(key)\n        pipeline.expire(key, self.window)\n        _, _, count, _ = await pipeline.execute()\n        return count <= self.limit",
-      "explanation": "Demonstrates production Redis sliding-window distributed rate limiter shared across all horizontal application replicas.",
-      "output": "Distributed rate limit enforced atomically across all pods"
+      "code": "if health_check() == unhealthy:\n    remove_from_load_balancer(instance)\n    alert_oncall()",
+      "explanation": "Unhealthy instances are removed from traffic and on-call is alerted.",
+      "output": "Instance drained, alert sent"
     },
     "production_case": "A request is accepted by replica A and status polling reaches B. If state is process-local, B reports unknown despite a real accepted task; move authoritative task state to shared durable storage.",
     "alternatives": [
@@ -61,11 +61,11 @@
   },
   {
     "Q": "Should migrations run on every application startup?",
-    "A": "Running database migrations (e.g., alembic upgrade head) automatically inside application startup hooks (such as FastAPI on_event(\"startup\") or container entrypoint scripts) is a dangerous production anti-pattern in multi-replica deployments:\n\n1. Concurrent DDL Race Conditions: During a rolling update, multiple replicas spawn simultaneously. Each pod attempts to acquire exclusive schema locks (AccessExclusiveLock) on the database. This causes migration deadlocks, corrupted alembic_version tables, or crashed containers in a CrashLoopBackOff;\n\n2. Breaking Backward Compatibility: If Replica 1 runs a migration that drops or renames a column while Replicas 2, 3, and 4 are still running the old code version, those older replicas immediately crash with SQL column-not-found errors;\n\n3. Production Migration Architecture: (a) Decoupled Migration Jobs: Execute migrations in a standalone, single-instance pipeline step (e.g., a Kubernetes Job or CI/CD deployment hook) that completes successfully BEFORE new application pods are rolled out; (b) Expand-and-Contract Pattern: All schema changes must be backward-compatible with the currently running application version. To rename a column: Phase 1 adds the new column as nullable; Phase 2 deploys code that writes to both columns; Phase 3 backfills; Phase 4 deploys code reading only the new column; Phase 5 drops the old column.",
-    "Why": "Decoupling migrations into dedicated pre-rollout jobs and enforcing Expand-and-Contract patterns guarantees zero-downtime deployments without database locking deadlocks or query crashes on active replicas.",
-    "Risk": "Auto-running migrations on container boot causes multiple pods to race for schema locks, freezing the database and breaking backward compatibility for older pods serving live user traffic.",
-    "Trade": "Expand-and-Contract migrations require multi-phase deployments over days, but guarantee 99.99% uptime and zero breaking changes for live users.",
-    "Try": "Configure a Kubernetes Job manifest that executes alembic upgrade head as a Helm pre-install/pre-upgrade hook, verifying that application pods do not launch until the migration job exits with code 0.",
+    "A": "Startup migration is convenient for small deployments but couples readiness to schema changes and can make replicas compete to migrate. A controlled migration job followed by compatible application rollout is an alternative.",
+    "Why": "Give one deployment step ownership of reviewed migrations and deploy compatible application versions. Define upgrade failure and rollback behavior before enabling multiple startup processes.",
+    "Risk": "Concurrent DDL, long locks, and destructive changes can affect all replicas. A schema change can also prevent rollback to the prior image.",
+    "Trade": "Self-initializing services reduce manual steps; dedicated migration stages improve sequencing. Either requires tested failure behavior and appropriate database privileges.",
+    "Try": "Design a rolling deployment with one migrator, compatible schema, application rollout, verification, and delayed cleanup.",
     "spoken": "Run migrations as an explicit, serialized release operation with reviewed locking and compatibility behavior. Avoid every replica racing to change schema at startup. Use expand/migrate/contract phases so old and new replicas can coexist, and rehearse rollback limits for destructive changes.",
     "domain": "operations",
     "subdomain": "reliability",
@@ -89,9 +89,9 @@
     ],
     "execution_timeline": "Review migration -> expand schema -> deploy compatible code -> backfill/verify -> retire old code -> contract schema",
     "example": {
-      "code": "# Kubernetes Pre-Install / Pre-Upgrade Migration Job\napiVersion: batch/v1\nkind: Job\nmetadata:\n  name: db-migration-job-v24\n  annotations:\n    \"helm.sh/hook\": pre-install,pre-upgrade\n    \"helm.sh/hook-delete-policy\": hook-succeeded\nspec:\n  backoffLimit: 1\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n      - name: migration\n        image: my-app:v2.4.0\n        command: [\"alembic\", \"upgrade\", \"head\"]\n        envFrom:\n        - secretRef:\n            name: db-credentials",
-      "explanation": "Demonstrates production Kubernetes Job running database schema migrations in isolation prior to rolling update of application replicas.",
-      "output": "Job db-migration-job-v24 completed successfully"
+      "code": "release_steps = ['expand', 'compatible_code', 'backfill', 'verify', 'contract']\nassert release_steps.index('verify') < release_steps.index('contract')\nprint('contract only after verification')",
+      "explanation": "This is an ordering fixture, not a database migration tool or proof that a real DDL operation has no locking cost.",
+      "output": "contract only after verification"
     },
     "production_case": "Twenty replicas start after a rollout and all attempt one large schema rewrite. A migration job with a single ownership boundary, staged compatibility and measured lock behavior avoids the startup stampede.",
     "alternatives": [
@@ -123,27 +123,27 @@
   },
   {
     "Q": "Why does startup ingestion need separate operational treatment?",
-    "A": "Executing bulk data ingestion, PDF parsing, or embedding generation inside web application startup is an architectural failure mode:\n\n1. Liveness & Readiness Probe Timeouts: Document ingestion and embedding generation take minutes to hours and saturate CPU/GPU resources. In Kubernetes, if a container fails to respond to liveness/readiness probes within its configured initialDelaySeconds (e.g., 30s), the kubelet marks the container unhealthy and forcibly terminates it. The pod enters a perpetual CrashLoopBackOff cycle and never starts;\n\n2. Redundant Ingestion Multiplication: If ingestion runs on application boot, deploying 10 replicas causes all 10 replicas to ingest the identical files simultaneously, multiplying vector generation API costs by 10x and causing database row lock contention;\n\n3. Production Architectural Separation: Web application pods must remain lean, stateless HTTP servers with sub-second startup times. Ingestion must be completely decoupled into asynchronous background pipelines: files uploaded to S3/GCS trigger event notifications (SQS/PubSub), consumed by dedicated asynchronous worker processes (Celery/Temporal/Airflow) that parse, chunk, embed, and commit to the vector database asynchronously.",
-    "Why": "Decoupling ingestion into background asynchronous workers ensures web containers boot in under 2 seconds, pass container health checks, and autoscale dynamically without re-running redundant data pipelines.",
-    "Risk": "Running heavy embedding pipelines on pod startup causes container health probe timeouts, preventing the application from ever launching in production clusters.",
-    "Trade": "An asynchronous event-driven ingestion pipeline requires managing message queues (SQS/RabbitMQ), but guarantees instant web startup and fault-tolerant document processing.",
-    "Try": "Design an asynchronous ingestion workflow: web server receives PDF upload, writes file to S3, publishes S3 URI to an SQS queue, and returns HTTP 202 Accepted. A worker daemon consumes SQS and populates the vector store."
+    "A": "Ingestion performs provider calls and writes unrelated to accepting a web request. Running it during every replica startup can duplicate preparation, delay readiness, and couple scaling to source and model availability.",
+    "Why": "Run ingestion as a versioned background workflow with freshness state, deduplication, deadlines, and retry policy. Avoid repeating expensive source preparation on each replica startup.",
+    "Risk": "A service can start successfully with missing knowledge. Database connectivity does not prove usable policy evidence exists.",
+    "Trade": "Startup ingestion suits a sample corpus; a scheduled or operator-triggered worker gives clearer ownership, progress, and recovery.",
+    "Try": "Start two replicas with an unchanged source, then with an unavailable provider. Report effective readiness, freshness, and duplicate preparation."
   },
   {
     "Q": "What does the minimal health endpoint prove?",
-    "A": "In containerized production environments, a single /health endpoint is insufficient. Kubernetes and modern cloud platforms require three distinct probe contracts with fundamentally different semantics:\n\n1. Startup Probe (/health/startup): Used during container boot. In AI services that load heavy local embedding models or warm vector caches into RAM (taking 15–45s), the startup probe grants a generous initialization window. Other probes do not execute until the startup probe succeeds;\n\n2. Liveness Probe (/health/liveness): Tests whether the internal application process is alive and responsive (not deadlocked in an unrecoverable loop or out of memory). It performs a fast in-memory check (returning HTTP 200). CRITICAL RULE: NEVER check external dependencies (like database or Redis) in a liveness probe! If PostgreSQL experiences a temporary network hiccup, an external-checking liveness probe will fail across all 50 pods simultaneously, causing Kubernetes to kill and restart every pod at once, turning a minor database blip into a catastrophic cluster-wide crash cascade;\n\n3. Readiness Probe (/health/readiness): Tests whether the container is currently capable of accepting incoming user traffic. It verifies that database connection pools have available slots and Redis is reachable. If the database is saturated, the readiness probe fails: Kubernetes immediately removes the pod from load balancer endpoints (so it receives no traffic), but DOES NOT kill the pod, giving it time to recover.",
-    "Why": "Separating liveness (process alive) from readiness (can take traffic) prevents cluster-wide restart storms during transient downstream database slowdowns.",
-    "Risk": "Checking database connectivity inside a liveness probe causes Kubernetes to kill all application containers during a 10-second database network drop, multiplying recovery time.",
-    "Trade": "Configuring three distinct probe endpoints requires careful tuning of failure thresholds and probe intervals, but provides resilient self-healing cluster operations.",
-    "Try": "Implement three endpoints in FastAPI: /healthz/startup (checks model loaded), /healthz/liveness (returns 200 OK), and /healthz/readiness (verifies asyncpg connection pool health)."
+    "A": "A bounded database probe establishes only that a basic connection and query worked at that moment. It does not prove model availability, current evidence, healthy workers, correct permissions, or functioning event delivery.",
+    "Why": "Separate process liveness, dependency readiness, index freshness, and task-quality signals. Bound probes and avoid costly model calls on every health check.",
+    "Risk": "Calling this fully healthy can conceal an assistant unable to answer or index. Putting expensive evaluations in every probe can instead overload the service.",
+    "Trade": "Cheap probes suit frequent checks. Readiness and scheduled consistency checks should cover critical product dependencies separately.",
+    "Try": "Define probe outcomes for database failure, provider failure, stale corpus, and a stopped embedding worker."
   },
   {
     "Q": "How should connection pools and worker concurrency be sized together?",
-    "A": "Sizing database connection pools alongside multi-process web servers requires strict mathematical calculation to prevent connection exhaustion and database server crashes:\n\nThe Connection Pool Multiplication Formula: Total DB Connections = Replicas * Workers_Per_Pod * (Pool_Size + Max_Overflow)\n\nExample Disaster Scenario: A team deploys 10 Kubernetes pods. Each pod runs Uvicorn with 4 worker processes. The database pool is configured with pool_size=15 and max_overflow=10 (25 connections per process). Total Potential Connections = 10 pods * 4 workers * 25 connections = 1,000 connections! If PostgreSQL is configured with max_connections=100 (the default), PostgreSQL immediately crashes with: FATAL: remaining connection slots are reserved for non-replication superuser connections, failing all incoming user traffic.\n\nProduction Sizing Guidelines: (1) In async Python (FastAPI/asyncio), run 1 or 2 workers per pod, not 4–8; (2) Set conservative pool sizes: pool_size=5, max_overflow=5 per worker; (3) Deploy PgBouncer in transaction pooling mode between application pods and PostgreSQL. PgBouncer multiplexes thousands of application connections over a tiny pool of 20–30 physical PostgreSQL server connections, reducing memory overhead and preventing connection exhaustion.",
-    "Why": "Applying connection pool mathematics and deploying PgBouncer prevents connection spikes from exhausting database memory and locking out authorized connections.",
-    "Risk": "Miscalculating pool multiplication causes a minor traffic surge to exhaust database connection slots, resulting in 500 Internal Server Errors across the entire company.",
-    "Trade": "Deploying PgBouncer in transaction mode enables massive concurrency, but restricts using PostgreSQL session-level features (such as PREPARE statements or SET commands) without explicit configuration.",
-    "Try": "Calculate total connection requirements for an autoscaling cluster scaling from 3 to 15 pods. Size the SQLAlchemy pool and PgBouncer max_client_conn to safely fit within a PostgreSQL max_connections=200 ceiling."
+    "A": "Count API requests, background jobs, agent-session writes, migrations, and probes that need connections. Bound concurrency and pool waits so one workload cannot consume all capacity. Async I/O does not remove database connection limits.",
+    "Why": "Multiply pool limits by processes and replicas, then reserve database headroom for workers and operations. Bound simultaneous queries separately from model or HTTP concurrency.",
+    "Risk": "Increasing replicas can exceed the total connection budget. Provider waits inside open transactions amplify occupancy even when CPU usage is low.",
+    "Trade": "Larger pools reduce local waiting until database saturation; smaller pools protect the database and need admission control.",
+    "Try": "Calculate connections across replicas and workers, reserve operational headroom, and measure pool checkout latency under load."
   },
   {
     "Q": "How should container and dependency hardening be evaluated?",
@@ -176,19 +176,19 @@
   },
   {
     "Q": "How should worker shutdown and stale-job recovery be verified?",
-    "A": "In distributed systems, workers processing background tasks (e.g., long-running document indexing or model evaluations) will inevitably be killed due to spot instance termination, rolling deployments, or out-of-memory (OOM) kernel kills:\n\n1. Graceful SIGTERM Handling: When Kubernetes terminates a pod, it sends a SIGTERM signal. The worker process must trap SIGTERM, stop consuming new jobs from the queue, allow in-flight tasks a terminationGracePeriodSeconds (e.g., 30–60s) to finish, update task status in the database, and exit cleanly with code 0;\n\n2. Stale-Job Lease / Heartbeat Recovery: If a worker process suffers a sudden hard crash (SIGKILL or kernel panic), it cannot run shutdown handlers. To prevent tasks from remaining permanently stuck in a \"PROCESSING\" zombie state: (a) Distributed Lease: While executing a task, the worker must update a heartbeat timestamp in Redis or the database every 15 seconds (UPDATE background_tasks SET heartbeat_at = NOW() WHERE id = :task_id); (b) Stale Reaper Daemon: A background supervisor process periodically scans for active tasks whose heartbeat_at is older than 60 seconds. The reaper marks the abandoned task as FAILED or increments attempt_count and re-enqueues it for peer workers to resume; (c) Idempotency: The task logic must be idempotent so that replaying a partially executed job does not duplicate side effects.",
-    "Why": "Implementing heartbeat leases and automated reaper daemons guarantees that server crashes never leave customer jobs permanently hung in limbo.",
-    "Risk": "Without heartbeat leases, any task running on a pod that crashes is orphaned forever, forcing customers to contact support to manually unblock their accounts.",
-    "Trade": "Heartbeat leasing requires running background database updates during task execution, but ensures 100% automated fault recovery.",
-    "Try": "Write a worker loop that executes a 30-second job while running an asyncio background task that updates heartbeat_at in the database every 5 seconds. Simulate a hard kill and demonstrate how a reaper detects and recovers the job."
+    "A": "Stop accepting new work, allow bounded completion, release resources, and use durable job state for later recovery. A finally block helps graceful shutdown but cannot be guaranteed after abrupt process death.",
+    "Why": "Stop accepting new work, allow or cancel active operations under a deadline, persist state, and recover stale leases safely. Verify shutdown through controlled worker interruption.",
+    "Risk": "Reclaiming too early overlaps workers; never reclaiming strands jobs. A crash after external delivery but before completion marking can repeat delivery.",
+    "Trade": "Graceful draining improves continuity and slows replacement. Abrupt replacement is faster and demands stronger recovery invariants.",
+    "Try": "Terminate a worker after claim, after embedding, and after delivery. Verify the next worker converges without duplicate logical effects."
   },
   {
     "Q": "How should an external provider outage affect the product?",
-    "A": "Modern AI architectures depend heavily on external foundation model APIs (OpenAI, Anthropic, Gemini). When an external provider experiences an outage, rate limiting, or severe latency spikes (e.g., response time jumping from 1s to 25s), an unprepared backend will suffer catastrophic failure: incoming requests pile up, thread and connection pools exhaust, and the entire website collapses.\n\nResilience Patterns (from AWS Builders Library & Google SRE): (1) Circuit Breakers: Implement circuit breakers (e.g., using pybreaker). When error rates or timeouts exceed a threshold (e.g., 50% failures over 20 requests), the circuit trips to OPEN. For the next 30 seconds, all calls fail fast immediately without making network calls, protecting internal resources and preventing thundering herds; (2) Adaptive Load Shedding: When server queue depth or CPU exceeds 85%, shed low-priority background requests immediately with HTTP 429 or 503, preserving capacity for high-priority user interactions; (3) Graceful Degradation: If LLM generation fails or the circuit is open, degrade gracefully: return a cached high-quality response, fall back to pure lexical/semantic search results without LLM synthesis, or display a transparent offline message with a retry option.",
-    "Why": "Circuit breakers and load shedding prevent third-party API outages from causing cascading failures that take down your entire application infrastructure.",
-    "Risk": "Allowing requests to wait 30 seconds for an unresponsive LLM provider ties up all web server worker threads, rendering the entire application completely unresponsive even for non-AI database endpoints.",
-    "Trade": "Failing fast during outages delivers degraded or cached responses, but preserves system availability and protects the core business.",
-    "Try": "Configure a circuit breaker on an external LLM client: simulate 5 consecutive 503 errors and verify that the 6th call trips the circuit and returns an instant fallback response in <5ms without calling the remote API."
+    "A": "Distinguish unavailable generation, unavailable embeddings, failed retrieval, and degraded tracing. Preserve committed business state and expose retryable status. Do not fabricate policy answers or report unperformed actions as successful.",
+    "Why": "Classify affected capabilities and provide explicit degraded outcomes. Apply bounded retries and circuit or admission policies without generating unsupported answers when evidence or tools are unavailable.",
+    "Risk": "Nested retries can exhaust pools and budgets. Switching providers can change tool and privacy behavior and must be an explicit evaluated policy.",
+    "Trade": "Structured status lookup can preserve useful service while generation is unavailable. Full-availability service requests are inappropriate when essential evidence is missing.",
+    "Try": "Define an outage matrix for PostgreSQL, Redis, embedding, generation, and tracing, with permitted operations and recovery behavior."
   },
   {
     "Q": "What is a meaningful disaster-recovery drill?",

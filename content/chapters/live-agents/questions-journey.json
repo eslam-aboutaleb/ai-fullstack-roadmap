@@ -1,48 +1,42 @@
 [
   {
     "Q": "How should a live assistant handle a perception update that invalidates its pending plan?",
-    "spoken": "Bind observations and plans to revisioned context, cancel obsolete local work where appropriate, and reject actions whose prerequisites no longer hold. Re-check environment state at the exact moment of tool dispatch. Never execute an action against an obsolete perception snapshot.",
-    "A": "When a live agent operates in a dynamic, continuously updating environment (e.g. computer vision GUI automation, live financial trading, collaborative document editing), perception updates can invalidate a planned action while the model is reasoning. Handling this requires a **Revision-Gated Execution Architecture**:\n\n1. **Revision-Tagged Perceptual Snapshots:** Every observation, screenshot, DOM snapshot, or database state read by the agent is tagged with a monotonic revision ID (`observation_revision: 41`). When the model produces an action plan (e.g. `Click button at (x=450, y=220)`), the plan carries `planned_against_revision: 41`.\n2. **Continuous Perception Invalidation:** While the model is reasoning, the live environment continues emitting events. If an event modifies the relevant canvas, DOM element, or data entity, the environment advances to `current_revision: 42`. The orchestrator signals an in-flight cancellation to abort the now-obsolete model reasoning step immediately, saving inference compute.\n3. **Pre-Dispatch Precondition Check (The Final Guard):** If an action proposal is submitted for execution, the tool dispatch gateway re-evaluates: `if plan.planned_against_revision < entity.current_revision: ABORT_ACTION_STALE`. The gateway refuses to click the coordinates or execute the trade, returning a `{ status: 'REJECTED_STALE_PERCEPTION' }` feedback frame to the agent loop.\n4. **Dynamic Replanning:** Upon receiving the stale perception rejection, the agent ingests the latest observation (Revision 42) and re-evaluates its plan against current ground truth.",
-    "Why": "In live environments, latency creates temporal divergence. An action planned against an obsolete screenshot will click the wrong button, activate an unintended modal, or trade at an outdated price.",
-    "Risk": "A web page DOM shifts while a live computer-use agent prepares a click; executing the click blindly activates a 'Delete Account' button instead of 'Cancel', causing irreversible damage.",
-    "Trade": "Re-verifying preconditions at dispatch requires maintaining live revision counters in state stores, but prevents destructive blind actions in dynamic environments.",
-    "Try": "Simulate an agent observing a UI button at revision 1; simulate a layout shift updating the UI to revision 2 while the agent prepares its click; assert that the pre-dispatch gate rejects the click and triggers re-observation.",
+    "spoken": "Bind observations and plans to revisioned context, cancel obsolete local work where appropriate and reject actions whose prerequisites no longer hold. Separate a new observation from evidence that a previous effect was undone. Bound update frequency and queue age so the assistant does not act on a backlog of stale state.",
+    "A": "Bind observations and plans to revisioned context, cancel obsolete local work where appropriate and reject actions whose prerequisites no longer hold. Separate a new observation from evidence that a previous effect was undone. Bound update frequency and queue age so the assistant does not act on a backlog of stale state.\n\nConcrete engineering case: A screen changes while a live agent prepares a click. The delayed action targets the old location and activates another control.\n\nBoundary defense: No. Validate current state and action preconditions at dispatch, and use a recovery policy when effects become uncertain.",
+    "Why": "Bind observations and plans to revisioned context, cancel obsolete local work where appropriate and reject actions whose prerequisites no longer hold. Separate a new observation from evidence that a previous effect was undone. Bound update frequency and queue age so the assistant does not act on a backlog of stale state.",
+    "Risk": "A screen changes while a live agent prepares a click. The delayed action targets the old location and activates another control.",
+    "Trade": "No. Validate current state and action preconditions at dispatch, and use a recovery policy when effects become uncertain.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
     "domain": "ai-rag",
     "subdomain": "live-agents",
     "module": "live-agents",
     "concept": "How should a live assistant handle a perception update that invalidates its pending plan?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming that an agent's perception remains valid throughout the entire duration of a multi-second LLM inference cycle.",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A screen changes while a live agent prepares a click. The delayed action targets the old location and activates another control.",
     "definitions": [
       {
-        "term": "Revision-Gated Dispatch",
-        "definition": "An architectural gate that verifies an action's observational context matches current world state before committing the mutation."
-      },
-      {
-        "term": "Perception Invalidation",
-        "definition": "The cancellation of an in-flight plan when asynchronous external environment events render the planning assumptions obsolete."
+        "term": "Boundary: live agents",
+        "definition": "Bind observations and plans to revisioned context, cancel obsolete local work where appropriate and reject actions whose prerequisites no longer hold."
       }
     ],
-    "execution_timeline": "Agent captures Revision 1 -> Starts 2-second LLM plan -> Environment event updates state to Revision 2 -> Model outputs click plan against Revision 1 -> Dispatch gate checks 1 < 2 -> Rejects click as stale -> Triggers fresh observation of Revision 2.",
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
     "example": {
       "code": "{\n  \"scenario\": \"A screen changes while a live agent prepares a click. The delayed action targets the old location and activates another control.\",\n  \"required_decision\": \"Bind observations and plans to revisioned context, cancel obsolete local work where appropriate and reject actions whose prerequisites no longer hold\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "A live browser agent was tasked with selecting 'Standard Shipping'. A promotional pop-up banner appeared on screen during inference. The agent clicked the coordinates of the banner's 'Subscribe' button because it acted on the pre-banner screenshot.",
+    "production_case": "A screen changes while a live agent prepares a click. The delayed action targets the old location and activates another control.",
     "alternatives": [
-      "Enforce revision-gated pre-dispatch validation with visual element locator re-verification.",
-      "Halt user interactions or freeze UI rendering while agent reasoning is in flight (degrades UX)."
+      "No. Validate current state and action preconditions at dispatch, and use a recovery policy when effects become uncertain."
     ],
     "pitfalls": [
-      "Relying on absolute screen pixel coordinates without re-verifying target element IDs at dispatch.",
-      "Allowing an agent to execute tool mutations without passing the source revision identifier."
+      "A screen changes while a live agent prepares a click. The delayed action targets the old location and activates another control."
     ],
-    "complexity": "Revision checks add sub-millisecond in-memory comparison overhead while preventing catastrophic automation errors in dynamic environments.",
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
     "follow_ups": [
       {
-        "Q": "Is a faster perception loop alone enough to eliminate race conditions?",
-        "A": "No. Faster loops reduce the window of vulnerability but cannot eliminate it. Pre-dispatch precondition verification is mandatory to guarantee correctness under concurrent environment mutations."
+        "Q": "Is a faster perception loop alone enough?",
+        "A": "No. Validate current state and action preconditions at dispatch, and use a recovery policy when effects become uncertain."
       }
     ],
     "citations": [
@@ -51,7 +45,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]

@@ -1,59 +1,56 @@
 [
   {
     "Q": "Why can a healthy container be an unsafe candidate for production traffic?",
-    "spoken": "A standard process health check or HTTP 200 ping establishes only that the container's web server process is running; it does not verify semantic business correctness, database schema compatibility, active cache warming, or whether the replica is serving an obsolete data or model index generation. Enforce deep pre-traffic readiness gates and canary verification before routing production traffic to any new replica.",
-    "A": "In modern containerized deployments (Kubernetes, ECS), **a process-level HTTP 200 health check is necessary but fundamentally insufficient** to determine whether a container is safe to serve production user traffic:\n\n1. **The 'Liveness != Readiness' Fallacy:** A simple health endpoint returning `200 OK` indicates only that the event loop or web process (e.g. Uvicorn/Node) is alive. It does NOT guarantee that the replica is connected to the right database, has loaded the correct configuration, or possesses the required IAM permissions.\n2. **The Obsolete Generation Hazard:** In retrieval-augmented generation (RAG) and search systems, a container might boot with an outdated local FAISS/HNSW index or point to an old embedding vector generation (`v1` instead of `v2`). Serving queries from this replica returns hallucinated or obsolete citations, corrupting user experience even though HTTP status is 200.\n3. **Schema Incompatibility & Un-migrated Columns:** If a new container replica starts before a required database migration has expanded the schema, queries fail immediately when hitting un-migrated tables, despite passing initial startup health probes.\n4. **Cold Cache Thundering Herd:** A newly booted container with cold internal caches will experience massive latency spikes and thread exhaustion if immediately hit with full production traffic.\n5. **Multi-Stage Promotion Gates:** Production-safe admission requires: (a) Database migration verification, (b) Data/Model generation fingerprint matching, (c) Warmup synthetic probe execution, and (d) Gradual canary traffic routing (1% -> 5% -> 25% -> 100%) with automated error-budget rollback triggers.",
-    "Why": "Conflating process liveness with semantic readiness allows corrupted, misconfigured, or un-warmed replicas to ingest live traffic, causing silent data corruption and customer-facing outages.",
-    "Risk": "A new container replica boots with an obsolete vector index generation; the healthcheck passes, but users querying the assistant receive hallucinated legal citations and outdated pricing.",
-    "Trade": "Deep readiness verification and synthetic warmup probes add 15-45 seconds to container rollout duration, but guarantee 100% semantic correctness and eliminate deployment-induced error spikes.",
-    "Try": "Implement a readiness verification gateway that tests HTTP liveness, database schema generation, vector index version, and warmup query latency; assert that an index generation mismatch fails readiness and halts traffic admission.",
+    "spoken": "A process health check does not establish business correctness, data/schema compatibility, permission safety or acceptable quality. Promote an immutable artifact only after the relevant gates and recovery checks. Use readiness, liveness and rollout status for their distinct operational roles, and preserve a known compatible rollback path.",
+    "A": "A process health check does not establish business correctness, data/schema compatibility, permission safety or acceptable quality. Promote an immutable artifact only after the relevant gates and recovery checks. Use readiness, liveness and rollout status for their distinct operational roles, and preserve a known compatible rollback path.\n\nConcrete engineering case: A new replica returns 200 on health while serving an index from the wrong data generation.\n\nBoundary defense: No. It reports stalled progress. An operator or higher-level controller must decide and execute recovery.",
+    "Why": "A process health check does not establish business correctness, data/schema compatibility, permission safety or acceptable quality. Promote an immutable artifact only after the relevant gates and recovery checks. Use readiness, liveness and rollout status for their distinct operational roles, and preserve a known compatible rollback path.",
+    "Risk": "A new replica returns 200 on health while serving an index from the wrong data generation.",
+    "Trade": "No. It reports stalled progress. An operator or higher-level controller must decide and execute recovery.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
     "domain": "operations",
     "subdomain": "deployment-reliability",
     "module": "deployment-reliability",
     "concept": "Why can a healthy container be an unsafe candidate for production traffic?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming that a container returning HTTP 200 on /healthz is guaranteed to be safe and compatible with production traffic.",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A new replica returns 200 on health while serving an index from the wrong data generation.",
     "definitions": [
       {
-        "term": "Semantic Readiness",
-        "definition": "Verification that a container replica possesses compatible schema versions, correct data/index generations, and warmed caches required to serve business traffic accurately."
-      },
-      {
-        "term": "Generation Fingerprint",
-        "definition": "A unique cryptographic hash or monotonic identifier certifying that a service's embedded model, vector index, and database schema match current cluster truth."
+        "term": "Boundary: deployment reliability",
+        "definition": "A process health check does not establish business correctness, data/schema compatibility, permission safety or acceptable quality."
       }
     ],
-    "execution_timeline": "Container starts -> Basic HTTP 200 passes -> Semantic readiness probe checks index generation -> Detects obsolete generation v1 (cluster expects v2) -> Readiness fails -> Pod removed from service endpoints -> Orchestrator alerts and prevents traffic routing.",
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
     "example": {
-      "code": "{\n  \"scenario\": \"A new replica returns 200 on health while serving an index from the wrong data generation. The deployment orchestrator halts admission until generation fingerprints match.\",\n  \"required_decision\": \"Enforce multi-gate readiness verification (checking schema version, index generation, and synthetic probe latency) rather than relying exclusively on process-level HTTP pings.\"\n}",
+      "code": "{\n  \"scenario\": \"A new replica returns 200 on health while serving an index from the wrong data generation.\",\n  \"required_decision\": \"A process health check does not establish business correctness, data/schema compatibility, permission safety or acceptable quality\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "An e-commerce RAG service deployed a new container image that correctly handled HTTP requests. However, an environment variable pointing to the legacy Pinecone index was accidentally baked into the staging config. The replica passed Kubernetes healthchecks but served last year's product catalog and discontinued prices until canary telemetry caught the generation mismatch.",
+    "production_case": "A new replica returns 200 on health while serving an index from the wrong data generation.",
     "alternatives": [
-      "Rely solely on Kubernetes liveness/readiness HTTP 200 endpoints (vulnerable to semantic desynchronization).",
-      "Implement deep semantic readiness probes validating index generation hashes and running synthetic canary queries before marking the pod ready."
+      "No. It reports stalled progress. An operator or higher-level controller must decide and execute recovery."
     ],
     "pitfalls": [
-      "Checking external databases inside liveness probes (causes cascading pod restarts during DB blips).",
-      "Failing to verify data/index generation hashes during container readiness checks."
+      "A new replica returns 200 on health while serving an index from the wrong data generation."
     ],
-    "complexity": "Deep readiness adds 10-30 seconds to container startup time while preventing critical silent business corruption.",
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
     "follow_ups": [
       {
-        "Q": "Will a Kubernetes progress deadline automatically roll back an index mismatch?",
-        "A": "Only if the readiness probe fails continuously and prevents the Deployment from reaching minimum available replicas before the progress deadline expires."
+        "Q": "Will a Kubernetes progress deadline automatically roll it back?",
+        "A": "No. It reports stalled progress. An operator or higher-level controller must decide and execute recovery."
       }
     ],
     "citations": [
       "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/",
+      "https://www.postgresql.org/docs/current/backup.html",
       "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
-      "https://sre.google/sre-book/service-level-objectives/"
+      "https://developer.hashicorp.com/terraform/intro",
+      "https://sre.google/sre-book/service-level-objectives/",
+      "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
     ],
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]

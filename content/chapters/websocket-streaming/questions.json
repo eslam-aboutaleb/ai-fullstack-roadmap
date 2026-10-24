@@ -1,11 +1,11 @@
 [
   {
     "Q": "When should WebSockets replace SSE?",
-    "A": "Deciding between Server-Sent Events (SSE) and WebSockets is a foundational system design choice based on communication directionality, connection multiplexing, and infrastructure complexity:\n\n1. Use Server-Sent Events (SSE) when: The communication is fundamentally UNIDIRECTIONAL (Server-to-Client). Standard LLM token streaming, RAG pipeline status updates, and agent reasoning traces are server-to-client flows. SSE operates over standard HTTP/1.1 or HTTP/2, supports native browser EventSource, includes automatic reconnection with Last-Event-ID, traverses corporate firewalls effortlessly, supports standard HTTP Authorization headers, and requires zero specialized connection state management on load balancers;\n\n2. Use WebSockets when: The application requires true FULL-DUPLEX, BIDIRECTIONAL, low-latency streaming. Critical examples in AI: (a) Real-Time Voice Agents (e.g., Gemini Live API or OpenAI Realtime API) where the client continuously streams microphone audio chunks while simultaneously receiving synthesized speaker audio, text transcriptions, and interruption signals; (b) Client Steering & Mid-Stream Cancellation: The user can interrupt the model mid-sentence without terminating the connection; (c) High-frequency collaborative canvases.\n\n3. WebRTC Data Channels: When sub-100ms ultra-low latency peer-to-peer or audio/video media streams over UDP are required.",
-    "Why": "Selecting the simplest transport that satisfies the communication requirement avoids the massive operational burden of managing persistent stateful WebSocket connection registries when unidirectional SSE is sufficient.",
-    "Risk": "Choosing WebSockets for simple text streaming forces backend infrastructure to manage persistent TCP connections, handle sticky session routing, and build custom reconnection protocols that HTTP/2 SSE provides natively for free.",
-    "Trade": "WebSockets provide microsecond duplex message passing and binary framing, but require managing stateful connection backplanes, heartbeats, and custom authentication handshakes.",
-    "Try": "Build a prototype comparing SSE and WebSockets for a chat streaming endpoint: measure differences in proxy buffering, connection setup latency, and reconnect handling.",
+    "A": "Use WebSockets when the client and server need low-latency bidirectional messaging during an active session, such as audio frames or collaborative control. SSE remains sufficient for many one-way progress streams.",
+    "Why": "Compare required message direction, infrastructure, binary data needs, reconnect behavior, and authentication.",
+    "Risk": "Choosing WebSockets does not automatically improve application latency.",
+    "Trade": "Duplex sessions add lifecycle and routing complexity.",
+    "Try": "Specify the messages that genuinely require a persistent bidirectional channel.",
     "spoken": "Use WebSocket when bidirectional application messaging justifies it. Choose an authentication approach compatible with the client, authorize every resource/action, bound unauthenticated work and revalidate expiring sessions. Define envelopes, sequence/replay, flow control and close/error behavior explicitly.",
     "domain": "frontend",
     "subdomain": "websocket",
@@ -29,9 +29,9 @@
     ],
     "execution_timeline": "Client connects -> Send auth token as first frame -> Server validates -> Exchange envelopes -> Apply flow control -> Close cleanly",
     "example": {
-      "code": "// Production browser WebSocket client with typed envelope and heartbeat\nclass RealtimeAgentSocket {\n  constructor(url, ticket) {\n    this.ws = new WebSocket();\n    this.ws.binaryType = \"arraybuffer\";\n    this.seq = 0;\n\n    this.ws.onopen = () => {\n      console.log(\"Connected to Realtime Voice Agent\");\n      this.startHeartbeat();\n    };\n\n    this.ws.onmessage = (event) => {\n      if (typeof event.data === \"string\") {\n        const env = JSON.parse(event.data);\n        this.handleEvent(env);\n      } else {\n        this.playAudioChunk(event.data); // Binary PCM audio\n      }\n    };\n  }\n\n  sendText(text) {\n    this.ws.send(JSON.stringify({ type: \"user_message\", seq: ++this.seq, payload: { text } }));\n  }\n\n  startHeartbeat() {\n    setInterval(() => this.ws.readyState === 1 && this.ws.send(JSON.stringify({ type: \"ping\" })), 15000);\n  }\n}",
-      "explanation": "Demonstrates production browser WebSocket client handling binary audio frames, JSON text event envelopes, and application heartbeats.",
-      "output": "Connected to Realtime Voice Agent and initialized 15s ping interval"
+      "code": "ws.onopen = () => ws.send(JSON.stringify({type: \"auth\", token}));\\nws.onmessage = e => { const env = JSON.parse(e.data); handle(env); };",
+      "explanation": "Send auth on open, parse envelopes on message.",
+      "output": "Authenticated bidirectional stream"
     },
     "production_case": "A browser reconnects with an expired session while old queued commands remain. Re-authenticate, scope replay and reconcile command identities rather than executing the queue under stale authority.",
     "alternatives": [
@@ -62,74 +62,74 @@
   },
   {
     "Q": "How should WebSocket authentication work?",
-    "A": "Authenticating WebSocket connections is uniquely challenging because the browser WebSocket API (new WebSocket(url)) does NOT support setting custom HTTP headers (such as Authorization: Bearer <token>). Production architectures use one of three vetted patterns:\n\n1. Short-Lived Single-Use Ticket Exchange (Recommended): Before opening the socket, the client makes an authenticated REST POST /auth/ws-ticket with its standard Authorization Bearer header. The server validates user credentials, generates a cryptographically random, single-use ticket (stored in Redis with a 15-second TTL), and returns it. The client connects to wss://api.domain.com/ws?ticket=UUID. The server verifies and atomically consumes the ticket (via Redis GETDEL) during the HTTP Upgrade handshake;\n\n2. Secure HttpOnly Cookie with Origin Verification: If the application uses session cookies, the browser automatically sends them during the HTTP Upgrade request. CRITICAL DEFENSE: The server MUST strictly validate the Origin header to prevent Cross-Site WebSocket Hijacking (CSWSH), where a malicious site opens a WebSocket to your backend using the victim's ambient credentials;\n\n3. In-Band First-Frame Authentication: The client connects without credentials. The server places the connection in an unauthenticated quarantine state with a strict 5-second deadline. The client must immediately transmit {\"type\": \"auth\", \"token\": \"...\"} as its first frame. If the token is invalid or the timeout expires, the server closes the socket with code 4401.",
-    "Why": "Using single-use tickets or strict Origin-checked cookies prevents Cross-Site WebSocket Hijacking and keeps authentication credentials out of server access logs.",
-    "Risk": "Passing long-lived JWTs directly in the query string (?token=...) leaks credentials to browser history, proxy server logs, and cloud CDN access logs.",
-    "Trade": "The ticket pattern requires an initial REST round-trip before socket creation, but provides the highest security and cleanest integration with standard OAuth2 providers.",
-    "Try": "Implement the ticket pattern in FastAPI: create a POST /auth/ws-ticket endpoint that generates a Redis-backed UUID, and a WebSocket endpoint that consumes and validates the ticket during the handshake."
+    "A": "Authenticate the handshake and authorize the session's resources, then recheck permissions for sensitive messages and long-lived sessions. Validate allowed origins for browser clients.",
+    "Why": "Use an explicit token or cookie strategy supported by the client and server. Handle expiry and revocation without logging credentials.",
+    "Risk": "A valid connection at startup can outlive the user's permission.",
+    "Trade": "Frequent revalidation adds work and limits stale access.",
+    "Try": "Revoke a user's access during an active session and verify the next protected action is denied."
   },
   {
     "Q": "What belongs in a WebSocket message envelope?",
-    "A": "Raw, untyped WebSocket messaging is a recipe for chaos in production. All messages exchanged over a WebSocket must be wrapped in a structured Message Envelope (using JSON or Protocol Buffers) that establishes a predictable protocol contract:\n\nCore Envelope Schema: (1) type (string): Identifies the message intent (e.g., \"agent_chunk\", \"tool_call\", \"user_interrupt\", \"ping\", \"ack\"); (2) seq (integer): Monotonically increasing sequence number sent by the producer to guarantee message ordering and detect dropped frames; (3) correlation_id / session_id (string): UUID associating the message with a specific conversational turn or background task; (4) ack_seq (integer, optional): The latest sequence number acknowledged by the sender; (5) timestamp (string/float): ISO-8601 UTC timestamp or Unix millisecond timestamp for latency measurement; (6) payload (object): The type-safe, domain-specific data payload validated against a corresponding Pydantic or TypeScript schema; (7) error (object, optional): Standardized error details ({code: 4001, message: \"Rate limit exceeded\"}) when an operation fails.",
-    "Why": "Standardized message envelopes provide message ordering, bidirectional acknowledgments, latency attribution, and routing multiplexing over a single TCP connection.",
-    "Risk": "Sending raw unstructured text or naked JSON payloads makes it impossible for client and server to distinguish data messages from control signals, errors, or heartbeats.",
-    "Trade": "Envelopes add a few bytes of serialization overhead per frame, but prevent protocol divergence and eliminate ambiguity in stateful streaming applications.",
-    "Try": "Define a Pydantic WebSocketEnvelope class with generic payload typing. Write a deserialization helper that validates incoming frames and dispatches handlers based on the envelope type."
+    "A": "Include schema version, session ID, message ID, sequence, type, correlation ID, and typed payload. Distinguish commands, acknowledgments, events, errors, and terminal states.",
+    "Why": "Validate message size and schema before dispatch. Use binary frames for audio where appropriate and explicit metadata for format.",
+    "Risk": "An untyped message bus invites accidental interpretation and oversized payload abuse.",
+    "Trade": "Verbose envelopes add bandwidth and improve evolution and diagnosis.",
+    "Try": "Design a cancel command correlated with the generation it targets."
   },
   {
     "Q": "How do acknowledgments and delivery guarantees work?",
-    "A": "Unlike HTTP request-response, WebSockets are an asynchronous stream: sending a message (ws.send()) only guarantees that the bytes were placed into the local OS TCP send buffer, NOT that the remote peer received or processed them. Production systems must implement application-level delivery guarantees:\n\n1. At-Least-Once Delivery with ACKs: Every state-mutating command sent by the client includes a unique seq number and an idempotency_key. The sender buffers the message in an unacknowledged queue. When the receiver processes the message, it sends an {\"type\": \"ack\", \"seq\": 42} envelope back. Upon receiving the ACK, the sender evicts the message from its buffer. If no ACK arrives within an ack_timeout (e.g., 3s), the sender retransmits;\n\n2. Deduplication at Receiver: The receiver tracks the highest processed sequence number per session (last_processed_seq). If a duplicate sequence number arrives (due to a dropped ACK), the receiver executes the duplicate check, drops the duplicate command, and re-emits the ACK to unblock the sender;\n\n3. Streaming Token Delivery (At-Most-Once): For high-frequency text tokens or audio frames, retransmission is counterproductive (replaying stale tokens causes UI stutter). Real-time stream frames use at-most-once delivery without ACKs.",
-    "Why": "Implementing application-level ACKs for mutations and fire-and-forget for streaming tokens guarantees reliability where data integrity matters without sacrificing real-time streaming performance.",
-    "Risk": "Retransmitting state-mutating commands (e.g., \"charge_card\") upon timeout without an idempotency key causes the server to execute the command multiple times.",
-    "Trade": "ACK tracking requires maintaining in-memory unacknowledged message queues on clients, but eliminates silent message loss over flaky mobile connections.",
-    "Try": "Implement a simple client-side resend buffer: queue messages until an ACK frame is received. Simulate a 10% packet drop rate and verify that all commands are successfully acknowledged without duplicates."
+    "A": "TCP provides ordered bytes while connected; application acknowledgments establish which logical messages were processed. Reconnection needs explicit replay and deduplication rules.",
+    "Why": "Persist critical commands or outcomes with stable IDs and make repeated handling idempotent.",
+    "Risk": "Receiving a frame is not proof that a business transaction committed.",
+    "Trade": "Stronger delivery semantics add storage and protocol complexity.",
+    "Try": "Disconnect between processing a command and sending its acknowledgment."
   },
   {
     "Q": "How should flow control work for WebSockets?",
-    "A": "Backpressure occurs when the producer (e.g., an LLM streaming tokens at 100 tokens/sec or audio at 32 kbps) generates data faster than the consumer (e.g., a slow mobile browser or a busy server worker) can process it:\n\n1. TCP-Level Backpressure: If the consumer stops reading from its socket, the OS TCP receive window fills up, causing the sender's TCP window to close. On the server, socket.send() blocks or async buffers grow;\n\n2. Client-Side Backpressure (bufferedAmount): The browser WebSocket object exposes ws.bufferedAmount, which reports the number of queued bytes waiting to be flushed to the network. Before sending audio or heavy frames, client code must inspect ws.bufferedAmount: if it exceeds a threshold (e.g., 64 KB), the client must pause transmission or drop non-essential frames until the buffer drains;\n\n3. Server-Side Bounded Queues: In Python (FastAPI/asyncio), never use unbounded asyncio.Queue() for outgoing WebSocket messages. Always set a maxsize (e.g., asyncio.Queue(maxsize=100)). If the queue fills because a client is slow or paused, the server must either throttle the LLM generation loop (awaiting queue capacity) or terminate the slow client with a 4429 Slow Consumer close code.",
-    "Why": "Enforcing application backpressure prevents slow or malicious clients from causing unbounded memory consumption (OOM crashes) on backend server processes.",
-    "Risk": "Using unbounded queues on the server allows a single slow client on a 2G connection to accumulate gigabytes of unconsumed model stream buffers in server RAM, crashing the entire pod.",
-    "Trade": "Dropping frames or pausing generation maintains server stability, but requires clients to handle rate-limiting and buffer draining.",
-    "Try": "Write an asyncio WebSocket sender that checks queue.full(). If full, log a warning and drop non-critical status updates, ensuring server memory stays strictly bounded."
+    "A": "Bound inbound and outbound queues, limit frame sizes, and define how producers pause or shed nonessential progress. Standard browser WebSocket APIs do not provide automatic application backpressure.",
+    "Why": "Monitor buffered bytes and processing latency. Prioritize control messages such as cancellation over bulk content.",
+    "Risk": "An audio producer can overwhelm a slow consumer and cause memory growth or large delays.",
+    "Trade": "Dropping stale audio reduces latency and may affect intelligibility.",
+    "Try": "Simulate a slow network and ensure cancellation still reaches the server promptly."
   },
   {
     "Q": "What are ping, pong, and application heartbeats for?",
-    "A": "In stateful WebSocket connections, intermediate network infrastructure—such as NAT firewalls, cloud load balancers (AWS ALB, Cloudflare), and cellular cell towers—automatically terminate idle TCP connections after 30 to 60 seconds of inactivity without notifying either peer. This results in \"Half-Open Connections\", where the client believes it is connected, but packets sent into the socket are silently discarded.\n\nHeartbeat Architecture: (1) Protocol-Level Heartbeats (RFC 6455): WebSockets define native Ping (0x9) and Pong (0xA) control frames. In Python/Node.js servers, servers automatically send periodic ping frames (every 15–30s). RFC 6455 mandates that clients MUST respond with an identical Pong frame. If the server receives no Pong within a timeout (e.g., 10s), it immediately terminates the dead socket and reclaims resources;\n\n(2) Application-Level Heartbeats: Some browser environments (and proxies that strip control frames) do not expose protocol-level pings to JavaScript. Full-stack applications implement application-level heartbeats: the client sends {\"type\": \"ping\"} every 20 seconds, and the server replies with {\"type\": \"pong\"}. If the client misses 2 consecutive pongs, it triggers a clean reconnection.",
-    "Why": "Heartbeats keep NAT routing tables alive and allow servers to detect disconnected clients within seconds, cleaning up orphaned connection resources and terminating active LLM generation loops.",
-    "Risk": "Omitting heartbeats causes silent connection drops, leaving users staring at frozen UIs while backend servers continue generating and paying for tokens delivered to phantom connections.",
-    "Trade": "Heartbeat frames introduce negligible network overhead (<100 bytes per minute), but require client and server timer management.",
-    "Try": "Configure a WebSocket endpoint with a 30-second ping interval and a 10-second timeout. Disconnect the client's network adapter and verify that the server detects the drop and closes the connection within 40 seconds."
+    "A": "Transport-level ping and pong help detect connection liveness where exposed. Application heartbeats can verify end-to-end processing and carry session status.",
+    "Why": "Set timeouts compatible with proxies and mobile networks, and distinguish temporary silence from failure.",
+    "Risk": "A healthy connection does not prove that the agent or downstream service is progressing.",
+    "Trade": "Aggressive timeouts reduce dead sessions and create false disconnects.",
+    "Try": "Pause the application worker while leaving the socket open and inspect health signals."
   },
   {
     "Q": "How should reconnecting clients recover state?",
-    "A": "Network interruptions are normal occurrences over mobile and Wi-Fi networks. A robust WebSocket architecture must implement seamless reconnection and session recovery without forcing users to restart their conversational task from scratch:\n\n1. Exponential Backoff with Jitter: When a socket closes unexpectedly, the client must reconnect using randomized exponential backoff: delay = min(max_delay, initial_delay * 2^attempt) + random_jitter. This prevents the \"Thundering Herd\" problem where thousands of clients reconnecting simultaneously after a network blip crush the server;\n\n2. Resumption via Session ID and Last Sequence: When reconnecting, the client includes session_id and last_received_seq in its handshake or first frame. The server looks up the session in Redis: (a) If the session is active and the missed messages are in the server's ring buffer, the server immediately replays the missed messages (from last_received_seq + 1 to current) and resumes normal streaming; (b) If the session expired or the buffer was evicted, the server sends a session_reset event, instructing the client to fetch a full state snapshot via REST.",
-    "Why": "Session resumption with sequence replay provides a frictionless user experience across network hops (e.g., switching from Wi-Fi to 5G) without losing conversational context or duplicating responses.",
-    "Risk": "Reconnecting without exponential backoff causes thousands of mobile clients to hammer recovering backend servers simultaneously, triggering an immediate second outage.",
-    "Trade": "Maintaining a rolling replay buffer in Redis requires memory allocation per active session, but enables seamless reconnection for brief network drops.",
-    "Try": "Simulate a 5-second socket disconnection during a streamed response. Verify that upon reconnecting with last_received_seq=15, the server replays tokens 16–25 and completes the generation."
+    "A": "Reauthenticate, present a resume token or last processed sequence, and receive replay or a state snapshot. The server decides whether the old session can safely resume.",
+    "Why": "Expire resume capabilities, bind them to the owner, and deduplicate commands and events.",
+    "Risk": "Replaying every outbound client message can repeat a side effect.",
+    "Trade": "Durable recovery costs state storage and supports unstable networks.",
+    "Try": "Reconnect after an ambiguous write and recover through its operation ID."
   },
   {
     "Q": "How do WebSocket servers scale horizontally?",
-    "A": "WebSockets maintain persistent stateful TCP connections. In a multi-instance production environment (e.g., 5 Kubernetes pods behind an Application Load Balancer), User A might be connected to Pod 1, while a background agent or task worker is running on Pod 3. Pod 3 cannot write to User A's socket because the TCP socket exists exclusively in Pod 1's process memory.\n\nHorizontal Scaling Architecture: (1) Redis Pub/Sub / Message Broker: All WebSocket servers subscribe to a distributed message bus (Redis Pub/Sub, NATS, or RabbitMQ). Each connected user session has a dedicated channel topic (e.g., session:user_123); (2) Distributed Event Routing: When a background agent or worker on Pod 3 emits a message for User A, it publishes the message to Redis topic session:user_123. Pod 1 (which holds the active socket for User A) receives the message from Redis and serializes it onto User A's local TCP socket; (3) Distributed Session Registry: Servers track active socket locations in a shared Redis hash (user_123 -> pod_1_ip), allowing workers to direct messages or verify connection status across the cluster.",
-    "Why": "A distributed message backplane decouples background worker execution from connection termination, allowing WebSocket servers to scale horizontally across arbitrary pods and instances.",
-    "Risk": "Relying solely on local in-memory socket dictionaries without a distributed broker makes it impossible to broadcast messages from background workers or scale beyond a single physical server.",
-    "Trade": "A Redis Pub/Sub backplane introduces a sub-millisecond network hop between worker and socket pod, but enables unlimited horizontal scaling and zero-downtime rolling deployments.",
-    "Try": "Spin up two local FastAPI WebSocket server instances on ports 8001 and 8002 backed by Redis Pub/Sub. Connect a client to 8001 and publish a message to Redis from a script on 8002, verifying receipt by the client."
+    "A": "Maintain durable session and task state outside one process, route active connections deliberately, and distribute events through a shared channel when needed.",
+    "Why": "Capacity-plan open connections, memory, bandwidth, worker count, and draining behavior. Sticky routing does not replace durable recovery.",
+    "Risk": "A process-local registry loses sessions on restart and cannot coordinate a fleet.",
+    "Trade": "Shared infrastructure adds latency and enables scale and recovery.",
+    "Try": "Drain one instance during active sessions and verify the expected reconnect path."
   },
   {
     "Q": "How should binary audio and text events coexist?",
-    "A": "Modern multimodal and voice agent applications (such as live audio conversation) require transmitting high-bandwidth raw audio alongside structured JSON text events. The WebSocket protocol (RFC 6455) natively supports two data frame opcodes:\n\n1. Text Frames (Opcode 0x1): Encodes UTF-8 text. Used for structured control events, tool call notifications, user text inputs, model thoughts, and transcriptions (serialized as JSON envelopes);\n\n2. Binary Frames (Opcode 0x2): Encodes raw binary byte buffers. Used for raw PCM audio chunks (16kHz, 16-bit mono), Opus audio packets, or image frame payloads;\n\nWhy Multiplex on One Socket: Sending binary audio over text frames requires Base64 encoding, which adds a 33% bandwidth overhead and significant CPU serialization latency. By utilizing native binary frames for audio and text frames for JSON envelopes, the application: (a) Achieves zero-overhead, zero-copy binary streaming for real-time audio; (b) Maintains a single synchronized connection where audio frames and transcription text events share the exact same temporal timeline; (c) Eliminates the synchronization race conditions of managing separate HTTP and WebSocket connections.",
-    "Why": "Leveraging native WebSocket binary opcodes eliminates the 33% Base64 bandwidth penalty and provides microsecond audio streaming essential for conversational voice AI.",
-    "Risk": "Sending Base64-encoded audio inside JSON text frames wastes mobile bandwidth, increases battery consumption, and adds measurable audio latency that disrupts natural conversational turn-taking.",
-    "Trade": "Multiplexing requires client code to inspect event.data type (string vs ArrayBuffer), but provides optimal bandwidth efficiency and synchronization.",
-    "Try": "Write a WebSocket handler in Python that sends a JSON text frame {\"type\": \"audio_meta\", \"sample_rate\": 16000} followed by raw binary bytes of PCM audio. Verify in the browser that the client handles both frame types cleanly."
+    "A": "Define a protocol that identifies audio format, stream, timestamps, and sequence while using typed control events for transcripts and state. Keep ordering assumptions explicit.",
+    "Why": "Validate sample rate, channels, codec, and payload size. Maintain separate playback and control queues when useful.",
+    "Risk": "Misinterpreted encoding can produce noise, broken timing, or excessive memory use.",
+    "Trade": "A richer protocol adds implementation work and supports multimodal sessions.",
+    "Try": "Change the declared audio format midstream and verify a controlled rejection."
   },
   {
     "Q": "What should a WebSocket production test include?",
-    "A": "Testing WebSocket infrastructures for production readiness requires verifying functional protocol contracts, stress limits, and resilience under adverse network conditions:\n\nComprehensive Test Suite Pillars: (1) Protocol & Contract Testing: Verify handshake authentication, single-use ticket consumption, Origin header rejection, envelope schema validation, and clean close codes (1000 normal, 4401 unauthorized, 4429 rate limited); (2) High-Concurrency Soak Testing: Use tools like Locust or Artillery to establish 10,000+ simultaneous idle WebSocket connections to test OS file descriptor limits (nofile ulimits), memory leak absence, and connection table stability; (3) Chaos & Network Partition Testing: Simulate sudden network drops, server pod kills during active generation, and NAT timeouts. Verify that clients execute exponential backoff without thundering herd crashes, and that servers terminate abandoned generator tasks; (4) Slow-Consumer Backpressure Testing: Simulate a client that stops reading its socket while the server streams high-frequency tokens. Verify that the server throttles or terminates the client before memory exhaustion occurs.",
-    "Why": "Rigorous load and chaos testing exposes connection leaks, proxy timeout issues, and memory bloat that are completely invisible in standard single-client unit tests.",
-    "Risk": "Deploying WebSocket servers without verifying OS file descriptor limits causes servers to reject all incoming connections (Too many open files) during traffic spikes.",
-    "Trade": "Simulating 10,000 active sockets requires dedicated load-testing instances and ulimit tuning, but guarantees rock-solid production reliability.",
-    "Try": "Run an Artillery script establishing 500 concurrent WebSocket connections, sending pings every 10s. Monitor server RSS memory and CPU to confirm that memory consumption remains stable over 15 minutes."
+    "A": "Test authorization, origin checks, oversized frames, expired sessions, malformed messages, reconnects, duplicate commands, slow consumers, network loss, and deployment draining.",
+    "Why": "Measure end-to-end command latency and queue depth under realistic concurrency.",
+    "Risk": "A local echo server does not establish reliability of a distributed agent session.",
+    "Trade": "Load tests require representative infrastructure and reveal connection capacity limits.",
+    "Try": "Publish a capacity report with connection count, memory use, and p95 control-message latency."
   }
 ]

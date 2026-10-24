@@ -1,68 +1,127 @@
 [
   {
     "Q": "What should be checked besides the final answer?",
-    "A": "Evaluating an AI agent solely on its final text output creates a dangerous blind spot known as the **Outcome Bias Trap**. An agent might deliver an ostensibly correct answer while executing catastrophic, wasteful, or unauthorized intermediate actions. A comprehensive agent evaluation harness must assess three orthogonal dimensions:\n\n1. **Tool Invocation & Side-Effect Invariants:** Inspect the exact sequence of external tool calls. Verify that state mutations (database writes, emails sent, payments processed) matched the desired intent, adhered to idempotency rules, and modified only authorized entities. Verify that read operations did not attempt to access cross-tenant or unpermitted resources.\n2. **Resource Consumption & Operational Efficiency:** Measure total input and output tokens consumed, wall-clock latency, number of reasoning steps, and tool execution error rates. An agent that takes 25 redundant retrieval calls to answer a simple query must be heavily penalized compared to an agent that solves it in two well-directed steps.\n3. **Safety & Policy Guardrails:** Verify that the agent never attempted prompt injection bypasses, did not exfiltrate system prompts, and adhered to compliance policies (e.g. data loss prevention, PII masking).\n4. **Trajectory Invariants vs Exact Match:** Instead of brittle string matching on tool arguments, verify semantic invariants: did the agent acquire the required authorization token before executing the transfer? Did it query the policy document before approving the reimbursement?",
-    "Why": "In autonomous systems with real-world tool execution, the journey is just as critical as the destination. A correct answer achieved via an unauthorized data breach or an infinite retry loop is a critical production failure.",
-    "Risk": "Relying strictly on final-answer evaluation allows agents to leak confidential cross-tenant files or execute duplicate billing mutations undetected as long as the conversational summary looks convincing.",
-    "Trade": "Instrumenting and evaluating execution trajectories requires sandbox environments, mock backends, and structured telemetry logging, which increases evaluation harness complexity compared to simple text-to-text benchmark harnesses.",
-    "Try": "Create an agent test where the model successfully answers a query but surreptitiously reads a restricted file; write an assertion oracle that passes the task outcome score but fails the overall run on a safety invariant violation.",
-    "explain": "Evaluate tool selection, state mutations, token cost, step count, and authorization boundaries independently of final textual accuracy.",
-    "example": "An agent summarizes an account correctly (Answer Score: 1.0) but made 14 duplicate SQL queries and attempted to read admin tables (Trajectory Score: 0.0, Overall Verdict: REJECTED).",
-    "takeaway": "Never grade an agent on final text alone; authoritative evaluation must inspect tool mutations, security invariants, and resource consumption."
+    "explain": "Check tool choices, resource scope, required ordering, approvals, duplicate effects, and actual task completion. The correct final words do not erase an unauthorized read performed earlier.",
+    "example": "A response names the right status after reading another customer's record; it still violates the ownership invariant.",
+    "takeaway": "Evaluate the path and the result."
   },
   {
     "Q": "When should a trajectory match an exact sequence?",
-    "A": "Trajectory evaluation must distinguish between **strict linear sequences** (total orders) and **flexible dependency graphs** (partial orders):\n\n1. **When Exact Sequencing Is Mandatory (Total Orders):** Strict step-by-step sequencing is required only when hard domain invariants, cryptographic protocols, or regulatory compliance dictate an unyielding state transition. Examples include:\n   - **Authentication and Scoping:** An agent must authenticate and retrieve a scoped delegation token before querying sensitive records.\n   - **Two-Phase Commit and Authorization:** A financial transfer tool must execute check_funds and request_user_approval before invoking execute_wire_transfer.\n   - **Destructive Mutations:** An agent must call create_backup before invoking drop_table or purge_cache.\n2. **When Flexibility Is Required (Partial Orders / DAGs):** In most exploratory, research, or multi-source synthesis tasks, tool order does not matter. For example, whether an agent queries search_internal_wiki before or after query_customer_crm is an implementation detail. Forcing an exact sequence causes **Benchmark Overfitting** and false test failures when the LLM chooses an equally valid alternative order.\n3. **DAG-Based Invariant Oracles:** Express trajectory expectations as directed acyclic graphs or prerequisite rules (A < C and B < C, while A and B can run in any order or concurrently).",
-    "Why": "Overly rigid trajectory matching breaks as soon as foundation models update or reason in parallel, while completely unconstrained evaluation permits unsafe side effects.",
-    "Risk": "Enforcing rigid exact-sequence tests rejects valid model optimizations (such as parallel tool calling), while lacking dependency checks allows agents to mutate production state without prior authorization.",
-    "Trade": "Specifying partial-order DAG constraints requires defining explicit state dependency matrices rather than simply comparing a recorded execution trace string, but eliminates brittle test churn.",
-    "Try": "Define a trajectory validator where fetch_user_profile and fetch_account_history can occur in any order, but assert that submit_loan_application must strictly follow both.",
-    "explain": "Require exact sequence matching only for strict state transitions and security prerequisites; use partial-order DAG invariants for independent information gathering.",
-    "example": "A financial advisor agent can retrieve stock quotes and news articles in parallel, but must call risk_compliance_check strictly before executing place_order.",
-    "takeaway": "Enforce exact sequences for security and state prerequisites; use partial-order DAG invariants for exploratory information retrieval."
+    "explain": "Use exact matching only when the sequence is genuinely required. For flexible investigations, enforce necessary partial order and invariants so alternative valid approaches are accepted.",
+    "example": "Two search orders are valid, but both must obtain evidence before a factual determination and approval before a write.",
+    "takeaway": "Don't confuse one reference path with the only correct path."
   },
   {
     "Q": "How should multi-turn tests handle corrections?",
-    "A": "Multi-turn conversational agent evaluation requires testing how effectively the agent maintains conversational state, accepts user corrections, and re-evaluates authorization gates across dialogue turns:\n\n1. **State Preservation vs Context Loss:** When a user clarifies or corrects an attribute (e.g. Turn 1: 'Book a flight to Paris on June 5th', Turn 2: 'Actually, make that June 6th'), the test must assert that the agent updates the corrected parameter (date: June 6th) while preserving all previously established valid context (destination: Paris).\n2. **Re-validation of Invariants on Mutation:** A critical vulnerability occurs when user corrections bypass business rules. If Turn 1 established approval for booking a budget hotel ($100), and Turn 2 updates the hotel to a luxury suite ($1,200), the agent must not assume prior approval carries over. It must re-trigger budget checks and approval gates.\n3. **Handling Ambiguity vs Premature Execution:** Multi-turn benchmarks must evaluate whether the agent correctly asks clarifying questions when inputs are incomplete or ambiguous, rather than guessing parameters and executing destructive tools prematurely.\n4. **Simulated User Dialogue Harness:** Use programmatic user simulators with explicit test scripts that provide partial information, issue mid-stream cancellations, and inject contradictory corrections to test agent resilience deterministically.",
-    "Why": "Single-turn benchmarks fail to reflect production reality, where human users frequently change their minds, provide incomplete instructions, or correct misunderstandings across successive messages.",
-    "Risk": "Failing to test conversational corrections leads to agents that either hallucinate lost context from previous turns or carry forward outdated authorizations into altered, unauthorized actions.",
-    "Trade": "Multi-turn simulation suites require orchestrating multi-step stateful harnesses and mock user actors, increasing test run duration and complexity compared to stateless single-turn tests.",
-    "Try": "Script a three-turn test where Turn 1 creates a draft invoice, Turn 2 alters the client name, and Turn 3 attempts to send it; assert that the updated invoice reflects the new client and re-prompts for authorization.",
-    "explain": "Multi-turn evaluation must verify that corrections update targeted state without erasing prior context, and that altered parameters re-trigger required approval gates.",
-    "example": "Turn 1 approves wire transfer to Vendor A. Turn 2 user changes recipient to Vendor B. Agent must re-prompt for confirmation rather than transferring to Vendor B using Vendor A's approval.",
-    "takeaway": "A user correction invalidates previous approvals; multi-turn evaluation must verify state retention and mandatory gate re-triggering."
+    "explain": "Track missing facts, revised intent, superseded approvals, and final durable outcomes over the entire dialogue. A turn can look correct alone while the overall task violates an earlier correction.",
+    "example": "The user changes amount 50 to 20; executing the old prepared operation must fail.",
+    "takeaway": "Conversation quality depends on state over time."
   },
   {
     "Q": "How should side effects be evaluated safely?",
-    "A": "Evaluating an agent that performs real-world mutations (database writes, API updates, cloud infrastructure changes) requires sandboxed execution environments and formal **State Reconciliation Oracles**:\n\n1. **Hermetic Ephemeral Sandboxes:** Never point test evaluation suites at staging or production environments where mutations accumulate or affect other systems. Use hermetic, ephemeral sandboxes (e.g., containerized Postgres instances, local mock HTTP servers, temporary mock file trees) that spin up per test and tear down immediately.\n2. **Two-Phase State Diffing (Pre vs Post State):** Evaluation must capture the complete environment state snapshot before the agent executes (S_pre) and after execution terminates (S_post). The oracle computes the state diff (Delta S = S_post - S_pre) and asserts:\n   - **Expected Mutations:** The exact intended entity was created/updated with correct values.\n   - **Negative Invariants (Zero Collateral Damage):** No unrelated rows, accounts, or configuration settings were modified or deleted.\n   - **Idempotency & Replay:** Re-executing the agent on S_post must yield Delta S = empty (no duplicate writes).\n3. **Dry-Run and Mock Boundary Modes:** The agent harness must support an explicit dry_run or mock mode for high-frequency CI/CD evaluation, intercepting external tool calls to assert payload syntax without executing live mutations.\n4. **Blast Radius and Timeout Guards:** Test runners must enforce strict tool call quotas (e.g. max 10 mutations) and execution time limits (e.g. 30s) to abort runaway recursive agent loops before they consume excessive resources.",
-    "Why": "Agents generate probabilistic code and tool commands. Evaluating side effects in shared or live environments risks data corruption, accidental resource deletion, and unpredictable test flakiness.",
-    "Risk": "Testing mutation tools without isolated sandboxes allows buggy agent prompt revisions to overwrite shared database records or trigger real-world financial transactions during automated CI runs.",
-    "Trade": "Provisioning isolated database sandboxes for every evaluation run adds infrastructure overhead and test execution latency compared to running against static mock dictionaries.",
-    "Try": "Implement an evaluation harness that spins up an isolated SQLite in-memory database, captures schema diffs before and after agent execution, and fails if any table outside the declared target is modified.",
-    "explain": "Evaluate side effects in isolated sandboxes using pre-and-post state diffing to verify intended mutations, assert zero collateral damage, and guarantee idempotency.",
-    "example": "Test harness snapshots database, agent executes refund_tool, harness verifies refund row created and customer balance updated by exactly $50 with zero changes to other accounts.",
-    "takeaway": "Evaluate side effects via pre/post state diffing in isolated sandboxes; verify exact mutations and assert zero collateral damage."
+    "explain": "Use synthetic principals and disposable services with an effect ledger. Assert actual records and operation identities. Isolate model experiments from production notification or payment endpoints.",
+    "example": "Race two confirmation requests in a test database and count committed records instead of matching success text.",
+    "takeaway": "Evaluation must not become an uncontrolled production actor."
   },
   {
     "Q": "What is an evaluation oracle for an agent task?",
-    "A": "An **Evaluation Oracle** is an authoritative, deterministic mechanism or program that determines whether an agent's execution succeeded, failed, or violated system constraints. In traditional software, assertions (assert result == expected) serve as simple oracles. In autonomous AI agent workflows, an evaluation oracle comprises a composite multi-tiered verification pipeline:\n\n1. **Deterministic Programmatic Oracles:** Rule-based verification that checks non-negotiable invariants: schema compliance of output JSON, presence of mandatory fields, HTTP status codes, SQL query syntax, and database state transitions. These are fast, objective, free of LLM variance, and 100% reproducible.\n2. **Environment & Sandbox Oracles:** State inspection that examines external systems after execution: did the unit test pass? Did the generated file compile? Did the database row increment correctly? If an agent claims to have fixed a bug, the oracle executes the test suite to verify the fix.\n3. **LLM-as-a-Judge Semantic Oracles:** For subjective criteria (clarity, tone, helpfulness, multi-source synthesis), a calibrated judge LLM evaluates the response against an explicit rubric. To ensure validity, judge prompts must be blinded (not told which model produced the answer), reference-grounded (provided with an authoritative gold standard), and calibrated against human expert ratings using Cohen's kappa or pairwise agreement metrics.\n4. **Composite Verdict Scoring:** The oracle combines tier results using gating logic: if deterministic or security checks fail, the overall score is 0 regardless of how articulate the LLM judge rates the response.",
-    "Why": "Autonomous agents produce complex, multi-modal behaviors. No single evaluation metric (BLEU, ROUGE, or LLM-as-a-judge alone) can reliably assess task completion, code correctness, and system safety.",
-    "Risk": "Relying exclusively on an uncalibrated LLM judge creates circular hallucinations and self-enhancement bias, rewarding wordy, persuasive-sounding answers that fail basic functional requirements.",
-    "Trade": "Composite evaluation oracles require building automated test fixtures, compilers, and rubric calibration suites, requiring significant upfront engineering compared to simple prompt scoring.",
-    "Try": "Construct a composite oracle for a data extraction agent: use regex/schema validation for numbers and dates, database state assertions for storage, and an LLM judge only for summarizing qualitative notes.",
-    "explain": "An evaluation oracle is a multi-tiered verification engine combining deterministic invariant assertions, environment state inspection, and calibrated semantic judges.",
-    "example": "A coding agent is evaluated by a composite oracle: 1) Syntax check passes; 2) Compiler executes test suite (100% pass); 3) Linter verifies style; 4) Judge evaluates code comments.",
-    "takeaway": "A robust agent oracle is a composite pipeline: use deterministic assertions for invariants, sandbox checks for effects, and calibrated judges only for qualitative nuance."
+    "explain": "An oracle defines what counts as success or failure independently of persuasive output. It may be a known database state, a permitted set of source spans, a required review transition, or a business invariant. Use deterministic oracles where possible and reviewed judgments where meaning cannot be reduced to exact matching.",
+    "example": "The expected outcome is one request with the corrected item ID and no request with the superseded ID. Inspect the effect ledger rather than asking the model whether it completed the task.",
+    "takeaway": "Evaluate real state and constraints separately from the agent's self-report.",
+    "estimated_time_minutes": 14,
+    "prerequisites": [
+      "Understand the difference between an answer and a side effect",
+      "Have read an agent evaluation question"
+    ],
+    "version": "1.0.0",
+    "references": [
+      "https://docs.langchain.com/oss/python/langgraph/durable-execution",
+      "https://www.sqlite.org/lang_createtable.html#unique_constraints"
+    ],
+    "outcomes": [
+      "Define a deterministic oracle for an agent task",
+      "Distinguish task success from fluent final text",
+      "Use reviewed judgment only where exact matching cannot express meaning"
+    ],
+    "conceptual_narrative": "An oracle is an independent specification of correct behavior that does not depend on the agent under test. It specifies what should be true in the world after the task runs: which database rows exist, which source spans were cited, whether a review transition occurred. Task success means the intended authorized outcome occurred, not just that the final message reads fluently. Deterministic oracles compare actual state against expected state. Reviewed judgments handle open-ended quality where exact matching cannot express meaning, but they are slower, costlier, and less reproducible.",
+    "glossary_terms": [
+      {
+        "term": "Oracle",
+        "definition": "An independent specification of correct behavior used to evaluate an agent's output without relying on the agent's own claims."
+      },
+      {
+        "term": "Effect ledger",
+        "definition": "An authoritative record of attempted/committed effects and their identities. This example assumes its supplied event list is complete; a list alone cannot prove that property."
+      },
+      {
+        "term": "Task success",
+        "definition": "The intended authorized outcome occurred in the system, verified by checking actual state rather than the agent's self-report."
+      }
+    ],
+    "worked_examples": [
+      {
+        "title": "Oracle for request-preparation task",
+        "code": "\"\"\"Deterministic fixture oracle; a real system needs a trusted complete ledger.\"\"\"\n\n\ndef oracle(corrected_id, superseded_id, rows, events):\n    ids = [row['id'] for row in rows]\n    writes = [index for index, event in enumerate(events) if event['kind'] == 'write']\n    checks = {\n        'one corrected request': ids == [corrected_id],\n        'no superseded request': superseded_id not in ids,\n        'one write': len(writes) == 1,\n        'authorized trajectory': bool(events) and all(event.get('authorized') is True for event in events),\n    }\n    before_write = events[:writes[0]] if writes else []\n    checks['eligibility before write'] = any(event['kind'] == 'eligibility' and event.get('passed') is True for event in before_write)\n    checks['approval before write'] = any(event['kind'] == 'approval' and event.get('passed') is True for event in before_write)\n    return all(checks.values()), checks\n\n\nif __name__ == '__main__':\n    rows = [{'id': 'corrected'}]\n    events = [{'kind': kind, 'authorized': True, 'passed': True} for kind in ('eligibility', 'approval', 'write')]\n    assert oracle('corrected', 'old', rows, events)[0]\n    assert not oracle('corrected', 'old', rows, events[1:])[0]\n    assert not oracle('corrected', 'old', rows, list(reversed(events)))[0]\n    assert not oracle('corrected', 'old', rows * 2, events)[0]\n    assert not oracle('corrected', 'old', rows, events + [{'kind': 'read', 'authorized': False}])[0]\n    print('Oracle accepts valid state and rejects missing approval, wrong order, duplicates, and unauthorized reads.')\n",
+        "explanation": "The oracle checks exact final rows, the number of writes, authorization of every recorded event, and eligibility and approval before the write. Negative fixtures prove that missing approval and unauthorized reads cannot pass."
+      }
+    ],
+    "syntax_highlighted_source": "\"\"\"Deterministic fixture oracle; a real system needs a trusted complete ledger.\"\"\"\n\n\ndef oracle(corrected_id, superseded_id, rows, events):\n    ids = [row['id'] for row in rows]\n    writes = [index for index, event in enumerate(events) if event['kind'] == 'write']\n    checks = {\n        'one corrected request': ids == [corrected_id],\n        'no superseded request': superseded_id not in ids,\n        'one write': len(writes) == 1,\n        'authorized trajectory': bool(events) and all(event.get('authorized') is True for event in events),\n    }\n    before_write = events[:writes[0]] if writes else []\n    checks['eligibility before write'] = any(event['kind'] == 'eligibility' and event.get('passed') is True for event in before_write)\n    checks['approval before write'] = any(event['kind'] == 'approval' and event.get('passed') is True for event in before_write)\n    return all(checks.values()), checks\n\n\nif __name__ == '__main__':\n    rows = [{'id': 'corrected'}]\n    events = [{'kind': kind, 'authorized': True, 'passed': True} for kind in ('eligibility', 'approval', 'write')]\n    assert oracle('corrected', 'old', rows, events)[0]\n    assert not oracle('corrected', 'old', rows, events[1:])[0]\n    assert not oracle('corrected', 'old', rows, list(reversed(events)))[0]\n    assert not oracle('corrected', 'old', rows * 2, events)[0]\n    assert not oracle('corrected', 'old', rows, events + [{'kind': 'read', 'authorized': False}])[0]\n    print('Oracle accepts valid state and rejects missing approval, wrong order, duplicates, and unauthorized reads.')\n",
+    "expected_output": "Oracle accepts valid state and rejects missing approval, wrong order, duplicates, and unauthorized reads.",
+    "visualizations": [
+      {
+        "alt": "Effect ledger vs answer text",
+        "description": "Evaluation checks the full trajectory (tool calls, arguments, results, durable writes) not just the final answer text.",
+        "svg": "<svg width=\"400\" height=\"160\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"20\" y=\"40\" width=\"180\" height=\"100\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"110\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Agent answer text</text><rect x=\"220\" y=\"40\" width=\"160\" height=\"100\" fill=\"var(--panel)\" stroke=\"var(--line)\"/><text x=\"300\" y=\"95\" text-anchor=\"middle\" fill=\"var(--text)\">Effect ledger</text><line x1=\"200\" y1=\"90\" x2=\"220\" y2=\"90\" stroke=\"var(--muted)\" stroke-width=\"2\" marker-end=\"url(#arrow2)\"/><text x=\"260\" y=\"20\" fill=\"var(--accent)\" font-size=\"12\">Oracle checks state, not words</text><defs><marker id=\"arrow2\" markerWidth=\"8\" markerHeight=\"8\" refX=\"7\" refY=\"4\" orient=\"auto\"><polygon points=\"0 0, 8 4, 0 8\" fill=\"var(--muted)\"/></marker></defs></svg>"
+      }
+    ],
+    "assumed_knowledge": "You have read an agent evaluation question and understand the difference between an answer and a side effect.",
+    "motivating_problem": "An agent produces a fluent, confident answer but actually read another customer's record and wrote an unauthorized update. Answer-level evaluation would mark it correct.",
+    "underlying_mechanics": "Capture the effect ledger: every tool call, its arguments, its result, and every durable write. Compare the final database state against an expected state. For open-ended quality, use a calibrated human or model judge with a rubric, clearly separated from the agent under test. The example consumes already-recorded fixture events; it does not run an agent, authenticate their producer or prove ledger completeness. Production capture must be trusted and complete, and approvals must bind the actual payload.",
+    "line_by_line": [
+      "Extract final row IDs and write-event positions from the supplied trusted fixture ledger.",
+      "Require exactly the corrected row, one write and authorization on every supplied event.",
+      "Inspect the prefix before that write for passed eligibility and approval records.",
+      "Return the conjunction plus individually named checks.",
+      "Run positive and negative fixtures for missing checks, reversed order, duplicate rows and unauthorized reads."
+    ],
+    "edge_cases": [
+      "The agent chooses a valid but different sequence of tools.",
+      "The final answer is fluent but the trace contains an unauthorized read.",
+      "A tool succeeds but produces no business effect."
+    ],
+    "tradeoffs": "Exact matching is deterministic but brittle across valid variations. Reviewed judgments capture meaning but are slower, costlier, and less reproducible.",
+    "security_implications": "An oracle that only checks the final text misses unauthorized reads and writes. Evaluate the entire trajectory, not just the answer.",
+    "performance_implications": "Running agents repeatedly for evaluation consumes model budget and time. Use synthetic fixtures and deterministic oracles where possible.",
+    "debugging": "If the answer is correct but a test fails, inspect the effect ledger for unauthorized or duplicate writes. Fix the boundary, not just the prompt.",
+    "practice": "Define an oracle for a request-preparation task: exactly one request with the corrected ID, no superseded request, eligibility checked before write, and review approval recorded.",
+    "recap": "Task success is real authorized state, not fluent text. Use deterministic oracles and effect ledgers; reserve reviewed judgment for what exact matching cannot express.",
+    "mastery_checks": [
+      "Explain why answer-level evaluation misses unauthorized side effects.",
+      "Describe what belongs in an effect ledger.",
+      "Distinguish task success from a fluent final answer."
+    ],
+    "local_lab": "labs/effect_oracle.py",
+    "independent_tasks": [
+      "Define an oracle for a different agent task (e.g., document summarization) with exact and soft constraints.",
+      "Create an adversarial case where the agent produces fluent text but performs an unauthorized write.",
+      "Measure evaluation time for deterministic vs. reviewed-judgment approaches."
+    ],
+    "review_and_answer_keys": {
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23",
+      "known_limitations": "Trusted synthetic complete ledger only. The oracle does not prove that an untrusted runtime logged all its effects."
+    },
+    "added": true,
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI (maintainer-delegated technical review)",
+      "reviewed_at": "2026-10-23"
+    }
   },
   {
     "Q": "How do I test flexible paths without accepting unsafe behavior?",
-    "A": "Testing autonomous agents requires resolving the tension between **Path Flexibility** (allowing the agent to choose among multiple creative, valid solution routes) and **Safety Invariants** (guaranteeing it never violates security, authorization, or operational policies). This is achieved through **Constraint-Bounded Trajectory Evaluation**:\n\n1. **Define Invariant Boundaries (Negative Constraints):** Instead of specifying the single 'correct' path, define the boundaries the agent must never cross. For example:\n   - *Forbidden Tools:* The agent must never call drop_table, execute_raw_sql, or export_all_users.\n   - *Data Isolation:* The agent must never read records where tenant_id != current_tenant.\n   - *Resource Budgets:* The agent must not exceed 8 tool calls, $0.10 cost, or 30 seconds execution time.\n2. **Define Prerequisite Graphs (Causal Ordering):** Specify prerequisite relationships rather than total orderings. If the task is to resolve a customer ticket, the agent may search documentation, query shipping status, or inspect order history in any order or combination, provided that verify_customer_identity precedes any account disclosure, and issue_refund is preceded by validate_return_receipt.\n3. **Post-Condition Functional Equivalence:** Assert that regardless of the intermediate path chosen, the final state of the environment matches the goal state (e.g. the issue is marked resolved, the customer received the replacement item, and inventory counts reconciled).\n4. **Property-Based Scenario Testing:** Generate diverse customer contexts and prompt variations to ensure the agent finds valid paths across edge cases while boundaries remain impermeable.",
-    "Why": "Strict step-by-step checks stifle model intelligence and cause brittle tests, whereas unconstrained evaluations leave systems vulnerable to rogue trajectories and security bypasses.",
-    "Risk": "Permitting unconstrained trajectory flexibility without negative constraints allows an agent to achieve a goal via unauthorized backdoors, such as scraping internal credentials or brute-forcing API keys.",
-    "Trade": "Formulating safety bounds and causal prerequisite graphs requires formalizing domain invariants into executable rules, but produces resilient, future-proof test suites that survive model upgrades.",
-    "Try": "Write an evaluation test that allows an agent to explore any combination of three read tools, but assert that invoking a write tool fails immediately if a required validation check was skipped in the trajectory.",
-    "explain": "Test flexible paths by validating functional goal equivalence and causal prerequisite graphs while strictly enforcing negative security constraints and resource ceilings.",
-    "example": "An agent diagnosing network latency can check DNS, ping servers, or query traceroutes in any sequence, but must never call reboot_router without supervisor approval.",
-    "takeaway": "Do not dictate the step sequence; constrain the blast radius with negative invariants and enforce causal prerequisites."
+    "explain": "Specify required conditions and partial ordering instead of one exact trace when several routes are valid. Keep hard constraints for resource scope, review before write, and duplicate effects. Add adversarial transitions such as corrections, expired sessions, tool failures, and reconnects. Score task success only after examining the entire interaction.",
+    "example": "Two agents may retrieve documents in different orders, but both must verify eligibility before the write and apply the current user correction. Either valid read order can pass the same invariant test.",
+    "takeaway": "Allow useful flexibility while keeping necessary boundaries exact."
   }
 ]

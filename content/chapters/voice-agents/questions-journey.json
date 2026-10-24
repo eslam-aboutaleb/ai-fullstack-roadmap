@@ -1,48 +1,42 @@
 [
   {
     "Q": "How should interruption be handled when a spoken answer and a tool effect are at different stages?",
-    "spoken": "Treat capture, speech recognition, reasoning, tool execution, and audio playback as strictly separate operational lifecycles. Stop or duck audio playback immediately upon user barge-in, but reconcile any backend tool mutation independently through durable transaction status. Never assume that stopping audio playback cancels an already-committed backend side effect.",
-    "A": "When a user interrupts an ongoing voice interaction (**Barge-in**), the system encounters a critical concurrency challenge: **the client audio playback playhead is temporally decoupled from backend tool execution**.\n\nHandling this requires a **Decoupled Lifecycle Reconciliation Architecture**:\n\n1. **Independent Stage Lifecycles:** Treat acoustic capture, ASR transcription, LLM reasoning, external tool execution, and audio playback as distinct state machines. A change in audio playback state (e.g. user speaking mid-response) does not automatically alter backend database transactions.\n2. **Immediate Local Audio Interruption:** Within 50ms of detecting incoming user speech, the client pauses or clears its audio output buffer, mutes speaker output, and records the exact playhead position (how many seconds/words of synthetic audio the user actually heard before interrupting).\n3. **Independent Backend Tool Reconciliation:**\n   - *Scenario A (Tool Still In-Flight):* If the tool mutation is currently queued or executing in an asynchronous worker, propagate an immediate cancellation token to abort the operation before it commits.\n   - *Scenario B (Tool Already Committed):* If the tool has already committed to the database (e.g. flight booked, funds deducted, email sent), stopping audio playback CANNOT undo the transaction! The agent must acknowledge the committed state and offer a compensating action (e.g. `'I stopped, but your booking was already confirmed. Would you like me to cancel the booking?'`).\n4. **Audit and State Consistency:** Track two separate state records: `audible_user_perception` (what the user actually heard) versus `authoritative_backend_state` (what the system committed). Reconcile dialogue memory based on these two horizons.",
-    "Why": "Conflating audio playback with tool execution leads to severe state corruption: users believe an operation was cancelled because the voice stopped speaking, while backend services actually committed the transaction.",
-    "Risk": "A user says 'No wait!' while the agent says 'Booking your hotel room now...'. The client stops the speaker audio, but the booking API had already completed. The user leaves assuming no booking occurred, incurring surprise charges.",
-    "Trade": "Decoupling playback from tool status requires maintaining transaction receipt states and conversational compensation flows, but prevents catastrophic state desynchronization.",
-    "Try": "Simulate a voice agent where a booking tool commits at t=100ms; user interrupts audio playback at t=200ms; verify that the agent halts audio playback, inspects the committed tool receipt, and triggers an explicit verbal reconciliation turn.",
+    "spoken": "Treat capture, recognition, reasoning, tool execution and playback as separate lifecycles. Stop or replace playback promptly under the interaction policy, but reconcile any tool effect independently. Retain timestamps and identities needed to understand partial transcripts without logging private audio by default.",
+    "A": "Treat capture, recognition, reasoning, tool execution and playback as separate lifecycles. Stop or replace playback promptly under the interaction policy, but reconcile any tool effect independently. Retain timestamps and identities needed to understand partial transcripts without logging private audio by default.\n\nConcrete engineering case: The user interrupts confirmation playback after a booking has already committed. The client labels the booking cancelled because it stopped the audio.\n\nBoundary defense: No. It is an interaction event. A receiver-confirmed task or effect status must establish whether the business operation stopped or committed.",
+    "Why": "Treat capture, recognition, reasoning, tool execution and playback as separate lifecycles. Stop or replace playback promptly under the interaction policy, but reconcile any tool effect independently. Retain timestamps and identities needed to understand partial transcripts without logging private audio by default.",
+    "Risk": "The user interrupts confirmation playback after a booking has already committed. The client labels the booking cancelled because it stopped the audio.",
+    "Trade": "No. It is an interaction event. A receiver-confirmed task or effect status must establish whether the business operation stopped or committed.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
     "domain": "ai-rag",
     "subdomain": "voice-agents",
     "module": "voice-agents",
     "concept": "How should interruption be handled when a spoken answer and a tool effect are at different stages?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming that cutting off the assistant's audio output automatically cancels or rolls back any backend tool mutation executed during that turn.",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: The user interrupts confirmation playback after a booking has already committed. The client labels the booking cancelled because it stopped the audio.",
     "definitions": [
       {
-        "term": "Barge-in / Playback Interruption",
-        "definition": "An interaction event where user speech cuts off synthetic audio playback on the local client device."
-      },
-      {
-        "term": "Tool Lifecycle Reconciliation",
-        "definition": "The architectural boundary that determines whether a tool execution can be cancelled in-flight or requires an explicit compensating transaction if already committed."
+        "term": "Boundary: voice agents",
+        "definition": "Treat capture, recognition, reasoning, tool execution and playback as separate lifecycles."
       }
     ],
-    "execution_timeline": "User speaks -> Tool dispatches and commits at backend -> TTS synthesizes confirmation audio -> User interrupts halfway through playback -> Audio stops -> Agent checks tool status -> Tool committed -> Agent informs user and offers compensation flow.",
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
     "example": {
-      "code": "{\n  \"scenario\": \"The user interrupts confirmation playback after a booking has already committed. The client labels the booking cancelled because it stopped the audio.\",\n  \"required_decision\": \"Treat capture, recognition, reasoning, tool execution, and playback as separate lifecycles, reconciling committed tools via explicit business compensation rather than transport cancellation.\"\n}",
+      "code": "{\n  \"scenario\": \"The user interrupts confirmation playback after a booking has already committed. The client labels the booking cancelled because it stopped the audio.\",\n  \"required_decision\": \"Treat capture, recognition, reasoning, tool execution and playback as separate lifecycles\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "A voice commerce agent was confirming a $120 checkout. The payment tool committed at 200ms. At 400ms, the user coughed and said 'Wait'. The client immediately muted audio. The agent erroneously assumed the order was cancelled, failing to generate a receipt while the customer's credit card was charged.",
+    "production_case": "The user interrupts confirmation playback after a booking has already committed. The client labels the booking cancelled because it stopped the audio.",
     "alternatives": [
-      "Gate high-risk tool execution on explicit two-phase commit, delaying execution until after full confirmation audio completes (adds latency).",
-      "Treat playback interruption as an acoustic UI event, reconciling backend state via idempotent receipts and compensating actions."
+      "No. It is an interaction event. A receiver-confirmed task or effect status must establish whether the business operation stopped or committed."
     ],
     "pitfalls": [
-      "Assuming client WebSocket close or audio muting cancels backend Celery/Temporal workers without explicit cancellation tokens.",
-      "Recording unplayed TTS sentences into conversational LLM memory as if the user had heard and understood them."
+      "The user interrupts confirmation playback after a booking has already committed. The client labels the booking cancelled because it stopped the audio."
     ],
-    "complexity": "Reconciliation requires sub-50ms audio muting combined with asynchronous transaction polling and dialogue repair handling.",
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
     "follow_ups": [
       {
         "Q": "Can barge-in guarantee a remote cancellation?",
-        "A": "No. Barge-in is an interaction event on the client. Only a receiver-confirmed task status or compensating transaction establishes whether a business mutation stopped or committed."
+        "A": "No. It is an interaction event. A receiver-confirmed task or effect status must establish whether the business operation stopped or committed."
       }
     ],
     "citations": [
@@ -51,7 +45,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]

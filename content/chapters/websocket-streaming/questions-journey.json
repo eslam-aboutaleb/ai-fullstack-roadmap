@@ -1,48 +1,42 @@
 [
   {
     "Q": "How do you keep a reconnected WebSocket from accepting stale or unauthorized commands?",
-    "spoken": "Authenticate the connection handshake, then authorize each consequential command frame against current tenant scope and permissions. Use monotonic client sequence numbers, operation keys, and bounded replay horizons. A new socket does not automatically grant a new authority, and an old socket must not retain permanent permissions across session changes.",
-    "A": "Securing a reconnected WebSocket against stale, out-of-order, or unauthorized command execution requires a **Multi-Layered Causal Authorization Architecture**:\n\n1. **Per-Command Authorization Filters:** Never rely exclusively on initial HTTP handshake authentication. When an incoming command arrives over an established or reconnected WebSocket, the server must extract the authenticated principal and verify that the user currently possesses the required role/permission for the targeted resource. If permissions were revoked mid-session, the command is denied with `{ type: 'error', code: 'FORBIDDEN' }` and the socket is severed with code `4403`.\n2. **Monotonic Client Sequence Horizons:** The client attaches an incrementing integer `client_seq` to every command within an operational session. The server tracks the highest committed sequence number (`last_committed_seq`). If a delayed or replayed packet from a previous dropped socket arrives with `client_seq <= last_committed_seq`, the server detects it as a stale replay and discards it without side effects.\n3. **Deterministic Operation Keys & Idempotency:** Any mutation command (e.g. `confirm_purchase`, `delete_thread`) must carry a deterministic operation key (`op_key`). The server records completed operations in a durable database ledger. If a replayed command is processed, the server returns the cached execution receipt without re-executing business logic.\n4. **Session Epoch Fencing:** When a client reconnects, the handshake increments the session epoch (`epoch = epoch + 1`). Any in-flight commands tagged with an earlier epoch are immediately rejected by backend workers, preventing race conditions between dying and newly established connections.",
-    "Why": "TCP guarantees ordering only within a single socket connection. Across reconnects and multi-replica load balancers, packets arrive out of order, and long-lived sockets retain stale authorization claims unless explicitly checked.",
-    "Risk": "A delayed mutation command from an old dropped socket arrives after a reconnect and executes out of order, reverting an intentional cancellation or debiting an account twice.",
-    "Trade": "Enforcing sequence horizons and per-command authorization checks adds a fast Redis lookup per frame, but guarantees causal correctness and bulletproof security.",
-    "Try": "Send command seq=1 on socket A, simulate a network drop, reconnect on socket B with command seq=2; belatedly deliver command seq=1 from socket A and assert that the server rejects seq=1 as stale.",
+    "spoken": "Authenticate the connection or declared application handshake, then authorize each consequential command against current scope and state. Use operation identities, sequence or revision rules and bounded replay. A new socket does not necessarily mean a new logical task, and an old socket should not retain indefinite authority after a session change.",
+    "A": "Authenticate the connection or declared application handshake, then authorize each consequential command against current scope and state. Use operation identities, sequence or revision rules and bounded replay. A new socket does not necessarily mean a new logical task, and an old socket should not retain indefinite authority after a session change.\n\nConcrete engineering case: A delayed command from a previous session overwrites a newer operation after reconnect because the server checks only socket establishment.\n\nBoundary defense: No. The transport and browser constraints determine a supported handshake pattern. Whatever the mechanism, verify current authority where effects occur.",
+    "Why": "Authenticate the connection or declared application handshake, then authorize each consequential command against current scope and state. Use operation identities, sequence or revision rules and bounded replay. A new socket does not necessarily mean a new logical task, and an old socket should not retain indefinite authority after a session change.",
+    "Risk": "A delayed command from a previous session overwrites a newer operation after reconnect because the server checks only socket establishment.",
+    "Trade": "No. The transport and browser constraints determine a supported handshake pattern. Whatever the mechanism, verify current authority where effects occur.",
+    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
     "domain": "frontend",
     "subdomain": "websocket-streaming",
     "module": "websocket-streaming",
     "concept": "How do you keep a reconnected WebSocket from accepting stale or unauthorized commands?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming that authenticating the initial WebSocket handshake guarantees that all subsequent commands received over the socket remain authorized and ordered.",
+    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: A delayed command from a previous session overwrites a newer operation after reconnect because the server checks only socket establishment.",
     "definitions": [
       {
-        "term": "Session Epoch Fencing",
-        "definition": "A technique of tagging messages with an incrementing connection epoch so that in-flight messages from prior connections are discarded upon reconnect."
-      },
-      {
-        "term": "Causal Sequence Horizon",
-        "definition": "A monotonic counter maintained by the server that discards any incoming client commands bearing an equal or lower sequence number."
+        "term": "Boundary: websocket streaming",
+        "definition": "Authenticate the connection or declared application handshake, then authorize each consequential command against current scope and state."
       }
     ],
-    "execution_timeline": "Client connects with epoch 1 -> Socket drops -> Client reconnects with epoch 2 and seq 5 -> Delayed packet from epoch 1 arrives with seq 4 -> Server fences epoch 1 and discards seq 4 -> Executes seq 5 cleanly.",
+    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
     "example": {
-      "code": "{\n  \"scenario\": \"A delayed command from a previous session overwrites a newer operation after reconnect because the server checks only socket establishment.\",\n  \"required_decision\": \"Authenticate the connection handshake, then authorize each consequential command and reject commands with stale sequence numbers or expired epochs\"\n}",
+      "code": "{\n  \"scenario\": \"A delayed command from a previous session overwrites a newer operation after reconnect because the server checks only socket establishment.\",\n  \"required_decision\": \"Authenticate the connection or declared application handshake, then authorize each consequential command against current scope and state\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "A trading agent UI disconnected during a Wi-Fi handover; upon reconnecting, a delayed market sell order from the first connection executed after a cancel order from the second connection, creating an unintended short position.",
+    "production_case": "A delayed command from a previous session overwrites a newer operation after reconnect because the server checks only socket establishment.",
     "alternatives": [
-      "Use monotonic sequence numbers and session epoch fencing to reject out-of-order replayed frames.",
-      "Enforce two-phase application ACKs where clients only dispatch command N+1 after command N is acknowledged."
+      "No. The transport and browser constraints determine a supported handshake pattern. Whatever the mechanism, verify current authority where effects occur."
     ],
     "pitfalls": [
-      "Checking authorization only during the HTTP upgrade handshake and trusting all subsequent messages.",
-      "Relying on client wall-clock timestamps rather than logical sequence numbers for ordering."
+      "A delayed command from a previous session overwrites a newer operation after reconnect because the server checks only socket establishment."
     ],
-    "complexity": "Sequence checks and epoch validation execute in O(1) time in memory/Redis, adding less than 1 millisecond per incoming command frame.",
+    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
     "follow_ups": [
       {
         "Q": "Must authentication always be the first WebSocket message?",
-        "A": "No. Authentication can occur via HTTP upgrade cookies/tokens or in an explicit first message handshake, but authorization must be re-evaluated on every consequential domain mutation."
+        "A": "No. The transport and browser constraints determine a supported handshake pattern. Whatever the mechanism, verify current authority where effects occur."
       }
     ],
     "citations": [
@@ -51,7 +45,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]

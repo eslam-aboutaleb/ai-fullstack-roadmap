@@ -2,35 +2,35 @@
   {
     "Q": "Trace an HTTPS request from a browser address to an application response.",
     "spoken": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target. Intermediaries may route or cache it before the application validates identity, input and authorization. Separate network establishment, server processing and response consumption when measuring latency; their failures imply different recovery decisions.",
-    "A": "Tracing an HTTPS request from a browser interaction to a backend response traverses distinct physical and logical layers across the network and application stack. When a user navigates to an API URL, the browser first resolves the domain via DNS (checking browser cache, OS resolver, and recursive DNS servers for A/AAAA records). Transport establishment begins with the TCP 3-way handshake (SYN, SYN-ACK, ACK), immediately followed by the TLS 1.3 cryptographic handshake: the client and server negotiate cipher suites, perform an ephemeral Elliptic Curve Diffie-Hellman (ECDHE) key exchange, and authenticate the server via X.509 PKI certificate validation and Application-Layer Protocol Negotiation (ALPN) negotiating HTTP/2 or HTTP/3.\n\nThe encrypted HTTP request arrives at an edge reverse proxy or load balancer (e.g., Nginx, Envoy, or AWS ALB), which terminates TLS, injects tracing headers (e.g., traceparent / X-Request-ID), and forwards the stream over a persistent Unix domain socket or internal TCP connection to an ASGI application server like Uvicorn running FastAPI. Uvicorn parses the raw byte stream into an ASGI scope dictionary and passes it to FastAPI's routing pipeline.\n\nWithin FastAPI, middleware executes first (handling CORS, request timeouts, and metrics collection). FastAPI matches the URL path against route controllers, resolves dependency injection graphs via Depends (extracting bearer tokens, verifying tenant contexts, and acquiring an AsyncSession from a database connection pool), and deserializes the request body using Pydantic V2 schemas compiled in Rust. After business logic and database queries resolve, FastAPI serializes the response model, emits standard HTTP response headers, and flushes chunked response bytes through the socket back to the browser DOM. Measuring latency requires separating transport establishment, reverse proxy queuing, and application execution.",
-    "Why": "Understanding the full HTTPS lifecycle separates network transport bottlenecks, reverse proxy buffering, and ASGI event loop execution, ensuring telemetry accurately isolates user-visible latency.",
-    "Risk": "Server-only handler telemetry ignores DNS resolution delays, TLS negotiation overhead, and proxy queuing times, masking severe network degradation experienced by end users.",
-    "Trade": "Terminating TLS at an edge reverse proxy offloads cryptographic compute from Python ASGI workers, but requires secure internal network isolation between the proxy and application servers.",
-    "Try": "Use curl -w with timing variables (time_namelookup, time_connect, time_appconnect, time_starttransfer, time_total) against a FastAPI endpoint to dissect latency across DNS, TCP, TLS, and server processing.",
+    "A": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target. Intermediaries may route or cache it before the application validates identity, input and authorization. Separate network establishment, server processing and response consumption when measuring latency; their failures imply different recovery decisions.\n\nEngineering case: A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.\n\nReasoning under a changed assumption: No. TLS protects and authenticates the transport endpoint. Application identity and object-level permission checks remain independent.",
+    "Why": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target. Intermediaries may route or cache it before the application validates identity, input and authorization. Separate network establishment, server processing and response consumption when measuring latency; their failures imply different recovery decisions.",
+    "Risk": "A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.",
+    "Trade": "No. TLS protects and authenticates the transport endpoint. Application identity and object-level permission checks remain independent.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "backend",
     "subdomain": "web-foundations",
     "module": "web-foundations",
     "concept": "Trace an HTTPS request from a browser address to an application response.",
     "difficulty": "interview",
-    "misconception_target": "Missing the stated request lifecycle boundary: A slow request spends most of its time establishing a connection, while the application handler\u2019s timing is short. Server-only telemetry misses the user-visible wait.",
+    "misconception_target": "Missing the stated request lifecycle boundary: A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.",
     "definitions": [
       {
         "term": "Request lifecycle",
         "definition": "The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
-      "code": "{\n  \"case\": \"A slow request spends most of its time establishing a connection, while the application handler\u2019s timing is short. Server-only telemetry misses the user-visible wait.\",\n  \"decision\": \"The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "code": "{\n  \"case\": \"A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.\",\n  \"decision\": \"The browser resolves an address, establishes transport, authenticates the server through TLS, and sends an HTTP request for an origin and target\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
-    "production_case": "A slow request spends most of its time establishing a connection, while the application handler\u2019s timing is short. Server-only telemetry misses the user-visible wait.",
+    "production_case": "A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait.",
     "alternatives": [
       "No. TLS protects and authenticates the transport endpoint. Application identity and object-level permission checks remain independent."
     ],
     "pitfalls": [
-      "A slow request spends most of its time establishing a connection, while the application handler\u2019s timing is short. Server-only telemetry misses the user-visible wait."
+      "A slow request spends most of its time establishing a connection, while the application handler’s timing is short. Server-only telemetry misses the user-visible wait."
     ],
     "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
     "follow_ups": [
@@ -47,17 +47,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "How do safe methods, idempotent methods and an application operation key differ?",
     "spoken": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request. An operation key lets an application bind a logical mutation to stable content. HTTP method semantics do not prove that a particular implementation is safe, and a key must reject changed content rather than merge unrelated requests.",
-    "A": "RFC 9110 establishes fundamental architectural contracts governing HTTP method safety and idempotence. A method is safe if its semantic intent is strictly read-only and does not alter server state. GET, HEAD, and OPTIONS are safe methods; web browsers, CDNs, and search indexers assume safe requests can be called repeatedly, aggressively cached, and prefetched without side effects. In contrast, idempotence defines the intended effect of multiple identical requests on the underlying system state: an HTTP method is idempotent if the side-effects of N identical requests are exactly the same as a single request. PUT, DELETE, GET, and HEAD are idempotent; POST and PATCH are not.\n\nIn production API engineering, relying on HTTP methods alone does not guarantee idempotence in the presence of network failures. For example, a POST request creating an AI generation job or charging a customer may execute successfully on the backend, but a network disconnect or client timeout before receiving the response causes the client to retry the POST, resulting in duplicate charges or duplicate background tasks.\n\nTo achieve robust idempotence for non-idempotent operations, production systems require an application-level Idempotency Key (e.g., Idempotency-Key: <UUID> passed in request headers). In a FastAPI service, an idempotency middleware intercepts incoming mutations, computes a SHA-256 fingerprint of the request payload, and attempts an atomic lock in Redis via SETNX with an expiration time. If the key exists with an identical payload hash, the server returns the cached response without re-executing business logic; if the key exists but the payload differs, it returns a 422/409 conflict, preventing payload mutation hijacking.",
-    "Why": "Safety protects against state changes during read operations; idempotence guarantees identical state under repeated executions. Operation keys bind non-idempotent POST mutations to deterministic execution ledgers.",
-    "Risk": "Performing mutations inside GET requests exposes endpoints to browser prefetching and web crawler triggers, causing unintended state modifications and data corruption.",
-    "Trade": "Implementing idempotency keys requires distributed state storage (Redis/PostgreSQL) and payload fingerprinting, adding microsecond latency to guarantee zero duplicate side-effects under network retries.",
-    "Try": "Send two identical POST requests with the same Idempotency-Key to a FastAPI endpoint; verify that the first creates the resource and the second returns the cached response without running the database insert.",
+    "A": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request. An operation key lets an application bind a logical mutation to stable content. HTTP method semantics do not prove that a particular implementation is safe, and a key must reject changed content rather than merge unrelated requests.\n\nEngineering case: A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.\n\nReasoning under a changed assumption: That violates the expected safe-method contract and exposes the action to caches, prefetching and automated traversal. Use an explicit authorized mutation contract.",
+    "Why": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request. An operation key lets an application bind a logical mutation to stable content. HTTP method semantics do not prove that a particular implementation is safe, and a key must reject changed content rather than merge unrelated requests.",
+    "Risk": "A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.",
+    "Trade": "That violates the expected safe-method contract and exposes the action to caches, prefetching and automated traversal. Use an explicit authorized mutation contract.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "backend",
     "subdomain": "web-foundations",
     "module": "web-foundations",
@@ -70,10 +70,10 @@
         "definition": "Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.\",\n  \"decision\": \"Safety concerns whether the method is intended to change server state; idempotence concerns the intended effect of repeating a request\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A POST creates a task but its response is lost. Repeating with the original key and matching payload returns the same logical task.",
@@ -98,17 +98,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "When should an API distinguish invalid input, unauthenticated access and missing records?",
     "spoken": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies. The exact status choices must match the API policy, including whether to conceal cross-owner record existence. Stable machine-readable error codes let the client react without scraping prose or exposing internal diagnostics.",
-    "A": "A defensive, production-grade REST API must maintain strict separation between validation, authentication, authorization, and resource existence, expressing errors through standard HTTP status codes and RFC 9457 Problem Details JSON schemas.\n\n1. Invalid Input (422 Unprocessable Entity or 400 Bad Request): Emitted when the request structure or semantic contents violate API contracts (e.g., invalid data types, missing required fields, or values out of bounds). In FastAPI, Pydantic V2 automatically intercepts malformed inputs before reaching route handlers, returning a structured JSON payload containing exact field paths and error messages.\n\n2. Unauthenticated Access (401 Unauthorized): Emitted when the client fails to provide valid identity credentials (missing, expired, or cryptographically invalid bearer tokens). The response MUST include a WWW-Authenticate header (e.g., WWW-Authenticate: Bearer error=invalid_token) instructing the client how to authenticate.\n\n3. Authorization Failure (403 Forbidden): Emitted when the client possesses valid credentials, but their authenticated principal lacks the required roles, scopes, or tenant ownership to access the resource.\n\n4. Missing Records (404 Not Found): Emitted when the requested URI does not map to an existing entity. Crucially, in multi-tenant architectures, returning 403 when user Alice accesses an object belonging to tenant Bob reveals that the record exists, exposing the API to Insecure Direct Object Reference (IDOR) enumeration attacks. High-security APIs must deliberately return 404 Not Found for cross-tenant requests, completely concealing resource existence while recording the security boundary violation in internal audit logs.",
-    "Why": "Separating 400/422, 401, 403, and 404 prevents client scraping of ambiguous error prose, prevents ambient credential confusion, and protects against unauthorized resource enumeration.",
-    "Risk": "Returning 200 OK with an internal error string or returning 403 on cross-tenant records leaks resource existence and breaks automated client retry/re-authentication logic.",
-    "Trade": "Returning 404 instead of 403 for unauthorized resources prevents enumeration attacks but makes client-side debugging slightly more opaque, requiring internal correlation IDs for troubleshooting.",
-    "Try": "Test an endpoint with missing Authorization headers (expect 401), malformed JSON payloads (expect 422), valid credentials for an unowned tenant ID (expect 404), and a non-existent UUID (expect 404).",
+    "A": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies. The exact status choices must match the API policy, including whether to conceal cross-owner record existence. Stable machine-readable error codes let the client react without scraping prose or exposing internal diagnostics.\n\nEngineering case: An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.\n\nReasoning under a changed assumption: No. Preserve useful internal correlation and diagnostics without returning secrets, private values or unnecessary implementation details.",
+    "Why": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies. The exact status choices must match the API policy, including whether to conceal cross-owner record existence. Stable machine-readable error codes let the client react without scraping prose or exposing internal diagnostics.",
+    "Risk": "An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.",
+    "Trade": "No. Preserve useful internal correlation and diagnostics without returning secrets, private values or unnecessary implementation details.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "backend",
     "subdomain": "web-foundations",
     "module": "web-foundations",
@@ -121,10 +121,10 @@
         "definition": "Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.\",\n  \"decision\": \"Use a documented error contract separating malformed input, absent or invalid authentication, authorization failure and unavailable dependencies\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "An API reports every problem as 200 with a message string. The browser treats an authentication failure as a successful empty answer.",
@@ -149,17 +149,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "Why is CORS not authentication or a server-to-server access control system?",
     "spoken": "CORS is a browser policy governing which origins may read certain cross-origin responses. Non-browser clients do not enforce it. Authenticate and authorize the request on the server regardless of Origin. A preflight is a browser permission check for a request shape, not proof that its eventual caller owns the target object.",
-    "A": "Cross-Origin Resource Sharing (CORS) is strictly a browser-enforced security mechanism designed to protect users by restricting how scripts running in a browser origin can read responses fetched from a different origin. Because browsers automatically attach ambient credentials (such as cookies and HTTP Basic Auth) to cross-origin requests, the browser blocks client-side JavaScript from reading cross-origin response bodies unless the target server explicitly includes permitted Access-Control-Allow-Origin response headers.\n\nA critical and pervasive security misconception is assuming CORS protects an API against unauthorized server-to-server calls, scraping, or direct malicious attacks. Non-browser HTTP clients\u2014including cURL, Postman, Python requests/httpx, mobile native apps, and automated attack scripts\u2014do not enforce the browser Same-Origin Policy. They completely ignore CORS response headers and can transmit arbitrary Origin headers or omit them entirely. If an API relies on a CORS allowlist as its access control boundary, any attacker can query the endpoints directly from a script without restriction.\n\nFurthermore, preflight OPTIONS requests are sent by browsers to verify whether a complex cross-origin request (e.g., containing custom headers like Authorization or methods like PUT/DELETE) is safe to transmit. In FastAPI, CORSMiddleware responds to preflight checks based on configured allow_origins. However, configuring Access-Control-Allow-Origin: * while setting allow_credentials: true is strictly prohibited by browser standards and insecure. Backend APIs must implement zero-trust cryptographic authentication (JWT bearer tokens, API keys) on every route, treating CORS purely as a browser client enablement policy.",
-    "Why": "CORS is a browser-only sandbox rule protecting users against malicious cross-origin script reads; non-browser clients and automated scripts do not enforce CORS and can query the API directly.",
-    "Risk": "Relying on CORS allowlists for access control leaves backend APIs completely unprotected against unauthorized command-line, mobile, or server-to-server access.",
-    "Trade": "Restricting CORS to exact trusted origins prevents cross-origin data leakage in web browsers, but requires maintaining dynamic origin lists across development, staging, and production environments.",
-    "Try": "Query a CORS-restricted FastAPI endpoint using a web browser from an unlisted origin (request blocked by browser), then issue the exact same request using curl to verify that the server executes the call without browser enforcement.",
+    "A": "CORS is a browser policy governing which origins may read certain cross-origin responses. Non-browser clients do not enforce it. Authenticate and authorize the request on the server regardless of Origin. A preflight is a browser permission check for a request shape, not proof that its eventual caller owns the target object.\n\nEngineering case: A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.\n\nReasoning under a changed assumption: No. Cookies can be attached automatically under their rules and some cross-origin requests can be sent without a preflight. Apply an explicit cookie and CSRF threat model.",
+    "Why": "CORS is a browser policy governing which origins may read certain cross-origin responses. Non-browser clients do not enforce it. Authenticate and authorize the request on the server regardless of Origin. A preflight is a browser permission check for a request shape, not proof that its eventual caller owns the target object.",
+    "Risk": "A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.",
+    "Trade": "No. Cookies can be attached automatically under their rules and some cross-origin requests can be sent without a preflight. Apply an explicit cookie and CSRF threat model.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "backend",
     "subdomain": "web-foundations",
     "module": "web-foundations",
@@ -172,10 +172,10 @@
         "definition": "CORS is a browser policy governing which origins may read certain cross-origin responses."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.\",\n  \"decision\": \"CORS is a browser policy governing which origins may read certain cross-origin responses\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A backend accepts any bearerless request because its CORS allowlist includes only the official website. A command-line client can still call it directly.",
@@ -200,47 +200,47 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "How do cookie sessions and browser-held bearer tokens create different risks?",
     "spoken": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes. JavaScript-held bearer tokens can be stolen by successful script injection. Both approaches need expiry, server verification, object authorization and invalidation of user-scoped caches on identity changes.",
-    "A": "Session cookies and browser-stored JWT bearer tokens represent contrasting architectural trust boundaries with opposing vulnerabilities to Cross-Site Scripting (XSS) and Cross-Site Request Forgery (CSRF).\n\nWhen authentication uses HTTP cookies configured with HttpOnly, Secure, and SameSite attributes, browser JavaScript cannot read the token value via document.cookie. This provides robust protection against credential exfiltration: even if an attacker successfully executes an XSS vulnerability, they cannot directly extract the user session secret. However, because browsers automatically attach cookies to every outbound HTTP request matching the domain, cookie authentication is inherently susceptible to CSRF: a malicious third-party site can trick the victim browser into submitting unauthorized state-changing requests. Mitigating CSRF requires enforcing SameSite=Lax/Strict, validating Origin/Referer headers, or requiring custom anti-CSRF headers (e.g., X-CSRF-Token).\n\nConversely, when an SPA stores bearer tokens in localStorage or sessionStorage and injects them into request headers (Authorization: Bearer <token>), CSRF is completely eliminated because browsers never attach storage tokens automatically. However, localStorage has no security boundary against JavaScript: any successful XSS exploit or compromised third-party npm script can instantly read and exfiltrate all stored tokens. Furthermore, SPAs often fail to invalidate in-flight network requests or local caches upon sign-out, leading to cross-session data leakage where a newly signed-in user views cached responses from a previous account. Production architectures favor partitioned HttpOnly; Secure cookies or short-lived in-memory tokens refreshed via secure cookies.",
-    "Why": "HttpOnly cookies protect credentials from XSS exfiltration but require CSRF defenses; localStorage bearer tokens eliminate CSRF but expose authentication secrets directly to any XSS vulnerability.",
-    "Risk": "Storing long-lived JWTs in browser localStorage allows any injected script to permanently steal user identities; using cookies without SameSite or CSRF tokens permits cross-site request forgery.",
-    "Trade": "HttpOnly cookies provide superior credential protection for web SPAs, whereas bearer tokens in headers provide seamless cross-platform support for native mobile apps and server-to-server APIs.",
-    "Try": "Set a session cookie with HttpOnly in FastAPI and attempt to read it in JavaScript via document.cookie (returns empty string); contrast with localStorage.setItem and observe its readability by any client script.",
+    "A": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes. JavaScript-held bearer tokens can be stolen by successful script injection. Both approaches need expiry, server verification, object authorization and invalidation of user-scoped caches on identity changes.\n\nEngineering case: After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.\n\nReasoning under a changed assumption: No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data.",
+    "Why": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes. JavaScript-held bearer tokens can be stolen by successful script injection. Both approaches need expiry, server verification, object authorization and invalidation of user-scoped caches on identity changes.",
+    "Risk": "After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.",
+    "Trade": "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "backend",
     "subdomain": "web-foundations",
     "module": "web-foundations",
     "concept": "How do cookie sessions and browser-held bearer tokens create different risks?",
     "difficulty": "interview",
-    "misconception_target": "Missing the stated session authority boundary: After logout, a pending request from the previous user writes private text into the newly signed-in user\u2019s screen.",
+    "misconception_target": "Missing the stated session authority boundary: After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.",
     "definitions": [
       {
         "term": "Session authority",
         "definition": "A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
-      "code": "{\n  \"case\": \"After logout, a pending request from the previous user writes private text into the newly signed-in user\u2019s screen.\",\n  \"decision\": \"A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "code": "{\n  \"case\": \"After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.\",\n  \"decision\": \"A session cookie can be HttpOnly so ordinary JavaScript cannot read its value, but browser-attached credentials require a CSRF policy and appropriate cookie attributes\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
-    "production_case": "After logout, a pending request from the previous user writes private text into the newly signed-in user\u2019s screen.",
+    "production_case": "After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen.",
     "alternatives": [
-      "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user\u2019s data."
+      "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data."
     ],
     "pitfalls": [
-      "After logout, a pending request from the previous user writes private text into the newly signed-in user\u2019s screen."
+      "After logout, a pending request from the previous user writes private text into the newly signed-in user’s screen."
     ],
     "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
     "follow_ups": [
       {
         "Q": "Is clearing local storage a complete logout design?",
-        "A": "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user\u2019s data."
+        "A": "No. Consider server session or token revocation policy, in-flight operations, shared caches and every retained representation of the old user’s data."
       }
     ],
     "citations": [
@@ -251,17 +251,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "What makes API pagination stable while records are being inserted?",
     "spoken": "Offset pagination can shift under concurrent inserts and deletes. A cursor can encode a stable ordering boundary such as created_at plus a unique ID, but still needs declared consistency and filtering semantics. Apply caller scope before selecting the page and bind cursors to their query contract. Avoid treating an opaque cursor as permission.",
-    "A": "API pagination stability under concurrent writes depends on whether the pagination contract is based on relative record offsets or absolute keyset continuation boundaries.\n\nTraditional offset-limit pagination (e.g., SELECT * FROM items ORDER BY created_at DESC LIMIT 20 OFFSET 40) exhibits two fatal defects in production:\n1. Performance degradation: For deep pages (e.g., OFFSET 100000), the relational database must scan and discard 100,000 index tuples before returning 20 rows, consuming excessive I/O and CPU memory.\n2. Pagination drift: If new records are inserted while a user navigates between page 1 and page 2, the newly added rows push existing items downward across page boundaries. When the user requests page 2, they observe duplicate records already seen on page 1. Conversely, if records are deleted, items are skipped entirely.\n\nKeyset pagination (cursor-based pagination) achieves true stability and high performance by eliminating OFFSET. The client requests data relative to the last observed item using an immutable, index-backed composite key: WHERE (created_at, id) < (cursor_created_at, cursor_id) ORDER BY created_at DESC, id DESC LIMIT 20. The database executes an immediate O(1) B-tree index seek directly to the continuation point, completely unaffected by preceding insertions or deletions.\n\nIn a production FastAPI service, the backend encodes the composite sort keys and an HMAC signature into an opaque base64 cursor string returned in the response payload. The client presents this cursor without parsing its internals, ensuring seamless infinite scrolling and stable pagination across concurrent database writes.",
-    "Why": "Offset pagination scans and discards preceding rows (O(N)) and causes records to duplicate or vanish under real-time writes. Keyset pagination performs an O(1) B-tree seek at an immutable continuation boundary.",
-    "Risk": "Using offset pagination in real-time or high-volume feeds causes users to miss critical incoming records or process duplicate transactions during batch processing.",
-    "Trade": "Keyset pagination provides stable, fast O(1) queries but prevents jumping directly to arbitrary page numbers (e.g., Jump to Page 500) and requires strict compound indexing on the sort keys.",
-    "Try": "Insert 10 rows into an offset-paginated table between fetching page 1 and page 2 to observe duplicate rows; repeat using keyset pagination with (created_at, id) to verify zero duplication.",
+    "A": "Offset pagination can shift under concurrent inserts and deletes. A cursor can encode a stable ordering boundary such as created_at plus a unique ID, but still needs declared consistency and filtering semantics. Apply caller scope before selecting the page and bind cursors to their query contract. Avoid treating an opaque cursor as permission.\n\nEngineering case: An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.\n\nReasoning under a changed assumption: No. A cursor identifies a continuation boundary. Snapshot consistency requires additional storage or transaction semantics and a defined lifetime.",
+    "Why": "Offset pagination can shift under concurrent inserts and deletes. A cursor can encode a stable ordering boundary such as created_at plus a unique ID, but still needs declared consistency and filtering semantics. Apply caller scope before selecting the page and bind cursors to their query contract. Avoid treating an opaque cursor as permission.",
+    "Risk": "An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.",
+    "Trade": "No. A cursor identifies a continuation boundary. Snapshot consistency requires additional storage or transaction semantics and a defined lifetime.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "backend",
     "subdomain": "web-foundations",
     "module": "web-foundations",
@@ -274,10 +274,10 @@
         "definition": "Offset pagination can shift under concurrent inserts and deletes."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.\",\n  \"decision\": \"Offset pagination can shift under concurrent inserts and deletes\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "An infinite-scroll page uses timestamp alone. Two rows share the same timestamp and one disappears between pages.",
@@ -302,17 +302,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "Which API failures can be retried safely and within what budget?",
     "spoken": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget. A rate-limit response may supply retry guidance, while invalid input or permission denial usually requires a changed decision. Backoff and jitter reduce synchronized retry pressure but do not resolve uncertain commits.",
-    "A": "A resilient distributed client-server architecture must establish a rigorous, deterministic retry policy that categorizes API failures into transient retryable conditions versus permanent terminal errors.\n\nNon-retryable errors MUST NEVER be retried without modified caller input:\n- Client validation errors (400 Bad Request, 422 Unprocessable Entity): the payload violates API schemas; retrying identical bytes will deterministically fail.\n- Authentication/Authorization rejections (401 Unauthorized, 403 Forbidden): credentials or permissions are invalid; retrying consumes server resources without altering authorization state.\n- Resource absence (404 Not Found, 410 Gone): the target does not exist.\n\nRetryable errors represent transient infrastructure or capacity disruptions:\n- Rate limits (429 Too Many Requests): retrying is permitted strictly after respecting the server-provided Retry-After header.\n- Server and gateway errors (502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout): upstream services or worker pools are temporarily overloaded.\n- Network transport errors (TCP connection resets, DNS timeouts, socket disconnects).\n\nCrucially, retries must only be executed on safe/idempotent HTTP methods (GET, PUT, DELETE) or POST requests accompanied by an Idempotency-Key. Retrying a non-idempotent POST following a socket timeout risks executing duplicate mutations if the server processed the write before the network dropped. Furthermore, clients must implement exponential backoff with full jitter (t = uniform(0, base * 2^attempt)) to avoid synchronized retry storms that crush recovering servers, enforce an overall end-to-end deadline timeout, and trip circuit breakers after consecutive failures.",
-    "Why": "Retrying non-idempotent or client-error requests causes duplicate transactions and wastes resources, while un-jittered retries create thundering-herd storms that prevent service recovery.",
-    "Risk": "Blindly retrying timed-out POST mutations without idempotency keys creates duplicate payment charges, duplicate AI generations, and saturates backend database connection pools.",
-    "Trade": "Exponential backoff with full jitter prevents thundering herds and maximizes recovery probability, but increases worst-case response latency for end users during transient outages.",
-    "Try": "Simulate 503 and 422 responses in a client retry loop; assert that 422 terminates immediately on attempt 1 while 503 retries with jittered exponential backoff up to a maximum attempt budget.",
+    "A": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget. A rate-limit response may supply retry guidance, while invalid input or permission denial usually requires a changed decision. Backoff and jitter reduce synchronized retry pressure but do not resolve uncertain commits.\n\nEngineering case: A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.\n\nReasoning under a changed assumption: Use the original operation key and an authoritative status or receipt. A timeout alone cannot identify whether the effect happened.",
+    "Why": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget. A rate-limit response may supply retry guidance, while invalid input or permission denial usually requires a changed decision. Backoff and jitter reduce synchronized retry pressure but do not resolve uncertain commits.",
+    "Risk": "A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.",
+    "Trade": "Use the original operation key and an authoritative status or receipt. A timeout alone cannot identify whether the effect happened.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "backend",
     "subdomain": "web-foundations",
     "module": "web-foundations",
@@ -325,10 +325,10 @@
         "definition": "Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.\",\n  \"decision\": \"Retry only under a policy that considers method/effect identity, failure class, remaining deadline and attempt budget\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A client retries an unauthorized write five times, spending resources while never changing the credential or ownership condition.",
@@ -353,7 +353,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]

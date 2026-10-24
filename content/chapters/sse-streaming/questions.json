@@ -29,110 +29,74 @@
   },
   {
     "Q": "How is an SSE message framed?",
-    "A": "Server-Sent Events (SSE) specify a lightweight, text-based transport protocol standardized by WHATWG for streaming unidirectional events over persistent HTTP connections. The wire format consists of UTF-8 encoded text lines terminated by standard carriage return and newline delimiters (\\n or \\r\\n). A valid SSE frame contains four standardized field prefixes:\n- event: <type> (defines the semantic event name dispatched to named client event listeners)\n- data: <payload> (contains the message payload; multiple consecutive data lines are concatenated with newline characters by the client parser)\n- id: <identifier> (assigns a unique, monotonically increasing cursor used for stream resumption)\n- retry: <milliseconds> (instructs client reconnection timers)\n\nCrucially, an individual SSE event is dispatched ONLY upon encountering two consecutive newline delimiters (\\n\\n). This blank line serves as the atomic frame boundary. In production streaming architectures, network transport packets (TCP segments and TLS application data records) do not align with event boundaries: a single network chunk delivered to the browser or client socket may terminate in the middle of a multi-byte UTF-8 character, split a JSON payload in half, or bundle three complete events together.\n\nA resilient client cannot naively execute JSON.parse() on raw chunk buffers. The receiver must maintain an incremental streaming decoder (such as TextDecoder with stream: true), accumulate incoming characters into an internal line buffer, split exclusively on complete line endings, and dispatch the concatenated data payload only when the double-newline delimiter is reached. Enforcing maximum line and frame size limits protects the client from memory exhaustion if a misconfigured server fails to emit frame delimiters.",
-    "Why": "Network chunks do not correspond to semantic event boundaries. Double-newline delimiters (\\n\\n) define atomic frames, requiring incremental streaming decoders to prevent JSON parsing crashes on fragmented packets.",
-    "Risk": "Attempting to parse each network chunk as an independent JSON payload causes syntax errors whenever token strings or multi-byte characters split across TCP buffer boundaries.",
-    "Trade": "Maintaining a line-buffering parser introduces minimal memory overhead while guaranteeing bulletproof reconstruction of chunked streaming data.",
-    "Try": "Feed an SSE string containing multi-byte characters (e.g. emojis or non-ASCII text) chunked arbitrarily byte-by-byte into a streaming parser to verify that complete events are reconstructed without encoding corruption.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "An event consists of text fields followed by a blank line. Data may span multiple data lines, which the receiver combines according to SSE rules. Network chunks do not align with event boundaries.",
+    "Why": "Decode UTF-8 incrementally, accumulate lines, and dispatch only at the event delimiter. Normalize supported line endings and impose limits.",
+    "Risk": "Parsing each received chunk as JSON fails when characters or messages split across chunks.",
+    "Trade": "Correct incremental parsing adds state and avoids intermittent corruption.",
+    "Try": "Split a Unicode event at every byte boundary and verify equivalent decoding."
   },
   {
     "Q": "How should EventSource and fetch streaming be compared?",
-    "A": "When building browser interfaces for AI streaming, engineering teams must evaluate the architectural trade-offs between the native browser EventSource API and modern fetch streaming with ReadableStream:\n\n1. Native Browser EventSource: Provides out-of-the-box SSE parsing, automatic exponential backoff reconnection, and built-in cursor tracking (automatically transmitting the Last-Event-ID header upon reconnecting). However, EventSource possesses severe architectural limitations for modern web applications: it strictly supports only HTTP GET requests and cannot transmit a request body; it provides no API to pass custom HTTP request headers (such as Authorization: Bearer <JWT>); and it offers zero programmatic control over retry policies. Passing authentication tokens via URL query parameters (/api/stream?token=xyz) introduces severe security vulnerabilities, as tokens become permanently stored in browser history, proxy access logs, and referrer headers.\n\n2. Fetch with ReadableStream: Invoking window.fetch() allows full control over the HTTP request: clients can issue HTTP POST requests carrying structured prompt and configuration bodies, inject Authorization headers, enforce tenant boundaries, and configure custom timeout policies. Furthermore, fetch integrates natively with AbortController, allowing immediate client-side stream termination when a user cancels generation.\n\nHowever, fetch does not provide native SSE parsing or automated reconnection: developers must manually read chunks via response.body.getReader(), decode UTF-8 streams using TextDecoderStream, buffer lines to identify \\n\\n frame boundaries, and implement custom reconnection loops with Last-Event-ID tracking. For production AI applications using FastAPI and React, fetch streaming is the industry standard, encapsulated inside robust custom React hooks.",
-    "Why": "EventSource handles reconnection and framing natively but is restricted to GET and cannot send custom headers. Fetch supports POST, custom headers, and AbortController, but requires application-level stream parsing.",
-    "Risk": "Using EventSource for authenticated endpoints forces developers to pass bearer tokens in URL query strings, leaking sensitive credentials into server access logs, CDNs, and browser history.",
-    "Trade": "Fetch streaming requires implementing client-side framing and reconnection logic, but provides full architectural control over authentication, payloads, and cancellation.",
-    "Try": "Implement an SSE stream consumer using fetch with response.body.getReader() and TextDecoder; pass an Authorization bearer header in POST body and handle stream termination via AbortController.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "Browser EventSource handles an SSE GET connection and reconnection behavior. Fetch streaming gives control over methods, headers, and request bodies but requires application parsing and retry logic.",
+    "Why": "Choose based on authentication, request semantics, and resume requirements. Do not assume EventSource accepts arbitrary authorization headers.",
+    "Risk": "Putting bearer tokens in query parameters can expose them in logs and history.",
+    "Trade": "Fetch offers flexibility while EventSource supplies useful protocol behavior.",
+    "Try": "Design a cookie-authenticated EventSource flow and a header-authenticated fetch flow."
   },
   {
     "Q": "What should a public AI event schema contain?",
-    "A": "A production-grade AI streaming API must establish a stable, strongly typed public event schema that decouples internal model generation quirks from client user-interface state. Rather than streaming unadorned text fragments, the server must emit discriminated event objects containing explicit envelope metadata:\n- schema_version: String identifying contract version (e.g., '1.0') to permit safe schema evolution.\n- task_id / session_id: Immutable correlation identifiers binding events to specific generation tasks.\n- sequence: Monotonically increasing integer (0, 1, 2, ...) enabling clients to detect dropped or reordered events.\n- timestamp: ISO 8601 UTC timestamp recording event generation.\n- event: Discriminated string identifier defining the event category.\n- payload: Strictly typed JSON data matching the event schema.\n\nProduction AI systems must support a standardized event taxonomy:\n1. token_delta: Incremental text fragments appended to the active answer display.\n2. reasoning_delta: Internal chain-of-thought or planning tokens routed to collapsible thought blocks, keeping them distinct from authoritative answer text.\n3. tool_call_start and tool_call_result: Structured tool execution payloads (tool name, arguments, execution status, and returned data), allowing the UI to render interactive tool execution spinners and status indicators.\n4. citation: Verified source references (document ID, passage title, snippet text, and relevance score) emitted as soon as retrieval resolves.\n5. terminal events (done or error): Final payloads conveying token usage metrics, finish reasons (e.g., stop, length, content_filter), or structured error details.\n\nIn React frontend architectures, an event reducer processes this stream into a structured conversation state machine, completely preventing raw tool payloads from leaking into user-visible answer markdown.",
-    "Why": "A typed envelope separating text deltas, reasoning steps, tool calls, and citations prevents raw backend internals from polluting visible text and enables rich interactive UI state machines.",
-    "Risk": "Streaming raw LLM provider tokens directly to the frontend binds client rendering to provider-specific formats, making model migrations breaking changes and leaking internal tool calls.",
-    "Trade": "Transforming model events through an adapter schema adds minor server serialization latency, but isolates frontend clients from third-party provider churn and breaking API changes.",
-    "Try": "Design a discriminated JSON event schema with token_delta, tool_call, and citation events; write a TypeScript reducer that updates separate text, tool status, and citation arrays from the stream.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "Include schema version, task ID, ordered sequence, event type, and typed payload. Distinguish text deltas, tool activity, final results, recoverable notices, and terminal errors.",
+    "Why": "Convert provider events through an adapter. The UI should reduce these events into explicit states rather than concatenate every payload into answer text.",
+    "Risk": "Provider-internal messages can leak private arguments or confuse partial output with completion.",
+    "Trade": "Stable schemas add adapter maintenance and protect the UI from provider churn.",
+    "Try": "Document how a tool error changes state differently from an answer delta."
   },
   {
     "Q": "How should reconnection and replay work?",
-    "A": "Streaming connections over mobile networks and distributed internet routes are inherently vulnerable to transient network drops, Wi-Fi handoffs, and client socket resets. Building resilient streaming architectures requires establishing a deterministic reconnection and replay protocol:\n\n1. Monotonic Event Identifiers: The backend server MUST assign a unique, sequentially increasing cursor to every emitted event via the SSE id field (e.g., id: req_123:42). The client maintains the highest observed event ID in local memory.\n\n2. Resumption Handshake: Upon detecting a connection drop, the client initiates a reconnection request to the FastAPI endpoint, presenting the last received sequence identifier via the standard Last-Event-ID HTTP request header (or an equivalent ?cursor= query parameter).\n\n3. Server-Side Ring Buffer and Replay: The backend maintains an in-memory ring buffer or Redis sorted set (keyed by task ID with an expiration TTL, e.g., 60 seconds) storing recent event envelopes. Upon receiving Last-Event-ID: req_123:42, the server re-authenticates the client, verifies session ownership, retrieves all events with sequence numbers greater than 42, and immediately streams the missed events before resuming live token generation.\n\n4. Recovery from Expired State: If the client reconnects after the server retention window has expired, the server must not silently stream partial text, which would produce a corrupt, fragmented answer. The server must return an explicit HTTP 410 Gone or a typed event: stream_expired event. Upon receiving this signal, the client discards its partial transcript and fetches the complete, authoritative message representation from the database.",
-    "Why": "Durable event IDs and server ring buffers allow clients to resume dropped streams without missing tokens, while explicit expiration boundaries prevent corrupt partial answers.",
-    "Risk": "Reconnecting without an explicit replay ledger causes missing tokens mid-sentence or causes duplicate tokens if the entire generation is naively re-executed from scratch.",
-    "Trade": "Maintaining server-side replay ring buffers in Redis adds memory infrastructure cost, but guarantees seamless stream resumption across mobile connection drops.",
-    "Try": "Implement an in-memory event buffer storing the last 20 events; disconnect a simulated client after event 5, reconnect with Last-Event-ID: 5, and verify that events 6 through 10 replay accurately.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "Give events durable sequence IDs and define a retention window. Resume from the last acknowledged or processed event, and deduplicate repeated sequence numbers.",
+    "Why": "If replay history expired, return a snapshot or a clear resume failure. Revalidate ownership on every connection.",
+    "Risk": "Reconnecting without a replay contract can lose events or duplicate displayed text.",
+    "Trade": "Durable event storage adds cost and enables recovery.",
+    "Try": "Disconnect after event seven and resume without repeating the final business operation."
   },
   {
     "Q": "How do heartbeats and proxy buffering affect streams?",
-    "A": "Deploying Server-Sent Events behind intermediate infrastructure\u2014such as reverse proxies (Nginx, Envoy, Traefik), load balancers (AWS ALB, Cloudflare), and corporate firewalls\u2014exposes two major networking pitfalls: proxy response buffering and connection timeout termination.\n\n1. Proxy Response Buffering: Reverse proxies standardly buffer backend HTTP response bytes in internal memory buffers (typically 4KB or 16KB) before flushing them to the downstream client to optimize TCP packet efficiency. In a streaming context, proxy buffering completely destroys real-time interactivity: the end user sees a frozen screen while the proxy buffers the first 50 tokens of LLM generation, followed by an abrupt burst of text when the buffer fills. To disable proxy buffering, the FastAPI backend MUST emit explicit response headers:\n- X-Accel-Buffering: no (instructs Nginx and compatible proxies to disable response buffering immediately)\n- Cache-Control: no-cache, no-transform (prevents CDN edge caches and proxies from compressing or delaying chunks)\n\n2. Connection Timeout Termination: Load balancers and proxies enforce idle connection timeouts (commonly 30 to 60 seconds). During complex AI workflows\u2014such as long multi-hop retrieval, extensive document reasoning, or slow initial model prefill\u2014the backend may produce zero output tokens for 20 seconds. An intermediate proxy observing zero network activity on the socket assumes the connection is dead and terminates it with a 504 Gateway Timeout.\n\nTo prevent idle timeouts, the backend generator must emit periodic SSE Heartbeat comments (e.g., :\\n\\n or event: ping\\ndata: {}\\n\\n) every 15 seconds. SSE clients silently ignore comment lines starting with a colon, keeping the TCP connection active without triggering UI updates.",
-    "Why": "X-Accel-Buffering: no prevents reverse proxies from holding tokens in memory buffers, while periodic heartbeat comments prevent gateway idle timeouts during long retrieval pauses.",
-    "Risk": "Without disabling proxy buffering, users experience severe initial latency followed by jarring text bursts; without heartbeats, proxies abruptly drop connections during slow model generation.",
-    "Trade": "Heartbeats consume negligible bandwidth but require backend async generators to interleave timer pings with token generation loops.",
-    "Try": "Deploy a FastAPI SSE endpoint behind an Nginx reverse proxy with and without X-Accel-Buffering: no; measure the latency to the first visible token on the client to observe buffer delays.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "Intermediaries may buffer output or close idle connections. Heartbeats can keep an otherwise idle stream active, but infrastructure behavior must be measured.",
+    "Why": "Use appropriate content type and cache policy, disable buffering where supported, and send bounded periodic comments. Check actual arrival times through the production proxy.",
+    "Risk": "Application flushes alone do not establish that the browser receives each event promptly.",
+    "Trade": "Frequent heartbeats consume connections and bandwidth.",
+    "Try": "Record server-send and browser-receive timestamps behind your actual ingress."
   },
   {
     "Q": "How should cancellation work with SSE?",
-    "A": "In production AI systems, user-initiated cancellation (clicking 'Stop Generating', closing a browser tab, or navigating to another page) must be treated as an end-to-end distributed cancellation workflow across both frontend presentation and backend compute resources:\n\n1. Client-Side Cancellation: Modern React applications initiate streaming requests using fetch coupled with an AbortController instance:\nconst controller = new AbortController();\nfetch('/api/generate', { signal: controller.signal, ... });\nWhen the user clicks 'Stop', the frontend invokes controller.abort(). The browser immediately terminates the HTTP transport connection, cancels the ReadableStream, and releases client memory buffers. The client UI catches the AbortError, transitions the active message state to 'Cancelled by user', and halts animation spinners.\n\n2. Backend Cancellation and Resource Reclamation: Client disconnection does NOT automatically stop backend execution in Python ASGI servers. If an async generator in FastAPI continues iterating without checking socket health, the server continues executing expensive LLM inference, calling external tool APIs, and consuming GPU tokens for an output that will be immediately discarded upon transmission.\n\nTo prevent zombie execution, the FastAPI streaming route must monitor the client connection state. In FastAPI / Starlette, the endpoint can check await request.is_disconnected() within the token generation loop, or rely on Uvicorn detecting the broken socket during an await response.write() call. Upon detecting client disconnection, the generator must raise asyncio.CancelledError, cancel any in-flight asynchronous tasks, and execute finally: cleanup blocks to roll back transactions and release database connections back to the pool.",
-    "Why": "Client cancellation via AbortController closes the browser connection; backend checking of request.is_disconnected() aborts GPU inference and database queries, preventing wasted compute.",
-    "Risk": "Failing to detect client disconnection on the backend leaves expensive LLM generation running as zombie tasks, rapidly exhausting GPU inference quotas and database connection pools.",
-    "Trade": "Checking is_disconnected() adds an asynchronous check to the generation loop, but protects infrastructure from resource exhaustion when users abandon queries.",
-    "Try": "Start a slow token generation in FastAPI; cancel the request from the client after 3 tokens and verify via backend logging that the generator loop immediately terminates and runs finally cleanup.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "Closing a stream should stop unnecessary generation according to product policy, while durable tasks may continue independently. Expose a task cancellation endpoint for explicit control.",
+    "Why": "Propagate cancellation to providers when supported and record the final task state. Preserve committed operation IDs for later lookup.",
+    "Risk": "A disconnected stream does not prove that external effects were cancelled.",
+    "Trade": "Separating task and stream lifetimes adds complexity and enables background completion.",
+    "Try": "Close the stream during a pending tool call and inspect the authoritative task status."
   },
   {
     "Q": "How should backpressure be handled?",
-    "A": "Backpressure manages throughput mismatches across distributed system boundaries where a producer generates data faster than a consumer can process it. In an AI streaming pipeline, backpressure must be maintained across two distinct boundaries:\n\n1. Server-to-Client Network Backpressure: High-throughput LLM engines or data pipelines can produce tokens at 150+ tokens per second. If the client is connected over a constrained mobile network (e.g., 3G with high packet loss), the client cannot ingest TCP packets as fast as the server produces them. Under standard operating system networking, outgoing bytes accumulate in the server's TCP socket send buffer. When the buffer fills, the operating system pauses the socket write. In Python asyncio and FastAPI, calling await response.write(chunk) suspends the coroutine until the socket buffer drains. This natural backpressure cascades back into the LLM inference loop, preventing the server from buffering unlimited token memory in RAM.\n\n2. Client-Side UI Thread Backpressure: In React applications, receiving 100 SSE token events per second and executing setMessage(prev => prev + token) on every event floods the React reconciliation engine with 100 state updates per second. This triggers continuous DOM layout recalculations and style reflows, causing the browser UI to stutter and drop frames (dropping below 60 FPS) and freezing user input boxes.\n\nTo handle UI backpressure, the React client must decouple stream ingestion from DOM rendering: incoming tokens are pushed immediately into an unobserved JavaScript buffer (e.g., a useRef array), while a throttled rendering loop flushes buffered text to React state at a controlled rate (e.g., once every 50ms or synchronized with requestAnimationFrame), ensuring smooth rendering without UI thread starvation.",
-    "Why": "Network backpressure suspends backend generation when TCP buffers fill, while client-side batching decouples fast token ingestion from 60 FPS DOM rendering to prevent UI thread lockup.",
-    "Risk": "Calling React state updates on every raw streaming token causes severe UI thread thrashing, dropped animation frames, and unresponsive user input controls during fast generation.",
-    "Trade": "Batching token updates in a 50ms buffer smooths UI rendering and reduces CPU utilization, but introduces a negligible 50ms visual delay on individual token arrivals.",
-    "Try": "Simulate receiving 200 tokens/sec in React; compare calling setState on every single token versus batching updates using requestAnimationFrame, profiling CPU main-thread time in browser devtools.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "Bound producer-to-writer queues and prevent slow clients from retaining unlimited memory. Decide which progress events can be coalesced and which terminal events must be retained.",
+    "Why": "Await writable capacity where the framework supports it, monitor queue depth, and disconnect consumers that cannot keep up under the contract.",
+    "Risk": "Dropping arbitrary text deltas corrupts the answer.",
+    "Trade": "Strong limits may disconnect slow clients and protect the server.",
+    "Try": "Simulate a client reading one event per second while the producer emits many more."
   },
   {
     "Q": "What should completion mean in an SSE stream?",
-    "A": "In streaming architectures, HTTP transport closure (End-of-File or socket EOF) MUST NEVER be treated as equivalent to successful business completion. An HTTP connection can terminate abruptly due to transient network dropouts, load balancer timeouts, server out-of-memory crashes, or intermediate gateway restarts. If an application assumes that connection termination implies completion, a truncated sentence ('Patient medication dosage should be 100') could be displayed as an authoritative final answer when the intended text was ('Patient medication dosage should be 100 micrograms, never milligrams').\n\nA robust streaming contract requires explicit terminal events:\n1. Successful Completion Event: The server emits an explicit terminal event (e.g., event: done or event: finish) containing comprehensive execution metadata:\ndata: {\"status\": \"completed\", \"finish_reason\": \"stop\", \"total_tokens\": 412, \"model\": \"gemini-1.5-pro\"}\\n\\n\nOnly upon receiving and parsing this explicit terminal frame does the client transition the conversation state from 'streaming' to 'completed', enabling copy/share buttons and caching the final answer.\n\n2. Explicit Error Event: If an unhandled exception or policy violation occurs mid-stream (e.g., content safety filter triggered after 20 tokens), the server emits an explicit error event:\ndata: {\"status\": \"error\", \"code\": \"CONTENT_SAFETY_TRIGGERED\", \"message\": \"Generation halted due to policy.\"}\\n\\n\nThe client renders an error callout and clearly marks the answer as incomplete.\n\n3. Abrupt Disconnect Detection: If the network socket closes without receiving either a done or error event, the client must treat the stream as an incomplete failure, displaying an honest warning banner ('Stream interrupted unexpectedly') with a retry button rather than presenting partial text as definitive.",
-    "Why": "Socket EOF can occur due to crashes or network drops. Requiring an explicit terminal event (done) with completion metadata prevents truncated text from being mistaken for valid answers.",
-    "Risk": "Treating abrupt socket disconnects as successful completion presents dangerous partial text (e.g. truncated medical or financial advice) as authoritative answers.",
-    "Trade": "Requiring explicit terminal frames adds envelope overhead, but guarantees system integrity and provides necessary token usage accounting for billing and telemetry.",
-    "Try": "Sever an SSE stream mid-sentence before emitting the done event; verify that the client UI flags the message as interrupted rather than displaying a completed state.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "A completion event should identify the persisted result or authoritative final task state. A finished model token sequence is not necessarily a completed application operation.",
+    "Why": "Persist the final record before emitting completion and support owner-scoped result retrieval after disconnect.",
+    "Risk": "A crash after sending done but before commit creates a false success.",
+    "Trade": "Persist-before-complete adds final latency and strengthens recovery.",
+    "Try": "Crash at the completion boundary and verify the UI can recover from the result endpoint."
   },
   {
     "Q": "How should SSE be tested?",
-    "A": "Comprehensive testing of Server-Sent Events requires a multi-layered testing strategy that exercises stream framing, async concurrency, failure injection, and client UI reconciliation:\n\n1. Unit Testing Stream Parsers: The client-side SSE parsing engine must be tested against hostile wire-level edge cases:\n- Token fragmentation: slicing valid events into arbitrary 1-byte, 2-byte, and 5-byte chunks to verify that multi-byte UTF-8 sequences and JSON payloads reconstruct perfectly.\n- Multi-event packing: concatenating three complete events into a single read chunk to ensure all three dispatch independently in order.\n- Malformed inputs: verifying that lines lacking valid prefixes or containing corrupt JSON are rejected or ignored without crashing the parser.\n\n2. Backend Route Integration Testing: In FastAPI, tests should use httpx.AsyncClient with an ASGI transport:\nasync with httpx.AsyncClient(transport=ASGITransport(app=app)) as client:\n    async with client.stream('POST', '/api/generate', json=payload) as response:\n        assert response.status_code == 200\n        assert 'text/event-stream' in response.headers['content-type']\n        events = [line async for line in response.aiter_lines()]\nTests assert header correctness (Cache-Control: no-cache, X-Accel-Buffering: no), verify event sequencing, and validate that terminal done events emit with expected token counts.\n\n3. Failure Injection and Cancellation Testing:\n- Simulated disconnect: triggering an abort signal during generation and asserting that the backend terminates downstream model calls within a strict deadline.\n- Error propagation: forcing an exception mid-stream and verifying that the backend emits an event: error frame before closing the socket.\n- Reconnection testing: supplying Last-Event-ID headers to verify that missed sequence events are replayed accurately from server buffers.",
-    "Why": "Testing must verify chunk reassembly, client cancellation propagation, and mid-stream failure handling, ensuring production streaming does not crash on real-world network fragmentation.",
-    "Risk": "Testing only happy-path full-text delivery misses critical edge cases like split multibyte characters, unhandled client disconnects, and proxy buffering failures.",
-    "Trade": "Simulating chunk fragmentation and socket disconnects requires specialized async test fixtures, but prevents silent parsing bugs and zombie backend processes in production.",
-    "Try": "Write an integration test in pytest-asyncio using httpx to consume an SSE endpoint; inject an artificial stream cancellation and verify that the backend generator executes its finally block.",
-    "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
-    }
+    "A": "Test UTF-8 boundaries, multiline data, line endings, comments, empty data, malformed payloads, replay, authorization, disconnects, and slow consumers. Test through the real proxy as well as in process.",
+    "Why": "Keep transport decoding separate from JSON schema validation and UI reduction. Assert both event order and terminal state.",
+    "Risk": "A happy-path mock stream misses buffering and network fragmentation.",
+    "Trade": "Real transport tests cost more and catch difficult intermittent failures.",
+    "Try": "Build a replay fixture containing a duplicate event and an expired resume token."
   }
 ]

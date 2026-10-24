@@ -2,35 +2,35 @@
   {
     "Q": "Why can appending to one Python list change another variable?",
     "spoken": "Assignment binds names to objects; it does not recursively copy them. If a and b refer to the same list, appending through either name changes that shared object. A shallow copy makes a new outer list while nested mutable elements can still be shared. Choose ownership explicitly instead of copying every object indiscriminately.",
-    "A": "Assignment binds names to objects; it does not recursively copy them. If a and b refer to the same list, appending through either name changes that shared object. A shallow copy makes a new outer list while nested mutable elements can still be shared. Choose ownership explicitly instead of copying every object indiscriminately.\n\nIn Python's execution model, variables are reference pointers bound to objects in heap memory rather than direct memory slots holding values. When executing `b = a`, Python binds the name `b` to the exact same list instance that `a` references (`id(a) == id(b)`). Calling `a.append(x)` executes an in-place mutation on that shared underlying memory buffer. Because no copy operation occurred, inspecting `b` reflects the identical modification.\n\nTo decouple variables, engineers must explicitly choose between shallow copying (`b = list(a)` or `b = a.copy()`) and deep copying (`copy.deepcopy(a)`). A shallow copy allocates a new outer container but retains shared references to any nested mutable child objects (e.g. inner lists, dictionaries, or custom class instances). Modifying a nested mutable structure within a shallow copy will still silently mutate the original object. In production data pipelines, unexpected reference aliasing across batch stages is a primary source of data contamination and nondeterministic race conditions.",
-    "Why": "Python's call-by-object-sharing model optimizes for memory efficiency and execution speed by avoiding automatic copying. Engineers must understand object identity, memory references, and mutability to prevent state aliasing bugs.",
-    "Risk": "Mutating a shared list reference in multi-threaded code, middleware hooks, or recursive pipeline transforms corrupts upstream state without raising an exception, making root-cause diagnosis exceptionally difficult.",
-    "Trade": "Creating defensive deep copies eliminates reference aliasing entirely, but incurs significant CPU and heap allocation overhead on large collections. Shallow copies or immutable data structures (tuples, frozen sets) offer a performant compromise.",
-    "Try": "Create a nested list `a = [[1, 2], [3, 4]]`, assign `b = list(a)`, modify `b[0].append(99)`, and observe that `a[0]` was also altered. Then repeat using `copy.deepcopy(a)` to verify true isolation.",
+    "A": "Assignment binds names to objects; it does not recursively copy them. If a and b refer to the same list, appending through either name changes that shared object. A shallow copy makes a new outer list while nested mutable elements can still be shared. Choose ownership explicitly instead of copying every object indiscriminately.\n\nEngineering case: A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.\n\nReasoning under a changed assumption: No. A tuple can contain a mutable list. Tuple immutability prevents replacing its element references, not mutation of a referenced object.",
+    "Why": "Assignment binds names to objects; it does not recursively copy them. If a and b refer to the same list, appending through either name changes that shared object. A shallow copy makes a new outer list while nested mutable elements can still be shared. Choose ownership explicitly instead of copying every object indiscriminately.",
+    "Risk": "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.",
+    "Trade": "No. A tuple can contain a mutable list. Tuple immutability prevents replacing its element references, not mutation of a referenced object.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
     "concept": "Why can appending to one Python list change another variable?",
     "difficulty": "interview",
-    "misconception_target": "Missing the stated reference aliasing boundary: A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer\u2019s defaults.",
+    "misconception_target": "Missing the stated reference aliasing boundary: A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.",
     "definitions": [
       {
         "term": "Reference aliasing",
         "definition": "Assignment binds names to objects; it does not recursively copy them."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
-      "code": "{\n  \"case\": \"A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer\u2019s defaults.\",\n  \"decision\": \"Assignment binds names to objects; it does not recursively copy them\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "code": "{\n  \"case\": \"A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.\",\n  \"decision\": \"Assignment binds names to objects; it does not recursively copy them\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
-    "production_case": "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer\u2019s defaults.",
+    "production_case": "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults.",
     "alternatives": [
       "No. A tuple can contain a mutable list. Tuple immutability prevents replacing its element references, not mutation of a referenced object."
     ],
     "pitfalls": [
-      "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer\u2019s defaults."
+      "A request template contains a nested tags list. A shallow outer copy is modified for one customer and changes the next customer’s defaults."
     ],
     "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
     "follow_ups": [
@@ -44,43 +44,43 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "What goes wrong with a mutable default argument in Python?",
     "spoken": "Default argument expressions are evaluated when the function is defined. A default list can therefore retain additions across calls. Use None as the sentinel and create a new list inside the function when a fresh collection is intended. Sometimes persistent shared state is deliberate, but it should be explicit and synchronized if accessed concurrently.",
-    "A": "Default argument expressions are evaluated when the function is defined. A default list can therefore retain additions across calls. Use None as the sentinel and create a new list inside the function when a fresh collection is intended. Sometimes persistent shared state is deliberate, but it should be explicit and synchronized if accessed concurrently.\n\nIn Python, default parameter expressions are evaluated exactly once when the `def` statement executes at module import time, NOT each time the function is called. When a function signature defines a mutable default argument such as `def append_event(event, log=[])`, Python instantiates a single list object in heap memory and binds it to the function's `__defaults__` tuple permanently. Every subsequent invocation that omits the parameter reuses and mutates that exact same shared instance across unrelated callers, request threads, or test cases.\n\nThe standard idiomatic solution is to declare the parameter default as `None` (an immutable singleton) and initialize the fresh collection dynamically inside the function body: `if log is None: log = []`. In concurrent web servers (e.g., FastAPI, Django, Flask), shared mutable defaults result in severe cross-tenant data leaks, where telemetry or user identifiers from Request A persist into the state of Request B.",
-    "Why": "Function definitions in Python are executable statements that create code objects with pre-bound default argument tuples. Treating defaults as static definitions prevents import-time evaluation surprises.",
-    "Risk": "Cross-request contamination in multi-tenant services. If a request handler accumulates items into a default list or dict, data from prior users will leak into subsequent responses, causing security breaches and test flakiness.",
-    "Trade": "Using `param: Optional[List[T]] = None` requires an extra `if param is None:` guard at the top of the function, but completely eliminates shared mutable state bugs.",
-    "Try": "Define `def f(x=[]): x.append(1); return x`. Call it three times without arguments and observe the return value growing `[1]`, `[1, 1]`, `[1, 1, 1]`. Inspect `f.__defaults__` to see the persistent heap object.",
+    "A": "Default argument expressions are evaluated when the function is defined. A default list can therefore retain additions across calls. Use None as the sentinel and create a new list inside the function when a fresh collection is intended. Sometimes persistent shared state is deliberate, but it should be explicit and synchronized if accessed concurrently.\n\nEngineering case: A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.\n\nReasoning under a changed assumption: Only if the function treats it as immutable input and builds the required output separately. The correct fix follows the ownership and mutation contract, not a mechanical syntax replacement.",
+    "Why": "Default argument expressions are evaluated when the function is defined. A default list can therefore retain additions across calls. Use None as the sentinel and create a new list inside the function when a fresh collection is intended. Sometimes persistent shared state is deliberate, but it should be explicit and synchronized if accessed concurrently.",
+    "Risk": "A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.",
+    "Trade": "Only if the function treats it as immutable input and builds the required output separately. The correct fix follows the ownership and mutation contract, not a mechanical syntax replacement.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
     "concept": "What goes wrong with a mutable default argument in Python?",
     "difficulty": "interview",
-    "misconception_target": "Missing the stated mutable default argument boundary: A helper called append_tag stores one request\u2019s tag in a default list. The next request inherits that tag despite providing no prior history.",
+    "misconception_target": "Missing the stated mutable default argument boundary: A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.",
     "definitions": [
       {
         "term": "Mutable default argument",
         "definition": "Default argument expressions are evaluated when the function is defined."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
-      "code": "{\n  \"case\": \"A helper called append_tag stores one request\u2019s tag in a default list. The next request inherits that tag despite providing no prior history.\",\n  \"decision\": \"Default argument expressions are evaluated when the function is defined\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "code": "{\n  \"case\": \"A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.\",\n  \"decision\": \"Default argument expressions are evaluated when the function is defined\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
-    "production_case": "A helper called append_tag stores one request\u2019s tag in a default list. The next request inherits that tag despite providing no prior history.",
+    "production_case": "A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history.",
     "alternatives": [
       "Only if the function treats it as immutable input and builds the required output separately. The correct fix follows the ownership and mutation contract, not a mechanical syntax replacement."
     ],
     "pitfalls": [
-      "A helper called append_tag stores one request\u2019s tag in a default list. The next request inherits that tag despite providing no prior history."
+      "A helper called append_tag stores one request’s tag in a default list. The next request inherits that tag despite providing no prior history."
     ],
     "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
     "follow_ups": [
@@ -94,19 +94,19 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "How do Python return values, exceptions and None describe different outcomes?",
     "spoken": "A return value communicates a normal result; an exception communicates a failure outside that normal contract. None can be a valid absence value only if callers know how to distinguish it from failure. Do not catch every exception and return None, because that erases whether a record is absent, malformed or unavailable.",
-    "A": "A return value communicates a normal result; an exception communicates a failure outside that normal contract. None can be a valid absence value only if callers know how to distinguish it from failure. Do not catch every exception and return None, because that erases whether a record is absent, malformed or unavailable.\n\nIn production system design, distinguishing between expected outcomes, legitimate absences, and operational failures is vital for clean error boundaries:\n1. Return Values: Communicate successful fulfillment of the function's core contract. The return type should be consistent and strictly typed.\n2. None as an Absence Value: Represents a legitimate, expected lack of a result within normal domain logic (e.g., `cache.get(key)` returning `None` on a cache miss, or a nullable database field). Callers are expected to handle `None` gracefully through standard branching.\n3. Exceptions: Communicate contract breaches, exceptional operating conditions, or unrecoverable failures that prevent the function from fulfilling its postconditions (e.g., database network timeout, permission denial, or schema corruption). Exceptions halt sequential execution and bubble up the stack to an authoritative error-handling boundary.\n\nAntipatterns include returning error codes like `-1` or `None` when a network socket fails (which converts hard infrastructure faults into silent downstream `AttributeError: 'NoneType' object has no attribute 'x'` crashes), or using exceptions for ordinary loop control.",
-    "Why": "Conflating absence with failure destroys diagnostic visibility. Explicit return contracts and typed domain exceptions allow applications to distinguish between routine missing data and critical system outages.",
-    "Risk": "Swallowing exceptions and returning `None` forces calling code to litter defensive `if x is not None:` checks everywhere and masks the underlying root cause when upstream services degrade.",
-    "Trade": "Raising explicit custom exceptions requires callers to implement structured `try/except` blocks, but ensures unhandled failures crash loudly rather than silently propagating corrupted state.",
-    "Try": "Implement a user lookup function. Return a User object on success, return `None` when the user ID does not exist in the database, and raise `DatabaseUnavailableError` when the connection fails. Verify distinct caller handling.",
+    "A": "A return value communicates a normal result; an exception communicates a failure outside that normal contract. None can be a valid absence value only if callers know how to distinguish it from failure. Do not catch every exception and return None, because that erases whether a record is absent, malformed or unavailable.\n\nEngineering case: A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.\n\nReasoning under a changed assumption: Translate it when crossing a boundary with a clearer public contract. Preserve the original cause for diagnosis and avoid exposing sensitive raw payloads in the public error.",
+    "Why": "A return value communicates a normal result; an exception communicates a failure outside that normal contract. None can be a valid absence value only if callers know how to distinguish it from failure. Do not catch every exception and return None, because that erases whether a record is absent, malformed or unavailable.",
+    "Risk": "A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.",
+    "Trade": "Translate it when crossing a boundary with a clearer public contract. Preserve the original cause for diagnosis and avoid exposing sensitive raw payloads in the public error.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
@@ -119,10 +119,10 @@
         "definition": "A return value communicates a normal result; an exception communicates a failure outside that normal contract."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.\",\n  \"decision\": \"A return value communicates a normal result; an exception communicates a failure outside that normal contract\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A parser returns None for both a missing optional field and invalid JSON. The caller treats corrupted input as a valid empty record and persists it.",
@@ -144,19 +144,19 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "When should a Python interface use an iterator instead of constructing a list?",
     "spoken": "An iterator yields values as they are requested and can avoid retaining the entire result. It may be single-use and can defer errors until iteration. A list supports repeated traversal and indexed access but retains its elements. Streaming is useful only when downstream consumers do not immediately materialize the whole iterator.",
-    "A": "An iterator yields values as they are requested and can avoid retaining the entire result. It may be single-use and can defer errors until iteration. A list supports repeated traversal and indexed access but retains its elements. Streaming is useful only when downstream consumers do not immediately materialize the whole iterator.\n\nPython iterators and generators decouple sequence production from sequence consumption, generating elements lazily on demand (`__next__()`) rather than pre-allocating an entire collection in heap memory (`list`). This design is essential in three primary production scenarios:\n1. Unbounded or High-Volume Data Streams: Ingesting millions of log records, document vectors, or CSV rows. Materializing 1,000,000 records into a list can consume gigabytes of RAM and trigger OS Out-Of-Memory (OOM) killer terminations, whereas a generator maintains constant O(1) memory.\n2. Pipelined Processing & Early Short-Circuiting: Composing lazy stages (`read_stream -> filter_records -> transform_schema`). If a downstream consumer only needs the first 10 matching records (`itertools.islice`), the generator stops producing immediately, saving CPU and I/O.\n3. Infinite or Event-Driven Sequences: Modeling polling loops, sensor feeds, or token streaming in WebSocket endpoints.\n\nHowever, iterators have critical trade-offs: they are single-pass (consuming an element advances the internal pointer permanently), lack `len()` or indexing (`arr[i]`), and cannot be safely shared across concurrent worker threads without synchronization.",
-    "Why": "Iterators enable stream processing with constant working memory footprint. They allow systems to process datasets far larger than available physical RAM.",
-    "Risk": "Re-consuming an exhausted iterator silently yields zero elements without error. Calling `len()` or slicing on a generator raises a `TypeError`, and accidentally calling `list(gen)` upstream negates all memory benefits.",
-    "Trade": "Iterators eliminate memory allocation overhead and support lazy short-circuiting, but forfeit random access, multi-pass iteration, and pre-computed sequence lengths.",
-    "Try": "Write a generator yielding integers from 1 to 10,000,000. Measure process memory using `sys.getsizeof` or tracemalloc. Then convert it to `list()` and compare the memory jump.",
+    "A": "An iterator yields values as they are requested and can avoid retaining the entire result. It may be single-use and can defer errors until iteration. A list supports repeated traversal and indexed access but retains its elements. Streaming is useful only when downstream consumers do not immediately materialize the whole iterator.\n\nEngineering case: A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.\n\nReasoning under a changed assumption: Yes. If its lifecycle owns an open resource, partial iteration can delay cleanup. Make resource ownership explicit with context managers or a caller-owned file handle.",
+    "Why": "An iterator yields values as they are requested and can avoid retaining the entire result. It may be single-use and can defer errors until iteration. A list supports repeated traversal and indexed access but retains its elements. Streaming is useful only when downstream consumers do not immediately materialize the whole iterator.",
+    "Risk": "A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.",
+    "Trade": "Yes. If its lifecycle owns an open resource, partial iteration can delay cleanup. Make resource ownership explicit with context managers or a caller-owned file handle.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
@@ -169,10 +169,10 @@
         "definition": "An iterator yields values as they are requested and can avoid retaining the entire result."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.\",\n  \"decision\": \"An iterator yields values as they are requested and can avoid retaining the entire result\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A file reader yields records, but a caller calls list(reader) before filtering. Peak memory still grows with the full input.",
@@ -194,19 +194,19 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "What does a Python type annotation guarantee at runtime?",
     "spoken": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called. Validate untrusted data at input boundaries and use internal types to express the checked representation. Avoid repeated conversions throughout the program that make the authoritative representation unclear.",
-    "A": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called. Validate untrusted data at input boundaries and use internal types to express the checked representation. Avoid repeated conversions throughout the program that make the authoritative representation unclear.\n\nIn standard Python (CPython), type annotations (`PEP 484`) are purely non-enforcing syntactic metadata. At runtime, Python executes functions dynamically and performs zero type checking or automatic coercion when an annotated function is called. Declaring `def compute_charge(amount: int) -> int` will happily accept the string `\"100\"`, a floating-point number, or an arbitrary object without raising an error.\n\nType annotations exist to power:\n1. Offline Static Analysis: Tools like Mypy, Pyright, and IDE linters inspect abstract syntax trees and catch type mismatches before code runs in production.\n2. Developer Documentation & Refactoring: Providing readable contracts in team environments.\n3. Runtime Metaprogramming & Explicit Validation: Modern frameworks (Pydantic, FastAPI, dataclasses) read annotations via `typing.get_type_hints()` or `__annotations__` to explicitly parse, validate, and serialize data at external boundaries.\n\nRelying on type annotations alone to protect internal logic from malformed external JSON payloads is a catastrophic mistake. Systems must enforce runtime validation at the boundary before passing data into typed internal functions.",
-    "Why": "Python maintains dynamic typing semantics for runtime flexibility and backward compatibility. Type hints bridge the gap between static developer verification and dynamic execution.",
-    "Risk": "Assuming type hints prevent invalid types from entering functions. Passing unvalidated strings into numerical functions can cause silent string concatenation (`'100' + '20' = '10020'`) or delayed runtime exceptions far from the source.",
-    "Trade": "Runtime validation libraries (Pydantic, marshmallow) add microsecond validation latency at entry boundaries, but guarantee runtime type safety for downstream business logic.",
-    "Try": "Annotate a function `def add(a: int, b: int) -> int: return a + b`. Call it with `add('foo', 'bar')`. Observe that Python returns `'foobar'` without any TypeError.",
+    "A": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called. Validate untrusted data at input boundaries and use internal types to express the checked representation. Avoid repeated conversions throughout the program that make the authoritative representation unclear.\n\nEngineering case: A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.\n\nReasoning under a changed assumption: Usually validate at trust boundaries and keep a clear checked internal representation. Revalidate when data crosses a new independent boundary or its invariants may have changed.",
+    "Why": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called. Validate untrusted data at input boundaries and use internal types to express the checked representation. Avoid repeated conversions throughout the program that make the authoritative representation unclear.",
+    "Risk": "A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.",
+    "Trade": "Usually validate at trust boundaries and keep a clear checked internal representation. Revalidate when data crosses a new independent boundary or its invariants may have changed.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
@@ -219,10 +219,10 @@
         "definition": "An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A function annotated amount: int receives the string \\\"10\\\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.\",\n  \"decision\": \"An ordinary annotation documents and supports static analysis of a value; Python does not automatically enforce it when a function is called\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A function annotated amount: int receives the string \"10\" from JSON. Later arithmetic concatenates strings or raises at an unrelated line.",
@@ -244,19 +244,19 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "How do you write a regression test that actually detects the reported Python defect?",
     "spoken": "Start with a minimal input reproducing the user-visible failure and assert the observable contract. Demonstrate that the test fails on the broken implementation and passes with the repair. Avoid asserting private helper calls or duplicating the same calculation as the implementation, because both can preserve the same error.",
-    "A": "Start with a minimal input reproducing the user-visible failure and assert the observable contract. Demonstrate that the test fails on the broken implementation and passes with the repair. Avoid asserting private helper calls or duplicating the same calculation as the implementation, because both can preserve the same error.\n\nA true regression test is an automated verification gate written specifically to prevent a previously identified defect from resurfacing. Writing an effective regression test requires following strict engineering discipline:\n1. Minimal Reproducing Fixture: Strip away extraneous application state and isolate the smallest set of deterministic inputs that reliably triggers the reported failure.\n2. Independent Ground Truth: The test must assert expected outputs derived from independent domain specifications, mathematical formulas, or external reference data\u2014NEVER from copying the flawed implementation's internal logic into the test assertion (the tautological test trap).\n3. Red-Green Verification: Execute the regression test against the unfixed codebase and verify that it FAILS with the exact failure mode reported by the user or incident post-mortem. Only after confirming the test fails should the engineer apply the code fix and verify that the test turns GREEN.\n4. Edge Case Hardening: Once the primary defect is covered, extend the fixture to evaluate related boundary conditions (zero values, negative numbers, unicode strings, null inputs) to prevent localized whack-a-mole fixes.",
-    "Why": "Regression tests preserve hard-won production reliability lessons as executable code. Without red-green verification and independent expected values, tests often pass trivially while the bug remains.",
-    "Risk": "Writing tautological tests that pass regardless of defects (e.g. testing floating-point money rounding by using `round()` inside the test assertion). The test provides a false sense of security.",
-    "Trade": "Crafting minimal reproducing fixtures and independent calculation formulas takes more time than basic unit tests, but creates bulletproof regression barriers.",
-    "Try": "Create a monetary calculation bug using binary floats where `0.10 + 0.20 != 0.30`. Write a regression test with `Decimal('0.30')` as the expected value. Confirm failure under float and success under Decimal.",
+    "A": "Start with a minimal input reproducing the user-visible failure and assert the observable contract. Demonstrate that the test fails on the broken implementation and passes with the repair. Avoid asserting private helper calls or duplicating the same calculation as the implementation, because both can preserve the same error.\n\nEngineering case: A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.\n\nReasoning under a changed assumption: No. Coverage records execution. A useful assertion must distinguish correct from incorrect behavior under the relevant boundary conditions.",
+    "Why": "Start with a minimal input reproducing the user-visible failure and assert the observable contract. Demonstrate that the test fails on the broken implementation and passes with the repair. Avoid asserting private helper calls or duplicating the same calculation as the implementation, because both can preserve the same error.",
+    "Risk": "A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.",
+    "Trade": "No. Coverage records execution. A useful assertion must distinguish correct from incorrect behavior under the relevant boundary conditions.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
@@ -269,10 +269,10 @@
         "definition": "Start with a minimal input reproducing the user-visible failure and assert the observable contract."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.\",\n  \"decision\": \"Start with a minimal input reproducing the user-visible failure and assert the observable contract\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A money total rounds each line incorrectly. The regression uses decimal input strings and an independently calculated expected invoice total.",
@@ -294,19 +294,19 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "How should Git and dependency locks support a reproducible learning project?",
     "spoken": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command. A lockfile identifies resolved dependencies but does not capture the entire operating system, toolchain or external dataset. Record those inputs when they affect the result and inspect the diff before committing.",
-    "A": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command. A lockfile identifies resolved dependencies but does not capture the entire operating system, toolchain or external dataset. Record those inputs when they affect the result and inspect the diff before committing.\n\nFull project reproducibility requires capturing three interdependent pillars: source code revision, immutable runtime dependencies, and execution configuration:\n1. Version-Controlled Source & Configuration: Commit all application logic, test suites, Dockerfiles, and configuration templates to Git. Exclude local virtual environments (`.venv`), binary build artifacts (`__pycache__`, `.so`), and local environment secrets (`.env`) via a strictly maintained `.gitignore`.\n2. Exact Dependency Locking: Floating version constraints (e.g., `torch>=2.0` or `pydantic^2.0`) in `requirements.txt` cause builds to drift over time as upstream packages publish breaking changes. Use lockfile-based package managers (Poetry, uv, pip-tools) that record exact pinned version numbers and cryptographic SHA-256 hashes for every transitive dependency.\n3. Deterministic Seed & Data Manifests: Machine learning and AI systems must record explicit random seeds (for data shuffling and weight initialization) and content hashes (SHA-256) of benchmark datasets.\n\nA newly onboarded developer or CI/CD agent should be able to run a single setup command (`git clone && uv sync && pytest`) and produce 100% bitwise-identical evaluation outcomes.",
-    "Why": "Without locked dependencies and deterministic seeds, identical code yields different results across different machines, making debugging impossible and invalidating benchmark comparisons.",
-    "Risk": "Using unpinned dependencies causes CI builds and production deployments to break unexpectedly when an upstream third-party package releases a patch with regression bugs.",
-    "Trade": "Maintaining lockfiles requires periodic deliberate upgrade workflows (`uv lock --upgrade`), but provides total immutability and auditability between releases.",
-    "Try": "Clone a repository with floating requirements on two different dates or machines. Compare `pip freeze` outputs to see dependency version drift.",
+    "A": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command. A lockfile identifies resolved dependencies but does not capture the entire operating system, toolchain or external dataset. Record those inputs when they affect the result and inspect the diff before committing.\n\nEngineering case: A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.\n\nReasoning under a changed assumption: No. Record immutable data/model artifacts and declared external versions or provide a deterministic local fixture. Source identity is only one part of reproducibility.",
+    "Why": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command. A lockfile identifies resolved dependencies but does not capture the entire operating system, toolchain or external dataset. Record those inputs when they affect the result and inspect the diff before committing.",
+    "Risk": "A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.",
+    "Trade": "No. Record immutable data/model artifacts and declared external versions or provide a deterministic local fixture. Source identity is only one part of reproducibility.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
@@ -319,10 +319,10 @@
         "definition": "Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.\",\n  \"decision\": \"Commit source, configuration and dependency locks, keep credentials and generated caches out, and document a clean-start command\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A classmate can build the source but gets another model score because the dataset revision and random split were never recorded.",
@@ -344,19 +344,19 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   },
   {
     "Q": "When is a Python class useful compared with a function and a dictionary?",
-    "spoken": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object\u2019s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.",
-    "A": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object\u2019s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.\n\nThe decision between a pure function, a data structure (dict/dataclass), and a full class comes down to statefulness, lifecycle invariants, and behavioral encapsulation:\n1. When Pure Functions + Dictionaries/Dataclasses Win: For stateless data processing, ETL transforms, and functional pipelines. A function that accepts an immutable dataclass and returns a transformed record is trivial to test, thread-safe, and lacks hidden mutable side effects.\n2. When a Full Class is Essential: When an entity must manage mutable state across time, uphold complex business invariants, or govern resource lifecycles (such as database connections, thread pools, or WebSocket streams). A class encapsulates private state, prevents external callers from corrupting internal flags, and implements special protocols like Context Managers (`__enter__` / `__exit__`).\n\nManaging connection handles or state machines using bare dictionaries and loose functions leads to fragmented validation, where callers can directly mutate `conn[\"is_connected\"] = False` or forget to release underlying OS sockets during exception bubbling.",
-    "Why": "Classes bind mutable state to the behaviors that protect that state. Functions transform data; classes manage stateful lifecycles and uphold operational invariants.",
-    "Risk": "Over-engineering simple data transformations into bloated class hierarchies (premature abstraction), or conversely, passing raw dictionaries with mutable state across modules without lifecycle guards.",
-    "Trade": "Pure functions are easier to test and reason about in parallel systems. Classes add OOP boilerplate, but are indispensable for stateful resource governance and protocol implementation.",
-    "Try": "Implement a database connection pool as a dict with loose functions vs a class implementing `__enter__` and `__exit__`. Compare error handling when a query raises an unhandled exception.",
+    "spoken": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object’s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.",
+    "A": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object’s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.\n\nEngineering case: A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.\n\nReasoning under a changed assumption: No. Plain dictionaries, typed records or dataclasses may fit. Introduce behavior and lifecycle boundaries because they protect a concrete invariant, not because the project might grow.",
+    "Why": "A function is often sufficient for an independent transformation. A class is useful when behavior must preserve an object’s invariants across a lifecycle. A dictionary is flexible but does not by itself prevent invalid state transitions. Choose the smallest representation that makes ownership and invalid states clear; inheritance is not a requirement for extensibility.",
+    "Risk": "A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.",
+    "Trade": "No. Plain dictionaries, typed records or dataclasses may fit. Introduce behavior and lifecycle boundaries because they protect a concrete invariant, not because the project might grow.",
+    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
     "domain": "foundations",
     "subdomain": "programming-foundations",
     "module": "programming-foundations",
@@ -369,10 +369,10 @@
         "definition": "A function is often sufficient for an independent transformation."
       }
     ],
-    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.\",\n  \"decision\": \"A function is often sufficient for an independent transformation\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A connection wrapper owns open/close state and must reject operations after close. A class with an explicit context-manager lifecycle exposes that invariant.",
@@ -394,9 +394,9 @@
       "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control"
     ],
     "reviewer_status": {
+      "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-24",
-      "status": "draft"
+      "reviewed_at": "2026-10-21"
     }
   }
 ]
