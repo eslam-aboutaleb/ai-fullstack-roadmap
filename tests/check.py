@@ -72,11 +72,21 @@ for slug,e in EXAMPLES.items():
         result=subprocess.run([sys.executable,'-I','-c',e['code']],capture_output=True,text=True,timeout=10)
         assert result.returncode==0,(slug,result.stderr)
         executed+=1
+math_lab_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/math_interview_mechanics.py')],
+                               capture_output=True,text=True,timeout=10)
+assert math_lab_result.returncode==0,(math_lab_result.stdout,math_lab_result.stderr)
+assert 'PASS' in math_lab_result.stdout
+
 for path in (SITE/'examples'/'labs').glob('*.py'):ast.parse(path.read_text())
 result=subprocess.run([sys.executable,str(SITE/'examples/labs/voice_pipeline.py')],capture_output=True,text=True,timeout=10)
 assert result.returncode==0,result.stderr
 result=subprocess.run([sys.executable,str(SITE/'examples/labs/foundation_bridge.py')],capture_output=True,text=True,timeout=10)
 assert result.returncode==0,result.stderr
+context_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/context_packet_policy.py')],
+                              capture_output=True,text=True,timeout=10)
+assert context_result.returncode==0,(context_result.stdout,context_result.stderr)
+assert 'PASS' in context_result.stdout
+
 for slug in manifest['chapter_order']:
     assert {'review-notes','recommended-practice'}.issubset(pages[SITE/(slug+'.html')].ids),slug
 from check_structure import check as check_structure
@@ -116,6 +126,33 @@ for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py'
     result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/lab_name)], capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, (lab_name, result.stderr)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
+
+# Agent-memory reference and assessment capstone (PR #53).
+for memory_lab, args in (('agent_memory_lifecycle.py', []), ('memory_project.py', ['check'])):
+    result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/memory_lab), *args],
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, (memory_lab, result.stdout, result.stderr)
+    assert 'PASS' in result.stdout, (memory_lab, result.stdout)
+
+# Bounded asyncio task lifecycle and persistent effect retry (#15).
+backend_result = subprocess.run([sys.executable, '-B', str(ROOT/'labs/async_backend_failure.py')],
+                                capture_output=True, text=True, timeout=30)
+assert backend_result.returncode == 0, (backend_result.stdout, backend_result.stderr)
+assert 'PASS' in backend_result.stdout
+assert 'Complete interview answer' in (SITE/'course-asyncio-lifecycle.html').read_text()
+
+finops_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/finops_budget_ledger.py')],
+                              capture_output=True,text=True,timeout=15)
+assert finops_result.returncode==0,(finops_result.stdout,finops_result.stderr)
+assert 'PASS' in finops_result.stdout
+
+vector_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/vector_index_migration.py')],capture_output=True,text=True,timeout=10)
+assert vector_result.returncode==0,(vector_result.stdout,vector_result.stderr)
+assert 'PASS' in vector_result.stdout
+
+platform_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/eval_platform_contract.py')],capture_output=True,text=True,timeout=10)
+assert platform_result.returncode==0,(platform_result.stdout,platform_result.stderr)
+assert 'PASS' in platform_result.stdout
 
 mcp_policy_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/mcp_remote_policy.py')],capture_output=True,text=True,timeout=10)
 assert mcp_policy_result.returncode==0,(mcp_policy_result.stdout,mcp_policy_result.stderr)
@@ -204,6 +241,8 @@ subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.p
 
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)
 
+from check_vector_dependency_boundary import check as check_vector_dependency_boundary
+check_vector_dependency_boundary()
 from check_interview_contract import check_fixtures as check_interview_contract_fixtures
 check_interview_contract_fixtures()
 from interview_contract import check as check_interview_contract
