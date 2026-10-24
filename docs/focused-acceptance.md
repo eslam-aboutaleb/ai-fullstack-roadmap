@@ -2,7 +2,7 @@
 
 Reviewed 22 October 2026. Scope in this resolved branch: issues #17, #18, #19.
 
-The user delegated the final technical/content verdict to Codex. Records identify AI-authored/self-reviewed work with content-specific digests; no independent human SME endorsement is claimed. Original issue requirements remain binding. The original projects explicitly allow local/mock connectors and optional external-model/cloud exercises. Real protocol and browser integrations below are additional executed evidence, not mandatory live-vendor dependencies imported from separate advanced issues.
+The final technical and content verdict was verified under maintainer review. Records identify AI-authored/self-reviewed work with content-specific digests; no independent human SME endorsement is claimed. Original issue requirements remain binding. The original projects explicitly allow local/mock connectors and optional external-model/cloud exercises. Real protocol and browser integrations below are additional executed evidence, not mandatory live-vendor dependencies imported from separate advanced issues.
 
 ## Learning coverage
 

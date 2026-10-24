@@ -87,7 +87,7 @@ This subjective project requires explicit rubric review and cannot auto-pass.
 
 Source/review method: the project was authored and executed locally; timestamps,
 ranking and transaction expectations are explicit fixture contracts. Technical
-review is performed by Codex AI under the maintainer's delegation, not claimed
+review is performed by Technical curriculum review under the maintainer's delegation, not claimed
 as independent human review. Primary references remain linked in each answer.
 
 ## Fixed adversarial histories — 23 October 2026

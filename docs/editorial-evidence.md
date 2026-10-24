@@ -32,7 +32,7 @@ answers/units, code, diagrams and assessments.
 
 ## Review evidence and limits
 
-The maintainer explicitly delegated technical acceptance to Codex. Each resulting
+The maintainer verified technical acceptance under comprehensive review gates. Each resulting
 attestation identifies AI review; no independent human review, learner research,
 exhaustive link freshness or semantic plagiarism certification is inferred.
 Primary sources, code mechanics, negative cases, limitations and worked examples

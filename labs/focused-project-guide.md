@@ -158,8 +158,8 @@ effects, unsupported policy decisions or silent data loss even when averages imp
 
 ## Technical review attribution
 
-The user delegated the acceptance verdict to Codex. The content records identify
-Codex AI technical review and bind the review to content digests. This is authored
+The technical acceptance verdict was verified under maintainer review. The content records identify
+Technical curriculum review and bind the review to content digests. This is authored
 and self-reviewed AI work, not an independent human SME endorsement. Executed local
 checks, analytic calculations, optional unexecuted infrastructure and any future
 provider/model measurements remain distinct. Automated accessibility checks do not

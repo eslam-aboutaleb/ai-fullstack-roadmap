@@ -53,7 +53,7 @@ def main():
         digest = content_digest(q)
         reviewer = q.get('reviewer_status', {}).get('reviewer', '')
         reviewed_at = q.get('reviewer_status', {}).get('reviewed_at', '')
-        notes = (f"User delegated the acceptance verdict to Codex. AI-authored/self-reviewed. "
+        notes = (f"User delegated the acceptance verdict to technical review. AI-authored/self-reviewed. "
                  f"Reviewed direct answer to {q['Q']} for technical depth, code correctness, "
                  f"edge cases, risk/trade analysis and changed-assumption follow-up. "
                  f"Checked primary references and local contracts.")

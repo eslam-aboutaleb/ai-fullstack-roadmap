@@ -35,7 +35,7 @@ To author a new question, append it then run
 the chapter in a browser at root and the Pages subpath.
 
 Do **not** raise the baseline or add empty padding to satisfy a length rule.
-Instead review older unverified answers incrementally, preserving all IDs. Review is recorded per content digest; delegated Codex review is identified as AI review. Learner research and independent human review are not inferred from that attestation.
+Instead review older unverified answers incrementally, preserving all IDs. Review is recorded per content digest; delegated technical review is identified as AI review. Learner research and independent human review are not inferred from that attestation.
 
 ## Review states for conceptual answers
 
@@ -45,7 +45,7 @@ including conceptual records without the legacy `spoken` field. Changing the
 schema enum alone must never grant approval. Record the actual reviewer and
 review method; an AI review must say so and must not be represented as an
 independent human SME review. The maintainer has delegated technical acceptance
-to Codex in this implementation session; that does not invent GPU/vendor results.
+under maintainer review in this implementation session; that does not invent GPU/vendor results.
 
 ## Issue #12 acceptance evidence — 23 October 2026
 
@@ -55,7 +55,7 @@ reader anchor and primary references. The lessons cover request validation,
 concurrent database writes and an independent agent-effect oracle. Their downloadable
 labs execute positive and adverse cases; code/source identity is checked by the
 existing structure/source-fidelity suite. Review notes and exact digests are in
-`content/reviews.json`. Codex performed the technical review under the maintainer's
+`content/reviews.json`. Technical review was performed under the maintainer's
 explicit delegation; this is not independent human review.
 
 The authoring schema and `interview_contract.py` check chapter introductions,
