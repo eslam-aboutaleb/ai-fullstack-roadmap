@@ -1,7 +1,7 @@
 [
   {
     "Q": "How do health checks, graceful shutdown and readiness affect safe releases?",
-    "A": "A process being alive does not mean it can serve correct traffic. Liveness detects a stuck process under a defined policy; readiness indicates whether it should receive traffic; startup checks allow initialization without premature restarts. Graceful shutdown stops admission, drains or transfers owned work and respects an overall termination deadline. Schema changes and background jobs need compatible rollout ordering. Test the deployed request path, not only a local process, and preserve operation status for work that outlives a client connection.",
+    "A": "A process being alive does not mean it can serve correct traffic. Liveness detects a stuck process under a defined policy; readiness indicates whether it should receive traffic; startup checks allow initialization without premature restarts.\n\nGraceful shutdown stops admission, drains or transfers owned work and respects an overall termination deadline. Schema changes and background jobs need compatible rollout ordering. Test the deployed request path, not only a local process, and preserve operation status for work that outlives a client connection.",
     "Why": "A worker receives termination after accepting a durable job. It should stop taking new jobs and leave an explicit completion or takeover boundary, rather than losing ownership silently when the process exits.",
     "Risk": "Aggressive health probes can repeatedly restart a slow but recovering dependency path.",
     "Trade": "Fast detection must be balanced against startup, recovery and drain requirements.",
@@ -18,15 +18,16 @@
       "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "operations",
     "subdomain": "deployment-reliability"
   },
   {
     "Q": "How do recovery objectives and restore drills differ from simply keeping backups?",
-    "A": "A backup is an artifact; recovery is a tested procedure that returns an acceptable service and data state. Define the recovery point objective as tolerated data loss and recovery time objective as tolerated restoration delay. Verify integrity, schema compatibility, credentials, deletion intents and dependent indexes after restore. Record what happened after the snapshot and how it is reconciled. A successful file copy does not establish that the restored application enforces current ownership or does not resurrect deleted data.",
+    "A": "A backup is an artifact; recovery is a tested procedure that returns an acceptable service and data state. Define the recovery point objective as tolerated data loss and recovery time objective as tolerated restoration delay.\n\nVerify integrity, schema compatibility, credentials, deletion intents and dependent indexes after restore. Record what happened after the snapshot and how it is reconciled. A successful file copy does not establish that the restored application enforces current ownership or does not resurrect deleted data.",
     "Why": "Restoring yesterday's database can recreate a document deleted this morning. Reapply authoritative deletion intent before exposing restored search results and report which newer accepted writes could not be recovered.",
     "Risk": "An untested backup can be unreadable, incomplete or semantically unsafe to publish.",
     "Trade": "More frequent snapshots reduce some loss windows while increasing storage and operational cost.",
@@ -43,8 +44,9 @@
       "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "operations",
     "subdomain": "deployment-reliability"

@@ -22,8 +22,9 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   },
   {
@@ -49,13 +50,14 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "How do MCP Resources, Tools, and Prompts differ in protocol lifecycle and security boundaries?",
-    "A": "**The Model Context Protocol organizes data and capabilities into three core architectural primitives\u2014Resources, Tools, and Prompts\u2014each with distinct lifecycles, user-interaction patterns, and security guarantees.** Conflating these primitives creates poor agent UX and dangerous security boundaries.\n\n**1. Resources (Passive, Read-Only Context).** Resources represent readable data and documents exposed by the server under standardized URI schemes (e.g., `postgres://db/schema` or `file:///logs/app.log`). Resources are passive: reading a resource has zero side effects. Clients can subscribe to resource updates (`resources/subscribe`), allowing the server to push real-time cache invalidations when data changes. Security boundary: strictly read-only; exposed to model context as reference data.\n\n**2. Tools (Active, Executable Capabilities).** Tools are executable functions (e.g., `execute_sql`, `send_email`, `fetch_metrics`) invoked with model-generated arguments. Tools have active operational consequences and can mutate external system state. Security boundary: Tools require strict JSON Schema validation, capability checks, and explicit client-side approval (human-in-the-loop authorization) before execution.\n\n**3. Prompts (Reusable Interactive Templates).** Prompts are server-defined prompt templates and conversational workflows with parameterized arguments (e.g., `git_commit_review(branch: str)`). They allow servers to supply standardized system instructions and few-shot examples directly to client UIs, guiding model behavior without embedding instructions in client application code.",
+    "A": "**The Model Context Protocol organizes data and capabilities into three core architectural primitives—Resources, Tools, and Prompts—each with distinct lifecycles, user-interaction patterns, and security guarantees.** Conflating these primitives creates poor agent UX and dangerous security boundaries.\n\n**1. Resources (Passive, Read-Only Context).** Resources represent readable data and documents exposed by the server under standardized URI schemes (e.g., `postgres://db/schema` or `file:///logs/app.log`). Resources are passive: reading a resource has zero side effects. Clients can subscribe to resource updates (`resources/subscribe`), allowing the server to push real-time cache invalidations when data changes. Security boundary: strictly read-only; exposed to model context as reference data.\n\n**2. Tools (Active, Executable Capabilities).** Tools are executable functions (e.g., `execute_sql`, `send_email`, `fetch_metrics`) invoked with model-generated arguments. Tools have active operational consequences and can mutate external system state. Security boundary: Tools require strict JSON Schema validation, capability checks, and explicit client-side approval (human-in-the-loop authorization) before execution.\n\n**3. Prompts (Reusable Interactive Templates).** Prompts are server-defined prompt templates and conversational workflows with parameterized arguments (e.g., `git_commit_review(branch: str)`). They allow servers to supply standardized system instructions and few-shot examples directly to client UIs, guiding model behavior without embedding instructions in client application code.",
     "Why": "An engineer exposes a database query as a Tool when it should be a Resource. The model invokes the tool multiple times during planning, causing unnecessary round trips. Exposing the schema as a static Resource allows the client to inject it directly into context upfront.",
     "worked_case": "An engineer exposes a database query as a Tool when it should be a Resource. The model invokes the tool multiple times during planning, causing unnecessary round trips. Exposing the schema as a static Resource allows the client to inject it directly into context upfront.",
     "Risk": "Treating a state-mutating operation as a Resource bypasses user-approval safety gates, allowing models to alter data during passive context gathering.",
@@ -76,8 +78,9 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   },
   {
@@ -86,7 +89,7 @@
     "Why": "An agent executes a Python snippet containing a kernel exploit. In a standard Docker container, the exploit escalates to host root and compromises other customer containers. In a gVisor/Firecracker microVM sandbox, the exploit fails because the intercepted syscall is isolated to an unprivileged user-space virtual kernel.",
     "worked_case": "An agent executes a Python snippet containing a kernel exploit. In a standard Docker container, the exploit escalates to host root and compromises other customer containers. In a gVisor/Firecracker microVM sandbox, the exploit fails because the intercepted syscall is isolated to an unprivileged user-space virtual kernel.",
     "Risk": "Executing un-sandboxed shell tools in an MCP server gives prompt injection payloads immediate arbitrary remote execution authority on your infrastructure.",
-    "Trade": "MicroVM sandboxing introduces a tiny startup latency overhead (5\u201320ms per execution), but provides indispensable protection against catastrophic host compromise.",
+    "Trade": "MicroVM sandboxing introduces a tiny startup latency overhead (5–20ms per execution), but provides indispensable protection against catastrophic host compromise.",
     "Try": "Configure an unprivileged gVisor `runsc` runtime in Docker. Attempt to read `/proc` or access host network interfaces from inside the container, confirming that access is strictly denied.",
     "answer_format": "conceptual",
     "difficulty": "advanced design scenario",
@@ -103,8 +106,9 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   }
 ]

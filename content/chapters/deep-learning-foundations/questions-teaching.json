@@ -1,7 +1,7 @@
 [
   {
     "Q": "How do activations and loss functions change what a neural network can learn?",
-    "A": "Without nonlinear activations, stacked affine layers collapse to a single affine transformation. Activations introduce nonlinear behavior and different gradient regimes. A loss translates the target and prediction contract into an optimization objective: squared error suits some numeric targets, while cross-entropy suits specified classification distributions. Match output representation, target shape and loss expectations. A library may expect logits rather than already-normalized probabilities. Low training loss means fit to the objective on those examples, not guaranteed task usefulness or safety.",
+    "A": "Without nonlinear activations, stacked affine layers collapse to a single affine transformation. Activations introduce nonlinear behavior and different gradient regimes. A loss translates the target and prediction contract into an optimization objective: squared error suits some numeric targets, while cross-entropy suits specified classification distributions.\n\nMatch output representation, target shape and loss expectations. A library may expect logits rather than already-normalized probabilities. Low training loss means fit to the objective on those examples, not guaranteed task usefulness or safety.",
     "Why": "Passing softmax probabilities into a loss expecting raw logits can apply the wrong transformation and degrade learning. Check the documented input contract and compare a tiny hand-computed example.",
     "Risk": "A shape-compatible loss can still optimize the wrong target axis or label mapping.",
     "Trade": "Choose an objective from the task and verify a small numerical case before scaling.",
@@ -14,15 +14,16 @@
       "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "deep-learning",
     "subdomain": "deep-learning-foundations"
   },
   {
     "Q": "Why do vanishing gradients, exploding gradients and initialization affect training?",
-    "A": "Backpropagation multiplies local sensitivities through the computational graph. Repeated small factors can make early-layer gradients tiny; large factors can make updates unstable. Initialization, activation choice, normalization and residual paths influence this behavior. Gradient clipping bounds a selected gradient measure but does not fix bad data or an incorrect objective. Monitor gradient norms, activations and finite values by layer, and distinguish true convergence from parameters that never receive useful gradients. A single total loss curve hides many of these problems.",
+    "A": "Backpropagation multiplies local sensitivities through the computational graph. Repeated small factors can make early-layer gradients tiny; large factors can make updates unstable. Initialization, activation choice, normalization and residual paths influence this behavior.\n\nGradient clipping bounds a selected gradient measure but does not fix bad data or an incorrect objective. Monitor gradient norms, activations and finite values by layer, and distinguish true convergence from parameters that never receive useful gradients. A single total loss curve hides many of these problems.",
     "Why": "A recurrent model may have a finite loss while early-state gradients are effectively zero. Increasing training duration does not repair a graph whose useful gradient signal has disappeared.",
     "Risk": "Blindly lowering the learning rate can hide instability without correcting its cause.",
     "Trade": "Stability interventions need measurements and controlled comparisons.",
@@ -35,15 +36,16 @@
       "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "deep-learning",
     "subdomain": "deep-learning-foundations"
   },
   {
     "Q": "How do residual connections and normalization support deep architectures?",
-    "A": "A residual block adds a transformed path to a compatible skip path, improving information and gradient flow while still requiring compatible shapes. Normalization controls statistics under a defined set of axes. Batch normalization uses batch-related statistics during training and typically running statistics for evaluation; layer normalization operates across selected features and behaves differently. Neither is interchangeable without considering architecture and batch regime. Train/eval mode must be set intentionally, and learned affine parameters remain part of the model state.",
+    "A": "A residual block adds a transformed path to a compatible skip path, improving information and gradient flow while still requiring compatible shapes. Normalization controls statistics under a defined set of axes.\n\nBatch normalization uses batch-related statistics during training and typically running statistics for evaluation; layer normalization operates across selected features and behaves differently. Neither is interchangeable without considering architecture and batch regime. Train/eval mode must be set intentionally, and learned affine parameters remain part of the model state.",
     "Why": "A model evaluated in training mode can produce changing results because dropout is active or batch statistics depend on its companions. A saved checkpoint alone does not choose the correct inference mode.",
     "Risk": "A tiny or shifted batch can invalidate assumptions about batch statistics.",
     "Trade": "Residual and normalization choices improve some training regimes at additional implementation constraints.",
@@ -56,15 +58,16 @@
       "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "deep-learning",
     "subdomain": "deep-learning-foundations"
   },
   {
     "Q": "How do padding, causal masks and attention masks prevent information leakage?",
-    "A": "Padding lets unequal sequences share a tensor shape, but padded positions must be handled according to the model and loss contracts. A causal mask prevents a position from attending to future positions in an autoregressive task. These masks serve different purposes and often need to be combined. Confirm shape, polarity and broadcasting rules in the actual library. Masking a loss alone does not necessarily prevent hidden representations from seeing forbidden future information during training.",
+    "A": "Padding lets unequal sequences share a tensor shape, but padded positions must be handled according to the model and loss contracts. A causal mask prevents a position from attending to future positions in an autoregressive task.\n\nThese masks serve different purposes and often need to be combined. Confirm shape, polarity and broadcasting rules in the actual library. Masking a loss alone does not necessarily prevent hidden representations from seeing forbidden future information during training.",
     "Why": "A next-token model without causal attention can read the answer token during training and report excellent loss. At generation time that future token is unavailable, so the apparent performance collapses.",
     "Risk": "A reversed boolean-mask convention can silently expose forbidden positions.",
     "Trade": "Explicit tiny attention examples are easier to verify than only large training runs.",
@@ -77,8 +80,9 @@
       "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "deep-learning",
     "subdomain": "deep-learning-foundations"
@@ -98,15 +102,16 @@
       "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "deep-learning",
     "subdomain": "deep-learning-foundations"
   },
   {
     "Q": "How do checkpointing, seeds and deterministic settings support reproducible experiments?",
-    "A": "A training checkpoint may need model weights, optimizer and scheduler state, preprocessing, vocabulary, data position and random-number-generator state. Loading weights alone is not necessarily a true continuation of the same optimization process. Seeds reduce some variability but do not guarantee identical results across devices, kernels or library versions. Record environment and data lineage, compare within justified tolerances and state which determinism settings were enabled. Keep a separate evaluation manifest so a restored run uses the intended held-out data.",
+    "A": "A training checkpoint may need model weights, optimizer and scheduler state, preprocessing, vocabulary, data position and random-number-generator state. Loading weights alone is not necessarily a true continuation of the same optimization process.\n\nSeeds reduce some variability but do not guarantee identical results across devices, kernels or library versions. Record environment and data lineage, compare within justified tolerances and state which determinism settings were enabled. Keep a separate evaluation manifest so a restored run uses the intended held-out data.",
     "Why": "Resuming with a fresh optimizer can produce a different trajectory even from identical weights because momentum or adaptive moments were lost. A shuffled data loader also needs its position or replay contract considered.",
     "Risk": "A named seed is often mistaken for complete cross-platform reproducibility.",
     "Trade": "Stronger determinism can cost performance and still has a defined compatibility scope.",
@@ -119,8 +124,9 @@
       "https://docs.pytorch.org/tutorials/beginner/basics/optimization_tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "deep-learning",
     "subdomain": "deep-learning-foundations"

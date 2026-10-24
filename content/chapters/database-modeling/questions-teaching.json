@@ -1,7 +1,7 @@
 [
   {
     "Q": "How do normalization, keys and constraints prevent update anomalies?",
-    "A": "Normalization separates facts according to their dependencies so one fact is not inconsistently copied into many rows. A primary key identifies a row, a foreign key links valid references, and unique/check constraints enforce specific invariants. Application validation improves errors but cannot replace database enforcement under concurrent writers. Do not normalize by habit without considering the actual dependencies and workload. Denormalized projections can support reads when their source of truth, refresh policy and repair mechanism remain explicit.",
+    "A": "Normalization separates facts according to their dependencies so one fact is not inconsistently copied into many rows. A primary key identifies a row, a foreign key links valid references, and unique/check constraints enforce specific invariants.\n\nApplication validation improves errors but cannot replace database enforcement under concurrent writers. Do not normalize by habit without considering the actual dependencies and workload. Denormalized projections can support reads when their source of truth, refresh policy and repair mechanism remain explicit.",
     "Why": "Repeating a customer's address on every open request makes a change inconsistent unless all intended rows update. An immutable historical shipping address is a different fact and may deliberately remain with its order.",
     "Risk": "Treating historical snapshots and current attributes as the same fact causes incorrect updates.",
     "Trade": "Normalize authoritative facts and publish deliberate read projections when justified.",
@@ -13,15 +13,16 @@
       "https://www.postgresql.org/docs/current/tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "backend",
     "subdomain": "database-modeling"
   },
   {
     "Q": "How do joins, NULL and aggregate placement change query results?",
-    "A": "An inner join keeps matched rows; an outer join can retain unmatched rows with missing right-side values. SQL NULL is not an ordinary value: comparisons often produce unknown, which a WHERE filter does not treat as true. Filtering the right table in WHERE after a left join can remove the unmatched rows the outer join was intended to preserve. Aggregating after a one-to-many join can multiply measures. State desired row grain and missing-value meaning before choosing join and grouping structure.",
+    "A": "An inner join keeps matched rows; an outer join can retain unmatched rows with missing right-side values. SQL NULL is not an ordinary value: comparisons often produce unknown, which a WHERE filter does not treat as true.\n\nFiltering the right table in WHERE after a left join can remove the unmatched rows the outer join was intended to preserve. Aggregating after a one-to-many join can multiply measures. State desired row grain and missing-value meaning before choosing join and grouping structure.",
     "Why": "A customer with no orders disappears if a left-joined order condition is placed in WHERE without accounting for NULL. Move the match restriction into the join when the requirement is to preserve all customers.",
     "Risk": "Syntactically valid SQL can silently change business inclusion rules.",
     "Trade": "Choose join semantics from the required retained population and measure grain.",
@@ -33,8 +34,9 @@
       "https://www.postgresql.org/docs/current/tutorial.html"
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     },
     "domain": "backend",
     "subdomain": "database-modeling"

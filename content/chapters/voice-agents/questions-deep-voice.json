@@ -1,7 +1,7 @@
 [
   {
     "Q": "How does real-time bidirectional audio streaming work in Voice AI agents, and why is WebRTC preferred over WebSockets for voice transport?",
-    "A": "**Real-time voice AI agents require full-duplex, low-latency audio transmission where latency spikes over 300ms break natural conversational rhythm.** In voice interactions, users expect conversational latency matching human standards (200\u2013400ms). The choice of transport protocol directly dictates audio jitter, packet loss recovery, and end-to-end responsiveness.\n\n**WebSockets over TCP: the head-of-line blocking trap.** WebSocket connections run over TCP. TCP is a reliable, ordered transport protocol: if a single audio packet is dropped due to transient Wi-Fi or cellular packet loss, TCP halts delivery of all subsequent audio frames while waiting for retransmission. This phenomenon\u2014head-of-line (HOL) blocking\u2014introduces 500ms\u20132000ms audio stutter and latency buffering, completely destroying conversational flow. Furthermore, WebSockets lack native browser echo cancellation and adaptive jitter buffering.\n\n**WebRTC over UDP: the real-time standard.** WebRTC operates over UDP using Secure Real-Time Transport Protocol (SRTP). Key advantages: (1) Unordered, immediate delivery: if a packet drops, WebRTC drops it gracefully and plays forward audio using packet loss concealment (PLC) rather than halting the audio stream; (2) Built-in Browser Media Engines: WebRTC integrates hardware-accelerated Acoustic Echo Cancellation (AEC), Noise Suppression (NS), and Automatic Gain Control (AGC) directly in the browser; (3) Adaptive Jitter Buffers: dynamically adjusting buffer depths based on network congestion; and (4) Native Opus codec: dynamically adapting bitrate (6kbps to 64kbps) to network bandwidth.",
+    "A": "**Real-time voice AI agents require full-duplex, low-latency audio transmission where latency spikes over 300ms break natural conversational rhythm.** In voice interactions, users expect conversational latency matching human standards (200–400ms). The choice of transport protocol directly dictates audio jitter, packet loss recovery, and end-to-end responsiveness.\n\n**WebSockets over TCP: the head-of-line blocking trap.** WebSocket connections run over TCP. TCP is a reliable, ordered transport protocol: if a single audio packet is dropped due to transient Wi-Fi or cellular packet loss, TCP halts delivery of all subsequent audio frames while waiting for retransmission. This phenomenon—head-of-line (HOL) blocking—introduces 500ms–2000ms audio stutter and latency buffering, completely destroying conversational flow. Furthermore, WebSockets lack native browser echo cancellation and adaptive jitter buffering.\n\n**WebRTC over UDP: the real-time standard.** WebRTC operates over UDP using Secure Real-Time Transport Protocol (SRTP). Key advantages: (1) Unordered, immediate delivery: if a packet drops, WebRTC drops it gracefully and plays forward audio using packet loss concealment (PLC) rather than halting the audio stream; (2) Built-in Browser Media Engines: WebRTC integrates hardware-accelerated Acoustic Echo Cancellation (AEC), Noise Suppression (NS), and Automatic Gain Control (AGC) directly in the browser; (3) Adaptive Jitter Buffers: dynamically adjusting buffer depths based on network congestion; and (4) Native Opus codec: dynamically adapting bitrate (6kbps to 64kbps) to network bandwidth.",
     "Why": "A mobile user speaks to a voice agent over a spotty 4G connection. On WebSockets, packet loss causes audio buffering and a 3-second delay. On WebRTC, the audio remains continuous and clear with sub-250ms round-trip latency.",
     "worked_case": "A mobile user speaks to a voice agent over a spotty 4G connection. On WebSockets, packet loss causes audio buffering and a 3-second delay. On WebRTC, the audio remains continuous and clear with sub-250ms round-trip latency.",
     "Risk": "WebRTC requires managing STUN/TURN traversal servers and ICE negotiation, introducing more complex infrastructure setup than simple WebSockets.",
@@ -22,8 +22,9 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   },
   {
@@ -49,8 +50,9 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   },
   {
@@ -76,13 +78,14 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "What are the latency bottlenecks in Voice-to-Voice pipelines, and how do native multimodal audio-to-audio models achieve sub-300ms response times?",
-    "A": "**Cascaded voice architectures suffer from compounded latencies across three independent models, whereas native audio-to-audio foundation models collapse the pipeline into a single inference pass.** In traditional voice systems, handling a spoken query requires cascading three separate components: (1) Speech-to-Text (STT, e.g. Whisper): transcribing audio frames to text (150\u2013400ms); (2) Large Language Model (LLM): streaming text tokens (300\u2013800ms Time-to-First-Token); and (3) Text-to-Speech (TTS, e.g. ElevenLabs, Cartesia): synthesizing tokens back into audio waveforms (150\u2013350ms).\n\n**The Cascaded Latency Trap (800ms\u20132000ms).** Even with aggressive streaming optimizations (such as chunking LLM output into 3-word phrases before sending to TTS), total latency routinely exceeds 800ms\u20131500ms. Furthermore, cascaded pipelines strip emotional nuances, pauses, laughs, accents, and vocal inflection during the STT step: the LLM receives only flat ASCII text and generates flat text, losing rich acoustic context.\n\n**Native Multimodal Audio-to-Audio architectures.** Native speech models (such as GPT-4o voice mode or Gemini 2.0 Live) eliminate text cascading entirely. The model architecture uses continuous audio tokenizers (e.g., SoundStream, EnCodec, or SNAC) that encode raw audio waveforms into discrete acoustic tokens. The transformer processes audio tokens directly into audio token outputs in a single autoregressive pass. This achieves: (1) Sub-300ms glass-to-glass latency, matching human conversational speed; (2) Preservation of paralinguistic features (emotion, tone, whispers, singing, and pacing); and (3) Native barge-in recognition directly inside the attention matrix.",
+    "A": "**Cascaded voice architectures suffer from compounded latencies across three independent models, whereas native audio-to-audio foundation models collapse the pipeline into a single inference pass.** In traditional voice systems, handling a spoken query requires cascading three separate components: (1) Speech-to-Text (STT, e.g. Whisper): transcribing audio frames to text (150–400ms); (2) Large Language Model (LLM): streaming text tokens (300–800ms Time-to-First-Token); and (3) Text-to-Speech (TTS, e.g. ElevenLabs, Cartesia): synthesizing tokens back into audio waveforms (150–350ms).\n\n**The Cascaded Latency Trap (800ms–2000ms).** Even with aggressive streaming optimizations (such as chunking LLM output into 3-word phrases before sending to TTS), total latency routinely exceeds 800ms–1500ms. Furthermore, cascaded pipelines strip emotional nuances, pauses, laughs, accents, and vocal inflection during the STT step: the LLM receives only flat ASCII text and generates flat text, losing rich acoustic context.\n\n**Native Multimodal Audio-to-Audio architectures.** Native speech models (such as GPT-4o voice mode or Gemini 2.0 Live) eliminate text cascading entirely. The model architecture uses continuous audio tokenizers (e.g., SoundStream, EnCodec, or SNAC) that encode raw audio waveforms into discrete acoustic tokens. The transformer processes audio tokens directly into audio token outputs in a single autoregressive pass. This achieves: (1) Sub-300ms glass-to-glass latency, matching human conversational speed; (2) Preservation of paralinguistic features (emotion, tone, whispers, singing, and pacing); and (3) Native barge-in recognition directly inside the attention matrix.",
     "Why": "A cascaded voice agent takes 1,400ms to respond to a customer question, making the conversation feel sluggish. A native audio-to-audio model responds in 280ms, laughing naturally at the customer's joke while answering.",
     "worked_case": "A cascaded voice agent takes 1,400ms to respond to a customer question, making the conversation feel sluggish. A native audio-to-audio model responds in 280ms, laughing naturally at the customer's joke while answering.",
     "Risk": "Native audio models can be susceptible to novel audio jailbreaks (e.g. whispered commands, ultrasound frequencies) that bypass text-based content filters.",
@@ -103,8 +106,9 @@
       }
     ],
     "reviewer_status": {
-      "status": "draft",
-      "reviewer": "Independent technical review pending"
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
     }
   }
 ]
