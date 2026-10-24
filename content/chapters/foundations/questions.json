@@ -1,11 +1,11 @@
 [
   {
     "Q": "What is RAG, and how does a retrieval service fit into an AI application?",
-    "A": "RAG means Retrieval-Augmented Generation. Before asking a language model to answer, your application finds relevant information and puts that information into the model request. The model can then explain your actual document instead of guessing from its training. A retrieval service is the part that finds and returns those passages. It does not automatically supply the chat interface, user permissions, or final answer checks.",
-    "Why": "First, prepare the documents for search: read them, split them into passages, and store those passages with searchable representations. Later, when a user asks a question, search for useful passages and send their text to the model together with the question. These are two different workflows. Updating the searchable document can change the next answer without changing the model weights.",
-    "Risk": "A search may return the wrong passage, or the model may misread the right passage. Check whether the selected source actually supports the answer. If the required rule is missing or the search service failed, report that state rather than inventing a rule.",
-    "Trade": "RAG supports changing information and inspectable sources, but you must operate indexing, permissions, search, context selection, and evaluation. A simple structured lookup is a better choice for an exact request status or a financial total.",
-    "Try": "Trace one document through ingestion and one question through search. Draw the boundary where your own generator must be called.",
+    "A": "Retrieval-Augmented Generation (RAG) is an architectural pattern that decouples knowledge storage from model parameter weights by integrating an authoritative retrieval subsystem into the generation lifecycle. Instead of relying on a model's static, lossy parametric memory, the application intercepts the user query, retrieves relevant, permitted, and fresh document chunks from external data stores (such as vector databases, keyword inverted indexes, or relational stores), and injects those passages into the model context window as bounded grounding evidence.\n\nIn an enterprise AI architecture, the retrieval service operates as an independent backend layer between client orchestration and model inference:\n1. Ingestion and Indexing Pipeline: Asynchronously parses source documents, cleans markup, chunks content with metadata tags (tenant IDs, effective timestamps, revision hashes), computes dense embeddings, and writes to an indexed vector and full-text store.\n2. Query and Retrieval Runtime: Intercepts queries, enforces caller access control (ACLs), performs hybrid sparse-dense search with reciprocal rank fusion (RRF), filters by temporal applicability, and re-ranks candidate passages using cross-encoders.\n3. Synthesis and Verification Boundary: Formats bounded context with tamper-resistant delimiters, prompts the foundation model under strict citation rules, and validates output against schema constraints and claim-entailment checkers before delivery.",
+    "Why": "Decoupling knowledge from parameters solves three fatal limitations of raw foundation models: hallucination on specialized enterprise domains, rapid knowledge staleness without multi-million dollar pre-training runs, and total lack of verifiable audit trails. With RAG, updating business policy is as simple as updating an indexed record, with zero retraining latency.",
+    "Risk": "Treating retrieval as a black box creates subtle failure modes: vector search may retrieve stale or superseded policies with high semantic similarity, context windows can overflow with duplicate text, or models may ignore retrieved passages and confabulate unsupported claims while citing irrelevant reference IDs.",
+    "Trade": "RAG offers dynamic freshness, granular permission enforcement, and auditable citation trails, but introduces infrastructure operational complexity: embedding drift, vector database indexing latency, chunking strategy trade-offs, and multi-stage latency overhead across retrieval, re-ranking, and token generation.",
+    "Try": "Trace a document update through parsing, embedding, and vector insertion. Query the retrieval service before and after the update without touching model weights, and verify that the downstream generator reflects the updated policy instantly.",
     "spoken": "RAG combines retrieval with generation: find permitted, relevant, versioned evidence and give it to a model to help answer a task. Retrieval can improve grounding and freshness, but correctness still depends on source quality, applicability, citations and evaluation. It does not replace application state or permissions.",
     "domain": "ai-rag",
     "subdomain": "retrieval",
@@ -65,7 +65,12 @@
     "Why": "Engineers must never rely on an LLM's self-assessed confidence or fluent tone as proof of correctness. Factuality must be enforced externally through retrieval grounding, strict negative prompt constraints, and automated NLI verification.",
     "Risk": "Allowing an LLM to answer ungrounded questions in customer-facing support leads to confident misstatements about warranties, pricing, or security policies that create legal and financial liability.",
     "Trade": "Enforcing strict refusal boundaries prevents hallucinations but increases the frequency of 'I do not have enough information' responses, requiring investments in corpus coverage and retrieval recall.",
-    "Try": "Prompt an LLM with three questions: one clearly covered in your documentation, one ambiguous, and one completely unanswerable. Verify that your system prompt successfully forces an explicit refusal on the unanswerable question rather than a confident hallucination."
+    "Try": "Prompt an LLM with three questions: one clearly covered in your documentation, one ambiguous, and one completely unanswerable. Verify that your system prompt successfully forces an explicit refusal on the unanswerable question rather than a confident hallucination.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How are search, retrieval, and generation different responsibilities?",
@@ -73,23 +78,38 @@
     "Why": "Decoupling search, retrieval, and generation enables independent benchmarking, targeted caching, granular authorization enforcement, and the ability to swap LLM providers without touching database indices.",
     "Risk": "Allowing generation to execute when retrieval fails: if the retrieval pipeline experiences a database timeout, falling back to ungrounded generation converts a temporary infrastructure outage into confident user-facing misinformation.",
     "Trade": "Decoupling the stages introduces intermediate DTOs and multiple network hops, but makes the pipeline testable, observable, and resilient to third-party vendor outages.",
-    "Try": "Construct three distinct API test fixtures for a RAG endpoint: successful retrieval with evidence, successful retrieval with zero matching hits, and an infrastructure database timeout, verifying that each returns the correct distinct HTTP response."
+    "Try": "Construct three distinct API test fixtures for a RAG endpoint: successful retrieval with evidence, successful retrieval with zero matching hits, and an infrastructure database timeout, verifying that each returns the correct distinct HTTP response.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "When should I use RAG instead of fine-tuning or a SQL query?",
-    "A": "Architectural decision-making requires matching the query workload to the appropriate technology:\n\n1. **Use Relational SQL Queries When:**\n   - The task involves exact entity lookups, mathematical calculations, aggregations, or financial invariants (e.g., *'What is the current balance of account #9941?'*, *'How many tickets were resolved today?'*).\n   - SQL execution is deterministic, ACID-consistent, costs microsecond compute, and has zero token expense.\n\n2. **Use RAG (Retrieval-Augmented Generation) When:**\n   - The task requires synthesizing answers from unstructured, dynamic, or frequently updated document corpora (PDFs, knowledge bases, policies, emails).\n   - You need real-time data freshness, verifiable source citations, and tenant-level access control without re-training models.\n\n3. **Use Supervised Fine-Tuning (SFT / LoRA) When:**\n   - The goal is adapting model *behavior, style, tone, or output structure*—such as teaching a model to emit a proprietary tool-call JSON grammar, follow complex enterprise brand guidelines, or classify customer intents into 50 fixed categories.\n   - **The Critical Fine-Tuning Anti-Pattern:** Never use fine-tuning as a knowledge retrieval database! Fine-tuning cannot reliably memorize low-frequency factual details, cannot provide cryptographic citations, and cannot enforce multi-tenant access boundaries.",
+    "A": "Architectural decision-making requires matching the query workload to the appropriate technology:\n\n1. **Use Relational SQL Queries When:**\n   - The task involves exact entity lookups, mathematical calculations, aggregations, or financial invariants (e.g., *'What is the current balance of account #9941?'*, *'How many tickets were resolved today?'*).\n   - SQL execution is deterministic, ACID-consistent, costs microsecond compute, and has zero token expense.\n\n2. **Use RAG (Retrieval-Augmented Generation) When:**\n   - The task requires synthesizing answers from unstructured, dynamic, or frequently updated document corpora (PDFs, knowledge bases, policies, emails).\n   - You need real-time data freshness, verifiable source citations, and tenant-level access control without re-training models.\n\n3. **Use Supervised Fine-Tuning (SFT / LoRA) When:**\n   - The goal is adapting model *behavior, style, tone, or output structure*\u2014such as teaching a model to emit a proprietary tool-call JSON grammar, follow complex enterprise brand guidelines, or classify customer intents into 50 fixed categories.\n   - **The Critical Fine-Tuning Anti-Pattern:** Never use fine-tuning as a knowledge retrieval database! Fine-tuning cannot reliably memorize low-frequency factual details, cannot provide cryptographic citations, and cannot enforce multi-tenant access boundaries.",
     "Why": "Forcing all queries through an LLM RAG pipeline is slow, expensive, and error-prone for tasks that relational databases or code rules solve deterministically.",
     "Risk": "Fine-tuning an LLM on private corporate documentation to 'teach it facts': the model will hallucinate dates, numbers, and names, and cannot be updated without a full re-training run.",
     "Trade": "Deploying an intelligent query router (e.g. semantic router or deterministic regex classifier) routes exact queries to SQL and unstructured queries to RAG, optimizing cost, speed, and accuracy.",
-    "Try": "Classify ten common enterprise user queries into Relational SQL, Deterministic Code, RAG, or Fine-Tuning, defending why an exact invoice status check should never use RAG."
+    "Try": "Classify ten common enterprise user queries into Relational SQL, Deterministic Code, RAG, or Fine-Tuning, defending why an exact invoice status check should never use RAG.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "What is the difference between a document, a chunk, a vector, and evidence?",
-    "A": "In production RAG systems, these four concepts represent distinct data entities with completely different lifecycles, storage requirements, and identity models:\n\n1. **Document (Source of Record):**\n   - The top-level source artifact (e.g., an 80-page employee benefits manual, a Markdown technical spec, or an uploaded PDF).\n   - Carries document-level metadata: `document_id`, file name, author, tenant ownership, legal version, effective date, and ACL permissions.\n\n2. **Chunk (Searchable Text Unit):**\n   - A discrete, bounded subdivision of a document (typically 300-800 tokens) produced during recursive document splitting.\n   - Carries a unique content-addressed identifier: `chunk_id = SHA256(doc_id + version + index + text)`. Holds raw text, token count, page number, and section header.\n\n3. **Vector (Geometric Embedding Projection):**\n   - A dense numerical array ($v \\in \\mathbb{R}^{1536}$) generated by passing chunk text through an embedding model.\n   - Stored in an HNSW or IVF index for approximate nearest neighbor search. A vector represents semantic coordinates, but contains zero human-readable text.\n\n4. **Evidence (Curated Prompt Context):**\n   - The subset of retrieved chunks that have survived security filtering, rank fusion, and cross-encoder reranking, packaged into a structured context bundle.\n   - Annotated with citation identifiers (`[Doc 1, §3.2]`) and injected into the LLM prompt context window.",
-    "Why": "Overloading these concepts—such as using a document ID as a chunk ID—breaks document deletion, version switching, and citation lookup.",
+    "A": "In production RAG systems, these four concepts represent distinct data entities with completely different lifecycles, storage requirements, and identity models:\n\n1. **Document (Source of Record):**\n   - The top-level source artifact (e.g., an 80-page employee benefits manual, a Markdown technical spec, or an uploaded PDF).\n   - Carries document-level metadata: `document_id`, file name, author, tenant ownership, legal version, effective date, and ACL permissions.\n\n2. **Chunk (Searchable Text Unit):**\n   - A discrete, bounded subdivision of a document (typically 300-800 tokens) produced during recursive document splitting.\n   - Carries a unique content-addressed identifier: `chunk_id = SHA256(doc_id + version + index + text)`. Holds raw text, token count, page number, and section header.\n\n3. **Vector (Geometric Embedding Projection):**\n   - A dense numerical array ($v \\in \\mathbb{R}^{1536}$) generated by passing chunk text through an embedding model.\n   - Stored in an HNSW or IVF index for approximate nearest neighbor search. A vector represents semantic coordinates, but contains zero human-readable text.\n\n4. **Evidence (Curated Prompt Context):**\n   - The subset of retrieved chunks that have survived security filtering, rank fusion, and cross-encoder reranking, packaged into a structured context bundle.\n   - Annotated with citation identifiers (`[Doc 1, \u00a73.2]`) and injected into the LLM prompt context window.",
+    "Why": "Overloading these concepts\u2014such as using a document ID as a chunk ID\u2014breaks document deletion, version switching, and citation lookup.",
     "Risk": "Deleting an outdated document in the database while leaving orphaned chunk embeddings in the vector index causes the system to retrieve stale, phantom documents.",
     "Trade": "Maintaining separate document, chunk, and vector tables with relational foreign keys (`ON DELETE CASCADE`) requires relational schema discipline, but guarantees synchronized indexing and auditable provenance.",
-    "Try": "Design a PostgreSQL schema with `documents`, `chunks`, and `embeddings` tables linked by cascading foreign keys, verifying that deleting a document cleans up all associated chunks and vectors automatically."
+    "Try": "Design a PostgreSQL schema with `documents`, `chunks`, and `embeddings` tables linked by cascading foreign keys, verifying that deleting a document cleans up all associated chunks and vectors automatically.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "What do dense and sparse retrieval mean?",
@@ -97,7 +117,12 @@
     "Why": "Relying solely on dense embeddings causes retrieval to fail on exact identifiers; relying solely on keywords fails on natural language paraphrases. Hybrid search bridges both worlds.",
     "Risk": "Using an embedding model with poor multilingual or code performance: the dense retriever will hallucinate arbitrary similarity scores for non-English queries or code snippets.",
     "Trade": "Hybrid search requires operating two search backends (PostgreSQL tsvector/Elasticsearch and an HNSW vector index), increasing index memory and pipeline complexity, but eliminates retrieval blind spots.",
-    "Try": "Formulate two test queries—one with an exact SKU number and one using an abstract synonym—and observe how sparse BM25 dominates the first while dense vector search dominates the second."
+    "Try": "Formulate two test queries\u2014one with an exact SKU number and one using an abstract synonym\u2014and observe how sparse BM25 dominates the first while dense vector search dominates the second.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "What does grounding actually guarantee?",
@@ -105,7 +130,12 @@
     "Why": "Enterprise AI systems must be auditable. In healthcare, legal, and financial domains, ungrounded generative outputs represent unacceptable regulatory and operational risk.",
     "Risk": "Assuming vector search automatically produces grounded answers: an ungrounded prompt or poor retriever will feed irrelevant text to the model, leading to hallucinated synthesis.",
     "Trade": "Strict grounding constraints prevent creative hallucinations, but restrict the assistant's ability to answer speculative or open-ended questions that fall outside the indexed corpus.",
-    "Try": "Write an answer containing three factual statements, and map each statement to an exact sentence in a source passage, identifying any unsupported inferences."
+    "Try": "Write an answer containing three factual statements, and map each statement to an exact sentence in a source passage, identifying any unsupported inferences.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How do relevance, correctness, faithfulness, and freshness differ?",
@@ -113,7 +143,12 @@
     "Why": "A model can generate an answer that is 100% faithful to an obsolete document, resulting in a response that is completely incorrect for today's user.",
     "Risk": "Collapsing quality into a single generic 'accuracy' score: this hides whether an error originated in stale indexing, poor retrieval recall, or model hallucination.",
     "Trade": "Tracking all four dimensions requires automated continuous evaluation pipelines (Ragas/DeepEval), but pinpoint the exact component requiring engineering fixes.",
-    "Try": "Construct four synthetic RAG responses where each response passes three dimensions but fails exactly one (e.g. high faithfulness but failed freshness)."
+    "Try": "Construct four synthetic RAG responses where each response passes three dimensions but fails exactly one (e.g. high faithfulness but failed freshness).",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "What are the main cost and latency stages in a RAG request?",
@@ -121,7 +156,12 @@
     "Why": "Profiling each stage independently prevents wasting engineering effort on micro-optimizations that have negligible impact on total user-perceived latency.",
     "Risk": "Stuffing 50 chunks into the prompt window: prompt token costs explode, TTFT latency doubles, and attention dilution ('Lost in the Middle') degrades response quality.",
     "Trade": "Pruning candidates down to top-5 chunks via reranking reduces generator token costs and latency by over 70%, offsetting the minor compute cost of the reranker.",
-    "Try": "Build an Excel or Python latency and cost model calculating the monthly operating bill of a RAG pipeline serving 100,000 queries per day across all 6 stages."
+    "Try": "Build an Excel or Python latency and cost model calculating the monthly operating bill of a RAG pipeline serving 100,000 queries per day across all 6 stages.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "What does domain-agnostic mean, and what does it not solve?",
@@ -129,6 +169,11 @@
     "Why": "Believing that an off-the-shelf, domain-agnostic RAG framework solves enterprise search leads to failed deployments when real-world documents contain complex tables, legal caveats, and strict security rules.",
     "Risk": "Deploying default 500-token chunking on complex financial balance sheets: table rows are split randomly across chunks, destroying column alignment and corrupting financial calculations.",
     "Trade": "Building on domain-agnostic frameworks provides rapid initial velocity, but production accuracy requires investing in domain-specific document extractors, custom chunking rules, and curated evaluation benchmarks.",
-    "Try": "Take a complex 3-column financial balance sheet table and compare how a generic naive chunker splits it versus a table-aware parser that preserves row and column headers in Markdown."
+    "Try": "Take a complex 3-column financial balance sheet table and compare how a generic naive chunker splits it versus a table-aware parser that preserves row and column headers in Markdown.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   }
 ]
