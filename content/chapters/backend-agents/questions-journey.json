@@ -1,42 +1,48 @@
 [
   {
     "Q": "Where should a delegated agent’s authority stop when its task crosses services?",
-    "spoken": "Delegate the minimum data and capability required, carry a verifiable caller or delegation context and enforce resource scope at the receiving service. Keep a stable task/effect identity and an explicit reconciliation path. A local chat role or an agent name is not a transitive authorization credential.",
-    "A": "Delegate the minimum data and capability required, carry a verifiable caller or delegation context and enforce resource scope at the receiving service. Keep a stable task/effect identity and an explicit reconciliation path. A local chat role or an agent name is not a transitive authorization credential.\n\nConcrete engineering case: An orchestrator forwards an entire conversation and administrator token to a remote summarizer that only needs one permitted paragraph.\n\nBoundary defense: No. Transport protection does not reduce the authority or data delivered to the receiving service.",
-    "Why": "Delegate the minimum data and capability required, carry a verifiable caller or delegation context and enforce resource scope at the receiving service. Keep a stable task/effect identity and an explicit reconciliation path. A local chat role or an agent name is not a transitive authorization credential.",
-    "Risk": "An orchestrator forwards an entire conversation and administrator token to a remote summarizer that only needs one permitted paragraph.",
-    "Trade": "No. Transport protection does not reduce the authority or data delivered to the receiving service.",
-    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "spoken": "A delegated agent's authority must be strictly attenuated at service boundaries using cryptographically scoped tokens, explicit resource targets, and minimum viable capabilities. Passing ambient administrative tokens or untyped user roles to downstream microservices creates privilege escalation vulnerabilities.",
+    "A": "When an AI agent orchestrator delegates a subtask across microservice or multi-tenant boundaries, authority must stop strictly at the boundary of the requested capability using cryptographic **Capability Attenuation**:\n\n1. **Anti-Pattern of Ambient Authority:** Never forward the user's primary ambient credential (e.g. root JWT, admin API key, or broad session cookie) to downstream specialist agents. If an orchestrator forwards an admin token to a third-party summarizing agent, a prompt injection inside the document being summarized can instruct the summarizer to invoke admin APIs, exfiltrating cross-tenant data or modifying system configuration.\n2. **Cryptographic Token Attenuation (Macaroons / Scoped Minting):** The delegating orchestrator must mint a short-lived, down-scoped delegation token (or cryptographically attenuated macaroon) restricted by: target resource URI (`resource: /tenants/t1/documents/doc_892`), permitted HTTP verbs/actions (`actions: ['read']`), down-scoped data payload (passing only the specific extracted paragraph rather than full database access), and a tight TTL (e.g. 60 seconds).\n3. **Receiving Service Policy Enforcement:** The receiving microservice must validate the delegation token independently. It must verify the delegation chain, ensure the requested resource matches the attenuated scope, and check caller identity without relying on trust-by-default internal networks.\n4. **Audit Lineage & Non-Repudiation:** Every delegated mutation must carry distributed trace correlation IDs and delegation provenance headers (`X-Delegation-Chain: orchestrator->summarizer`), recording both the original user principal and the executing agent identity in immutable audit logs.",
+    "Why": "Delegation without attenuation violates the Principle of Least Privilege. In autonomous agent architectures where models interpret untrusted user inputs, ambient authority converts any sub-agent vulnerability into a full system compromise.",
+    "Risk": "An orchestrator forwards an entire conversation and an administrative OAuth token to an external summarizer service to summarize one paragraph; prompt injection inside the text forces the summarizer to use the admin token to delete customer accounts or read raw billing tables.",
+    "Trade": "Cryptographic attenuation requires token-minting infrastructure, public key distribution across microservices, and fine-grained resource permission schemas, but prevents catastrophic privilege escalation and lateral movement across services.",
+    "Try": "Implement a token attenuation filter that accepts an admin token and mints an HMAC-signed sub-token limited to a single document ID and read-only action; assert that presenting this sub-token to an edit endpoint or another document yields an immediate 403 Forbidden.",
     "domain": "ai-rag",
     "subdomain": "backend-agents",
     "module": "backend-agents",
     "concept": "Where should a delegated agent’s authority stop when its task crosses services?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: An orchestrator forwards an entire conversation and administrator token to a remote summarizer that only needs one permitted paragraph.",
+    "misconception_target": "Assuming internal microservices or downstream agents can be trusted with ambient administrative credentials because traffic traverses a private VPC or TLS tunnel.",
     "definitions": [
       {
-        "term": "Boundary: backend agents",
-        "definition": "Delegate the minimum data and capability required, carry a verifiable caller or delegation context and enforce resource scope at the receiving service."
+        "term": "Capability Attenuation",
+        "definition": "The cryptographic process of deriving a more restricted token from an authoritative token, reducing its permitted actions, resources, and lifespan without contacting the central issuer."
+      },
+      {
+        "term": "Ambient Authority",
+        "definition": "A security vulnerability where a service or agent automatically possesses all permissions of its surrounding environment or caller rather than explicitly requested capabilities."
       }
     ],
-    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "execution_timeline": "Client initiates task with user credential -> Orchestrator verifies permission -> Orchestrator mints attenuated sub-token with restricted scope -> Specialist agent executes subtask -> Receiving service validates attenuated scope -> Result returned with auditable trace provenance.",
     "example": {
-      "code": "{\n  \"scenario\": \"An orchestrator forwards an entire conversation and administrator token to a remote summarizer that only needs one permitted paragraph.\",\n  \"required_decision\": \"Delegate the minimum data and capability required, carry a verifiable caller or delegation context and enforce resource scope at the receiving service\"\n}",
+      "code": "{\n  \"scenario\": \"An orchestrator delegates a document summarization task to a worker service, providing an attenuated token restricted to 'read' on 'doc_892' with a 30s TTL.\",\n  \"required_decision\": \"Enforce cryptographic capability attenuation and reject attempts to use the sub-token for writes or other documents\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "An orchestrator forwards an entire conversation and administrator token to a remote summarizer that only needs one permitted paragraph.",
+    "production_case": "An orchestrator forwards an entire conversation and an administrative token to a remote summarizer that only needs one permitted paragraph, enabling a prompt injection payload in the document to abuse the admin token.",
     "alternatives": [
-      "No. Transport protection does not reduce the authority or data delivered to the receiving service."
+      "Down-scope credentials using cryptographic macaroon caveats or OAuth token exchange (RFC 8693) before delegating to downstream services.",
+      "Extract and deliver only the exact sanitized text snippet required for the subtask, providing zero credentials or database access to the worker."
     ],
     "pitfalls": [
-      "An orchestrator forwards an entire conversation and administrator token to a remote summarizer that only needs one permitted paragraph."
+      "Forwarding ambient administrative tokens or untyped caller roles to downstream agent microservices.",
+      "Assuming private VPC networking or TLS transport security replaces granular capability attenuation."
     ],
-    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "complexity": "Token minting and verification adds sub-millisecond HMAC hashing overhead while eliminating systemic privilege escalation risk across distributed microservice boundaries.",
     "follow_ups": [
       {
-        "Q": "Can encryption alone make overbroad delegation acceptable?",
-        "A": "No. Transport protection does not reduce the authority or data delivered to the receiving service."
+        "Q": "Can transport encryption (TLS) alone make overbroad delegation acceptable?",
+        "A": "No. Transport encryption protects data in transit from eavesdroppers, but does not constrain what the authenticated receiving service or downstream agent is permitted to do with the credentials it receives."
       }
     ],
     "citations": [
@@ -46,7 +52,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   }
 ]

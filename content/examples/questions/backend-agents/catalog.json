@@ -1,11 +1,11 @@
 [
   {
-    "explain": "A long-running task response returns an ID and status location; later reads expose authorized durable state. This fixture models the contract without a network server.",
-    "steps": "Accept one task and return a 202 response record. || Resolve the task ID through the status store rather than inferring completion from the initial response.",
-    "expect": "202 running",
-    "name": "task-api",
+    "name": "accepted-async-task-polling",
+    "filename": "accepted-async-task-polling.py",
     "language": "python",
-    "filename": "task-api.py",
+    "explain": "Implement an enterprise-grade HTTP 202 Accepted asynchronous agent task pattern. Decouples long-running LLM execution from client connections with polling locations, progress tracking, and cooperative cancellation.",
+    "steps": "Submit asynchronous agent task and receive HTTP 202 with Location header and retry hint. || Poll status endpoint through PENDING and RUNNING transitions until terminal COMPLETED outcome.",
+    "expect": "Accepted async task lifecycle verified: status=202, terminal_state=COMPLETED, progress=1.0",
     "questions": [
       640,
       779,
@@ -13,12 +13,12 @@
     ]
   },
   {
-    "explain": "A process-local registry disappears on restart and differs across replicas. A durable/shared store is required for cross-process task continuity.",
-    "steps": "Create a task in one process-shaped dictionary. || Compare a second replica and a restarted registry to show the missing state.",
-    "expect": "False False",
-    "name": "process-local-demo",
+    "name": "cross-process-task-state-store",
+    "filename": "cross-process-task-state-store.py",
     "language": "python",
-    "filename": "process-local-demo.py",
+    "explain": "Demonstrate why process-local state fails across distributed replicas and container restarts, and implement a durable, shared task repository with optimistic locking, heartbeat lease renewal, and zombie worker reconciliation.",
+    "steps": "Demonstrate that process-local in-memory registries fail on node queries and pod restarts. || Implement shared durable repository with optimistic versioning and heartbeat reconciliation across replicas.",
+    "expect": "Distributed task store verified: local_cross_node_found=False, durable_cross_node_found=True, zombie_reconciled=True",
     "questions": [
       643,
       692,
@@ -26,25 +26,24 @@
     ]
   },
   {
-    "explain": "An async context manager scopes resource lifetime while an await yields to other tasks. Remote waiting should not keep an unrelated database transaction open.",
-    "steps": "Release the simulated database session before the provider wait. || Assert cleanup occurred before awaiting the model-shaped dependency.",
-    "expect": "closed-before-provider",
-    "name": "async-resource",
+    "name": "async-resource-lifecycle-boundary",
+    "filename": "async-resource-lifecycle-boundary.py",
     "language": "python",
-    "filename": "async-resource.py",
+    "explain": "Demonstrate async event loop protection and database transaction boundary hygiene. Prevents connection pool starvation by releasing database sessions before external LLM awaits, and offloads blocking CPU tasks to bounded thread pools.",
+    "steps": "Release database transaction and connection before awaiting long-running LLM generation. || Offload CPU-bound token parsing to bounded thread executor to keep event loop latency non-blocking.",
+    "expect": "Resource boundary verified: db_held_during_llm=False, max_active_connections=1, loop_lag_ms<50",
     "questions": [
       778,
       415
     ]
   },
   {
-    "name": "journey-861",
-    "filename": "journey-861.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter\u2019s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "delegated-capability-attenuation",
+    "filename": "delegated-capability-attenuation.py",
+    "language": "python",
+    "explain": "Implement cryptographic capability attenuation for cross-service agent delegation. Prevents ambient authority escalation by minting scoped, short-lived HMAC delegation tokens restricted to exact resources and actions.",
+    "steps": "Mint attenuated sub-token from root orchestrator credentials restricting scope and validity window. || Enforce capability attenuation at downstream service, rejecting cross-document access and unauthorized actions.",
+    "expect": "Delegated capability attenuation verified: permitted_read=True, forbidden_cross_doc=403, forbidden_action=403",
     "questions": [
       861
     ]
