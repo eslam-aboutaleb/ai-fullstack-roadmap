@@ -35,6 +35,13 @@ TITLES = {
  'Tokenization, attention and tensor dimensions':'How do tokenization and tensor dimensions determine attention computation?',
  'Training objectives, decoding and cached inference':'How do training objectives, decoding and cached inference interact?',
  'Quantization, LoRA, distillation and model evaluation':'How do quantization, LoRA and distillation change model evaluation?',
+ 'Sequence structures: lists, tuples and slicing mechanics':'How do Python lists, tuples and slicing mechanics operate under the memory model?',
+ 'Hash tables: dictionaries, sets and collision resolution':'How do Python dictionaries and sets handle hashing and collision resolution?',
+ 'Queueing, heaps and specialized container algorithms':'How do deques, heaps and specialized containers optimize queueing algorithms?',
+ 'Two Pointers, partitioning and in-place array transformations':'How do two pointers and in-place partitioning optimize array algorithms?',
+ 'Sliding Window dynamics and monotonic boundary contraction':'How do sliding windows and monotonic boundaries optimize contiguous subarray algorithms?',
+ 'Hash table frequency indexing, prefix sums and complements':'How do hash tables, prefix sums and complements optimize lookup algorithms?',
+ 'Binary search invariants, monotonicity and range reduction':'How do binary search invariants and range reductions guarantee logarithmic search?',
 }
 
 
