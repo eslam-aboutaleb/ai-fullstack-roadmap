@@ -1,11 +1,11 @@
 [
   {
-    "explain": "A skill packages instructions and resources for a task; a tool exposes an executable operation. The manifest records purpose and compatibility without granting permission.",
-    "steps": "Define a narrow task description and entry resource. || Keep executable tools in a separate capability list.",
-    "expect": "citation_audit read_excerpt",
-    "name": "skill-package",
+    "name": "agent-skill-package-manifest",
+    "filename": "agent-skill-package-manifest.py",
     "language": "python",
-    "filename": "skill-package.py",
+    "explain": "Structure and validate production agent skill packages. Enforces explicit manifest declarations, separates procedural guidance from tool capability primitives, and validates tool dependencies before activation.",
+    "steps": "Declare host capabilities and package a domain skill with negative boundaries and required tools. || Validate manifest dependencies, ensuring unsupported tool requirements fail registration safely.",
+    "expect": "Agent skill package manifest verified: skill_registered='citation_audit', tools_bound=['highlight_citation', 'read_source_excerpt'], dependency_check_passed=True",
     "questions": [
       621,
       623,
@@ -16,12 +16,12 @@
     ]
   },
   {
-    "explain": "Progressive disclosure loads only the instructions needed for the selected task. A concise catalog avoids sending every detailed package into every request.",
-    "steps": "Select a matching task from metadata. || Load only its referenced instructions and retain the rest as discoverable metadata.",
-    "expect": "['citation_audit']",
-    "name": "skill-disclosure",
+    "name": "progressive-skill-disclosure",
+    "filename": "progressive-skill-disclosure.py",
     "language": "python",
-    "filename": "skill-disclosure.py",
+    "explain": "Implement multi-tier progressive disclosure for agent skills: Tier 1 discovery metadata in prompt, Tier 2 on-demand SKILL.md procedural workflow, and Tier 3 lazy loading of referenced schemas.",
+    "steps": "Render lightweight discovery catalog in system prompt without loading full procedure bodies. || Match user intent, load procedural instructions dynamically, and fetch supporting schemas on demand.",
+    "expect": "Progressive skill disclosure verified: catalog_skills=2, tier1_discovery_rendered=True, tier2_loaded='skill_citation_audit', tier3_lazy_loaded='rubric.json'",
     "questions": [
       622,
       363,
@@ -30,36 +30,35 @@
     ]
   },
   {
-    "explain": "Conflicting package instructions cannot override trusted host restrictions. The host evaluates a proposed operation against its own allowed scope.",
-    "steps": "Record a tool request suggested by skill content. || Enforce the host capability policy before script or tool execution.",
-    "expect": "False",
-    "name": "instruction-precedence",
+    "name": "instruction-precedence-evaluator",
+    "filename": "instruction-precedence-evaluator.py",
     "language": "python",
-    "filename": "instruction-precedence.py",
+    "explain": "Enforce the instruction precedence hierarchy: Host System Policy > User Constraints > Skill Instructions > Retrieved Content. Prevents procedural skill instructions from widening permissions or bypassing tenant isolation.",
+    "steps": "Evaluate legitimate skill operations against host security ceilings and user session constraints. || Intercept unauthorized tool requests and cross-tenant operations initiated by skills, blocking them deterministically.",
+    "expect": "Instruction precedence evaluator verified: valid_op_approved=True, unauthorized_tool_blocked=True, tenant_breach_blocked=True, violations_recorded=2",
     "questions": [
       624
     ]
   },
   {
-    "explain": "Portable skill behavior needs explicit input/output contracts and version compatibility, while runtime adapters remain separate. Validation makes assumptions inspectable.",
-    "steps": "Record the required input and expected output fields. || Check the host can supply the required tool capability before loading the package.",
-    "expect": "True",
-    "name": "skill-contract",
+    "name": "portable-skill-contract-validator",
+    "filename": "portable-skill-contract-validator.py",
     "language": "python",
-    "filename": "skill-contract.py",
+    "explain": "Validate portable skill input/output contracts and version compatibility. Enforces semantic versioning rules, checks host runtime tool dependencies, and validates runtime invocation payloads.",
+    "steps": "Verify skill contract integrity, semantic versioning format, and required host tool dependencies. || Validate invocation payloads against required input parameters, rejecting malformed calls.",
+    "expect": "Portable skill contract validator verified: semver=1.3.0, host_compatible=True, input_validation_passed=True",
     "questions": [
       366,
       369
     ]
   },
   {
-    "name": "journey-969",
-    "filename": "journey-969.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "skill-authority-boundary",
+    "filename": "skill-authority-boundary.py",
+    "language": "python",
+    "explain": "Enforce the competence vs authority boundary for agent skills. Intercepts tool calls initiated by skills, evaluates caller authentication and RBAC roles, and rejects self-authorizing prompt claims.",
+    "steps": "Process authorized tool requests matching the caller's role and tenant boundary. || Intercept adversarial skill tool requests attempting cross-tenant access, sensitive table reads, or unauthorized admin actions.",
+    "expect": "Skill authority boundary verified: legitimate_approved=True, cross_tenant_blocked=True, sensitive_resource_blocked=True, self_authorization_denied=True, blocked_attempts=3",
     "questions": [
       969
     ]
