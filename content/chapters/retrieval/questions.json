@@ -202,11 +202,25 @@
   },
   {
     "Q": "Why must filters be applied during each retrieval stage?",
-    "A": "If unauthorized documents consume the initial top-k pool, post-filtering can leave too few permitted results and may send forbidden text to later components. Applying constraints inside dense and lexical stages improves both isolation and eligible-candidate recall.",
-    "Why": "Strategies pass effective filters to each backend, validate filter support, and run scope defense checks before returning results. These checks complement authorization at the transport or host boundary.",
+    "A": "**Authorization is an eligibility predicate, not a post-processing feature.** Each tenant, source revision, deletion tombstone, confidentiality policy and document scope must be enforced before ranking (and again when resolving citations). If an ANN query retrieves the global top five and then filters other tenants, five forbidden near neighbors can displace the only eligible records. This both hides relevant evidence and can expose identifiers through debug output. Filter by trusted owner inside the search engine or isolate indexes when the engine cannot enforce it.\n\n**Vector math and correctness.** Cosine similarity equals dot(a,b) divided by the product of both norms; a zero vector has undefined cosine. A query vector must use the same embedding model/version and dimensions as indexed records. HNSW approximates nearest neighbors, trading search time, memory and recall according to index/query parameters. A benchmark must hold gold queries, eligible corpus, metric and hardware constant rather than comparing vendor score fields directly.\n\n**Versioned migration case.** When replacing model v1 with v2, construct a separate versioned index, dual-write immutable record IDs and revisions, backfill, propagate deletions and verify the full expected ID set. Gate a read cutover on completeness and gold Recall@k plus tenant-denial tests; retain rollback with deletion reconciliation. Swapping an alias after only 90% of documents were indexed creates a silent relevance regression.\n\n**Exercise.** The dependency-free `labs/vector_index_migration.py` demonstrates exact cosine search scoped before ranking, revision eligibility, tombstones and a fail-closed migration. It is an executable **reference oracle**, not a live integration with Qdrant, Chroma, Pinecone, Weaviate, FAISS, pgvector or LanceDB. Provider adapters must be checked against this behavior with official SDKs, pinned server versions and genuine negative integration tests.\n\n**Follow-up.** If an ACL is revoked while a query is running, agree on an authorization-epoch snapshot policy and check source retrieval again; a cached result from an earlier ACL revision must not be used without revalidation. Exact search may be slower than filtered ANN, but correctness is the gate for tuning the latter.",
+    "Why": "Global top-k then authorization filtering can silently drop eligible evidence and leak unauthorized IDs.",
     "Risk": "A backend that ignores a filter can still leak data. Defense in depth detects some invalid results, but tests must also ensure a reranker or external processor does not receive unauthorized candidates before that final check.",
     "Trade": "Filter-aware search can affect query plans and approximate recall. Security requirements take precedence; tune backend indexes rather than dropping constraints for speed.",
-    "Try": "Place many high-similarity forbidden records ahead of a permitted record. Verify eligible recall and inspect exactly which records reach the reranker."
+    "Try": "Run the exact reference fixture with different owners, an unindexed revision and a deletion; specify the real provider integration test needed next.",
+    "citations": [
+      "https://qdrant.tech/documentation/guides/optimize/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why can top-k post-filtering harm recall even if it removes every unauthorized result?",
+        "A": "Unscoped candidates can fill all top-k slots with forbidden neighbors and displace lower-ranked eligible evidence. Apply the trusted ACL in the engine's candidate selection or separate index namespaces, then verify an owner-scoped Recall@k oracle and a revoked-document negative case."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should I interpret distance thresholds and relevance scores?",
