@@ -147,6 +147,9 @@ def validate(course=None, curriculum=None):
         if isinstance(entry['effort_hours'], bool) or not isinstance(entry['effort_hours'], (int, float)) or not __import__('math').isfinite(entry['effort_hours']) or entry['effort_hours'] <= 0:
             raise ValueError(f"Chapter {slug} effort_hours must be a positive number")
 
+    from learning_blueprint import validate_plan
+    validate_plan(curriculum=curriculum)
+
     print(json.dumps({
         'tracks': len(tracks),
         'chapters': len(chapters),
