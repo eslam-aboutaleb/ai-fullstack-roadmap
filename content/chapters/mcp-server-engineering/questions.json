@@ -1,11 +1,11 @@
 [
   {
     "Q": "How should an MCP server be layered?",
-    "A": "A production-grade Model Context Protocol (MCP) server must be engineered with strict architectural separation between four decoupled layers:\n\n1. Transport & Protocol Layer: Handles the low-level wire protocol (STDIO or Streamable HTTP/SSE), deserializes incoming JSON-RPC 2.0 frames, manages connection handshakes, and routes method invocations (tools/list, tools/call, resources/read) to appropriate dispatchers;\n2. Schema & Validation Layer: Parses raw JSON arguments into typed Pydantic models, strictly enforcing data types, regex patterns, and value bounds. It rejects malformed or unconstrained payloads before they reach business logic;\n3. Authorization & Security Layer: Extracts the authenticated principal from the transport context (e.g., OAuth2 token or cryptographic session), evaluates tenant isolation and permissions (ABAC/RBAC), and verifies that the user is entitled to perform the requested action on the target entity;\n4. Domain Service Layer: Encapsulates pure business logic, database transactions, and integrations with external systems. This layer is completely protocol-agnostic: the same domain service should be callable from a REST controller, a gRPC service, or an MCP tool without any code modification.",
-    "Why": "Decoupling transport adapters, validation schemas, and security gates from core domain services ensures that business rules and authorization policies are enforced uniformly regardless of whether a request originates from an MCP client or a standard REST API.",
-    "Risk": "Embedding database queries and authorization checks directly inside MCP tool handlers creates code duplication, inconsistent permission enforcement, and unmaintainable monolithic tool servers.",
-    "Trade": "Clean hexagonal layering introduces intermediate data transfer objects (DTOs) and service interfaces, but guarantees testability, security auditability, and independent protocol evolution.",
-    "Try": "Refactor an existing monolithic MCP tool function: separate the FastMCP @mcp.tool() adapter, the Pydantic input schema, the authorization check, and the underlying database service into four distinct modules.",
+    "A": "Keep transport handling, tool schemas, application services, and persistence adapters separate. The MCP handler should translate requests rather than embed the entire business workflow.",
+    "Why": "Inject a service with a narrow interface and derive the principal from request authentication. Reuse the same application service from HTTP and MCP adapters.",
+    "Risk": "Duplicated business logic can enforce different permissions through different protocols.",
+    "Trade": "Layering adds interfaces while keeping behavior consistent.",
+    "Try": "Implement one search service behind both an HTTP route and an MCP tool.",
     "spoken": "Keep transport/protocol adaptation separate from schema validation, identity policy and domain operations. Return actionable structured failures without leaking internals. Bind required approval to material operation parameters and enforce authorization/state checks again at execution.",
     "domain": "agents",
     "subdomain": "mcp",
@@ -29,9 +29,9 @@
     ],
     "execution_timeline": "Tool invocation received -> Validate parameters -> Check authorization -> Human confirmation if destructive -> Execute -> Return result or structured error",
     "example": {
-      "code": "from mcp.server.fastmcp import FastMCP, Context\nfrom pydantic import BaseModel, Field\n\nmcp = FastMCP(\"OrderManagementServer\")\n\nclass CancelOrderSchema(BaseModel):\n    order_id: str = Field(min_length=5, regex=r\"^ORD-[0-9]{4,8}$\")\n    cancellation_reason: str = Field(min_length=10, max_length=500)\n\n@mcp.tool()\nasync def cancel_order(input_data: CancelOrderSchema, ctx: Context) -> str:\n    # 1. Extract trusted identity from server session context\n    session_user = ctx.request_context.meta.get(\"authenticated_user_id\")\n    # 2. Invoke authoritative domain service\n    result = await order_domain_service.cancel_order(\n        order_id=input_data.order_id,\n        reason=input_data.cancellation_reason,\n        actor_id=session_user\n    )\n    return f\"Order {input_data.order_id} cancelled: {result.status}\"",
-      "explanation": "Demonstrates proper four-layer MCP architecture: typed Pydantic input validation, context-derived trusted user identity, and delegation to an authoritative domain service.",
-      "output": "Order ORD-99214 cancelled: SUCCESS (Refund issued)"
+      "code": "async def handle_delete(tool_call):\n    schema.validate(tool_call.arguments)\n    if not await check_auth(tool_call):\n        return error(403)\n    if tool_call.destructive:\n        return await request_human_approval(tool_call)\n    return await execute(tool_call)",
+      "explanation": "Validate, authorize, confirm, then execute.",
+      "output": "Tool result or structured error"
     },
     "production_case": "A tool request has valid JSON but names another customer’s order. The server rejects object access before executing the domain action, without disclosing the order’s private state.",
     "alternatives": [
@@ -62,74 +62,88 @@
   },
   {
     "Q": "How do you create a minimal Python MCP tool?",
-    "A": "Using the official Python MCP SDK (mcp), a minimal tool server is built using the FastMCP high-level interface. FastMCP automatically introspects Python type hints, docstrings, and Pydantic models to generate the corresponding JSON Schema definitions advertised during tools/list.\n\nKey implementation details: (1) Instantiate FastMCP with a descriptive server name: mcp = FastMCP(\"KnowledgeService\"); (2) Decorate an async function with @mcp.tool(): FastMCP uses the function docstring as the natural language tool description provided to the LLM, and converts type annotations into JSON Schema parameter specifications; (3) Run the server over a selected transport: mcp.run(transport=\"stdio\") for local child-process integrations, or mcp.run(transport=\"sse\", host=\"0.0.0.0\", port=8000) for remote HTTP/SSE deployments.\n\nBest practice: Keep initial tool implementations read-only and deterministic, logging structured metrics to stderr (never stdout on STDIO transports, which corrupts the JSON-RPC stream).",
-    "Why": "FastMCP drastically lowers boilerplate by leveraging standard Python type hints and docstrings to produce compliant MCP protocol schemas automatically.",
-    "Risk": "Using print() statements for debugging in an STDIO server will write raw text directly to stdout, corrupting the JSON-RPC wire stream and causing the client to disconnect with a JSON parse error.",
-    "Trade": "FastMCP provides maximum developer velocity and clean code, but wraps underlying low-level Server primitives; for complex custom transports or advanced session multiplexing, use the low-level Server API.",
-    "Try": "Write a 15-line FastMCP script that exposes a calculate_bmi tool. Run it with mcp.run() and use the MCP Inspector CLI (npx @modelcontextprotocol/inspector) to interactively inspect the advertised schema and test tool execution."
+    "A": "Use a supported official SDK interface, define a typed function, and expose it through a server with an explicitly selected transport. Keep the first example read-only.",
+    "Why": "The accompanying SDK example uses the v1 FastMCP style and synthetic data. Pin a compatible v1 SDK; evaluate migration separately for another major version.",
+    "Risk": "A minimal decorator example omits production authentication, quotas, and shutdown handling.",
+    "Trade": "SDK convenience reduces boilerplate and introduces version coupling.",
+    "Try": "Run the example locally with a compatible client and inspect the advertised schema."
   },
   {
     "Q": "How should tool argument validation work?",
-    "A": "Tool argument validation must be defensive and comprehensive, combining syntactic schema constraints with semantic business rules:\n\n1. Syntactic Validation (Pydantic / JSON Schema): Enforce strict types, non-nullability, string lengths (min_length, max_length), regex patterns (preventing path traversal ../, shell metacharacters, or malformed IDs), numeric bounds (ge, le), and enumerated values (Enum);\n2. Semantic Domain Validation: Validate entity existence, state machine preconditions (e.g., verifying an order is in \"PENDING\" status before attempting cancellation), and business quotas before making state mutations;\n3. Parameter Isolation: NEVER allow the model to specify tenant_id, user_id, or role level in tool arguments. These must be injected exclusively from the authenticated session context;\n4. Structured Failure Delivery: If validation fails, do not throw an unhandled internal exception. Return a structured CallToolResult with isError=True detailing which parameter was invalid and the required format, allowing the model to self-correct.",
-    "Why": "Rigorous argument validation acts as the first line of defense against prompt injection, SQL injection, parameter tampering, and cross-tenant data corruption.",
-    "Risk": "Allowing free-form string arguments without regex or length boundaries allows an attacker to inject prompt injections or SQL fragments directly into downstream processing pipelines.",
-    "Trade": "Strict Pydantic regex and bounds validation eliminates invalid requests at the boundary, but requires careful tuning to avoid rejecting legitimate edge-case inputs.",
-    "Try": "Create a Pydantic model for a database query tool that restricts table_name to a strict Enum of public tables and enforces limit <= 100. Verify that attempting to query \"users\" or pass limit=5000 is rejected immediately."
+    "A": "Validate shape, length, allowed identifiers, numeric bounds, and application invariants before contacting downstream services. Derive tenant and user scope outside model arguments.",
+    "Why": "Reject arbitrary SQL, paths, or URLs unless the capability is explicitly designed and constrained for them. Use allowlisted operations and parameter binding.",
+    "Risk": "A well-typed string can still contain a dangerous destination or a cross-tenant identifier.",
+    "Trade": "Narrow inputs reduce flexibility and improve control.",
+    "Try": "Try oversized queries, unexpected properties, and unauthorized resource IDs."
   },
   {
     "Q": "How do you secure a remote MCP deployment?",
-    "A": "Securing a remote MCP server deployed in a production cloud environment requires implementing enterprise zero-trust controls:\n\n1. TLS 1.3 Termination: Enforce strict HTTPS encryption on all incoming connections, with modern cipher suites and HSTS headers;\n2. OAuth2 / OIDC Token Verification: Require a valid Bearer JWT on every SSE connection and HTTP POST request, validating signature, issuer (iss), expiration (exp), and audience (aud);\n3. CORS & Origin Validation: Explicitly restrict allowed origins (Access-Control-Allow-Origin) to approved internal web applications, rejecting wildcard origins (*);\n4. Network Boundary Isolation: Host remote MCP servers within private VPCs or behind an API Gateway / Cloudflare Access boundary, restricting ingress to authorized internal IPs or mutual-TLS (mTLS) client certificates;\n5. Granular Rate Limiting & DoS Protection: Implement per-tenant token-bucket rate limiters on tools/call endpoints to prevent malfunctioning or loop-locked agents from exhausting server resources.",
-    "Why": "Remote MCP servers expose powerful execution tools and sensitive database resources; hardening transport, authentication, and network boundaries is mandatory to prevent unauthorized remote execution.",
-    "Risk": "Deploying an HTTP MCP server without strict audience-scoped JWT authentication allows any entity with network access to execute arbitrary database queries and business mutations.",
-    "Trade": "Enterprise OAuth2 token verification and VPC routing add infrastructure setup overhead, but provide essential compliance and security guarantees for cloud deployments.",
-    "Try": "Deploy an MCP server behind an Nginx reverse proxy configured with mTLS and a rate limit of 10 requests per second. Test with valid and invalid client certificates to verify connection rejection."
+    "A": "**MCP is not an authorization system by itself.** A remote Model Context Protocol server exposes tools, resources and prompts over its negotiated transport/protocol revision. A *host* controls a client instance and decides whether discovered tools are available to the assistant. A server must still authenticate and authorize every remote request at its own data boundary. A model choosing a tool, or a schema validating JSON arguments, does not confer permission to run that tool.\n\n**Remote OAuth sequence.** Discover the appropriate protected-resource metadata and authorization server; register/use a permitted client and correct OAuth flow (including PKCE for public authorization-code clients). Obtain a token intended for the target resource with narrowly scoped delegation. At the resource server, cryptographically verify token format/signature and trusted issuer/key metadata, then validate audience/resource, subject, expiry, intended scopes and tool/object authorization. Handle redirect URI and state against CSRF; never send a bearer token issued for Server A to an unrelated Server B. Re-check ownership of each document and deny writes until a separate approval/policy gate permits them.\n\n**Version and discovery.** Initialization/capability negotiation, tool lists, transport errors and versioned input schemas are separate from application authority. A client supporting two MCP specification versions should select an intersection, not assume the newest protocol from a marketing page. Remote HTTP has different origin, session, timeout and cancellation risks from local STDIO; the tool result remains untrusted content, even from a properly authenticated server.\n\n**Execution example.** `labs/mcp_remote_policy.py` uses already-verified synthetic identities (it does NOT parse or cryptographically verify JWTs) and checks issuer, audience, expiry, scopes, declared tools, effect approval and replay identity. It rejects cross-resource bearer token forwarding, read-only-to-write escalation and unsupported versions. The effect-ID set is process-local teaching state, not a durable cross-replica idempotency ledger. Real OAuth integration must use a cryptographic library, a live issuer, discovery, consent, token exchange and negative redirect/PKCE tests.\n\n**Production failure.** A user authorizes an innocuous document-search tool. A compromised server description then asks the client to submit a payment and forward its token. Descriptions are lower-trust data; the host rejects tool/policy escalation, the wrong-audience token is unusable by the second server, and effectful operations require authenticated owner plus explicit approval and durable idempotent business handling.\n\n**Trade-off and follow-up.** Stateless HTTP simplifies horizontal scaling but requires an explicit continuation/effect ledger for long-running tasks; session transports add lifetime/cleanup complexity. **What changes when the HTTP result is lost after commit?** Replay using a stable owner-scoped operation ID and consult the durable effect store; a transport retry alone cannot guarantee exactly-once side effects.",
+    "Why": "Follow the selected protocol security guidance and deploy behind an explicit ingress policy. Log security outcomes without storing credentials.",
+    "Risk": "A reverse proxy does not automatically validate application-level permissions or block server-side request forgery.",
+    "Trade": "More controls add operational work and reduce exposure.",
+    "Try": "Run MCP remote policy tests; change audience, scope, expiry and approval to confirm rejection; distinguish verified-claims policy from actual signature verification.",
+    "citations": [
+      "https://modelcontextprotocol.io/specification/2026-07-28"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a tool's advertised JSON input schema prove that an MCP client is authorized to invoke it?",
+        "A": "No. JSON validation checks arguments, while authentication establishes a principal and authorization checks the exact resource and action. Validate issuer, signature, audience, expiration, scope, per-object policy and separate user approval before irreversible effects; remote tool descriptions cannot grant privileges."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should tool errors be modeled?",
-    "A": "Tool error modeling must balance informative self-correction for LLMs with defensive information hiding for security:\n\n1. Return isError=True in CallToolResult: For business and domain errors (e.g., validation failures, entity not found, precondition violations), return a successful JSON-RPC response with isError=True in the CallToolResult. The text content should clearly explain what went wrong and what the model can do to fix it (e.g., \"Error: Policy POL-102 is expired. Please query active policies.\");\n2. Redact Internal Stack Traces: Raw exceptions, database connection strings, SQL query text, and internal IP addresses must NEVER be returned in tool error messages. They must be logged server-side with a unique correlation ID (e.g., error_ref=\"ERR-8912\");\n3. Categorize Error Types: Use structured error codes (e.g., NOT_FOUND, PERMISSION_DENIED, RATE_LIMITED, INVALID_ARGUMENT) so automated client harnesses can programmatically classify failures without parsing natural language text.",
-    "Why": "Constructive natural language error messages enable models to self-heal and retry successfully, while sanitizing stack traces protects internal infrastructure from reconnaissance attacks.",
-    "Risk": "Returning raw Python tracebacks or database errors exposes internal system topology, table schemas, and library vulnerabilities to potential attackers.",
-    "Trade": "Providing actionable feedback aids model problem-solving, but requires defensive sanitization to avoid leaking confidential data.",
-    "Try": "Write a centralized error-handling wrapper for MCP tools that catches domain exceptions, generates an internal error UUID, logs the full traceback to CloudWatch, and returns a sanitized user-friendly error message to the model."
+    "A": "Separate transport or protocol failures from expected application outcomes such as not found, permission denied, unavailable, and needs confirmation. Return stable machine-readable categories.",
+    "Why": "Map internal exceptions to a controlled envelope and preserve a trace or operation ID for support. Do not expose stack traces or query strings containing private data.",
+    "Risk": "Returning an empty list for every failure causes an agent to misreport outages as no matches.",
+    "Trade": "Typed outcomes require client handling and support reliable decisions.",
+    "Try": "Simulate one normal empty result and one timeout and compare agent behavior."
   },
   {
     "Q": "How should write tools require human confirmation?",
-    "A": "Destructive, state-mutating, or high-value operations (e.g., executing a financial wire transfer, deleting customer records, or deploying code) must NEVER be executed autonomously by an agent without explicit human confirmation:\n\nTwo-Phase Execution Pattern: (1) Phase 1 (Preparation / Proposal): The agent calls a preparation tool (e.g., prepare_wire_transfer(amount, recipient)). The server validates arguments, checks account balance, computes a cryptographic HMAC hash of the exact parameters, stores the pending request with an expiration TTL, and returns a pending_confirmation_id and an explanation for the user; (2) Phase 2 (Confirmation & Execution): The user reviews the exact transfer details on their UI screen and explicitly clicks \"Approve\". The client sends the confirmation_id along with the user's authenticated authorization token to the confirm_wire_transfer tool. The server verifies that: the token is valid, the user has authorization, the confirmation has not expired, and the HMAC hash matches the original parameters (guaranteeing parameters were not altered mid-flow) before committing the transaction.",
-    "Why": "A two-phase prepare/confirm pattern guarantees that non-deterministic model hallucinations or prompt injections can never unilaterally trigger irreversible, destructive real-world actions.",
-    "Risk": "Allowing an LLM to directly invoke destructive write tools without human review creates extreme risk of catastrophic data loss or unauthorized financial disbursements due to prompt injection or model confusion.",
-    "Trade": "Two-phase confirmation introduces asynchronous workflow states and requires user UI interaction, but is non-negotiable for high-risk enterprise operations.",
-    "Try": "Implement a two-phase refund tool pair: prepare_refund returns an approval_token and a summary; confirm_refund requires that token and verifies that the refund amount has not been modified before issuing the refund."
+    "A": "Preparation should produce a reviewable operation with exact parameters, owner, expiry, and revision. Execution should validate an approval bound to that operation.",
+    "Why": "Keep approval verification and the business transaction server-side. A natural-language yes or model-provided approved flag is insufficient.",
+    "Risk": "Reusing approval after parameters change can authorize a different action.",
+    "Trade": "Two-step operations add interaction and reduce accidental changes.",
+    "Try": "Change the amount after approval and verify execution rejects the stale approval."
   },
   {
     "Q": "How do you control concurrency and retries for tools?",
-    "A": "Managing concurrency and retries in an MCP server requires protecting both internal system resources and downstream dependencies:\n\n1. Concurrency Throttling: Use asyncio.Semaphore or token-bucket limiters within tool handlers to bound the maximum number of concurrent executions of expensive operations (e.g., maximum 5 concurrent PDF OCR extractions or 20 concurrent vector searches). Requests exceeding the limit queue or fail fast with HTTP 429;\n2. Request Timeouts: Every tool invocation must be governed by an explicit asyncio.timeout() deadline (e.g., 10 seconds). If a downstream database or third-party API hangs, the tool aborts gracefully and releases resources rather than hanging indefinitely;\n3. Idempotency on Retries: Because agent harnesses retry failed tools upon network drops, all state-mutating tools must require an idempotency_key parameter, ensuring that repeated executions of the same tool call do not create duplicate database records;\n4. Backoff & Jitter: When calling downstream services from within a tool, apply exponential backoff with full jitter to avoid amplifying downstream outages.",
-    "Why": "Disciplined concurrency bounds and timeouts prevent resource exhaustion (OOMs, thread starvation) and ensure that runaway agent loops do not bring down backend infrastructure.",
-    "Risk": "Unbounded tool concurrency allows a sudden spike in agent requests to exhaust database connection pools and overwhelm third-party APIs.",
-    "Trade": "Throttling concurrency protects server stability, but can increase latency for queued requests during peak agent traffic.",
-    "Try": "Wrap a heavy computation tool with an asyncio.Semaphore(3) and an asyncio.timeout(5.0). Simulate 10 simultaneous requests and observe proper queuing and timeout handling."
+    "A": "Apply per-tenant quotas, bounded execution concurrency, downstream deadlines, and an idempotency policy for side effects. Retries must depend on outcome and operation semantics.",
+    "Why": "Keep the same durable operation key across retry attempts, and query status after an ambiguous failure. Avoid holding database locks during remote model calls.",
+    "Risk": "Retrying a timeout can repeat a committed write.",
+    "Trade": "Conservative retry limits may surface more transient failures while protecting correctness.",
+    "Try": "Inject a timeout immediately after commit and recover through the operation ledger."
   },
   {
     "Q": "What should MCP observability record?",
-    "A": "Production MCP servers must be instrumented with OpenTelemetry distributed tracing and structured logging to provide complete operational visibility:\n\nKey Telemetry Signals: (1) Trace Spans: Every incoming JSON-RPC request must generate an OpenTelemetry span (e.g., mcp.tools.call:search_documents) capturing duration, client_id, session_id, and transport type; (2) Standardized Attributes: Record tool name, argument byte size, return code, isError status, and downstream database latency; (3) Structured Metrics: Export Prometheus/OpenTelemetry counters and histograms for: mcp_requests_total (labeled by method and status), mcp_tool_duration_seconds (latency percentiles p50, p95, p99), mcp_active_sessions_gauge, and mcp_error_rate; (4) PII Sanitization: Configure OpenTelemetry span processors to automatically scrub or hash sensitive user identifiers, credit card numbers, and passwords before exporting traces to monitoring platforms.",
-    "Why": "Granular observability allows engineering teams to detect latency regressions, identify failing tools, track error rates, and audit security violations across distributed agent networks.",
-    "Risk": "Logging unredacted tool arguments or return payloads to centralized logging aggregators can violate GDPR, HIPAA, and PCI-DSS compliance by exposing customer personal data in plain text.",
-    "Trade": "Comprehensive telemetry adds a minor CPU and network serialization overhead (typically <2ms per call), but is indispensable for operating production microservices.",
-    "Try": "Instrument a FastMCP server using opentelemetry-instrumentation. Verify that executing a tool creates structured spans in your local OpenTelemetry collector or Phoenix dashboard."
+    "A": "Record tool name, schema version, permitted principal category, latency, outcome, retry count, and trace linkage. Store arguments only under a reviewed privacy policy.",
+    "Why": "Use an allowlist of safe attributes and attach task or operation IDs across adapters. Separate user-visible outcomes from instrumentation success.",
+    "Risk": "A tool returning a domain failure may still look like a successful function call.",
+    "Trade": "Detailed payload logging improves diagnosis and increases disclosure risk.",
+    "Try": "Show metrics that distinguish validation rejection, denied access, empty search, and provider outage."
   },
   {
     "Q": "How should MCP contract tests be organized?",
-    "A": "MCP contract tests verify that a server correctly implements protocol specifications and maintains stable schema contracts without requiring live LLMs or external dependencies:\n\nTesting Strategy: (1) Schema Compatibility Tests: Validate that the server's tools/list, resources/list, and prompts/list responses strictly conform to the MCP 2026-07-28 JSON-RPC specification. Ensure that parameter names, types, and descriptions have not drifted; (2) In-Memory Functional Tests: Use the MCP SDK's in-memory transport to execute tools with valid, boundary, and invalid payloads, verifying that return values match expected CallToolResult schemas and error codes; (3) Boundary & Security Tests: Test tool handlers against malicious inputs (SQL injection strings, path traversal ../, oversized payloads), verifying that the schema validation layer rejects them with isError=True; (4) Breaking Change Detection: Store the serialized JSON Schemas of all tools in version control. Run CI checks that fail if a required parameter is added, an existing parameter is renamed, or a return type is modified without a major version bump.",
-    "Why": "Automated contract testing prevents accidental breaking changes to tool signatures, ensuring that deployed agents and external clients continue to interact with tools seamlessly.",
-    "Risk": "Modifying a tool's argument name in a minor release without contract validation will break all existing agents configured to call the old parameter name.",
-    "Trade": "Maintaining committed schema snapshots in git requires updating baseline fixtures during deliberate releases, but prevents unintended contract regressions.",
-    "Try": "Write a contract test that fetches tools/list from your server, validates the output against the official MCP meta-schema, and compares the generated JSON Schema against a committed golden file."
+    "A": "Test schema discovery, normal execution, denied access, malformed inputs, cancellation, timeouts, and client-version compatibility. Add backend invariants separately.",
+    "Why": "Use synthetic data and a sandbox service. Assert what actions occurred, not only what text the agent returned.",
+    "Risk": "Mock-only tests cannot establish behavior of real transport framing or token validation.",
+    "Trade": "End-to-end tests cost more and catch boundary failures unit tests miss.",
+    "Try": "Publish a small compatibility matrix for the clients and protocol revisions you actually ran."
   },
   {
     "Q": "How should tool changes be released?",
-    "A": "Releasing updates to MCP tools in production requires disciplined API versioning practices because client agents and prompt templates depend on stable tool names and argument semantics:\n\nVersioning and Release Lifecycle: (1) Backward-Compatible Changes (Minor): Adding optional parameters with sensible defaults, improving natural language docstring descriptions, or optimizing performance are backward-compatible and can be released in-place; (2) Breaking Changes (Major): Renaming a tool, changing argument types, adding mandatory parameters, or altering the semantic behavior of the return payload requires creating a new versioned tool name (e.g., search_documents_v2) alongside the legacy tool; (3) Deprecation Warnings: Mark the legacy tool as deprecated in its description, notifying client teams to migrate their prompts and agent configurations; (4) Sunset Horizon: Maintain both v1 and v2 tools concurrently for a defined sunset window (e.g., 90 days), monitoring telemetry until traffic to the legacy tool drops to zero before final removal.",
-    "Why": "Treating AI tools as immutable public APIs ensures that autonomous agents deployed in production do not break when server capabilities evolve.",
-    "Risk": "In-place deletion or breaking modification of a tool causes immediate runtime crashes or prompt failures across all active agent workloads relying on that tool.",
-    "Trade": "Parallel versioning requires supporting multiple tool handlers simultaneously, but guarantees zero-downtime evolution for enterprise multi-agent ecosystems.",
-    "Try": "Draft a release plan for upgrading a search tool from keyword-only to hybrid vector search: design the v2 schema with backward compatibility and document the client migration steps."
+    "A": "Treat schema, semantic, permission, and outcome changes as API changes. Version incompatible contracts and evaluate tool selection after description edits.",
+    "Why": "Pin the deployed artifact, announce deprecations, retain rollback, and compare tool trajectories before expanding traffic.",
+    "Risk": "Renaming a field can break stored plans or cached tool metadata.",
+    "Trade": "Backward compatibility costs maintenance and prevents abrupt client failure.",
+    "Try": "Design a migration from one search field to a structured query without silently changing behavior."
   }
 ]
