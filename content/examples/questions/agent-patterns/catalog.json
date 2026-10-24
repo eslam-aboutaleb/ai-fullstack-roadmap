@@ -1,51 +1,91 @@
 [
   {
-    "explain": "A deterministic router sends a known task to the correct bounded service. Tool-first execution avoids a model making decisions that code can establish exactly.",
-    "steps": "Classify an explicit intent enum. || Dispatch through a declared service map rather than arbitrary generated function names.",
-    "expect": "order_status",
-    "name": "router-pattern",
+    "name": "react-vs-fixed-chain",
+    "filename": "react-vs-fixed-chain.py",
     "language": "python",
-    "filename": "router-pattern.py",
+    "explain": "Demonstrates the fundamental architectural difference between a deterministic fixed chain and a dynamic ReAct agent loop. The fixed pipeline blindly transitions across stages even when retrieval finds zero evidence; the ReAct loop dynamically inspects intermediate observations, reformulates queries on negative feedback, bounds maximum iterations, and enforces duplicate-action stopping invariants.",
+    "steps": "Execute a fixed pipeline and observe low confidence when literal keyword match fails. || Execute a ReAct agent loop with max-iteration bounds and dynamic query reformulation. || Verify that the agent inspects the negative observation, queries broad synonyms, and successfully converges.",
+    "expect": "Total Iterations: 3",
     "questions": [
-      605,
-      382,
-      388
+      604,
+      764,
+      388,
+      390,
+      857
     ]
   },
   {
-    "explain": "A supervisor gives bounded independent subtasks to specialists and combines typed outputs. The fixture demonstrates task/result contracts, not autonomous delegation.",
-    "steps": "Define one task per specialist. || Aggregate their results without granting workers the parent's entire authority.",
-    "expect": "['policy', 'status']",
-    "name": "supervisor-workers",
+    "name": "intent-semantic-router",
+    "filename": "intent-semantic-router.py",
     "language": "python",
-    "filename": "supervisor-workers.py",
+    "explain": "Demonstrates multi-tier hierarchical intent routing to prevent prompt dilution and tool schema bloat. A deterministic regex fast-path matches structured identifiers with zero model overhead, a semantic vector classifier matches domain-specific specialist routes, and an explicit fallback handler captures ambiguous or low-confidence requests.",
+    "steps": "Evaluate query against regex fast-path patterns for structured reference IDs. || Calculate cosine similarity against domain prototype embeddings. || Route to specialized handler or trigger fallback ambiguity agent if score is below threshold.",
+    "expect": "All routing tiers verified successfully.",
+    "questions": [
+      605,
+      382
+    ]
+  },
+  {
+    "name": "planner-executor-workflow",
+    "filename": "planner-executor-workflow.py",
+    "language": "python",
+    "explain": "Demonstrates Planner-Executor separation with pre-flight security policy inspection and dynamic discrepancy recovery. The planner proposes a structured DAG task plan; the host environment verifies permissions and budgets before executing any mutations. If a step encounters a real-world error (e.g. out of stock), execution safely pauses and triggers dynamic re-planning.",
+    "steps": "Submit a proposed plan to the pre-flight policy validator and reject unauthorized financial actions. || Execute valid plan steps respecting topological dependencies until a runtime discrepancy occurs. || Trigger the planner to generate an alternative recovery plan based on the failure observation.",
+    "expect": "Planner-Executor pattern with policy gate and recovery verified.",
+    "questions": [
+      606,
+      383
+    ]
+  },
+  {
+    "name": "supervisor-specialist-workers",
+    "filename": "supervisor-specialist-workers.py",
+    "language": "python",
+    "explain": "Demonstrates Supervisor-Specialist architecture with strict capability and permission boundaries. Read-only research workers are isolated from financial ledger workers, preventing tool confusion and schema bloat. The supervisor assigns typed subtasks and aggregates structured outputs without leaking global coordinator authority.",
+    "steps": "Attempt an unauthorized ledger action on a read-only research worker and assert capability rejection. || Require authenticated bearer tokens for financial calculations. || Coordinate specialists and aggregate typed contract responses into a unified customer answer.",
+    "expect": "Supervisor-specialist worker pattern with typed contracts verified.",
     "questions": [
       607,
       384
     ]
   },
   {
-    "explain": "Delegation returns a subtask result to the caller, whereas handoff changes who owns the active interaction. Ownership must be explicit to prevent simultaneous conflicting responses.",
-    "steps": "Keep parent ownership during a delegated read. || Change the interaction owner only on a recorded handoff transition.",
-    "expect": "parent specialist",
-    "name": "handoff-delegation",
+    "name": "handoff-vs-delegation",
+    "filename": "handoff-vs-delegation.py",
     "language": "python",
-    "filename": "handoff-delegation.py",
+    "explain": "Demonstrates the essential difference between delegation (subroutine execution where the primary agent retains interaction ownership) and handoff (state serialization and transfer of interaction ownership to a target recipient like Tier-2 human support). Enforces ownership invariants to eliminate dual-responder race conditions.",
+    "steps": "Perform a delegated currency calculation where the primary concierge maintains session ownership. || Initiate a formal handoff to human support, serializing state and relinquishing ownership. || Verify that the concierge is blocked from responding once ownership is transferred.",
+    "expect": "Handoff vs Delegation architectural distinction verified.",
     "questions": [
       608,
       385
     ]
   },
   {
-    "name": "journey-857",
-    "filename": "journey-857.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "evaluator-optimizer-critic",
+    "filename": "evaluator-optimizer-critic.py",
+    "language": "python",
+    "explain": "Demonstrates the Evaluator-Optimizer pattern with objective deterministic checks and bounded iterations, alongside a demonstration of why ensemble voting repeats shared mistakes. The critic runs deterministic AST schema checks first and returns structured diagnostic feedback, guiding the generator to convergence. Shows that 3 voting agents agree with an outdated document while deterministic grounding catches the error immediately.",
+    "steps": "Run an Evaluator-Optimizer loop where a critic validates SQL queries and returns actionable feedback. || Guide generator revisions to satisfy schema, injection, and bounding rules within 3 iterations. || Compare voting ensemble failure on outdated context against deterministic external date grounding.",
+    "expect": "Evaluator-Optimizer and ensemble failure mechanisms verified successfully.",
     "questions": [
-      857
+      609,
+      765,
+      386,
+      387
+    ]
+  },
+  {
+    "name": "saga-outbox-agent-mutations",
+    "filename": "saga-outbox-agent-mutations.py",
+    "language": "python",
+    "explain": "Demonstrates enterprise consistency patterns around agent state mutations. The Transactional Outbox pattern guarantees atomic persistence of database changes and side-effect events in a single commit, eliminating dual-write inconsistencies. The Saga pattern orchestrates distributed forward actions and automatically triggers compensating reverse actions if any downstream step fails.",
+    "steps": "Commit an order and an outbox event atomically to eliminate dual-write partial failures. || Relay pending outbox events through a background dispatcher. || Execute a multi-step saga and automatically execute compensating rollback transactions upon downstream courier failure.",
+    "expect": "Outbox and Saga distributed patterns verified successfully.",
+    "questions": [
+      610,
+      389
     ]
   }
 ]
