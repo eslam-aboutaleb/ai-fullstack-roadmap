@@ -1,7 +1,7 @@
 [
   {
     "Q": "How do analytical data models differ from transactional models?",
-    "A": "Transactional models support valid concurrent changes to operational entities. Analytical models organize historical facts and dimensions for repeated aggregation and interpretation. A fact table needs an explicit grain: what one row represents.\n\nDimensions supply descriptive context, sometimes with historical versions. Denormalization can improve analytical access but must not silently duplicate measures across joins. Define the relationship between source truth, derived transformations and published metrics so operational corrections can be traced into reports.",
+    "A": "Transactional models support valid concurrent changes to operational entities. Analytical models organize historical facts and dimensions for repeated aggregation and interpretation. A fact table needs an explicit grain: what one row represents. Dimensions supply descriptive context, sometimes with historical versions. Denormalization can improve analytical access but must not silently duplicate measures across joins. Define the relationship between source truth, derived transformations and published metrics so operational corrections can be traced into reports.",
     "Why": "Joining an order total to multiple order lines and then summing that total counts the same order repeatedly. The defect comes from mismatched grain, even though the join and SQL execute successfully.",
     "Risk": "A valid query can produce a semantically inflated metric.",
     "Trade": "Model for the workload while preserving grain, keys and source lineage.",
@@ -16,16 +16,15 @@
       "https://opentelemetry.io/docs/security/handling-sensitive-data/"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-24"
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
     },
     "domain": "data-engineering",
     "subdomain": "data-engineering-foundations"
   },
   {
     "Q": "How do batch and streaming pipelines differ in latency and recovery?",
-    "A": "Batch pipelines process bounded collections under a completion boundary. Streaming pipelines process an ongoing sequence and need explicit event-time, state and progress semantics.\n\nLower latency does not remove data-quality checks, replay requirements or the need for idempotent effects. A batch can still run incrementally, and a streaming system may internally use microbatches. Choose based on freshness requirements, operational cost and recovery behavior rather than equating streaming with a universally more advanced design.",
+    "A": "Batch pipelines process bounded collections under a completion boundary. Streaming pipelines process an ongoing sequence and need explicit event-time, state and progress semantics. Lower latency does not remove data-quality checks, replay requirements or the need for idempotent effects. A batch can still run incrementally, and a streaming system may internally use microbatches. Choose based on freshness requirements, operational cost and recovery behavior rather than equating streaming with a universally more advanced design.",
     "Why": "A nightly report may tolerate hours of delay and benefit from a reproducible bounded snapshot. A fraud alert may need seconds, while its final corrected aggregates still require a late-data policy.",
     "Risk": "A continuously running process is not automatically a correct streaming computation.",
     "Trade": "Batch simplifies bounded reconciliation; streaming reduces delay with more state and timing complexity.",
@@ -40,16 +39,15 @@
       "https://opentelemetry.io/docs/security/handling-sensitive-data/"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-24"
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
     },
     "domain": "data-engineering",
     "subdomain": "data-engineering-foundations"
   },
   {
     "Q": "What do at-most-once, at-least-once and exactly-once mean for pipeline effects?",
-    "A": "Delivery guarantees describe a particular boundary, not every downstream consequence. At-most-once can lose work after failure, while at-least-once permits replay and needs duplicate-safe effects.\n\nExactly-once claims require a precise state and progress transaction, or an equivalent destination contract. A broker's processing guarantee does not automatically cover an unrelated email service or database. Identify the source position, accepted event identity, durable destination state and acknowledgement order, then test crashes between them.",
+    "A": "Delivery guarantees describe a particular boundary, not every downstream consequence. At-most-once can lose work after failure, while at-least-once permits replay and needs duplicate-safe effects. Exactly-once claims require a precise state and progress transaction, or an equivalent destination contract. A broker's processing guarantee does not automatically cover an unrelated email service or database. Identify the source position, accepted event identity, durable destination state and acknowledgement order, then test crashes between them.",
     "Why": "A worker commits a row and crashes before acknowledging its event. Restarting must either replay safely through a deduplication invariant or use a shared transaction that coordinates the relevant state and progress.",
     "Risk": "Advertising broker-level exactly-once as universal effect safety hides uncoordinated sinks.",
     "Trade": "Idempotent destination writes often provide a practical scoped replay contract.",
@@ -64,16 +62,15 @@
       "https://opentelemetry.io/docs/security/handling-sensitive-data/"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-24"
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
     },
     "domain": "data-engineering",
     "subdomain": "data-engineering-foundations"
   },
   {
     "Q": "How do data contracts handle nulls, units, time zones and schema changes?",
-    "A": "A contract includes meanings, not only column names and primitive types. Null may mean unknown, inapplicable or deliberately removed; one ambiguous value cannot reliably encode all three.\n\nNumeric fields need units, timestamps need clock and zone semantics, and enums need a compatibility policy. A structurally backward-compatible field can still alter a business meaning. Version producer and consumer assumptions together, validate at boundaries and quarantine records that cannot be interpreted safely rather than inventing defaults silently.",
+    "A": "A contract includes meanings, not only column names and primitive types. Null may mean unknown, inapplicable or deliberately removed; one ambiguous value cannot reliably encode all three. Numeric fields need units, timestamps need clock and zone semantics, and enums need a compatibility policy. A structurally backward-compatible field can still alter a business meaning. Version producer and consumer assumptions together, validate at boundaries and quarantine records that cannot be interpreted safely rather than inventing defaults silently.",
     "Why": "Changing an amount from cents to currency units leaves its numeric type unchanged but multiplies the effective value by 100 if the consumer retains the earlier meaning. A type-only compatibility check misses it.",
     "Risk": "Silent coercion can turn a breaking semantic change into plausible corrupt data.",
     "Trade": "Flexible schemas aid evolution only when semantic ownership and validation remain explicit.",
@@ -88,16 +85,15 @@
       "https://opentelemetry.io/docs/security/handling-sensitive-data/"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-24"
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
     },
     "domain": "data-engineering",
     "subdomain": "data-engineering-foundations"
   },
   {
     "Q": "How do lineage, quality checks and reconciliation support trustworthy derived data?",
-    "A": "Lineage connects a published row or aggregate to source versions and transformation versions. Quality checks test declared properties such as uniqueness, allowed ranges, completeness and referential integrity.\n\nReconciliation compares source and destination totals under matching scope and time boundaries. A passed row count alone does not prove correct values, ownership or deletion. Store enough versioned metadata to reproduce or explain a discrepancy, and distinguish quarantined records from a complete successful ingestion.",
+    "A": "Lineage connects a published row or aggregate to source versions and transformation versions. Quality checks test declared properties such as uniqueness, allowed ranges, completeness and referential integrity. Reconciliation compares source and destination totals under matching scope and time boundaries. A passed row count alone does not prove correct values, ownership or deletion. Store enough versioned metadata to reproduce or explain a discrepancy, and distinguish quarantined records from a complete successful ingestion.",
     "Why": "Two datasets can have the same row count while containing different customer identifiers or reversed amounts. Reconcile keys and relevant measures, and trace a sampled result back to its exact source revision.",
     "Risk": "A green pipeline status can hide records silently dropped by a transformation.",
     "Trade": "More checks cost work; select checks tied to downstream consequences.",
@@ -112,16 +108,15 @@
       "https://opentelemetry.io/docs/security/handling-sensitive-data/"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-24"
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
     },
     "domain": "data-engineering",
     "subdomain": "data-engineering-foundations"
   },
   {
     "Q": "How should historical backfills coexist with live ingestion and deletion?",
-    "A": "A backfill reprocesses older data under a defined source and transformation version. Live processing may continue while it runs, so updates need ordering or version guards to prevent older results overwriting newer state.\n\nDeletion intents and permissions must also survive replay. Build a separate generation when appropriate, validate it, then promote it with an explicit read boundary and rollback plan. A replay should not resurrect data removed after the historical snapshot was taken.",
+    "A": "A backfill reprocesses older data under a defined source and transformation version. Live processing may continue while it runs, so updates need ordering or version guards to prevent older results overwriting newer state. Deletion intents and permissions must also survive replay. Build a separate generation when appropriate, validate it, then promote it with an explicit read boundary and rollback plan. A replay should not resurrect data removed after the historical snapshot was taken.",
     "Why": "An old snapshot contains document D at revision 2, while live state has a revision-4 tombstone. Backfill must preserve that deletion instead of republishing revision 2 simply because it appears in the snapshot.",
     "Risk": "Unversioned upserts can make historical work overwrite current truth.",
     "Trade": "Separate generations ease validation at the cost of temporary duplicate storage.",
@@ -136,9 +131,8 @@
       "https://opentelemetry.io/docs/security/handling-sensitive-data/"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-24"
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
     },
     "domain": "data-engineering",
     "subdomain": "data-engineering-foundations"
