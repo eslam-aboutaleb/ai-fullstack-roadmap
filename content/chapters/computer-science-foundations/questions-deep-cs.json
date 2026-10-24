@@ -1,0 +1,110 @@
+[
+  {
+    "Q": "How does Consistent Hashing with virtual nodes solve cache stampedes and minimize key redistribution during cluster rebalancing?",
+    "A": "**Consistent Hashing maps both data keys and cluster nodes to a continuous mathematical ring, ensuring that adding or removing a server relocates only K/N keys.** In naive distributed caching (e.g. using modulo arithmetic `node = hash(key) % N`), changing the cluster size from N to N+1 alters the modulo result for virtually 100% of keys. When a single cache server is added or removed, nearly every cached item relocates simultaneously. Caches become universally invalid, triggering a massive 'cache stampede' where all database queries hit backend primary databases at once, precipitating a full system outage.\\n\\n**The Consistent Hash Ring (0 to 2^32 - 1).** Consistent Hashing (Karger et al.) solves this by projecting the 32-bit hash space onto a circular ring. Nodes are hashed onto positions on the ring based on their IP or hostname. When a data key is written, the algorithm hashes the key and walks clockwise along the ring until it encounters the first server node. When a server node is added or removed, only keys residing between that node and its predecessor are relocated (exactly K/N keys on average), leaving all other cluster keys unaffected.\\n\\n**Virtual Nodes (vnodes) for non-uniform distribution.** A naive ring with few physical nodes causes severe hot-spotting (uneven key distribution) due to random hash clustering. Consistent hashing introduces Virtual Nodes: each physical machine is assigned 100\u2013256 virtual positions on the ring: `hash(\"node1#1\")`, `hash(\"node1#2\")`. This spreads each server's footprint uniformly across the ring, ensuring perfectly balanced memory utilization and allowing servers with higher hardware specs to host proportionately more virtual tokens.",
+    "Why": "A 10-node Redis cluster caches 50,000,000 database queries. One node crashes. Under naive modulo hashing, 90% of all keys relocate, crashing the database with 45 million simultaneous cache misses. Under Consistent Hashing, only 10% of keys relocate; the remaining 90% continue hitting valid caches.",
+    "worked_case": "A 10-node Redis cluster caches 50,000,000 database queries. One node crashes. Under naive modulo hashing, 90% of all keys relocate, crashing the database with 45 million simultaneous cache misses. Under Consistent Hashing, only 10% of keys relocate; the remaining 90% continue hitting valid caches.",
+    "Risk": "Running consistent hashing without virtual nodes causes severe hot-spotting where a single physical node receives 3x\u20135x more traffic than peers.",
+    "Trade": "Consistent hashing requires maintaining an in-memory sorted array (or red-black tree) of ring tokens and performing O(log N) binary searches per lookup, trading negligible CPU time for cluster elasticity.",
+    "Try": "Implement a ConsistentHashRing in Python with virtual nodes using bisect. Insert 10,000 keys across 4 nodes. Add a 5th node and measure the exact percentage of keys that relocate.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations",
+    "citations": [
+      "https://en.wikipedia.org/wiki/Consistent_hashing",
+      "https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do systems like Amazon Dynamo use consistent hashing?",
+        "A": "Dynamo uses consistent hashing with virtual nodes to partition data across storage nodes and replicate each key to the N subsequent physical nodes along the ring."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do Bloom filters and Cuckoo filters prevent unnecessary disk I/O in distributed databases, and what are their false-positive bounds?",
+    "A": "**Bloom filters and Cuckoo filters are probabilistic, memory-compact data structures that test set membership in O(1) time without accessing disk storage.** In high-throughput storage engines (Cassandra, RocksDB, Bigtable), checking whether a key exists would normally require reading multiple on-disk SSTables or B-Tree pages. A probabilistic filter held in RAM allows the engine to instantly determine whether a key is definitely absent, skipping expensive disk I/O for 99%+ of non-existent keys.\\n\\n**Bloom Filter mechanics and mathematical bounds.** A Bloom filter consists of a bit array of size m initialized to zeros, and k independent cryptographic hash functions. When a key is inserted, it is hashed by all k functions, setting the corresponding bits to 1. To query a key, the engine hashes it with all k functions: if ANY of the k bits is 0, the key is GUARANTEED not in the set (zero false negatives!). If all k bits are 1, the key is PROBABLY in the set. The false positive probability p is bounded by: `p \u2248 (1 - e^(-kn/m))^k`. Given target item count n and desired false positive rate p (e.g. 1%), the optimal bit array size is `m = -(n * ln(p)) / (ln(2)^2)` (approx. 9.6 bits per item), and optimal hash count is `k = (m/n) * ln(2)` (approx. 7 hashes).\\n\\n**Cuckoo Filters: supporting deletions with higher space efficiency.** A major limitation of standard Bloom filters is that items cannot be deleted (zeroing a bit might delete another key sharing that bit). Cuckoo filters replace bit arrays with cuckoo hashing tables storing compact item fingerprints. They support dynamic deletions, achieve lower false-positive rates at high capacity, and provide better CPU cache locality than multi-hash Bloom filters.",
+    "Why": "A database stores 100 million user keys. An attacker queries 1,000,000 non-existent random usernames. Without a Bloom filter, the database executes 1,000,000 random disk seeks. With a 1% Bloom filter in RAM, 990,000 queries are rejected instantly in memory, reducing disk reads by 99%.",
+    "worked_case": "A database stores 100 million user keys. An attacker queries 1,000,000 non-existent random usernames. Without a Bloom filter, the database executes 1,000,000 random disk seeks. With a 1% Bloom filter in RAM, 990,000 queries are rejected instantly in memory, reducing disk reads by 99%.",
+    "Risk": "Overfilling a Bloom filter beyond its designed capacity n causes the false positive rate to spike rapidly toward 100%, degrading to a useless filter.",
+    "Trade": "Probabilistic filters consume roughly 10 bits of RAM per item and accept a 1% false positive rate, in exchange for eliminating 99% of useless disk I/O.",
+    "Try": "Build a Bloom filter in Python using `bitarray` and MurmurHash. Insert 1,000 keys, query 1,000 non-existent keys, and calculate the observed false-positive rate against theoretical bounds.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations",
+    "citations": [
+      "https://en.wikipedia.org/wiki/Bloom_filter",
+      "https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a Bloom filter ever produce a false negative?",
+        "A": "No. Under correct implementation, a Bloom filter has a mathematical false negative rate of exactly 0.0: if an item was inserted, all its hash bits will always remain 1."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How does the Raft consensus algorithm elect leaders, replicate log entries, and prevent split-brain states during network partitions?",
+    "A": "**The Raft consensus algorithm manages replicated state machines across distributed nodes, ensuring strong consistency (linearizability) despite node failures and network partitions.** Designed by Ongaro and Ousterhout as an understandable alternative to Paxos, Raft is the consensus backbone of modern cloud infrastructure (etcd, Kubernetes, CockroachDB, TiKV).\\n\\n**Leader election and randomized timers.** Raft nodes operate in one of three states: Follower, Candidate, or Leader, progressing through discrete monotonic terms. Followers expect periodic heartbeats (`AppendEntries`) from the leader. If a follower's election timer (randomized between 150ms\u2013300ms to prevent split votes) expires without a heartbeat, it transitions to Candidate, increments the term, votes for itself, and broadcasts `RequestVote` RPCs. A candidate becomes Leader if it receives votes from a strict majority (quorum: `floor(N/2) + 1`) of nodes. Nodes vote for a candidate only if the candidate's log is at least as up-to-date as their own.\\n\\n**Log replication and two-phase commit.** All client mutations flow through the Leader. The leader appends the command to its local log and broadcasts `AppendEntries` to followers. Once a majority of followers acknowledge receipt, the entry is committed; the leader applies it to its state machine and returns success to the client. Subsequent heartbeats notify followers to commit the entry locally.\\n\\n**Preventing split-brain during network partitions.** If a 5-node cluster is partitioned into a minority partition (2 nodes with Leader A) and a majority partition (3 nodes), Leader A can still accept client writes, but it can never achieve majority quorum (needs 3 votes). Its writes remain uncommitted. The majority partition times out, elects Leader B, and commits writes. When the partition heals, Leader A observes Leader B's higher term, steps down to Follower, and overwrites its uncommitted log entries with Leader B's authoritative log, guaranteeing zero split-brain.",
+    "Why": "A cloud network partition splits a 5-node etcd cluster. Two nodes in Region A cannot achieve a 3-node quorum. They reject all write operations. Three nodes in Region B achieve quorum and elect a new leader, preserving consistency without split-brain.",
+    "worked_case": "A cloud network partition splits a 5-node etcd cluster. Two nodes in Region A cannot achieve a 3-node quorum. They reject all write operations. Three nodes in Region B achieve quorum and elect a new leader, preserving consistency without split-brain.",
+    "Risk": "A cluster with an even number of nodes (e.g. 4 nodes) provides the identical fault tolerance as a 3-node cluster (both tolerate only 1 failure), which is why Raft clusters mandate odd node counts (3, 5, 7).",
+    "Trade": "Raft provides provable linearizable consistency at the cost of requiring majority network round-trips for every committed write.",
+    "Try": "Trace the step-by-step Raft state transitions during a simulated partition using the interactive Raft visualizer (raft.github.io). Observe log matching and leader stepping down.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations",
+    "citations": [
+      "https://raft.github.io/raft.pdf",
+      "https://etcd.io/docs/v3.5/learning/raft/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the Log Matching Property in Raft?",
+        "A": "If two logs contain an entry with the same index and term, they store the same command and are identical in all entries up through the given index."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "What are the mathematical and algorithmic trade-offs between Token Bucket, Leaky Bucket, and Sliding Window Counter rate limiters?",
+    "A": "**Rate limiting algorithms protect backend services from resource exhaustion, brute-force attacks, and noisy-neighbor starvation by throttling request velocity.** Selecting the wrong rate limiting algorithm can either allow burst traffic that crashes downstream databases or arbitrarily reject legitimate user bursts.\\n\\n**1. Token Bucket (Supports bursts with smooth refill).** A bucket with capacity B is refilled with tokens at a constant rate r tokens/sec. Each incoming request consumes 1 token; if the bucket is empty, the request is throttled (HTTP 429). Mathematical property: Allows traffic bursts up to B requests instantaneously, while bounding long-term sustained throughput to r req/sec. Highly memory efficient (requires storing only two numbers: `last_refill_timestamp` and `tokens_count`). Ideal for user-facing REST APIs where users legitimately trigger burst page loads.\\n\\n**2. Leaky Bucket (Enforces constant-rate traffic shaping).** Requests enter a FIFO queue of capacity B and leak out to the processing engine at a strict constant rate r req/sec. If the queue is full, incoming requests overflow and drop. Mathematical property: Completely eliminates bursts, converting bursty input traffic into perfectly smooth, constant-rate output traffic. Ideal for rate-limiting write operations to relational databases or third-party webhooks that cannot tolerate traffic spikes.\\n\\n**3. Sliding Window Log vs Sliding Window Counter.**\\n- Sliding Window Log: Stores timestamps of all requests in a Redis Sorted Set (`ZREMRANGEBYSCORE` and `ZCARD`). Highly accurate but consumes large memory ($O(N)$ per client).\\n- Sliding Window Counter (Memory-efficient hybrid): Divides time into fixed buckets (e.g., 1 minute). Approximates request rate using a weighted sum: `Requests = (Previous Bucket Count * (1 - time_into_current_bucket)) + Current Bucket Count`. Requires storing only two integers per client while preventing the 2x burst exploit at bucket boundaries.",
+    "Why": "A user opens a web dashboard that fires 8 parallel API requests. A Leaky Bucket delays 7 of the requests, causing noticeable UI lag. A Token Bucket allows all 8 requests to execute instantaneously because tokens were saved during idle time, while capping sustained traffic.",
+    "worked_case": "A user opens a web dashboard that fires 8 parallel API requests. A Leaky Bucket delays 7 of the requests, causing noticeable UI lag. A Token Bucket allows all 8 requests to execute instantaneously because tokens were saved during idle time, while capping sustained traffic.",
+    "Risk": "Fixed Window Counters allow an attacker to send twice the rate limit by firing a burst right before and right after the window reset boundary.",
+    "Trade": "Token Bucket accommodates bursty user behaviors with minimal memory overhead; Leaky Bucket protects fragile downstream dependencies by completely flattening traffic spikes.",
+    "Try": "Implement a Token Bucket in Python using `time.monotonic()`. Verify that a burst of 10 requests succeeds when the bucket is full, and subsequent requests are throttled to 2 requests per second.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "foundations",
+    "subdomain": "computer-science-foundations",
+    "citations": [
+      "https://en.wikipedia.org/wiki/Token_bucket",
+      "https://stripe.com/blog/rate-limiters"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do you implement a distributed Token Bucket in Redis atomically?",
+        "A": "Use a single Lua script in Redis that calculates token replenishment from `redis.call('TIME')`, deducts tokens, and updates state atomically to prevent concurrency race conditions."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

@@ -1,0 +1,110 @@
+[
+  {
+    "Q": "How does PagedAttention eliminate memory fragmentation in LLM serving engines, and how do virtual block tables coordinate parallel sampling and prefix sharing?",
+    "A": "**PagedAttention applies the operating system concept of virtual memory with paging to LLM KV caches, eliminating internal and external memory fragmentation and increasing serving throughput by 2-4x.** In legacy LLM serving systems (e.g., vanilla Hugging Face Transformers or early FasterTransformer), KV caches were allocated as contiguous memory buffers sized for the maximum possible sequence length (e.g., 2,048 or 4,096 tokens). Because actual generation lengths vary unpredictably, 60-80% of allocated GPU VRAM sat completely unused as internal fragmentation (pre-allocated but never reached) or external fragmentation (differing request lifetimes preventing contiguous allocations), severely limiting batch sizes.\\n\\n**Logical blocks and physical memory pages.** PagedAttention divides the KV cache of each sequence into fixed-size logical blocks (e.g., 16 or 32 tokens). These logical blocks map to non-contiguous physical memory pages in GPU VRAM managed by a centralized page pool. As an autoregressive request generates tokens, the engine allocates new physical pages on demand, only when the current page fills up.\\n\\n**Virtual block tables and copy-on-write sharing.** Each active sequence maintains a block table mapping logical block indices to physical page numbers. This abstraction enables zero-copy memory sharing across requests:\\n1. *Parallel sampling / beam search:* When a prompt branches into multiple generation paths, all paths share the identical prompt physical pages in their block tables. Only when a child branch generates distinct tokens does the engine allocate a new page using copy-on-write (CoW) semantics.\\n2. *System prompt prefix caching:* Identical system prompts across hundreds of concurrent users share the exact same physical KV cache pages, eliminating redundant compute and freeing gigabytes of VRAM.",
+    "Why": "An AI platform serving customer support receives 100 concurrent requests with a shared 1,500-token system prompt. Without PagedAttention, each request duplicates the 1,500-token KV cache, consuming 60GB VRAM and causing out-of-memory crashes. With PagedAttention prefix caching, the system prompt is stored once (600MB), allowing all 100 requests to run concurrently.",
+    "worked_case": "An AI platform serving customer support receives 100 concurrent requests with a shared 1,500-token system prompt. Without PagedAttention, each request duplicates the 1,500-token KV cache, consuming 60GB VRAM and causing out-of-memory crashes. With PagedAttention prefix caching, the system prompt is stored once (600MB), allowing all 100 requests to run concurrently.",
+    "Risk": "Selecting a block size that is too small (e.g., 4 tokens) increases block table lookup overhead and GPU kernel launch latency, while a block size that is too large (e.g., 128 tokens) re-introduces internal fragmentation.",
+    "Trade": "PagedAttention introduces a layer of pointer indirection and custom non-contiguous CUDA attention kernels in exchange for recovering up to 96% of wasted VRAM and enabling radical throughput scaling.",
+    "Try": "Run a vLLM server instance with `--block-size 16` and benchmark serving throughput with `--enable-prefix-caching` on multi-turn conversations versus a naive single-request Hugging Face baseline.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "systems",
+    "subdomain": "inference",
+    "citations": [
+      "https://arxiv.org/abs/2309.06180",
+      "https://vllm.ai/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How does PagedAttention handle sequence preemption when GPU memory is exhausted?",
+        "A": "When physical pages run out, the engine preempts the lowest-priority request by either recomputing its tokens later or swapping its pages to CPU host RAM."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How does Continuous Batching (iteration-level scheduling) differ from static batching, and how does it prevent early-finishing requests from stalling GPU hardware?",
+    "A": "**Continuous batching (iteration-level scheduling) evicts completed sequences and injects new requests at every single autoregressive token generation step, eliminating the head-of-line blocking that cripples static batching.** In traditional static request-level batching, an inference engine groups $N$ requests together and runs them synchronously. Because generation lengths in generative AI are non-deterministic (one prompt may generate 10 tokens while another generates 1,000 tokens), static batching is forced to wait for the longest sequence in the batch to finish. The short requests finish in milliseconds but remain locked in GPU memory, padded with dummy tokens, while Tensor Cores run at fractional utilization.\\n\\n**Iteration-level scheduling loop.** Continuous batching (first introduced by Orca and standardized in vLLM and TensorRT-LLM) operates at the granularity of a single forward-pass iteration rather than a full request lifecycle:\\n1. *Step start:* The scheduler checks available GPU memory pages and evaluates the current batch of active decoding sequences.\\n2. *New request admission:* If new prompts arrive in the queue and sufficient KV cache pages exist, the scheduler admits their prefill step into the execution schedule.\\n3. *Single forward pass:* The model executes one transformer forward pass, generating exactly one token for all active decoding sequences.\\n4. *Dynamic eviction & admission:* Any sequence that produces an End-Of-Sequence (`<eos>`) token or reaches max output tokens is immediately finalized and evicted from the batch, freeing its memory pages. Newly queued requests are slotted in without waiting for other requests to complete.\\n\\n**Throughput and latency gains.** By replacing coarse request boundaries with fine-grained iteration boundaries, continuous batching eliminates GPU idle time and achieves 10x to 20x higher token throughput compared to naive static batching under realistic multi-user workloads.",
+    "Why": "A customer API receives a mix of 50-token classifications and 1,000-token summaries. Under static batching of size 16, a single summary stalls 15 classification responses for 15 seconds. Continuous batching evicts the 15 classifications in 400ms and immediately admits new incoming queries.",
+    "worked_case": "A customer API receives a mix of 50-token classifications and 1,000-token summaries. Under static batching of size 16, a single summary stalls 15 classification responses for 15 seconds. Continuous batching evicts the 15 classifications in 400ms and immediately admits new incoming queries.",
+    "Risk": "High prefill arrival rates can starve ongoing decoding requests (prefill starvation), causing Time-To-First-Token (TTFT) to degrade Time-Between-Tokens (TBT) if prefill and decode phases are not prioritized.",
+    "Trade": "Continuous batching introduces complex dynamic scheduling state machines and memory fragmentation challenges (solved by PagedAttention), but is mandatory for cost-effective multi-tenant LLM serving.",
+    "Try": "Simulate a discrete event queue comparing static batching vs iteration-level batching with Poisson arrival times and Pareto-distributed response lengths. Measure average latency and GPU compute efficiency.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "systems",
+    "subdomain": "inference",
+    "citations": [
+      "https://www.usenix.org/conference/osdi22/presentation/yu",
+      "https://vllm.ai/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the difference between compute-bound prefill and memory-bound decode?",
+        "A": "Prefill processes all prompt tokens in parallel (compute-bound, high FLOP utilization); decode generates one token at a time per request (memory-bandwidth-bound, low FLOP utilization)."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do Chunked Prefill and Preemptions balance prompt prefill latency (TTFT) against token generation smoothness (ITL/TBT) under heavy server load?",
+    "A": "**Chunked Prefill breaks large prompt prefill computations into smaller token chunks, co-scheduling prefill chunks alongside ongoing decode steps to prevent Time-Between-Token (TBT) latency spikes.** In standard LLM inference, the *prefill phase* (processing the input prompt) is compute-heavy and processes all prompt tokens in parallel via large matrix multiplications. The *decode phase* (generating subsequent tokens autoregressively) is memory-bandwidth-bound, processing only one token per stream per step.\\n\\n**The interference problem.** When a user submits an 8,000-token document, computing the full prefill occupies the GPU's Tensor Cores for several hundred milliseconds. If an engine prioritizes this prefill, all existing concurrent streams experience an abrupt pause in token streaming, causing noticeable stutter (inter-token latency / ITL spikes) for users reading generated output in real time.\\n\\n**Chunked Prefill mechanism.** Instead of processing an 8,000-token prompt in a single monolithic forward pass, the engine splits the prompt into fixed chunks (e.g., 512 tokens). In each iteration, the scheduler pairs a 512-token prefill chunk with the current batch of single-token decodes. This achieves two major benefits:\\n1. *Bound on iteration latency:* Every forward pass takes a predictable, bounded duration (e.g., 25ms), keeping user streaming smooth without perceptible stalls.\\n2. *Compute saturation:* Adding a 512-token prefill to memory-bound decode steps raises overall compute utilization (FLOPs), converting wasted memory-bound clock cycles into productive prompt processing.\\n\\n**Preemption strategies.** When sudden bursts of concurrent traffic exceed the total physical KV cache page pool, the scheduler must gracefully resolve memory pressure. Rather than crashing with an OOM error, the engine triggers *preemption*: it selects a low-priority or newly started request, evicts its KV cache pages back to CPU system RAM (swapping) or completely discards its generated tokens (recomputation), preserving the execution integrity of requests nearing completion.",
+    "Why": "A medical chat service handles doctor queries. While Dr. A is reading an active streaming diagnosis, Dr. B uploads a 10-page medical record. Without chunked prefill, Dr. A's stream freezes for 800ms. With chunked prefill, Dr. A experiences continuous 30-token/sec streaming while Dr. B's document is prefilled in chunks.",
+    "worked_case": "A medical chat service handles doctor queries. While Dr. A is reading an active streaming diagnosis, Dr. B uploads a 10-page medical record. Without chunked prefill, Dr. A's stream freezes for 800ms. With chunked prefill, Dr. A experiences continuous 30-token/sec streaming while Dr. B's document is prefilled in chunks.",
+    "Risk": "Recomputing preempted requests during prolonged overload cascades into throughput collapse, as the server repeatedly re-executes prefills without finishing decodes.",
+    "Trade": "Chunked prefill slightly increases total Time-To-First-Token (TTFT) for very large documents, in exchange for guaranteeing strict Service Level Objectives (SLOs) on Inter-Token Latency (ITL) across all concurrent users.",
+    "Try": "Configure vLLM with `--enable-chunked-prefill --max-num-batched-tokens 512`. Send concurrent long-prompt and streaming-decode requests using a load testing tool, and measure p99 inter-token latency.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "systems",
+    "subdomain": "inference",
+    "citations": [
+      "https://arxiv.org/abs/2308.16369",
+      "https://arxiv.org/abs/2401.08671"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is Sarathi-Serve and how did it pioneer chunked prefill?",
+        "A": "Sarathi-Serve demonstrated that piggybacking prefill chunks onto memory-bound decode batches 'piggybacks' compute onto unused memory bandwidth with almost zero latency penalty."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How does Speculative Decoding accelerate LLM inference, and how do speculative draft models and target model verification guarantee lossless mathematical equivalence?",
+    "A": "**Speculative Decoding accelerates autoregressive inference by using an inexpensive draft model to propose candidate tokens speculatively, verifying them in parallel with the large target model in a single forward pass.** Autoregressive decoding is bottlenecked by GPU memory bandwidth: generating 1 token requires loading all weights of a massive model (e.g., 70 billion parameters) from HBM into SRAM, achieving only a tiny fraction of peak Tensor Core arithmetic throughput.\\n\\n**The Speculative workflow.** Speculative decoding decouples token generation into two cooperating components:\\n1. *Draft phase:* A small, ultra-fast draft model (e.g., a 1B parameter model or an early-exit head) generates $K$ candidate tokens sequentially ($x_{t+1}, \\dots, x_{t+K}$). Because the draft model is tiny, generating these $K$ tokens is 5-10x faster than the large model.\\n2. *Verification phase:* The large target model (e.g., 70B parameters) evaluates all $K$ candidate tokens simultaneously in a single, parallel forward pass. In matrix operations, computing logits for $K$ tokens in parallel takes virtually the same time as computing logits for 1 token because it shifts the execution from memory-bound to compute-bound.\\n\\n**Lossless modified rejection sampling.** To guarantee that the output distribution is mathematically identical to sampling directly from the target model without approximation, speculative decoding applies modified rejection sampling. For each candidate token $x$, if the target model probability $p(x) \\ge q(x)$ (the draft probability), the token is accepted. If $p(x) < q(x)$, the token is accepted with probability $p(x)/q(x)$. If rejected, the token is discarded, a new token is sampled from the adjusted distribution $\\max(0, p(x) - q(x))$, and subsequent speculative candidates are pruned.\\n\\n**Speedup factor.** If the acceptance rate is high (e.g., 75-85% on structured coding or reasoning tasks), each forward pass of the target model yields 2 to 4 validated tokens instead of 1, resulting in a 2x-3x end-to-end wall-clock latency speedup with zero quality degradation.",
+    "Why": "A code completion engine needs sub-50ms latency. Serving an unassisted 70B model yields 25 tokens/sec. Adding a 1B draft model with speculative decoding achieves an 80% acceptance rate on code syntax, boosting generation speed to 70 tokens/sec without changing any token probability distribution.",
+    "worked_case": "A code completion engine needs sub-50ms latency. Serving an unassisted 70B model yields 25 tokens/sec. Adding a 1B draft model with speculative decoding achieves an 80% acceptance rate on code syntax, boosting generation speed to 70 tokens/sec without changing any token probability distribution.",
+    "Risk": "Serving a draft model whose vocabulary or tokenizer does not match the target model causes token mismatch errors and prevents validation.",
+    "Trade": "Speculative decoding achieves 2x-3x speedup on low-concurrency latency-sensitive streams, but consumes extra GPU memory to host both models and yields diminishing returns when the server is already compute-saturated under massive batch loads.",
+    "Try": "Run speculative decoding in Hugging Face Transformers using `AutoModelForCausalLM` with `prompt_lookup_decoding` or an assistant model on a Python coding benchmark. Compare generation latency and token acceptance counts.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "systems",
+    "subdomain": "inference",
+    "citations": [
+      "https://arxiv.org/abs/2211.17192",
+      "https://arxiv.org/abs/2302.01318"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is Medusa and how does it perform speculative decoding without a separate draft model?",
+        "A": "Medusa adds multiple lightweight feed-forward heads on top of the target model's final hidden state to predict multiple future tokens simultaneously, eliminating the need to load a second model."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]
