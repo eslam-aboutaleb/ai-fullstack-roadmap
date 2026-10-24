@@ -5,7 +5,12 @@
     "Why": "A retrieval engine is merely a read-only search component; a complete application provides identity, multi-tenant authorization, transactional integrity, background job processing, and human-in-the-loop governance around model decisions.",
     "Risk": "Assuming a vector search tool is sufficient for business operations invites security bypasses, hallucinated database modifications, and unrecoverable data corruption because search ranking cannot enforce relational constraints.",
     "Trade": "Wrapping retrieval in full application layers increases operational complexity and deployment infrastructure, but is mandatory for security, multi-tenancy, and regulatory compliance.",
-    "Try": "Draw an architecture diagram mapping an incoming user message across: API Ingress, Auth Middleware, Session Store, RAG Pipeline, LLM Provider, Tool Validator, and PostgreSQL Outbox."
+    "Try": "Draw an architecture diagram mapping an incoming user message across: API Ingress, Auth Middleware, Session Store, RAG Pipeline, LLM Provider, Tool Validator, and PostgreSQL Outbox.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should the orchestration framework be distinguished from model and retrieval adapters?",
@@ -62,9 +67,9 @@
       "https://docs.langchain.com/oss/python/langchain/tools"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "added": true,
     "concept": "How should the orchestration framework be distinguished from model and retrieval adapters"
@@ -125,9 +130,9 @@
       "https://www.postgresql.org/docs/current/tutorial.html"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "added": true
   },
@@ -137,7 +142,12 @@
     "Why": "Agent sessions manage ephemeral internal execution loops and tool buffers; conversation records manage audited, user-visible message histories with strict tenant isolation and compliance lifecycles.",
     "Risk": "Conflating the two stores leaks internal system prompts and raw tool outputs to users, or causes entire chat histories to be lost when Redis session caches expire.",
     "Trade": "Maintaining separate runtime and history stores requires an explicit turn-completion persistence step, but cleanly isolates runtime execution from business compliance.",
-    "Try": "Inspect an agent turn trace. Identify which fields are internal scratchpad data (tool call IDs, raw JSON responses) and which fields belong in the user's permanent message table."
+    "Try": "Inspect an agent turn trace. Identify which fields are internal scratchpad data (tool call IDs, raw JSON responses) and which fields belong in the user's permanent message table.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What is the real prepare-and-confirm boundary for request creation?",
@@ -145,7 +155,12 @@
     "Why": "Separating preparation from confirmation ensures that all destructive or financial mutations require explicit human review and an authenticated, row-locked database transaction.",
     "Risk": "Allowing an agent tool call to execute destructive writes directly without an authenticated human confirmation step enables prompt injections to siphon funds or delete records.",
     "Trade": "Two-phase workflows introduce UI confirmation steps and pending state management, but provide essential defense against autonomous model mistakes.",
-    "Try": "Write a FastAPI route for `/operations/prepare` returning a signed JWT confirmation token with a 5-minute expiry, and a `/operations/confirm` route that locks and executes the transaction."
+    "Try": "Write a FastAPI route for `/operations/prepare` returning a signed JWT confirmation token with a 5-minute expiry, and a `/operations/confirm` route that locks and executes the transaction.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Why separate policy procedures from knowledge facts?",
@@ -153,7 +168,12 @@
     "Why": "Separating procedural decision logic from contractual factual thresholds allows policy updates to take effect immediately in the retrieval layer without requiring prompt re-engineering.",
     "Risk": "Hardcoding policy thresholds in system prompts causes policy drift, where agents recite stale limits that diverge from the company's legally binding terms of service.",
     "Trade": "Separating procedures from facts requires dynamic RAG retrieval for numbers and limits on every turn, but guarantees consistency with authoritative legal documents.",
-    "Try": "Audit a customer support prompt. Extract all hardcoded numeric thresholds, dates, and fees, and replace them with dynamic retrieval slots grounded in versioned knowledge documents."
+    "Try": "Audit a customer support prompt. Extract all hardcoded numeric thresholds, dates, and fees, and replace them with dynamic retrieval slots grounded in versioned knowledge documents.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Where does eventual consistency appear to a customer?",
@@ -161,7 +181,12 @@
     "Why": "Eventual consistency arises from asynchronous indexing, read replica replication lag, and decoupled message brokers; UI architectures must provide immediate transactional feedback to prevent duplicate submissions.",
     "Risk": "Exposing raw search index misses to users immediately after write operations causes panic, duplicate tickets, and lost customer trust.",
     "Trade": "Asynchronous projections keep write endpoints fast and decouple system availability from external embedding APIs, but require UI compensation logic to mask replication lag.",
-    "Try": "Simulate a 2-second vector indexing delay after a document upload. Ensure your UI displays the uploaded document immediately via primary database lookup before the vector embedding completes."
+    "Try": "Simulate a 2-second vector indexing delay after a document upload. Ensure your UI displays the uploaded document immediately via primary database lookup before the vector embedding completes.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What are the main trust boundaries in this application?",
@@ -169,7 +194,12 @@
     "Why": "Explicit trust boundaries isolate untrusted user inputs, external third-party model providers, and sensitive database records, preventing a vulnerability in one layer from compromising the entire system.",
     "Risk": "Treating the LLM as a trusted internal component and giving it unrestricted database or API access allows a single prompt injection to exfiltrate the entire corporate database.",
     "Trade": "Strict boundary validation and PII scrubbing introduce small CPU latencies, but protect against regulatory fines, data breaches, and remote code execution.",
-    "Try": "Map each component in your stack to its trust zone. Write down the exact validation and sanitization rule enforced at every boundary crossing."
+    "Try": "Map each component in your stack to its trust zone. Write down the exact validation and sanitization rule enforced at every boundary crossing.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Which application guarantees must be established end to end?",
@@ -177,7 +207,12 @@
     "Why": "End-to-end guarantees ensure data safety, financial correctness, and operational resilience under real-world network failures and provider outages.",
     "Risk": "Relying on optimistic assumptions without end-to-end guarantees results in duplicate transactions during network glitches and silent cross-tenant data leakage.",
     "Trade": "Enforcing end-to-end guarantees requires disciplined architectural patterns (Outbox, RLS, circuit breakers), but enables systems to scale reliably to millions of users.",
-    "Try": "Simulate an LLM provider timeout during a checkout workflow. Verify that your system rolls back cleanly, releases held locks, and leaves zero orphaned pending records in the database."
+    "Try": "Simulate an LLM provider timeout during a checkout workflow. Verify that your system rolls back cleanly, releases held locks, and leaves zero orphaned pending records in the database.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should you trace a request across the complete application?",
@@ -185,6 +220,11 @@
     "Why": "Unbroken trace correlation links frontend user actions, backend Python exceptions, PostgreSQL query plans, and external LLM provider latencies into a single unified timeline.",
     "Risk": "Losing trace context across asynchronous boundaries (e.g., inside background tasks or un-propagated threadpools) creates blind spots where failures become impossible to debug in production.",
     "Trade": "Distributed tracing adds a negligible byte overhead to HTTP headers and logs (<1%), while reducing Mean Time To Resolution (MTTR) for production incidents from hours to minutes.",
-    "Try": "Inspect an incoming request in FastAPI. Extract the `traceparent` header, create an OpenTelemetry child span for a database query, and verify the span hierarchy in your tracing dashboard."
+    "Try": "Inspect an incoming request in FastAPI. Extract the `traceparent` header, create an OpenTelemetry child span for a database query, and verify the span hierarchy in your tracing dashboard.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   }
 ]
