@@ -133,7 +133,6 @@ for memory_lab, args in (('agent_memory_lifecycle.py', []), ('memory_project.py'
                             capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, (memory_lab, result.stdout, result.stderr)
     assert 'PASS' in result.stdout, (memory_lab, result.stdout)
-
 # Bounded asyncio task lifecycle and persistent effect retry (#15).
 backend_result = subprocess.run([sys.executable, '-B', str(ROOT/'labs/async_backend_failure.py')],
                                 capture_output=True, text=True, timeout=30)
@@ -274,3 +273,5 @@ print('Interview authoring contract:', check_interview_contract())
 
 from check_interview_contract import check_acceptance_samples
 check_acceptance_samples()
+
+subprocess.run([sys.executable, '-B', str(ROOT/'labs/memory_adversarial.py')], check=True, capture_output=True, text=True, timeout=20)

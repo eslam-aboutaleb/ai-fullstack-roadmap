@@ -89,3 +89,26 @@ Source/review method: the project was authored and executed locally; timestamps,
 ranking and transaction expectations are explicit fixture contracts. Technical
 review is performed by Codex AI under the maintainer's delegation, not claimed
 as independent human review. Primary references remain linked in each answer.
+
+## Fixed adversarial histories — 23 October 2026
+
+Run `python3 -B labs/memory_adversarial.py --output memory-adversarial.json`.
+The authored gold suite has eight independent histories: late correction, lost
+confirmation with exact replay and changed-payload rejection, malicious source
+and value text, stale derived summary, actor swap, consent refusal, deletion
+and expiry without resurrecting an older preference. Across exact, lexical and
+hybrid modes it checks 27 expected outcomes and records actual query durations.
+Gold values are source-authored constants, not retriever-generated labels.
+`docs/evidence/memory-adversarial.json` preserves observed outputs.
+
+The poisoning case checks parameterized SQL and preservation of data as data;
+it does not run an LLM or prove prompt-injection resistance. Actor identity is
+trusted local host input, not remote authentication. The suite asserts current
+owner facts, no private sentinel disclosure, atomic local deletion and correct
+bitemporal selection. Physical wiping, remote cache/backup deletion, learned
+semantic quality and representative latency are outside its evidence.
+
+The existing four-query recency/exact/lexical/hybrid comparison remains separate.
+The learner must still author new gold histories rather than memorizing these
+cases. Full procedural/extraction/confidence/conflict and long-horizon curriculum
+coverage and outcome/rubric mapping remain open requirements for issue #44.
