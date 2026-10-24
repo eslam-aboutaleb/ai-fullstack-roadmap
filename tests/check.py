@@ -169,6 +169,10 @@ assert 'PASS' in framework_result.stdout
 inference_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/inference_capacity.py')],capture_output=True,text=True,timeout=10)
 assert inference_result.returncode==0,(inference_result.stdout,inference_result.stderr)
 assert 'PASS' in inference_result.stdout
+
+vision_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/vision_grounding_geometry.py')],capture_output=True,text=True,timeout=10)
+assert vision_result.returncode==0,(vision_result.stdout,vision_result.stderr)
+assert 'PASS' in vision_result.stdout
 rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
 assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
 assert 'PASS' in rag_pipeline_result.stdout
