@@ -137,6 +137,10 @@ def interview(q):
   body+=answer_diagram(q)
   if normalize_answer(q['Why']) not in writer.followups and not (q.get('answer_format') == 'conceptual' and normalize_answer(q['Why']) == normalize_answer(q.get('worked_case', ''))):
     body+=writer.section('Worked case' if q.get('answer_format')=='conceptual' else 'How it works',q['Why'],'answer-mechanism')
+  # Content-first: worked cases in conceptual questions must actually render.
+  # The reader remains a single detailed answer, without editorial draft banners.
+  if q.get('worked_case'):
+    body+=writer.section('Worked example and observed result',q['worked_case'],'answer-example')
   body+=writer.section('Failure boundary',q['Risk'],'answer-warning')
   if normalize_answer(q['Trade']) not in writer.followups:
     body+=writer.section('Design trade-off',q['Trade'],'answer-decision')

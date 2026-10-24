@@ -1816,6 +1816,337 @@
       "independent": true
     },
     {
+      "id": "memory-state-authority",
+      "chapter": "context-engineering",
+      "topic": 1217,
+      "title": "How do episodic events, semantic facts and workflow checkpoints answer different memory questions?",
+      "kind": "debugging",
+      "objective": "memory.state-authority",
+      "difficulty": "implementation",
+      "scenario": "A summary says “refund sent,” but the effect ledger contains only an unapproved draft. Which source can establish completion?",
+      "options": [
+        {
+          "id": "1",
+          "text": "The summary, because it is the latest text.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case."
+        },
+        {
+          "id": "2",
+          "text": "An authorized committed effect receipt; the summary alone cannot.",
+          "feedback": "The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case."
+        },
+        {
+          "id": "3",
+          "text": "A high embedding similarity to a completed refund.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case."
+        }
+      ],
+      "correct": "2",
+      "explanation": "The summary is a derived claim. Completion requires the authoritative effect receipt; no receipt is established in this case.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-two-clock-expiry",
+      "chapter": "context-engineering",
+      "topic": 1218,
+      "title": "How can two clocks preserve a retroactive preference correction without rewriting history?",
+      "kind": "debugging",
+      "objective": "memory.two-clock-expiry",
+      "difficulty": "implementation",
+      "scenario": "English applies at 10 and is observed at 10. Arabic applies at 15, is observed at 17, and expires at 30. What do (valid,known) queries (16,16), (16,18), (30,30) return?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Arabic, Arabic, English",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English."
+        },
+        {
+          "id": "2",
+          "text": "English, Arabic, no current preference",
+          "feedback": "Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English."
+        },
+        {
+          "id": "3",
+          "text": "English, English, Arabic",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Only English was known at 16. The later correction changes the reconstructed valid view. Expiring the correction must not revive superseded English.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-idempotent-correction",
+      "chapter": "context-engineering",
+      "topic": 1219,
+      "title": "What must a memory write verify before a model-generated claim becomes a durable fact?",
+      "kind": "debugging",
+      "objective": "memory.idempotent-correction",
+      "difficulty": "implementation",
+      "scenario": "Owner A replays request ID p1 with a different preference after p1 committed. What is the correct write behavior?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Overwrite p1 silently.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version."
+        },
+        {
+          "id": "2",
+          "text": "Reject the changed payload; use a distinct operation ID for an explicit correction.",
+          "feedback": "A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version."
+        },
+        {
+          "id": "3",
+          "text": "Create another row under p1 and pick whichever is most recent.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A replay key identifies a single canonical operation. Silently changing it destroys reconciliation; a correction is a new attributed version.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-ranking-scope",
+      "chapter": "context-engineering",
+      "topic": 1220,
+      "title": "When should agent memory use exact facts, lexical retrieval or vector-hybrid ranking?",
+      "kind": "debugging",
+      "objective": "memory.ranking-scope",
+      "difficulty": "implementation",
+      "scenario": "Five owner B memories are nearest to a query; the first eligible owner A result ranks sixth globally. What must candidate retrieval do?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Fetch global top five, then remove B.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first."
+        },
+        {
+          "id": "2",
+          "text": "Apply trusted owner eligibility before each candidate selection and ranking.",
+          "feedback": "Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first."
+        },
+        {
+          "id": "3",
+          "text": "Return B if the response does not quote its exact text.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Post-filtering global top-k can discard the only eligible result and expose private candidates to later processing. Scope the candidate pool first.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-compaction-refusal",
+      "chapter": "context-engineering",
+      "topic": 1221,
+      "title": "How can memory compaction preserve uncertainty, corrections and completed side effects?",
+      "kind": "debugging",
+      "objective": "memory.compaction-refusal",
+      "difficulty": "implementation",
+      "scenario": "A history says “draft a message,” “do not send,” and “what happened?” A compact summary drops the second turn. What is the failure?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Only style changed.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose."
+        },
+        {
+          "id": "2",
+          "text": "The summary lost an authoritative refusal and could induce an unauthorized send.",
+          "feedback": "A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose."
+        },
+        {
+          "id": "3",
+          "text": "The effect ledger automatically repairs the summary.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose."
+        }
+      ],
+      "correct": "2",
+      "explanation": "A lossy summary cannot replace consent or refusal evidence. Keep those boundaries and source references; the effect ledger records effects but does not automatically repair prose.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-delete-transaction",
+      "chapter": "context-engineering",
+      "topic": 1222,
+      "title": "What does a memory deletion receipt prove about facts, indexes, caches and backups?",
+      "kind": "debugging",
+      "objective": "memory.delete-transaction",
+      "difficulty": "implementation",
+      "scenario": "An injected exception occurs after deleting facts but before deleting derived text. Both SQL statements are in one uncommitted transaction. What should the reopened database show?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Facts absent, text retained.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit."
+        },
+        {
+          "id": "2",
+          "text": "Both changes rolled back; a completed retry must remove both together.",
+          "feedback": "Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit."
+        },
+        {
+          "id": "3",
+          "text": "A completed deletion receipt regardless of database state.",
+          "feedback": "Trace the trusted source, owner and commit boundary again. Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Transaction rollback must prevent a half-committed local erasure. A receipt may describe completion only after the atomic local changes actually commit.",
+      "hints": [
+        "Write the eligible source/version and the expected authoritative state before choosing."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "memory-replay-capstone",
+      "chapter": "context-engineering",
+      "topic": 1223,
+      "title": "Defend a month of scoped memory",
+      "kind": "self-review",
+      "objective": "memory.replay-and-false-recall",
+      "difficulty": "system-design",
+      "scenario": "Extend memory_project.py with eight new multi-turn histories. Include delayed correction, refusal of consent, another owner with near-identical text, stale summary, lost acknowledgement, expiry, deletion and a restored database. Compare exact, recency and hybrid retrieval on a fixed gold set with unknown cases.",
+      "rubric": [
+        "Each expected fact is established from an explicit source event and both clocks before retrieval is run.",
+        "No other-owner source enters any candidate set; a deletion removes authoritative and derived rows after restart.",
+        "Report supported recall and false recall separately; an unknown case that returns a claim fails that invariant.",
+        "A permission/refusal/effect receipt remains authoritative after compaction; no summary authorizes an external effect.",
+        "Report actual workload, elapsed measurements and retained record counts; do not present fixture scores as model quality."
+      ],
+      "model_answer": "An acceptable submission contains the fixed histories and owner-scoped gold keys, exact commands and observed output, per-strategy results including unknown cases, a before/after deletion inspection and restart proof. A single cross-owner leak, revived expired preference or fabricated effect is a failure regardless of average relevance. Human or AI rubric review must identify itself; this subjective task never automatically grants a pass.",
+      "hints": [
+        "Keep the histories synthetic and separate retrieval scores from authorization invariants."
+      ],
+      "references": [
+        "https://docs.langchain.com/oss/python/langgraph/add-memory",
+        "https://www.sqlite.org/lang_transaction.html",
+        "https://www.sqlite.org/pragma.html#pragma_secure_delete"
+      ],
+      "independent": true
+    },
+    {
+      "id": "async-cpu-starvation",
+      "chapter": "computer-science-foundations",
+      "topic": 1215,
+      "title": "Diagnose a blocked event loop",
+      "kind": "debugging",
+      "objective": "backend.asyncio.cpu-starvation",
+      "difficulty": "applied",
+      "scenario": "A FastAPI endpoint executes a synchronous, CPU-intensive Python loop for 500 ms without await. Other async I/O endpoints share that worker's event loop. Which change directly addresses the mechanism while preserving bounded capacity?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Wrap the CPU loop in create_task() without changing its internals.",
+          "feedback": "create_task schedules a coroutine, but its blocking CPU code still monopolizes the event-loop thread."
+        },
+        {
+          "id": "2",
+          "text": "Move the CPU-heavy work to an appropriately bounded process/worker pool and propagate deadlines.",
+          "feedback": "Correct: offloading the CPU work prevents it from blocking that loop; admission and deadlines control overload."
+        },
+        {
+          "id": "3",
+          "text": "Increase the browser's fetch timeout to 60 seconds.",
+          "feedback": "Longer patience does not restore event-loop scheduling or prevent queue starvation."
+        }
+      ],
+      "correct": "2",
+      "explanation": "Asyncio is cooperative; a coroutine without a suspension point blocks other tasks sharing its thread. Process/worker isolation can free the event loop, but adds serialization, memory and cancellation/recovery obligations. Test p99 and event-loop lag under concurrent traffic.",
+      "hints": [
+        "Distinguish task scheduling from executing CPU work in parallel.",
+        "Identify where control returns to the event loop."
+      ],
+      "references": [
+        "https://docs.python.org/3/library/asyncio-task.html",
+        "https://docs.python.org/3/library/concurrent.futures.html"
+      ],
+      "independent": true
+    },
+    {
+      "id": "backend-queue-saturation",
+      "chapter": "computer-science-foundations",
+      "topic": 1216,
+      "title": "Reason about queue saturation",
+      "kind": "quiz",
+      "objective": "backend.capacity.queueing",
+      "difficulty": "advanced",
+      "scenario": "In an idealized M/M/1 model with one server at μ=100 requests/second, arrival rate rises from λ=90 to λ=99 requests/second. Which interpretation correctly describes mean time in system, and what should a production team do next?",
+      "options": [
+        {
+          "id": "1",
+          "text": "Mean time stays 10 ms because each lookup is O(1); only code complexity matters.",
+          "feedback": "Algorithmic O(1) lookup work says nothing about waiting near server saturation."
+        },
+        {
+          "id": "2",
+          "text": "Idealized mean grows from 100 ms to 1 second; then measure actual request distributions and percentiles instead of treating the model as a measured p99.",
+          "feedback": "Correct: 1/(μ−λ) yields .1 and 1 seconds under M/M/1 assumptions, not observed production p99."
+        },
+        {
+          "id": "3",
+          "text": "Mean increases from 10 ms to 11 ms; use Little's Law to calculate exact p99.",
+          "feedback": "The queueing denominator is remaining capacity (μ−λ), and Little's Law relates averages, not tail percentiles."
+        }
+      ],
+      "correct": "2",
+      "explanation": "The ideal M/M/1 result is 1/(100−90)=0.1 s and 1/(100−99)=1 s. This estimate assumes a stable Poisson/exponential single-server queue. Real LLM-backed workloads require observed p95/p99, queue wait, service-time distributions, cancellations, timeout/error handling and fair admission controls.",
+      "hints": [
+        "Write λ for arrival rate and μ for service capacity.",
+        "Evaluate 1/(μ−λ); then distinguish expectations from measured percentiles."
+      ],
+      "references": [
+        "https://sre.google/sre-book/handling-overload/",
+        "https://docs.python.org/3/library/asyncio-queue.html"
+      ],
+      "independent": true
+    },
+    {
       "id": "acceptance-17-128",
       "chapter": "models",
       "topic": 128,
