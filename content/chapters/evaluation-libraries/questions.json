@@ -5,7 +5,12 @@
     "Why": "Establishing a clear taxonomy of evaluation tiers ensures that issues are diagnosed at the lowest, cheapest level (deterministic tests) before escalating to expensive, non-deterministic LLM judge evaluations.",
     "Risk": "Deploying multiple competing evaluation dashboards leads to conflicting metric definitions, redundant API judge costs, and analysis paralysis where engineers debate dashboard scores instead of fixing retrieval or prompt defects.",
     "Trade": "A unified evaluation harness simplifies CI integration and developer workflows, but may lack niche visualizations offered by specialized single-purpose evaluation platforms.",
-    "Try": "Construct an evaluation matrix mapping three test types (SQL parameter validation, retrieval recall, and answer groundedness) to their optimal test runner, execution frequency, and compute cost."
+    "Try": "Construct an evaluation matrix mapping three test types (SQL parameter validation, retrieval recall, and answer groundedness) to their optimal test runner, execution frequency, and compute cost.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What does ADK evaluation add for this example ADK agent?",
@@ -14,7 +19,12 @@
     "Risk": "Strict exact-sequence trajectory matching can cause brittle test failures when an agent chooses an equally valid alternative sequence of tool invocations to achieve the user's goal.",
     "Trade": "Runtime-native ADK evaluation provides seamless access to internal agent events and sessions, but couples test fixtures to ADK's specific runtime conventions.",
     "Try": "Define an ADK evaluation test case with a sequence of two expected tool calls (search_policy followed by calculate_deductible). Execute the agent and verify that the evaluation runner correctly scores trajectory adherence.",
-    "reference": "https://github.com/google/adk-docs/blob/main/docs/evaluate/criteria.md"
+    "reference": "https://github.com/google/adk-docs/blob/main/docs/evaluate/criteria.md",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What is LangSmith evaluation useful for if the agent uses ADK?",
@@ -23,7 +33,12 @@
     "Risk": "Exporting evaluation traces and datasets to a hosted SaaS platform without strict scrubbing can inadvertently leak sensitive production data, customer PII, or internal secrets.",
     "Trade": "Hosted experiment tracking facilitates team collaboration, regression visualization, and historical auditing, but introduces an external service dependency and SaaS subscription costs.",
     "Try": "Create a LangSmith evaluation script using client.evaluate() that passes 10 synthetic customer queries to your agent, computes custom latency and correctness metrics, and logs the experiment results to a named dataset.",
-    "reference": "https://docs.langchain.com/langsmith/evaluation"
+    "reference": "https://docs.langchain.com/langsmith/evaluation",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How does Ragas help evaluate retrieval-augmented answers?",
@@ -32,7 +47,12 @@
     "Risk": "Relying solely on Faithfulness creates a false sense of security when the retrieval system returns outdated policy documents: the model will generate an answer completely faithful to the wrong evidence.",
     "Trade": "Atomic statement extraction provides granular, explainable hallucination scores, but requires multiple sequential LLM calls per test case, substantially increasing evaluation runtime and API spend.",
     "Try": "Run Ragas faithfulness on two test outputs: one strictly summarizing a policy chunk, and one adding a fabricated $500 bonus. Verify that the second output receives a lower faithfulness score corresponding to the unsupported claim.",
-    "reference": "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/"
+    "reference": "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How does DeepEval fit into a pytest-oriented workflow?",
@@ -41,7 +61,12 @@
     "Risk": "Running unconstrained LLM judge metrics in standard unit test suites can cause CI timeouts, massive API billing spikes, and flaky test builds due to occasional judge model non-determinism.",
     "Trade": "DeepEval offers frictionless developer ergonomics and native pytest reporting, but requires disciplined threshold tuning to avoid false-positive test failures on subtle semantic variations.",
     "Try": "Write a pytest test function using DeepEval's LLMTestCase and FaithfulnessMetric with a threshold of 0.8. Run pytest in verbose mode and inspect the generated reasoning breakdown for failed assertions.",
-    "reference": "https://deepeval.com/docs/metrics-faithfulness"
+    "reference": "https://deepeval.com/docs/metrics-faithfulness",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What does the TruLens RAG triad measure?",
@@ -50,7 +75,12 @@
     "Risk": "A system achieving perfect RAG Triad scores can still violate business logic: if a user asks to delete an account, a grounded and relevant answer explaining how to delete it is useless if the underlying authorization check failed to execute.",
     "Trade": "Evaluating all three triad dimensions provides comprehensive diagnostic clarity, but triples the number of judge evaluation calls required for every test turn.",
     "Try": "Synthesize three deliberate failure cases: (1) Irrelevant retrieved chunk; (2) Hallucinated policy number in the answer; (3) An answer that ignores the question. Verify that TruLens accurately flags the corresponding leg of the triad for each case.",
-    "reference": "https://www.trulens.org/getting_started/core_concepts/rag_triad/"
+    "reference": "https://www.trulens.org/getting_started/core_concepts/rag_triad/",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How can Phoenix combine tracing and evaluation?",
@@ -59,7 +89,12 @@
     "Risk": "Automated trace collection can inadvertently record customer PII, confidential medical/financial data, or authorization tokens in span attributes unless strict OpenTelemetry attribute masking filters are configured.",
     "Trade": "Phoenix provides exceptional open-source observability and self-hosted privacy compliance, but requires managing self-hosted telemetry storage (ClickHouse/PostgreSQL) and trace ingestion pipelines.",
     "Try": "Launch a local Phoenix server (px.launch_app()), instrument a retrieval and generation pipeline using the OpenInference tracer, and inspect the resulting trace hierarchy and span attributes in the Phoenix UI.",
-    "reference": "https://arize.com/docs/phoenix"
+    "reference": "https://arize.com/docs/phoenix",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Where does Promptfoo fit compared with a Python evaluation harness?",
@@ -68,22 +103,37 @@
     "Risk": "Relying solely on declarative black-box assertions (like contains or regex) can pass false positives if the model quotes forbidden phrases in a negation or discussion context.",
     "Trade": "Promptfoo provides blistering speed and zero-code prompt experimentation, but cannot easily inspect internal database state, connection pools, or intermediate agent memory buffers.",
     "Try": "Create a promptfooconfig.yaml comparing gpt-4o-mini and claude-3-5-haiku on 5 customer support queries. Include an assertion checking that outputs are valid JSON containing an \"explanation\" key.",
-    "reference": "https://www.promptfoo.dev/docs/configuration/expected-outputs/"
+    "reference": "https://www.promptfoo.dev/docs/configuration/expected-outputs/",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How do you make evaluation results comparable across libraries?",
-    "A": "Comparing numerical evaluation scores across different libraries (e.g., claiming a Ragas Faithfulness of 0.88 is better than a DeepEval Faithfulness of 0.82) is a fundamental methodological fallacy unless rigorous calibration standards are enforced. Different libraries employ divergent prompt templates, few-shot demonstrations, judge model defaults, statement extraction heuristics, and scoring scales (some use continuous 0.0–1.0 probability scales, while others use discrete binary thresholds).\n\nTo make evaluation results scientifically valid and comparable across libraries or over time: (1) Lock the Judge Model: Use the identical judge model (e.g., gpt-4o-2024-08-06) pinned to a specific snapshot with temperature=0; (2) Standardize Datasets: Evaluate against the exact same frozen test set with identical document chunks and user queries; (3) Normalize Scoring Rules: Align whether scores represent binary pass/fail ratios or weighted continuous scores; (4) Statistical Bootstrapping: Compute confidence intervals (e.g., 95% bootstrap confidence intervals) across test runs to determine whether a 2% score increase is statistically significant or merely stochastic judge variance.",
+    "A": "Comparing numerical evaluation scores across different libraries (e.g., claiming a Ragas Faithfulness of 0.88 is better than a DeepEval Faithfulness of 0.82) is a fundamental methodological fallacy unless rigorous calibration standards are enforced. Different libraries employ divergent prompt templates, few-shot demonstrations, judge model defaults, statement extraction heuristics, and scoring scales (some use continuous 0.0\u20131.0 probability scales, while others use discrete binary thresholds).\n\nTo make evaluation results scientifically valid and comparable across libraries or over time: (1) Lock the Judge Model: Use the identical judge model (e.g., gpt-4o-2024-08-06) pinned to a specific snapshot with temperature=0; (2) Standardize Datasets: Evaluate against the exact same frozen test set with identical document chunks and user queries; (3) Normalize Scoring Rules: Align whether scores represent binary pass/fail ratios or weighted continuous scores; (4) Statistical Bootstrapping: Compute confidence intervals (e.g., 95% bootstrap confidence intervals) across test runs to determine whether a 2% score increase is statistically significant or merely stochastic judge variance.",
     "Why": "Enforcing strict evaluation standardization prevents misleading benchmark claims and ensures that measured score improvements reflect genuine quality enhancements rather than artifacts of judge prompt phrasing.",
     "Risk": "Averaging scores from different evaluation tools or across unpinned judge model versions creates meaningless composite metrics that can conceal severe real-world regressions.",
     "Trade": "Standardizing judge models and computing confidence intervals requires running larger evaluation sets (100+ cases) with formal statistical scripts, increasing evaluation time and token expense.",
-    "Try": "Evaluate the same 20 generated answers using both Ragas and DeepEval faithfulness metrics. Document the score discrepancies and trace how differences in prompt templates explain the divergent scores."
+    "Try": "Evaluate the same 20 generated answers using both Ragas and DeepEval faithfulness metrics. Document the score discrepancies and trace how differences in prompt templates explain the divergent scores.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What evaluation stack is a sensible starting point for this reference design?",
-    "A": "For a production-grade AI full-stack application, an optimal starting evaluation architecture consists of four lean, focused tiers:\n\nTier 1: Deterministic Unit & Contract Tests (pytest + Pydantic): Runs on every local commit and CI push. Validates JSON schemas, regex safety boundaries, tool argument shapes, and database transactions with zero LLM API cost and sub-second execution.\nTier 2: Retrieval Benchmark Suite: Evaluates search quality (NDCG@10, Recall@10, MRR) over a curated dataset of 50–100 gold query-chunk pairs whenever chunking strategies, embeddings, or retrieval weights change.\nTier 3: Offline Quality Gate (DeepEval or Ragas): Runs on pull requests and nightly builds over 50 gold multi-turn test cases, measuring Faithfulness, Answer Relevance, and Tool Trajectory adherence using a pinned judge model with a strict cost ceiling ($5 per run).\nTier 4: Production Tracing & Observability (OpenTelemetry + Phoenix or LangSmith): Captures production execution traces with 5–10% sampling, logging latency, token spend, and user feedback (thumbs up/down) to detect live drift without ballooning storage costs.",
+    "A": "For a production-grade AI full-stack application, an optimal starting evaluation architecture consists of four lean, focused tiers:\n\nTier 1: Deterministic Unit & Contract Tests (pytest + Pydantic): Runs on every local commit and CI push. Validates JSON schemas, regex safety boundaries, tool argument shapes, and database transactions with zero LLM API cost and sub-second execution.\nTier 2: Retrieval Benchmark Suite: Evaluates search quality (NDCG@10, Recall@10, MRR) over a curated dataset of 50\u2013100 gold query-chunk pairs whenever chunking strategies, embeddings, or retrieval weights change.\nTier 3: Offline Quality Gate (DeepEval or Ragas): Runs on pull requests and nightly builds over 50 gold multi-turn test cases, measuring Faithfulness, Answer Relevance, and Tool Trajectory adherence using a pinned judge model with a strict cost ceiling ($5 per run).\nTier 4: Production Tracing & Observability (OpenTelemetry + Phoenix or LangSmith): Captures production execution traces with 5\u201310% sampling, logging latency, token spend, and user feedback (thumbs up/down) to detect live drift without ballooning storage costs.",
     "Why": "A tiered evaluation strategy catches 90% of regressions cheaply in deterministic CI tests, reserving expensive LLM judges for pre-merge validation and targeted production sampling.",
     "Risk": "Starting with an overly ambitious evaluation stack (running full LLM-as-a-judge suites on every git commit) creates developer frustration, massive API bills, and slow CI turnaround times.",
     "Trade": "A four-tier lean architecture provides maximum coverage with minimal operational overhead, while leaving room to add specialized red-teaming or security evaluators as the product matures.",
-    "Try": "Write a one-page Evaluation Architecture Decision Record detailing your team's four-tier testing strategy, including exact tool choices, CI trigger points, budget ceilings, and release blocking criteria."
+    "Try": "Write a one-page Evaluation Architecture Decision Record detailing your team's four-tier testing strategy, including exact tool choices, CI trigger points, budget ceilings, and release blocking criteria.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   }
 ]
