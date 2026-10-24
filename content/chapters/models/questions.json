@@ -1,11 +1,11 @@
 [
   {
     "Q": "How do AI, ML, DL, NLP, and GenAI relate?",
-    "A": "Artificial Intelligence is the broad field of building systems that perform intelligent tasks. Machine Learning learns behavior from data. Deep Learning uses layered neural networks. Natural Language Processing concerns language tasks. Generative AI produces new outputs such as text. A RAG application combines these ideas with conventional data and backend engineering.",
-    "Why": "The retrieval service can call learned embedding and reranking providers, but much of its code is deterministic orchestration, validation, indexing, and coordination. Understanding that division prevents attributing every system behavior to a neural model.",
-    "Risk": "Acronyms can hide missing skills. Knowing how to call a model API is different from understanding representation learning, and understanding attention is different from securing a multi-tenant API.",
-    "Trade": "An AI full-stack engineer needs practical breadth and selective depth. Research-level model training is not required for every product, but model limitations must inform system design.",
-    "Try": "Label each reference component as deterministic infrastructure, learned-model adapter, or application boundary. Explain why several components require more than one learning discipline.",
+    "A": "Understanding the relationship between Artificial Intelligence (AI), Machine Learning (ML), Deep Learning (DL), Natural Language Processing (NLP), and Generative AI (GenAI) requires distinguishing representation paradigms, learning objectives, and operational boundaries: (1) Hierarchical Taxonomy: AI is the overarching umbrella discipline encompassing any computational system that performs tasks typically requiring human intelligence (including deterministic symbolic rule engines, expert systems, and graph search). Machine Learning (ML) is a subfield of AI focused on algorithms that learn statistical patterns directly from data (linear models, decision trees, gradient boosting) rather than explicit hardcoded logic. Deep Learning (DL) is a subset of ML based on multi-layered artificial neural networks (CNNs, RNNs, Transformers) that learn hierarchical representations directly from raw perceptual features; (2) Natural Language Processing (NLP): NLP is an application domain centered on computational linguistic tasks (parsing, sentiment analysis, entity extraction, machine translation). NLP intersects all three layers: classical NLP used rule-based regex and statistical n-grams; modern NLP is overwhelmingly dominated by deep learning Transformer architectures; and (3) Generative AI (GenAI) in Production RAG: GenAI refers specifically to deep learning models trained to sample from high-dimensional joint probability distributions $P(X)$ to generate novel text, images, or audio. In enterprise full-stack engineering, a production RAG system is NOT purely GenAI: it combines deterministic relational databases (PostgreSQL/pgvector), classical information retrieval (BM25 lexical search), deep representation learning (dense bi-encoder embeddings and cross-encoder rerankers), and generative autoregressive decoders for final synthesis.",
+    "Why": "Conflating all AI with generative models leads teams to misapply stochastic LLMs to problems best solved by deterministic SQL queries, mathematical calculations, or classical classification algorithms.",
+    "Risk": "Using a generative model for deterministic tasks (like arithmetic summing or foreign key lookups) introduces latency, unnecessary API costs, and probabilistic hallucination risks.",
+    "Trade": "Generative models provide unmatched flexibility for synthesis and reasoning, but classical ML classifiers and deterministic indexing offer microsecond latency, zero token cost, and 100% predictable execution.",
+    "Try": "Architect a customer support routing pipeline: label where deterministic rule matching, classical classification (TF-IDF/BERT), vector similarity search, and generative LLMs each belong.",
     "spoken": "AI is a broad field; ML learns from data, and deep learning uses multilayer neural models. NLP is a language-task area that can use ML, deep learning or other methods. Generative AI produces content and overlaps these areas. They are not one universally nested taxonomy, and generation is also prediction under a model.",
     "domain": "foundations",
     "subdomain": "ml-basics",
@@ -33,7 +33,7 @@
         "definition": "Models that generate new content"
       }
     ],
-    "execution_timeline": "Data → Train model → Evaluate → Deploy → Monitor → Retrain",
+    "execution_timeline": "Data \u2192 Train model \u2192 Evaluate \u2192 Deploy \u2192 Monitor \u2192 Retrain",
     "example": {
       "code": "# Taxonomy, not executable evidence of set relationships.\n# Deep learning is a subset of machine learning, which is part of AI.\n# NLP includes both neural and non-neural techniques.\n# Generative AI includes text, images, audio, and other modalities.",
       "explanation": "Shows the nested relationship between fields.",
@@ -60,9 +60,9 @@
       "https://www.ibm.com/topics/artificial-intelligence"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "added": true,
     "module": "models",
@@ -74,7 +74,12 @@
     "Why": "A production RAG service controls an evidence budget rather than naively stuffing an entire 1M-token document corpus into the prompt window. Managing context size, chunk relevancy, and document ordering directly mitigates both token serving costs and attention dispersion failures.",
     "Risk": "Assuming a large context window replaces RAG is a severe architectural error. Stuffing 200k tokens into a single prompt increases time-to-first-token (TTFT) latency by orders of magnitude, inflates serving costs quadratically or linearly depending on caching, and introduces middle-context retrieval hallucinations.",
     "Trade": "Stuffing large raw contexts reduces the engineering burden of chunking, indexing, and reranking pipelines, but drastically increases inference latency, token expenditure, and recall instability. A tuned two-stage retrieval pipeline (BM25 + HNSW vector search + cross-encoder reranking) supplies top-5 dense factual chunks with deterministic provenance at a fraction of the cost.",
-    "Try": "Calculate the exact KV cache memory footprint in gigabytes for a model with 32 layers, 32 query heads, 8 KV heads (GQA), head dimension 128, FP16 precision (2 bytes), batch size 4, and context length 65,536 tokens: $2 \\times 32 \\times 8 \\times 128 \\times 65536 \\times 4 \\times 2 \\text{ bytes} \\approx 34.35\\text{ GB}$."
+    "Try": "Calculate the exact KV cache memory footprint in gigabytes for a model with 32 layers, 32 query heads, 8 KV heads (GQA), head dimension 128, FP16 precision (2 bytes), batch size 4, and context length 65,536 tokens: $2 \\times 32 \\times 8 \\times 128 \\times 65536 \\times 4 \\times 2 \\text{ bytes} \\approx 34.35\\text{ GB}$.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How are encoder embeddings, decoder generation, bi-encoders, and cross-encoders different?",
@@ -82,7 +87,12 @@
     "Why": "Understanding the computational boundary between bi-encoders and cross-encoders explains why search systems cannot simply use cross-encoders over an entire database, and why vector search alone often retrieves superficially similar but factually unaligned chunks.",
     "Risk": "Conflating bi-encoder embedding similarity with factual relevance. Bi-encoders map sentences with opposite meanings (e.g., 'Drug X treats Disease Y' vs 'Drug X is ineffective and lethal for Disease Y') to nearby coordinates due to high lexical and topical overlap.",
     "Trade": "Bi-encoders provide sub-millisecond retrieval scaling across billions of documents with fixed index memory, at the expense of ranking precision. Cross-encoders provide state-of-the-art precision at the cost of high CPU/GPU compute per query that limits scoring to at most a few hundred candidates.",
-    "Try": "Calculate the theoretical forward-pass compute cost of retrieving the top-5 documents from a corpus of $N=1,000,000$ items using a cross-encoder versus a bi-encoder with pre-indexed vectors and an HNSW graph."
+    "Try": "Calculate the theoretical forward-pass compute cost of retrieving the top-5 documents from a corpus of $N=1,000,000$ items using a cross-encoder versus a bi-encoder with pre-indexed vectors and an HNSW graph.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What is contrastive learning, and why does it matter for retrieval?",
@@ -90,7 +100,12 @@
     "Why": "Retrieval services consume pretrained embedding models whose performance on real-world queries is directly determined by the quality of contrastive training data, temperature scaling, and hard-negative mining applied during training.",
     "Risk": "Assuming embeddings trained on general web text will understand specialized enterprise domain distinctions. Without contrastive fine-tuning on domain-specific hard negatives, general models fail to differentiate opposing technical terms or legal clauses.",
     "Trade": "Contrastive fine-tuning yields substantial domain-specific retrieval gains (often +15-30% MRR@10) but requires high-quality labeled triplet data $(q, d^+, d^-)$, careful negative deduplication to avoid false negatives, GPU compute, and re-indexing the entire document corpus.",
-    "Try": "Formulate a training triplet $(q, d^+, d^-)$ for an internal insurance policy search engine where $d^-$ is a hard negative sharing 90% of the lexical tokens with $d^+$ but differing on a single contractual exclusion clause."
+    "Try": "Formulate a training triplet $(q, d^+, d^-)$ for an internal insurance policy search engine where $d^-$ is a hard negative sharing 90% of the lexical tokens with $d^+$ but differing on a single contractual exclusion clause.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What are pretraining, SFT, and instruction tuning?",
@@ -98,7 +113,12 @@
     "Why": "Engineers must understand the boundaries of what SFT can achieve versus what RAG solves. Fine-tuning an LLM on private corporate documentation is an ineffective strategy for factual Q&A because models struggle to recall low-frequency parametric facts accurately and cannot guarantee access control or citations.",
     "Risk": "Fine-tuning an LLM to 'learn new facts' leads to hallucinations. LLMs memorize general distributions well but recall specific numbers, dates, and names with high unreliability when relying solely on parametric weights.",
     "Trade": "SFT and instruction tuning excel at adapting output format, style, persona, and specialized syntax (such as emitting proprietary tool-call JSON). RAG excels at providing verified, up-to-date, source-attributed factual knowledge. Production systems combine both: an instruction-tuned model trained on strict tool schemas operating over an external RAG knowledge store.",
-    "Try": "Identify three architectural failure modes that occur when an engineering team attempts to use SFT instead of RAG to keep a customer support bot updated with daily pricing changes."
+    "Try": "Identify three architectural failure modes that occur when an engineering team attempts to use SFT instead of RAG to keep a customer support bot updated with daily pricing changes.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What are LoRA, PEFT, and quantization?",
@@ -106,7 +126,12 @@
     "Why": "An AI full-stack engineer designing custom embedding models or self-hosted LLM backends must evaluate VRAM constraints. Deploying unquantized models or running full fine-tuning needlessly multiplies hardware infrastructure costs by 4x to 8x.",
     "Risk": "Severe quantization (e.g., 2-bit or aggressive uniform 4-bit without outlier preservation) can cause catastrophic degradation in perplexity, mathematical reasoning, and structured JSON output compliance.",
     "Trade": "LoRA and 4-bit quantization lower training and serving memory footprints by over 70%, democratizing local deployment on commodity GPUs. However, multi-tenant serving of different LoRA adapters at high concurrency introduces adapter-swapping latency unless using specialized runtimes like S-LoRA or vLLM multi-LoRA.",
-    "Try": "Calculate the theoretical VRAM required to store the weights of a 70B parameter model in FP16 (16 bits = 2 bytes), INT8 (1 byte), and INT4 (0.5 bytes). Contrast this with the total memory needed during training when AdamW optimizer states and activations are included."
+    "Try": "Calculate the theoretical VRAM required to store the weights of a 70B parameter model in FP16 (16 bits = 2 bytes), INT8 (1 byte), and INT4 (0.5 bytes). Contrast this with the total memory needed during training when AdamW optimizer states and activations are included.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How do RLHF and DPO differ from RAG?",
@@ -114,7 +139,12 @@
     "Why": "Systems engineering requires knowing where to apply each tool: use DPO or RLHF to calibrate tone, conciseness, instruction compliance, and refusal boundaries; use RAG to supply verifiable, citeable facts and domain-specific data.",
     "Risk": "Assuming an 'aligned' or 'RLHF-tuned' model eliminates hallucinations. Aligned models hallucinate with higher confidence and polish than unaligned models because preference scoring rewards plausible-sounding phrasing.",
     "Trade": "DPO improves behavioral compliance across complex instructions with minimal compute overhead compared to PPO. However, aligning a model too strictly can induce over-refusal ('I cannot assist with that harmless query'). RAG provides factual guardrails that allow using lighter alignment constraints.",
-    "Try": "Write a prompt where an RLHF-aligned model without RAG gives a convincingly phrased but entirely hallucinated answer, and contrast it with the exact grounding verification provided when relevant context chunks are injected."
+    "Try": "Write a prompt where an RLHF-aligned model without RAG gives a convincingly phrased but entirely hallucinated answer, and contrast it with the exact grounding verification provided when relevant context chunks are injected.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What are temperature, top-p, tokens, and structured output?",
@@ -130,9 +160,9 @@
       "https://www.rfc-editor.org/rfc/rfc6585.html"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-22"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "follow_ups": [
       {
@@ -150,7 +180,12 @@
     "Why": "Engineers must select retrieval architectures based on demonstrated data complexity and query characteristics rather than default naive vector top-k.",
     "Risk": "Premature complexity. Implementing GraphRAG or multi-agent loops when the underlying documents are straightforward text FAQs introduces massive latency, infrastructure fragility, and token expense without measurable accuracy gains.",
     "Trade": "HyDE, GraphRAG, and Agentic loops improve answer quality for complex, multi-hop, or corpus-wide synthesis queries, but require significantly higher inference budgets, specialized indexing infrastructure, and more complex failure telemetry.",
-    "Try": "Run an experiment comparing direct embedding search vs. HyDE for 10 domain-specific questions where the user query shares zero keyword overlap with the target answer."
+    "Try": "Run an experiment comparing direct embedding search vs. HyDE for 10 domain-specific questions where the user query shares zero keyword overlap with the target answer.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should an AI full-stack engineer learn deep learning alongside this reference design?",
@@ -158,6 +193,11 @@
     "Why": "Treating neural models as black-box commercial HTTP APIs blinds engineers to critical latency bottlenecks, token memory constraints, quantization trade-offs, and failure modes that govern production viability.",
     "Risk": "Over-focusing on theoretical math without deploying code, or conversely, writing superficial API wrappers without understanding attention mechanics, context limits, and tokenization edge cases.",
     "Trade": "Deepening foundational ML knowledge requires dedicated time away from pure frontend/backend feature velocity, but yields an engineer capable of debugging model degradation, optimizing serving VRAM, and cutting cloud inference bills by over 70%.",
-    "Try": "Profile the execution time and peak GPU VRAM consumption of generating 512 tokens with batch size 1 vs batch size 16 on an open-source model using standard PyTorch vs vLLM with PagedAttention."
+    "Try": "Profile the execution time and peak GPU VRAM consumption of generating 512 tokens with batch size 1 vs batch size 16 on an open-source model using standard PyTorch vs vLLM with PagedAttention.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   }
 ]
