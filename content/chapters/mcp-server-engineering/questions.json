@@ -78,11 +78,25 @@
   },
   {
     "Q": "How do you secure a remote MCP deployment?",
-    "A": "Apply request authentication, resource authorization, encrypted transport, origin and host validation where relevant, outbound restrictions, quotas, and secret management.",
+    "A": "**MCP is not an authorization system by itself.** A remote Model Context Protocol server exposes tools, resources and prompts over its negotiated transport/protocol revision. A *host* controls a client instance and decides whether discovered tools are available to the assistant. A server must still authenticate and authorize every remote request at its own data boundary. A model choosing a tool, or a schema validating JSON arguments, does not confer permission to run that tool.\n\n**Remote OAuth sequence.** Discover the appropriate protected-resource metadata and authorization server; register/use a permitted client and correct OAuth flow (including PKCE for public authorization-code clients). Obtain a token intended for the target resource with narrowly scoped delegation. At the resource server, cryptographically verify token format/signature and trusted issuer/key metadata, then validate audience/resource, subject, expiry, intended scopes and tool/object authorization. Handle redirect URI and state against CSRF; never send a bearer token issued for Server A to an unrelated Server B. Re-check ownership of each document and deny writes until a separate approval/policy gate permits them.\n\n**Version and discovery.** Initialization/capability negotiation, tool lists, transport errors and versioned input schemas are separate from application authority. A client supporting two MCP specification versions should select an intersection, not assume the newest protocol from a marketing page. Remote HTTP has different origin, session, timeout and cancellation risks from local STDIO; the tool result remains untrusted content, even from a properly authenticated server.\n\n**Execution example.** `labs/mcp_remote_policy.py` uses already-verified synthetic identities (it does NOT parse or cryptographically verify JWTs) and checks issuer, audience, expiry, scopes, declared tools, effect approval and replay identity. It rejects cross-resource bearer token forwarding, read-only-to-write escalation and unsupported versions. The effect-ID set is process-local teaching state, not a durable cross-replica idempotency ledger. Real OAuth integration must use a cryptographic library, a live issuer, discovery, consent, token exchange and negative redirect/PKCE tests.\n\n**Production failure.** A user authorizes an innocuous document-search tool. A compromised server description then asks the client to submit a payment and forward its token. Descriptions are lower-trust data; the host rejects tool/policy escalation, the wrong-audience token is unusable by the second server, and effectful operations require authenticated owner plus explicit approval and durable idempotent business handling.\n\n**Trade-off and follow-up.** Stateless HTTP simplifies horizontal scaling but requires an explicit continuation/effect ledger for long-running tasks; session transports add lifetime/cleanup complexity. **What changes when the HTTP result is lost after commit?** Replay using a stable owner-scoped operation ID and consult the durable effect store; a transport retry alone cannot guarantee exactly-once side effects.",
     "Why": "Follow the selected protocol security guidance and deploy behind an explicit ingress policy. Log security outcomes without storing credentials.",
     "Risk": "A reverse proxy does not automatically validate application-level permissions or block server-side request forgery.",
     "Trade": "More controls add operational work and reduce exposure.",
-    "Try": "Threat-model both a malicious client and a compromised downstream API."
+    "Try": "Run MCP remote policy tests; change audience, scope, expiry and approval to confirm rejection; distinguish verified-claims policy from actual signature verification.",
+    "citations": [
+      "https://modelcontextprotocol.io/specification/2026-07-28"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can a tool's advertised JSON input schema prove that an MCP client is authorized to invoke it?",
+        "A": "No. JSON validation checks arguments, while authentication establishes a principal and authorization checks the exact resource and action. Validate issuer, signature, audience, expiration, scope, per-object policy and separate user approval before irreversible effects; remote tool descriptions cannot grant privileges."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should tool errors be modeled?",
