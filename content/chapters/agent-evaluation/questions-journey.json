@@ -1,42 +1,48 @@
 [
   {
     "Q": "How do you evaluate an agent whose final answer is correct but its action trace violated policy?",
-    "spoken": "Score final task quality and the action/effect trace separately. Check denied calls, authority, redundant effects, recovery and budget violations with independent oracles. A correct final sentence cannot compensate for private data disclosure or an unauthorized committed action. Freeze fixtures and inspect judge limitations.",
-    "A": "Score final task quality and the action/effect trace separately. Check denied calls, authority, redundant effects, recovery and budget violations with independent oracles. A correct final sentence cannot compensate for private data disclosure or an unauthorized committed action. Freeze fixtures and inspect judge limitations.\n\nConcrete engineering case: An agent returns the requested summary after also reading another tenant’s document that its final answer never cites.\n\nBoundary defense: No. It does not necessarily observe or judge the action trace. Add explicit scope and effect-state checks.",
-    "Why": "Score final task quality and the action/effect trace separately. Check denied calls, authority, redundant effects, recovery and budget violations with independent oracles. A correct final sentence cannot compensate for private data disclosure or an unauthorized committed action. Freeze fixtures and inspect judge limitations.",
-    "Risk": "An agent returns the requested summary after also reading another tenant’s document that its final answer never cites.",
-    "Trade": "No. It does not necessarily observe or judge the action trace. Add explicit scope and effect-state checks.",
-    "Try": "Reproduce this case with synthetic data, state the authoritative result and show a regression that rejects the broken behavior.",
+    "spoken": "Score final task quality and the action/effect trace separately using independent oracles. Check denied calls, authorization boundaries, redundant side effects, error recovery, and token budgets. A correct final text response can never compensate for cross-tenant data leakage or an unauthorized committed mutation.",
+    "A": "Evaluating an agent whose final text appears correct but whose execution trace violated policy requires a **Decoupled Dual-Score Evaluation Architecture**:\n\n1. **Orthogonal Scoring Dimensions:**\n   - **Task Outcome Score (Functional Accuracy):** Evaluates whether the user's intent was met (e.g. accuracy of mathematical calculation, summary relevance, or output schema completeness).\n   - **Safety & Policy Invariant Score (Trace Compliance):** Evaluates whether the intermediate tool calls adhered to security boundaries, tenant isolation rules, data loss prevention (DLP), and system permissions.\n   - **Efficiency Score (Resource Consumption):** Measures tool call count, token usage, latency, and redundant loops against declared budget thresholds.\n2. **Gated Release Logic (Hard Safety Gates):** The overall evaluation verdict is computed via hard gating: `Overall Verdict = Task Score > Threshold AND Policy Violations == 0`. Even if the task score is 100%, any critical policy violation (e.g. probing unauthorized tenant tables, leaking PII in intermediate tool arguments, or calling an unapproved mutation) forces an immediate `FAIL / REJECTED` verdict.\n3. **Independent Telemetry Oracles:** The evaluation harness intercepts all intermediate tool calls at the execution boundary rather than relying on LLM-as-a-judge review of the final text. The trace oracle checks tool names, input arguments, returned payloads, and tenant authorization claims against authoritative policies.\n4. **Audit and Non-Repudiation:** Every test run archives full execution traces, tool call arguments, database diffs, and cryptographic hash manifests, allowing engineering teams to perform root-cause analysis on rogue intermediate trajectories.",
+    "Why": "Evaluating only the final answer masks critical vulnerabilities. An agent that retrieves cross-tenant files or incurs massive retry loops looks identical to a safe, efficient agent when looking only at the final conversational text.",
+    "Risk": "In production, an agent that achieves a correct summary by querying an unauthorized database table causes severe privacy breaches, regulatory fines (GDPR, HIPAA), and unmonitored lateral escalation across services.",
+    "Trade": "Dual-scoring requires instrumenting tool execution sandboxes, capturing detailed telemetry logs, and configuring explicit security invariants, but guarantees that policy compliance is non-negotiable.",
+    "Try": "Build an evaluation fixture where an agent accurately answers a customer query but invokes an unauthorized administrative tool; assert that the outcome score is 1.0, the safety score is 0.0, and the gated release verdict is REJECTED.",
     "domain": "agents",
     "subdomain": "agent-evaluation",
     "module": "agent-evaluation",
     "concept": "How do you evaluate an agent whose final answer is correct but its action trace violated policy?",
     "difficulty": "scenario",
-    "misconception_target": "Assuming this concrete failure is excluded by a happy-path success: An agent returns the requested summary after also reading another tenant’s document that its final answer never cites.",
+    "misconception_target": "Assuming that a high semantic similarity or factually correct final answer implies that the agent's intermediate tool calls and data access patterns were safe and authorized.",
     "definitions": [
       {
-        "term": "Boundary: agent evaluation",
-        "definition": "Score final task quality and the action/effect trace separately."
+        "term": "Dual-Score Evaluation",
+        "definition": "An evaluation pattern that assesses task outcome quality and trajectory policy compliance as separate, decoupled metrics with hard safety gating."
+      },
+      {
+        "term": "Outcome Bias Trap",
+        "definition": "The failure mode of judging an autonomous agent's decision-making solely on whether the final text looked acceptable, ignoring dangerous, wasteful, or illegal intermediate steps."
       }
     ],
-    "execution_timeline": "Identify the authoritative state → trace the failure boundary → inspect durable or visible evidence → test the proposed recovery",
+    "execution_timeline": "Agent executes multi-turn loop -> Telemetry captures all tool calls and payloads -> Functional oracle evaluates final text -> Invariant oracle evaluates trace against security policies -> Gating engine computes composite verdict.",
     "example": {
-      "code": "{\n  \"scenario\": \"An agent returns the requested summary after also reading another tenant’s document that its final answer never cites.\",\n  \"required_decision\": \"Score final task quality and the action/effect trace separately\"\n}",
+      "code": "{\n  \"scenario\": \"An agent returns the requested summary after also reading another tenant’s document that its final answer never cites.\",\n  \"required_decision\": \"Score final task quality and the action/effect trace separately, enforcing a hard gate that rejects the run on safety violation\"\n}",
       "explanation": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
       "output": "No runtime or production measurement is inferred from this reasoning fixture."
     },
-    "production_case": "An agent returns the requested summary after also reading another tenant’s document that its final answer never cites.",
+    "production_case": "An agent returns the requested summary after also reading another tenant’s document that its final answer never cites, leaking confidential customer data into the intermediate execution logs.",
     "alternatives": [
-      "No. It does not necessarily observe or judge the action trace. Add explicit scope and effect-state checks."
+      "Implement a decoupled dual-score evaluation pipeline with hard safety gates at CI/CD release boundaries.",
+      "Filter and sanitize all intermediate tool outputs before model ingestion using strict policy interception proxies."
     ],
     "pitfalls": [
-      "An agent returns the requested summary after also reading another tenant’s document that its final answer never cites."
+      "Using LLM-as-a-judge to inspect only final text responses while ignoring tool execution traces.",
+      "Allowing a high task accuracy score to average out or compensate for a security or policy violation."
     ],
-    "complexity": "Include workload size, retained state, latency, concurrency and recovery work under the declared assumptions; the reasoning fixture is not a capacity benchmark.",
+    "complexity": "Dual scoring adds negligible CPU overhead to the evaluation runner while providing 100% deterministic detection of unauthorized tool invocations and cross-tenant leakage.",
     "follow_ups": [
       {
-        "Q": "Can a final-answer faithfulness metric detect every such violation?",
-        "A": "No. It does not necessarily observe or judge the action trace. Add explicit scope and effect-state checks."
+        "Q": "Can a final-answer faithfulness metric detect every intermediate policy violation?",
+        "A": "No. If the model uses private cross-tenant data to guide its reasoning but never quotes or cites the data in its final text, final-answer faithfulness metrics will show 100% compliance while a severe security breach occurred."
       }
     ],
     "citations": [
@@ -47,7 +53,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   }
 ]
