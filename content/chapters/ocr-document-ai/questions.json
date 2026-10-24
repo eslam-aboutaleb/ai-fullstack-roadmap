@@ -4,7 +4,7 @@
     "A": "Optical Character Recognition (OCR) and Visual Document Understanding (VDU / Document AI) operate at fundamentally different levels of semantic hierarchy:\n\n1. Optical Character Recognition (OCR): A low-level perceptual operation (implemented via engines like Tesseract, EasyOCR, or PaddleOCR) that maps image pixels into character sequences, words, and geometric bounding box coordinates [ymin, xmin, ymax, xmax]. Traditional OCR has zero comprehension of document hierarchy, reading order, or semantic meaning: in a two-column document, naive OCR reads horizontally across both columns, creating a nonsensical jumble of interleaved text;\n\n2. Visual Document Understanding (Document AI): Employs multimodal architectures (such as LayoutLMv3, Donut, Google Document AI, or Vision-Language Models like GPT-4o / Claude 3.5 Sonnet) that combine visual pixels, spatial coordinate geometry, and linguistic tokens. VDU understands structural semantics: (a) Layout Analysis (distinguishing titles, headers, paragraphs, footers, and marginalia); (b) Reading Order Reconstruction (correctly traversing multi-column articles and wrapped text); (c) Key-Value Pair Association (linking the visual label \"Invoice Date:\" to the nearby date string \"2026-10-23\"); (d) Tabular Structure Parsing (resolving row and column spans into relational matrices).",
     "Why": "Understanding the boundary between raw character extraction (OCR) and structural semantic parsing (Document AI) prevents corrupted reading orders and enables reliable extraction of tabular and key-value records from complex PDFs.",
     "Risk": "Treating raw OCR output as sequential text causes multi-column documents and tables to be flattened across columns, destroying grammatical coherence and corrupting downstream vector embeddings.",
-    "Trade": "Document AI models (LayoutLM, VLMs) provide complete structural and semantic extraction, but require significantly more GPU memory and compute latency (200–800ms/page) compared to lightweight CPU-based OCR (50ms/page).",
+    "Trade": "Document AI models (LayoutLM, VLMs) provide complete structural and semantic extraction, but require significantly more GPU memory and compute latency (200\u2013800ms/page) compared to lightweight CPU-based OCR (50ms/page).",
     "Try": "Extract text from a two-column scanned PDF using basic Tesseract versus a layout-aware Document AI pipeline. Compare reading order continuity between the two extractions.",
     "spoken": "OCR recognizes text from document images, often with layout coordinates and confidence signals. Document understanding interprets fields, tables, relations and meaning. Confidence values need task-specific calibration; validate critical fields and provenance, then route uncertain or inconsistent cases to review.",
     "domain": "ai-rag",
@@ -27,7 +27,7 @@
         "definition": "Coordinates locating text within the document image"
       }
     ],
-    "execution_timeline": "Scan/document image → OCR engine → Text with bounding boxes → Confidence scoring → Field extraction → Validation or human review",
+    "execution_timeline": "Scan/document image \u2192 OCR engine \u2192 Text with bounding boxes \u2192 Confidence scoring \u2192 Field extraction \u2192 Validation or human review",
     "example": {
       "code": "from pydantic import BaseModel, Field\nimport pytesseract\nfrom PIL import Image\n\nclass ExtractedField(BaseModel):\n    text: str\n    confidence: float = Field(ge=0.0, le=1.0)\n    bbox: list[int]  # [left, top, width, height]\n\ndef extract_text_with_provenance(image_path: str) -> list[ExtractedField]:\n    img = Image.open(image_path)\n    # Extract word-level text, coordinates, and confidence\n    data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)\n    fields = []\n    for i in range(len(data[\"text\"])):\n        word = data[\"text\"][i].strip()\n        conf = float(data[\"conf\"][i])\n        if word and conf > 0:\n            fields.append(ExtractedField(\n                text=word,\n                confidence=conf / 100.0,\n                bbox=[data[\"left\"][i], data[\"top\"][i], data[\"width\"][i], data[\"height\"][i]]\n            ))\n    return fields",
       "explanation": "Demonstrates Python extraction using Tesseract to capture words, confidence scores, and spatial pixel bounding boxes for audit provenance.",
@@ -64,33 +64,53 @@
     "Q": "How should scanned files enter an ingestion pipeline?",
     "A": "Processing scanned documents (PDFs, TIFFs, JPEGs) in a production ingestion pipeline requires a decoupled, asynchronous event-driven architecture with robust image preprocessing:\n\nIngestion Pipeline Stages: (1) Upload & Validation: The client uploads a scanned file to cloud object storage (S3/GCS). The server validates MIME magic bytes (preventing malicious file extension spoofing) and generates an immutable document_id with a SHA-256 content hash; (2) Asynchronous Worker Dispatch: The storage bucket emits an event notification to a distributed queue (SQS/PubSub), consumed by an isolated GPU/CPU worker process; (3) Multi-Page Splitting: The worker splits multi-page PDFs into isolated high-resolution raster images (rendering at 300 DPI using pdf2image / PyMuPDF); (4) Image Preprocessing: Clean the images: (a) Deskewing (detecting orientation angle and rotating); (b) Binarization / Adaptive Thresholding (Otsu's method to separate text from background noise and scanner artifacts); (c) Denoising; (5) OCR & Document AI Inference: Execute layout analysis and text recognition in parallel batches across pages; (6) Structural Assembly & Provenance: Assemble pages into a structured JSON document recording text, bounding boxes, confidence, and extracted tables, committing chunks to PostgreSQL with pgvector.",
     "Why": "Asynchronous multi-stage preprocessing normalizes image quality, prevents scanner skew from degrading OCR accuracy, and isolates heavy CPU/GPU rendering from synchronous web application servers.",
-    "Risk": "Processing raw, un-deskewed scanned images at 72 DPI cuts OCR character accuracy by 30–50%, introducing severe character recognition errors.",
+    "Risk": "Processing raw, un-deskewed scanned images at 72 DPI cuts OCR character accuracy by 30\u201350%, introducing severe character recognition errors.",
     "Trade": "Rendering pages at 300 DPI with adaptive binarization maximizes OCR character accuracy, but increases temporary disk usage and preprocessing duration.",
-    "Try": "Write an image preprocessing script using OpenCV: deskew a tilted scan, apply adaptive thresholding, and compare OCR accuracy before and after preprocessing."
+    "Try": "Write an image preprocessing script using OpenCV: deskew a tilted scan, apply adaptive thresholding, and compare OCR accuracy before and after preprocessing.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "Why do bounding boxes and page references matter?",
-    "A": "In production Document AI and RAG systems, storing spatial bounding box coordinates and page numbers alongside extracted text is a mandatory operational requirement, not an optional visual extra:\n\nThe 3 Pillars of Spatial Provenance: (1) Visual Citations & User Trust: When a RAG assistant answers: \"The maximum deductible is $1,500 based on Section 4\", enterprise users demand proof. Storing bounding box coordinates [ymin, xmin, ymax, xmax] allows frontend PDF viewers (like PDF.js) to render an exact visual bounding box highlight over the original scanned document, instantly establishing user trust; (2) Spatial Relationship Inference: In forms and receipts, semantic relationships are governed by spatial layout: a key label (\"Total Due:\") is horizontally adjacent to its value (\"$450.00\"). Without bounding boxes, spatial association is lost; (3) Legal & Regulatory Auditability: In healthcare (HIPAA) and finance (SOX), AI extractions used for automated decision-making must maintain cryptographic provenance linking extracted values to the exact physical image coordinates from which they originated;\n\nCoordinate Normalization: Always normalize coordinates to a 0.0–1.0 float scale or 0–1000 integer grid relative to page width and height, ensuring coordinates remain resolution-independent across diverse screens.",
+    "A": "In production Document AI and RAG systems, storing spatial bounding box coordinates and page numbers alongside extracted text is a mandatory operational requirement, not an optional visual extra:\n\nThe 3 Pillars of Spatial Provenance: (1) Visual Citations & User Trust: When a RAG assistant answers: \"The maximum deductible is $1,500 based on Section 4\", enterprise users demand proof. Storing bounding box coordinates [ymin, xmin, ymax, xmax] allows frontend PDF viewers (like PDF.js) to render an exact visual bounding box highlight over the original scanned document, instantly establishing user trust; (2) Spatial Relationship Inference: In forms and receipts, semantic relationships are governed by spatial layout: a key label (\"Total Due:\") is horizontally adjacent to its value (\"$450.00\"). Without bounding boxes, spatial association is lost; (3) Legal & Regulatory Auditability: In healthcare (HIPAA) and finance (SOX), AI extractions used for automated decision-making must maintain cryptographic provenance linking extracted values to the exact physical image coordinates from which they originated;\n\nCoordinate Normalization: Always normalize coordinates to a 0.0\u20131.0 float scale or 0\u20131000 integer grid relative to page width and height, ensuring coordinates remain resolution-independent across diverse screens.",
     "Why": "Spatial bounding boxes provide immutable audit provenance, enable visual citation highlights in UI viewers, and preserve the geometric relationships essential for form parsing.",
     "Risk": "Discarding bounding boxes during ingestion makes it impossible to verify automated extractions against original source documents, forcing human auditors to manually read through entire 50-page PDFs to locate citations.",
-    "Trade": "Storing bounding box arrays adds a modest 5–10% JSON metadata storage overhead in PostgreSQL, but provides invaluable auditability.",
-    "Try": "Extract words and bounding boxes from a receipt using Tesseract, normalize coordinates to 0–1000, and draw bounding boxes onto the original image using PIL.ImageDraw to verify coordinate alignment."
+    "Trade": "Storing bounding box arrays adds a modest 5\u201310% JSON metadata storage overhead in PostgreSQL, but provides invaluable auditability.",
+    "Try": "Extract words and bounding boxes from a receipt using Tesseract, normalize coordinates to 0\u20131000, and draw bounding boxes onto the original image using PIL.ImageDraw to verify coordinate alignment.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How should tables be extracted?",
     "A": "Tables represent the highest-value quantitative information in enterprise documents (financial reports, invoices, clinical trials), yet standard linear OCR destroys tabular data by concatenating columns horizontally:\n\nTable Extraction Methodologies: (1) Bordered Tables (Heuristic Line Intersection): Detect horizontal and vertical graphical ruling lines using morphological computer vision operations (cv2.morphologyEx with horizontal/vertical structuring kernels). Intersecting lines define exact cell polygons, which are mapped to a relational grid (row_index, col_index); (2) Borderless / Complex Tables (Deep Learning): Use specialized vision models (e.g., Table Transformer / TATR, LayoutLM, or PaddleOCR Table Recognition) to predict table bounding boxes and cell coordinate lattices simultaneously; (3) Relational Representation for RAG: Never flatten tables into raw space-separated text! Convert extracted tables into: (a) Markdown tables (| Header 1 | Header 2 |) with header rows repeated on every chunk; (b) JSON entity arrays ([{\"date\": \"2026-05-01\", \"amount\": 500}]); or (c) Semantic natural language row sentences (\"On 2026-05-01, the transaction amount was $500.00\"). This preserves columnar semantics during dense vector embedding and LLM generation.",
     "Why": "Preserving tabular structure and column headers prevents quantitative values from detaching from their column meanings, enabling accurate RAG synthesis over complex financial and operational tables.",
     "Risk": "Flattening a table into space-separated OCR text causes columns to merge into adjacent rows, resulting in severe numerical hallucinations during financial queries.",
-    "Trade": "Deep-learning table extraction adds 200–500ms per table, but is the only reliable way to parse borderless multi-line tables.",
-    "Try": "Extract a complex financial table from a PDF using pdfplumber or Camelot, serialize it to both Markdown and JSON, and compare how an LLM answers quantitative aggregation questions against both formats."
+    "Trade": "Deep-learning table extraction adds 200\u2013500ms per table, but is the only reliable way to parse borderless multi-line tables.",
+    "Try": "Extract a complex financial table from a PDF using pdfplumber or Camelot, serialize it to both Markdown and JSON, and compare how an LLM answers quantitative aggregation questions against both formats.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How should OCR confidence be used?",
-    "A": "OCR confidence scores (emitted per character, word, or bounding box on a 0.0–1.0 or 0–100 scale) represent the model's internal acoustic/visual probability based on Connectionist Temporal Classification (CTC) or softmax margins. However, in production, raw OCR confidence is NOT a calibrated probability of factual truth:\n\nThe Confidence Paradox: A crisp, high-resolution scan of a blurry font can produce 0.98 confidence on an incorrect character (e.g., misreading \"8\" as \"B\", or dropping a tiny decimal point \".\"), turning \"$100.00\" into \"$10000\" with 99% confidence!\n\nCalibrated Production Architecture: (1) Two-Tier Routing (Straight-Through Processing vs Human-in-the-Loop): Define empirical confidence thresholds calibrated on a validation dataset of representative scans: - High Confidence (>0.92) & Cross-Field Validation Passes: Routed to automated Straight-Through Processing (STP); - Low Confidence (<0.85) OR Validation Failure: Flagged for Human-in-the-Loop (HITL) exception review, displaying the original crop; (2) Business Rules & Checksums: For critical fields (amounts, dates, SSNs, credit cards), never trust OCR confidence alone. Enforce deterministic mathematical checksums (e.g., Luhn check digits, routing number algorithms, subtotal + tax == total).",
+    "A": "OCR confidence scores (emitted per character, word, or bounding box on a 0.0\u20131.0 or 0\u2013100 scale) represent the model's internal acoustic/visual probability based on Connectionist Temporal Classification (CTC) or softmax margins. However, in production, raw OCR confidence is NOT a calibrated probability of factual truth:\n\nThe Confidence Paradox: A crisp, high-resolution scan of a blurry font can produce 0.98 confidence on an incorrect character (e.g., misreading \"8\" as \"B\", or dropping a tiny decimal point \".\"), turning \"$100.00\" into \"$10000\" with 99% confidence!\n\nCalibrated Production Architecture: (1) Two-Tier Routing (Straight-Through Processing vs Human-in-the-Loop): Define empirical confidence thresholds calibrated on a validation dataset of representative scans: - High Confidence (>0.92) & Cross-Field Validation Passes: Routed to automated Straight-Through Processing (STP); - Low Confidence (<0.85) OR Validation Failure: Flagged for Human-in-the-Loop (HITL) exception review, displaying the original crop; (2) Business Rules & Checksums: For critical fields (amounts, dates, SSNs, credit cards), never trust OCR confidence alone. Enforce deterministic mathematical checksums (e.g., Luhn check digits, routing number algorithms, subtotal + tax == total).",
     "Why": "Combining confidence scoring with deterministic business checksums prevents subtle OCR misrecognitions (like missing decimal points) from triggering catastrophic automated financial disbursements.",
     "Risk": "Relying solely on OCR confidence to automate payments allows a single dropped decimal point on a high-confidence scan to overpay an invoice by 100x.",
     "Trade": "Routing low-confidence fields to human reviewers introduces review labor, but guarantees 100% compliance and prevents costly financial errors.",
-    "Try": "Calculate word confidence scores across a noisy fax image using Tesseract. Identify words where confidence is high (>90%) but character substitution errors occurred, demonstrating why business validation is required."
+    "Try": "Calculate word confidence scores across a noisy fax image using Tesseract. Identify words where confidence is high (>90%) but character substitution errors occurred, demonstrating why business validation is required.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How can document text inject instructions into an agent?",
@@ -98,15 +118,25 @@
     "Why": "Treating scanned documents as untrusted input channels prevents indirect prompt injections from hijacking internal agent tools or exfiltrating private company data.",
     "Risk": "Concatenating raw OCR text directly into an agent's tool prompt allows a malicious PDF invoice to execute unauthorized wire transfers or reconfigure agent permissions.",
     "Trade": "Enforcing strict Pydantic extraction schemas and XML isolation bounds the model's output space, neutralizing indirect prompt injections at the expense of free-form conversational elaboration.",
-    "Try": "Create an image containing a visible invoice alongside faint white-on-white injection text. Verify that OCR extracts both, and implement an extraction prompt that isolates and ignores the injected directive."
+    "Try": "Create an image containing a visible invoice alongside faint white-on-white injection text. Verify that OCR extracts both, and implement an extraction prompt that isolates and ignores the injected directive.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How should multimodal retrieval combine text and images?",
-    "A": "Multimodal RAG represents an architectural paradigm shift from traditional \"OCR-then-Text-Embed\" to direct visual document retrieval:\n\n1. Traditional OCR-then-Embed: The system renders the PDF, runs OCR to extract text strings, and embeds the text using a standard text embedding model (e.g., text-embedding-3). Limitations: All visual styling, graphical layout, line charts, chemical diagrams, corporate logos, and font hierarchies are permanently lost during text serialization. Tables and multi-column forms often lose structural coherence;\n\n2. Visual Document Retrieval (ColPali / Vision-Language Encoders): Models like ColPali (combining ColBERT multi-vector late interaction with PaliGemma vision transformers) process the raw rendered PDF page image directly as a grid of visual patches. The model generates multi-vector patch embeddings representing both textual words and visual graphics simultaneously; Benefits: Retrieves visual charts, figures, and complex tables natively without OCR errors or layout parsing failures;\n\nTrade-off Comparison: Traditional OCR produces tiny vector footprints (1 vector per chunk, ~1.5 KB) and runs cheaply on standard vector databases. Visual patch models (ColPali) generate ~1,024 vectors per page (~1–2 MB per page), requiring massive memory, specialized late-interaction vector stores (like Vespa or Qdrant multi-vector), and GPU acceleration.",
+    "A": "Multimodal RAG represents an architectural paradigm shift from traditional \"OCR-then-Text-Embed\" to direct visual document retrieval:\n\n1. Traditional OCR-then-Embed: The system renders the PDF, runs OCR to extract text strings, and embeds the text using a standard text embedding model (e.g., text-embedding-3). Limitations: All visual styling, graphical layout, line charts, chemical diagrams, corporate logos, and font hierarchies are permanently lost during text serialization. Tables and multi-column forms often lose structural coherence;\n\n2. Visual Document Retrieval (ColPali / Vision-Language Encoders): Models like ColPali (combining ColBERT multi-vector late interaction with PaliGemma vision transformers) process the raw rendered PDF page image directly as a grid of visual patches. The model generates multi-vector patch embeddings representing both textual words and visual graphics simultaneously; Benefits: Retrieves visual charts, figures, and complex tables natively without OCR errors or layout parsing failures;\n\nTrade-off Comparison: Traditional OCR produces tiny vector footprints (1 vector per chunk, ~1.5 KB) and runs cheaply on standard vector databases. Visual patch models (ColPali) generate ~1,024 vectors per page (~1\u20132 MB per page), requiring massive memory, specialized late-interaction vector stores (like Vespa or Qdrant multi-vector), and GPU acceleration.",
     "Why": "Understanding multimodal retrieval trade-offs allows architects to choose fast, cheap text-OCR for standard prose documents, reserving ColPali visual retrieval for dense technical manuals, financial charts, and visual schematics.",
     "Risk": "Using traditional text-only OCR on documents where crucial information is contained in bar charts or architectural schematics causes the RAG system to be completely blind to that information.",
     "Trade": "ColPali retrieves visual charts and diagrams with exceptional accuracy, but requires 1,000x more vector storage and GPU inference resources compared to lightweight text embeddings.",
-    "Try": "Compare retrieving a document containing an infographic using a text-only query against traditional OCR text versus a Vision-Language Model that directly inspects the page image."
+    "Try": "Compare retrieving a document containing an infographic using a text-only query against traditional OCR text versus a Vision-Language Model that directly inspects the page image.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How should extracted fields be validated?",
@@ -114,15 +144,25 @@
     "Why": "Automated cross-field arithmetic checks and checksum validation detect OCR character errors before data is committed to financial ledgers, preventing billing discrepancies and audit failures.",
     "Risk": "Storing unvalidated OCR fields directly into relational databases causes silent financial data corruption when a misread character in an invoice total causes accounting ledgers to become out of balance.",
     "Trade": "Comprehensive validation rules catch 99% of extraction errors, but require building custom domain validators for each distinct document type.",
-    "Try": "Write a Pydantic InvoiceSchema with a root validator that asserts subtotal + tax == total_amount. Test with an OCR output where tax was misread by $1.00 and verify that the validation fails."
+    "Try": "Write a Pydantic InvoiceSchema with a root validator that asserts subtotal + tax == total_amount. Test with an OCR output where tax was misread by $1.00 and verify that the validation fails.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How should document revisions and deletions propagate?",
-    "A": "Documents in enterprise repositories are frequently updated, amended, or revoked. In Document AI systems, updating a multi-page document requires coordinated lifecycle propagation across storage, caches, and vector indexes:\n\nRevision Propagation Architecture: (1) Document Versioning: Maintain version_id and is_active flags in the documents metadata table; (2) Page-Level Perceptual Hashing (pHash): When an updated PDF is uploaded, compute perceptual image hashes (pHash) for each page image. Compare page hashes against the previous version: only re-run OCR and embedding generation on pages that ACTUALLY CHANGED, saving 80–90% of processing compute during minor document revisions; (3) Atomic Vector Revocation: Old page chunks must either be soft-deleted (deleted_at = NOW()) or deleted within an ACID transaction before the new chunks are indexed, preventing vector queries from returning mixed passages from different document revisions; (4) Cache Eviction: Purge all downstream semantic caches and pre-computed summaries tied to the document_id.",
+    "A": "Documents in enterprise repositories are frequently updated, amended, or revoked. In Document AI systems, updating a multi-page document requires coordinated lifecycle propagation across storage, caches, and vector indexes:\n\nRevision Propagation Architecture: (1) Document Versioning: Maintain version_id and is_active flags in the documents metadata table; (2) Page-Level Perceptual Hashing (pHash): When an updated PDF is uploaded, compute perceptual image hashes (pHash) for each page image. Compare page hashes against the previous version: only re-run OCR and embedding generation on pages that ACTUALLY CHANGED, saving 80\u201390% of processing compute during minor document revisions; (3) Atomic Vector Revocation: Old page chunks must either be soft-deleted (deleted_at = NOW()) or deleted within an ACID transaction before the new chunks are indexed, preventing vector queries from returning mixed passages from different document revisions; (4) Cache Eviction: Purge all downstream semantic caches and pre-computed summaries tied to the document_id.",
     "Why": "Page-level diffing and atomic vector revocation eliminate redundant OCR compute on minor document updates and prevent users from retrieving outdated or revoked policies.",
     "Risk": "Failing to delete old chunk vectors when a document is revised creates a split-brain retrieval state where the search engine returns conflicting answers from both the old and new policy revisions.",
     "Trade": "Page-level pHash diffing requires maintaining historical page image hashes in the database, but cuts re-indexing costs dramatically.",
-    "Try": "Implement a perceptual image hash (imagehash.phash) comparison in Python: detect whether an updated PDF page contains edits or is visually identical, skipping OCR for identical pages."
+    "Try": "Implement a perceptual image hash (imagehash.phash) comparison in Python: detect whether an updated PDF page contains edits or is visually identical, skipping OCR for identical pages.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   },
   {
     "Q": "How should an OCR system be evaluated end to end?",
@@ -130,6 +170,11 @@
     "Why": "Measuring CER, entity F1, and TEDS across diverse document qualities ensures that pipeline accuracy is evaluated objectively against ground-truth benchmarks rather than anecdotal spot-checks.",
     "Risk": "Benchmarking Document AI exclusively on clean digital PDFs gives false confidence, leading to catastrophic failure when the system encounters noisy faxes and smartphone photos in production.",
     "Trade": "Curating a 100-page golden ground-truth dataset with annotated bounding boxes and tables takes significant manual labeling effort, but is the only scientific basis for engineering Document AI pipelines.",
-    "Try": "Compute Character Error Rate (CER) between a ground-truth invoice string and an OCR-generated string using the Levenshtein library. Analyze the exact character substitution errors."
+    "Try": "Compute Character Error Rate (CER) between a ground-truth invoice string and an OCR-generated string using the Levenshtein library. Analyze the exact character substitution errors.",
+    "reviewer_status": {
+      "reviewer": "independent technical review pending",
+      "reviewed_at": "2026-10-24",
+      "status": "draft"
+    }
   }
 ]
