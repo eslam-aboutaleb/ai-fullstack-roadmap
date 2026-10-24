@@ -1,0 +1,325 @@
+"""20 String Manipulation and String Algorithmic Questions."""
+
+QUESTIONS = [
+    {
+        "Q": "How do you determine if two strings are valid anagrams in Python?",
+        "A": "**Direct answer:** To determine if two strings are valid anagrams (LeetCode 242), count the occurrence frequency of each character across both strings and assert that the character frequencies are identical. In Python, this is accomplished in optimal linear time using a single hash table or fixed-size array tallying character counts.\n\n```python\ndef is_anagram(s: str, t: str) -> bool:\n    if len(s) != len(t):\n        return False\n    counts: dict[str, int] = {}\n    for char in s:\n        counts[char] = counts.get(char, 0) + 1\n    for char in t:\n        if char not in counts or counts[char] == 0:\n            return False\n        counts[char] -= 1\n    return True\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of the strings. A single pass over string `s` builds the dictionary, and a single pass over string `t` decrements counts with early termination upon encountering an unexpected character.\n- **Space Complexity:** $O(1)$ auxiliary memory when constrained to standard alphabets (e.g. at most 26 lowercase English letters), or $O(k)$ where $k$ is the distinct Unicode alphabet size.\n\n**Algorithmic mechanics and edge cases:**\nA naive approach sorts both strings in $O(n \\log n)$ time, which allocates $O(n)$ memory for new string buffers. The single-pass frequency count terminates immediately if lengths mismatch or if a character in `t` exceeds its quota in `s`. Edge cases include empty strings, identical single characters, strings with identical lengths but different frequency distributions (e.g., 'aa' and 'bb'), and Unicode graphemes.",
+        "Why": "Frequency counting provides strict linear time validation without incurring the O(n log n) sorting overhead or auxiliary string allocations.",
+        "Risk": "Comparing naive sorted strings creates new list and string allocations that blow memory on multi-megabyte text buffers.",
+        "Trade": "Using collections.Counter simplifies syntax to one line but incurs tuple-allocation overhead compared to an inlined dictionary loop.",
+        "Try": "Test with string 'rat' and 'car' to verify that count decrement detects mismatched letter counts and returns False on first exhaustion.",
+        "worked_case": "For s='anagram' and t='nagaram': len check passes (7==7); counts builds {'a':3, 'n':1, 'g':1, 'r':1, 'm':1}; second loop decrements each letter down to zero without missing keys, returning True.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "How would you handle Unicode input where characters may have multiple equivalent representations?",
+                "A": "Normalize both strings using unicodedata.normalize('NFC', s) before counting, ensuring precomposed characters and combining characters resolve to identical code point sequences."
+            }
+        ]
+    },
+    {
+        "Q": "How do you group anagrams together from a list of strings?",
+        "A": "**Direct answer:** Grouping anagrams (LeetCode 49) groups words sharing identical character frequencies together into sublists. The optimal solution uses a hash map whose keys represent canonical anagram signatures, mapping each canonical signature to a list of matching original strings.\n\n```python\nfrom collections import defaultdict\n\ndef group_anagrams(strs: list[str]) -> list[list[str]]:\n    groups: defaultdict[tuple[int, ...], list[str]] = defaultdict(list)\n    for s in strs:\n        count = [0] * 26\n        for char in s:\n            count[ord(char) - ord('a')] += 1\n        groups[tuple(count)].append(s)\n    return list(groups.values())\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n \\cdot k)$ where $n$ is the number of strings and $k$ is the maximum length of a string in the list. Counting 26 character frequencies avoids sorting each individual string.\n- **Space Complexity:** $O(n \\cdot k)$ to store the grouped strings inside the hash map table.\n\n**Algorithmic mechanics and edge cases:**\nWhile sorting each word yields an $O(n \\cdot k \\log k)$ runtime, building a 26-element integer tuple `(c_0, c_1, ..., c_25)` executes in strictly linear $O(k)$ per string. Tuples are immutable and hashable, making them ideal dictionary keys in Python. Edge cases include empty string lists `['']`, words consisting of single distinct letters, and inputs with high duplicate frequencies.",
+        "Why": "Tuple frequency signatures establish an O(n * k) linear hashing grouping without sorting each individual word.",
+        "Risk": "Using sorted strings as dictionary keys incurs an unnecessary O(k log k) sorting step per word, degrading throughput on long strings.",
+        "Trade": "Constructing 26-element tuples trades a small constant memory overhead for eliminating string sorting completely.",
+        "Try": "Trace with ['eat', 'tea', 'tan', 'ate', 'nat', 'bat'] and verify that 'eat', 'tea', and 'ate' map to the identical count tuple.",
+        "worked_case": "Input: ['eat', 'tea', 'tan', 'ate', 'nat', 'bat']. Word 'eat' generates tuple with index 0=1, 4=1, 19=1. Words 'tea' and 'ate' match this exact tuple, grouping them into ['eat', 'tea', 'ate'].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "What if the input strings contain arbitrary Unicode characters rather than 26 lowercase ASCII letters?",
+                "A": "Use sorted strings or sorted item tuples from a standard dictionary tally as the hash map key when alphabet bounds are unbounded."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the longest palindromic substring in a string?",
+        "A": "**Direct answer:** Longest Palindromic Substring (LeetCode 5) requires locating the longest contiguous sequence that reads identically forwards and backwards. The optimal practical approach expands outwards from every potential palindrome center, checking both single-character odd centers and two-character even centers.\n\n```python\ndef longest_palindrome(s: str) -> str:\n    if not s:\n        return \"\"\n    start, end = 0, 0\n    def expand(left: int, right: int) -> tuple[int, int]:\n        while left >= 0 and right < len(s) and s[left] == s[right]:\n            left -= 1\n            right += 1\n        return left + 1, right - 1\n    for i in range(len(s)):\n        l1, r1 = expand(i, i)\n        if r1 - l1 > end - start:\n            start, end = l1, r1\n        l2, r2 = expand(i, i + 1)\n        if r2 - l2 > end - start:\n            start, end = l2, r2\n    return s[start:end + 1]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n^2)$ where $n$ is the length of `s`. There are $2n - 1$ potential centers, and each expansion scans at most $O(n)$ characters.\n- **Space Complexity:** $O(1)$ auxiliary space because we only maintain indices rather than allocating auxiliary DP tables.\n\n**Algorithmic mechanics and edge cases:**\nA 2D Dynamic Programming table requires $O(n^2)$ space, which causes cache misses and memory allocation pressure. Expanding around centers inspects characters directly in-place with zero memory allocation. Edge cases include strings where all characters are identical ('aaaa'), alternating characters ('abcba'), and single-character strings.",
+        "Why": "Expanding around centers achieves the same O(n^2) time bound as dynamic programming while using O(1) auxiliary memory.",
+        "Risk": "Allocating an n x n boolean dynamic programming matrix consumes O(n^2) memory, which easily causes out-of-memory errors on strings with len > 10,000.",
+        "Trade": "Center expansion is simpler and more space-efficient than Manacher's O(n) algorithm while being fast enough for all practical constraints.",
+        "Try": "Trace with string 'babad' and observe that center index 1 ('a') expands to substring 'bab' with length 3.",
+        "worked_case": "For s='cbbd': odd expansion around each index yields len 1; even expansion around i=1 (s[1]=='b', s[2]=='b') expands to 'bb' (len 2); returns 'bb'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How does Manacher's Algorithm achieve linear O(n) time for longest palindromic substring?",
+                "A": "Manacher's algorithm inserts sentinel delimiters between characters and reuses palindrome radius values from previously expanded symmetry boundaries."
+            }
+        ]
+    },
+    {
+        "Q": "How do you count the number of palindromic substrings in a string?",
+        "A": "**Direct answer:** Counting Palindromic Substrings (LeetCode 647) counts every contiguous substring that forms a palindrome. The optimal solution expands outwards from all $2n - 1$ possible centers, incrementing the count for each valid expansion step until characters mismatch.\n\n```python\ndef count_substrings(s: str) -> int:\n    total = 0\n    n = len(s)\n    for i in range(n):\n        # Odd-length palindromes centered at i\n        left, right = i, i\n        while left >= 0 and right < n and s[left] == s[right]:\n            total += 1\n            left -= 1\n            right += 1\n        # Even-length palindromes centered between i and i+1\n        left, right = i, i + 1\n        while left >= 0 and right < n and s[left] == s[right]:\n            total += 1\n            left -= 1\n            right += 1\n    return total\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n^2)$ worst-case (e.g. for strings with all identical characters like 'aaaa') and $O(n)$ best-case for strings with no adjacent duplicate characters.\n- **Space Complexity:** $O(1)$ auxiliary memory since expansion only tracks pointer indices.\n\n**Algorithmic mechanics and edge cases:**\nEvery character is individually a palindrome of length 1 (contributing $n$ to the total). As the two pointers `left` and `right` step outward, every step where `s[left] == s[right]` extends a previously verified palindrome, adding exactly 1 to the count. Edge cases include empty strings, single-letter strings, and homogenous strings like 'aaaa' where total equals $n(n+1)/2 = 10$.",
+        "Why": "Expanding around 2n - 1 centers counts all palindromes without storing intermediate substrings or dynamic programming matrices.",
+        "Risk": "Generating all O(n^2) substrings and testing each for palindromicity with s == s[::-1] degrades runtime to O(n^3).",
+        "Trade": "Two-pointer expansion uses O(1) space and avoids the complex sentinel padding logic required by Manacher's linear algorithm.",
+        "Try": "Run with s='aaa' and confirm that individual characters count for 3, pairs count for 2, and the full string counts for 1, totaling 6.",
+        "worked_case": "Input: s='abc'. Centers: i=0 ('a') -> 1; i=1 ('b') -> 1; i=2 ('c') -> 1. Even centers: (0,1) -> 0; (1,2) -> 0. Total = 3.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "Can this problem be solved with 2D dynamic programming, and what is the trade-off?",
+                "A": "Yes, using dp[i][j] = (s[i] == s[j]) and (j - i <= 2 or dp[i+1][j-1]), but it consumes O(n^2) auxiliary memory compared to O(1) for center expansion."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the minimum window substring containing all characters of another string?",
+        "A": "**Direct answer:** Minimum Window Substring (LeetCode 76) finds the shortest substring in `s` that contains all characters of string `t` (including duplicate frequencies). The optimal algorithm uses an adaptive sliding window (`left` and `right`) with a target frequency map and a match counter.\n\n```python\nfrom collections import Counter\n\ndef min_window(s: str, t: str) -> str:\n    if not s or not t or len(s) < len(t):\n        return \"\"\n    target_counts = Counter(t)\n    window_counts: dict[str, int] = {}\n    required = len(target_counts)\n    formed = 0\n    ans = (float(\"inf\"), 0, 0)\n    left = 0\n    for right, char in enumerate(s):\n        window_counts[char] = window_counts.get(char, 0) + 1\n        if char in target_counts and window_counts[char] == target_counts[char]:\n            formed += 1\n        while left <= right and formed == required:\n            if (right - left + 1) < ans[0]:\n                ans = (right - left + 1, left, right)\n            char_left = s[left]\n            window_counts[char_left] -= 1\n            if char_left in target_counts and window_counts[char_left] < target_counts[char_left]:\n                formed -= 1\n            left += 1\n    return \"\" if ans[0] == float(\"inf\") else s[ans[1]:ans[2] + 1]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(|s| + |t|)$ because both pointers `left` and `right` traverse the string `s` at most once, and building `target_counts` takes $O(|t|)$.\n- **Space Complexity:** $O(|s| + |t|)$ to store character frequencies in the window and target maps.\n\n**Algorithmic mechanics and edge cases:**\nThe variable `formed` tracks how many unique characters currently meet the required frequency in `t`. When `formed == required`, the window is valid, and the `left` pointer contracts to find the minimal valid window. Edge cases include `len(s) < len(t)`, `t` having repeated identical characters, and cases where no valid window exists.",
+        "Why": "Tracking formed character matches avoids re-scanning entire frequency dictionaries on every window contraction step.",
+        "Risk": "Checking dict equality window_counts == target_counts inside the loop adds O(|alphabet|) overhead per character step.",
+        "Trade": "Maintaining the formed match counter trades an integer variable for eliminating dictionary comparison loops.",
+        "Try": "Trace with s='ADOBECODEBANC' and t='ABC', verifying that the window contracts at 'ADOBEC' and updates at 'BANC'.",
+        "worked_case": "For s='ADOBECODEBANC', t='ABC': right expands to index 5 ('ADOBEC'), formed==3. Left contracts to 0 ('ADOBEC', len 6). Later window at right=12 contracts to left=9 ('BANC', len 4). Result: 'BANC'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you optimize this when string s contains many characters not present in t?",
+                "A": "Filter s into a list of tuples (index, char) containing only characters present in t, then run sliding window over the filtered list."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the longest repeating character replacement with at most k edits?",
+        "A": "**Direct answer:** Longest Repeating Character Replacement (LeetCode 424) determines the length of the longest substring containing identical letters after changing at most `k` characters. The optimal solution uses a sliding window maintaining the maximum frequency of any single character currently in the window.\n\n```python\ndef character_replacement(s: str, k: int) -> int:\n    counts: dict[str, int] = {}\n    max_freq = 0\n    left = 0\n    max_len = 0\n    for right, char in enumerate(s):\n        counts[char] = counts.get(char, 0) + 1\n        max_freq = max(max_freq, counts[char])\n        # If window length minus most frequent char exceeds k, contract left\n        while (right - left + 1) - max_freq > k:\n            counts[s[left]] -= 1\n            left += 1\n        max_len = max(max_len, right - left + 1)\n    return max_len\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `s`. Each pointer advances from $0$ to $n-1$ at most once.\n- **Space Complexity:** $O(1)$ auxiliary space since `counts` stores at most 26 uppercase English letters.\n\n**Algorithmic mechanics and edge cases:**\nThe invariant is that a window of length $W = (\\text{right} - \\text{left} + 1)$ is valid if and only if $W - \\text{max\\_freq} \\le k$. Crucially, we do not need to decrement `max_freq` when contracting `left`, because a smaller `max_freq` cannot produce a window larger than our existing `max_len`. Edge cases include $k \\ge n$ (returns $n$), all identical characters, and $k = 0$.",
+        "Why": "The condition window_length - max_freq <= k guarantees that at most k replacements can turn the whole window uniform.",
+        "Risk": "Recalculating max_freq by scanning all 26 dictionary entries on every step introduces an unnecessary constant slowdown.",
+        "Trade": "Allowing max_freq to remain temporarily stale during contractions preserves correctness because only higher max_freq can expand the record window.",
+        "Try": "Trace with s='AABABBA', k=1: show that window grows to length 4 ('AABA') and max_len records 4.",
+        "worked_case": "Input: s='ABAB', k=2. Window expands: right=0 ('A'), max_f=1; right=1 ('AB'), len 2, diff 1 <= 2; right=2 ('ABA'), len 3, diff 1 <= 2; right=3 ('ABAB'), len 4, diff 2 <= 2. Result: 4.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "Can the window contraction while loop be replaced with a single if statement?",
+                "A": "Yes, because once the window reaches a valid size, it only needs to slide forward without shrinking to find if a larger window exists."
+            }
+        ]
+    },
+    {
+        "Q": "How do you validate a palindrome while ignoring non-alphanumeric characters in-place?",
+        "A": "**Direct answer:** Valid Palindrome (LeetCode 125) checks whether a phrase is a palindrome after converting all uppercase letters to lowercase and removing all non-alphanumeric characters. The optimal solution uses two pointers converging from both ends in-place without creating filtered copies of the string.\n\n```python\ndef is_palindrome(s: str) -> bool:\n    left, right = 0, len(s) - 1\n    while left < right:\n        while left < right and not s[left].isalnum():\n            left += 1\n        while left < right and not s[right].isalnum():\n            right -= 1\n        if s[left].lower() != s[right].lower():\n            return False\n        left += 1\n        right -= 1\n    return True\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `s`. Each character is visited at most twice as pointers converge.\n- **Space Complexity:** $O(1)$ auxiliary space because pointers navigate the original string directly without creating an intermediate filtered string.\n\n**Algorithmic mechanics and edge cases:**\nFiltering the string first with `[c.lower() for c in s if c.isalnum()]` allocates $O(n)$ auxiliary memory. The two-pointer in-place approach uses `s[left].isalnum()` to skip punctuation, spaces, and symbols on the fly. Edge cases include empty strings, strings containing only punctuation (e.g. `' '` or `'.,'`), and single characters.",
+        "Why": "Two converging pointers skipping non-alphanumeric characters achieve O(1) space without allocating filtered string buffers.",
+        "Risk": "Creating a cleaned string copy doubles peak memory consumption on large input documents.",
+        "Trade": "In-place pointer skipping adds inner while loops with boundary checks left < right to prevent index out of bounds.",
+        "Try": "Test with s='A man, a plan, a canal: Panama' and confirm that whitespace and punctuation are skipped seamlessly.",
+        "worked_case": "For s='race a car': left compares 'r' to 'r' (idx 0 vs 9); left 'a' vs 'a' (idx 1 vs 7); left 'c' vs 'c' (idx 2 vs 5); left 'e' at idx 3 vs right 'a' at idx 4 -> mismatch, returns False.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you solve Valid Palindrome II where you may delete at most one character?",
+                "A": "When a mismatch occurs at s[left] != s[right], test whether the remaining substring without s[left] or without s[right] is a valid palindrome."
+            }
+        ]
+    },
+    {
+        "Q": "How do you design an algorithm to encode and decode a list of strings safely?",
+        "A": "**Direct answer:** Encode and Decode Strings (LeetCode 271) requires serializing a list of arbitrary strings into a single string and subsequently deserializing it back to the original list. The optimal approach prefixes each string with its length followed by a unique delimiter (e.g., `\"<length>#<string>\"`).\n\n```python\nclass Codec:\n    def encode(self, strs: list[str]) -> str:\n        \"\"\"Encodes a list of strings to a single string.\"\"\"\n        return \"\".join(f\"{len(s)}#{s}\" for s in strs)\n\n    def decode(self, s: str) -> list[str]:\n        \"\"\"Decodes a single string to a list of strings.\"\"\"\n        res: list[str] = []\n        i = 0\n        while i < len(s):\n            delimiter = s.find(\"#\", i)\n            length = int(s[i:delimiter])\n            start = delimiter + 1\n            res.append(s[start:start + length])\n            i = start + length\n        return res\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(N)$ for both encode and decode, where $N$ is the total number of characters across all strings in the list.\n- **Space Complexity:** $O(N)$ to hold the serialized string and output list.\n\n**Algorithmic mechanics and edge cases:**\nUsing fixed delimiters (like commas or colons) fails when strings contain those exact delimiters. Length-prefixing is immune to delimiter collisions because the parser reads the length integer first, jumps past the `#` separator, and slices exactly `length` bytes without inspecting internal content. Edge cases include empty lists `[]`, lists of empty strings `['', '']`, and strings containing `#` or numbers.",
+        "Why": "Length prefixing establishes framing boundaries immune to delimiter collisions or escape character parsing bugs.",
+        "Risk": "Using standard delimiters without length prefixing or escaping causes truncation or corruption when strings contain the delimiter.",
+        "Trade": "Length prefixes add a small integer header per string but guarantee stateless, unescapable serialization.",
+        "Try": "Encode ['hello', '#world#', '12#45'] and trace how the decode loop reads 5#hello7##world#5#12#45 correctly.",
+        "worked_case": "Encode ['lint', 'code'] -> '4#lint4#code'. Decode reads '4', finds '#', extracts next 4 chars ('lint'), updates pointer; reads '4', finds '#', extracts 'code'. Returns ['lint', 'code'].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How is this length-prefixed framing pattern used in production network protocols?",
+                "A": "Protocols like HTTP/2 (frame headers), gRPC, and Redis RESP use length-prefixed headers so network sockets know exact payload byte sizes in advance."
+            }
+        ]
+    },
+    {
+        "Q": "How do you evaluate an arithmetic expression string with addition, subtraction, multiplication, and division?",
+        "A": "**Direct answer:** Basic Calculator II (LeetCode 227) evaluates non-negative integers separated by `+`, `-`, `*`, and `/` without parentheses. The optimal solution uses a stack (or running accumulator) to perform high-precedence multiplication and division immediately while deferring addition and subtraction.\n\n```python\ndef calculate(s: str) -> int:\n    stack: list[int] = []\n    num = 0\n    sign = '+'\n    for i, char in enumerate(s):\n        if char.isdigit():\n            num = num * 10 + int(char)\n        if (not char.isdigit() and char != ' ') or i == len(s) - 1:\n            if sign == '+':\n                stack.append(num)\n            elif sign == '-':\n                stack.append(-num)\n            elif sign == '*':\n                stack.append(stack.pop() * num)\n            elif sign == '/':\n                stack.append(int(stack.pop() / num))  # Truncate towards zero\n            sign = char\n            num = 0\n    return sum(stack)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `s`. Each character is scanned once, and stack operations run in $O(1)$ amortized time.\n- **Space Complexity:** $O(n)$ auxiliary space to store intermediate summands on the stack (reducible to $O(1)$ with two running variables).\n\n**Algorithmic mechanics and edge cases:**\nWhen an operator or the end of the string is reached, the previous operator (`sign`) determines how the current number is incorporated. `+` and `-` push values onto the stack, while `*` and `/` pop the top value, evaluate the high-precedence term immediately, and push the product/quotient back. Edge cases include multi-digit numbers, spaces between digits and operators, and Python integer division truncation towards zero (`int(a / b)` vs `a // b`).",
+        "Why": "Stack deferral evaluates high-precedence multiplication and division immediately while accumulating addition and subtraction.",
+        "Risk": "Using Python floor division a // b on negative results produces incorrect floor values instead of truncation towards zero (-3 // 2 == -2 vs int(-3 / 2) == -1).",
+        "Trade": "Using a stack simplifies logic compared to a two-variable running sum/last_term approach that achieves O(1) space.",
+        "Try": "Trace with s='3+2*2' to show that 2*2 is evaluated immediately to 4, leaving [3, 4] on the stack for sum=7.",
+        "worked_case": "For s=' 3/2 ': num parses 3, sign='+'; next operator is '/' -> stack=[3], sign='/'; num parses 2; end of string triggers '/': stack.pop() / 2 -> int(3/2)=1. stack=[1]. sum=1.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you extend this parser to handle parentheses as in Basic Calculator I and III?",
+                "A": "When an opening parenthesis '(' is encountered, push the current running sum and sign onto the stack, reset them, and pop/apply when closing ')' is met."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the longest common prefix among an array of strings?",
+        "A": "**Direct answer:** Longest Common Prefix (LeetCode 14) finds the longest string prefix shared across all strings in an array. The optimal solution uses vertical scanning, comparing characters column by column across all strings and terminating on the first mismatch or length boundary.\n\n```python\ndef longest_common_prefix(strs: list[str]) -> str:\n    if not strs:\n        return \"\"\n    for i in range(len(strs[0])):\n        char = strs[0][i]\n        for s in strs[1:]:\n            if i == len(s) or s[i] != char:\n                return strs[0][:i]\n    return strs[0]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(S)$ where $S$ is the sum of all characters across all strings. In the best case, it terminates after $O(n)$ comparisons if the first character mismatches.\n- **Space Complexity:** $O(1)$ auxiliary space as it directly slices the original string reference without auxiliary allocations.\n\n**Algorithmic mechanics and edge cases:**\nHorizontal scanning compares string 1 and 2, then compares the result with string 3. Vertical scanning is superior in practice because if any string has a different character at index $i$, the algorithm exits immediately without inspecting the rest of the strings. Edge cases include empty input array `[]`, single string `['flower']`, strings with no common prefix `['dog', 'racecar']`, and empty strings inside the array `['', 'b']`.",
+        "Why": "Vertical scanning inspects characters column-by-column across strings, terminating early on the very first character mismatch.",
+        "Risk": "Horizontal scanning processes entire strings even when a tiny mismatch exists early on in later strings.",
+        "Trade": "Vertical scanning requires simple index boundary checks i == len(s) to avoid IndexError on shorter strings.",
+        "Try": "Test with ['flower', 'flow', 'flight'] and verify that at column i=2 ('o' vs 'i'), it terminates and returns 'fl'.",
+        "worked_case": "Input: ['flower', 'flow', 'flight']. i=0: 'f' matches all. i=1: 'l' matches all. i=2: strs[0][2]=='o' but strs[2][2]=='i' -> mismatch! Returns strs[0][:2] which is 'fl'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "When would a Trie (Prefix Tree) be preferred for prefix queries?",
+                "A": "When queries are repeated dynamically over a static dictionary of words, building a Trie allows prefix lookups in O(k) time per query."
+            }
+        ]
+    },
+    {
+        "Q": "How do you implement string to integer (atoi) conversion in Python?",
+        "A": "**Direct answer:** String to Integer (atoi) (LeetCode 8) parses a 32-bit signed integer from a string, handling leading whitespace, optional signs (`+` or `-`), non-digit termination, and overflow clamping between $[-2^{31}, 2^{31}-1]$.\n\n```python\ndef my_atoi(s: str) -> int:\n    s = s.lstrip()\n    if not s:\n        return 0\n    sign = 1\n    idx = 0\n    if s[0] == '-':\n        sign = -1\n        idx = 1\n    elif s[0] == '+':\n        idx = 1\n    res = 0\n    INT_MAX = 2**31 - 1\n    INT_MIN = -2**31\n    while idx < len(s) and s[idx].isdigit():\n        digit = int(s[idx])\n        res = res * 10 + digit\n        idx += 1\n    res = sign * res\n    if res < INT_MIN:\n        return INT_MIN\n    if res > INT_MAX:\n        return INT_MAX\n    return res\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `s`, scanning the string in a single linear pass.\n- **Space Complexity:** $O(1)$ auxiliary memory since conversion uses numeric variables directly.\n\n**Algorithmic mechanics and edge cases:**\nThe state machine sequence is: 1) discard leading whitespace; 2) inspect single optional sign; 3) accumulate contiguous digits until a non-digit character or end of string; 4) clamp to 32-bit integer limits. Edge cases include empty strings, strings with only signs (`\"+\"`), strings starting with letters (`\"words and 987\" -> 0`), and overflow values (`\"-91283472332\" -> -2147483648`).",
+        "Why": "A deterministic state machine parses sign and digits sequentially while enforcing 32-bit integer saturation arithmetic.",
+        "Risk": "Relying on int() casting directly raises ValueError on inputs with trailing characters like '4193 with words'.",
+        "Trade": "Clamping after full accumulation relies on Python arbitrary-precision integers; in C/C++, overflow checks must precede multiplication.",
+        "Try": "Test with s=' -042' and confirm that whitespace is stripped, negative sign preserved, and integer 42 returned as -42.",
+        "worked_case": "For s='4193 with words': lstrip() retains '4193 with words'; no sign; digits accumulate 4 -> 41 -> 419 -> 4193; space at idx 4 stops loop; returns 4193.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you detect 32-bit overflow before multiplication in languages without arbitrary-precision integers?",
+                "A": "Check if res > INT_MAX // 10 or (res == INT_MAX // 10 and digit > 7) before executing res = res * 10 + digit."
+            }
+        ]
+    },
+    {
+        "Q": "How do you multiply two numbers represented as strings without direct integer conversion?",
+        "A": "**Direct answer:** Multiply Strings (LeetCode 43) computes the product of two non-negative integers represented as strings without using built-in big-integer libraries or direct `int()` conversion. The optimal solution implements grade-school column multiplication into an integer array of size $m + n$.\n\n```python\ndef multiply(num1: str, num2: str) -> str:\n    if num1 == \"0\" or num2 == \"0\":\n        return \"0\"\n    m, n = len(num1), len(num2)\n    res = [0] * (m + n)\n    for i in range(m - 1, -1, -1):\n        for j in range(n - 1, -1, -1):\n            mul = int(num1[i]) * int(num2[j])\n            p1, p2 = i + j, i + j + 1\n            total = mul + res[p2]\n            res[p2] = total % 10\n            res[p1] += total // 10\n    # Skip leading zeros\n    start = 0\n    while start < len(res) and res[start] == 0:\n        start += 1\n    return \"\".join(str(d) for d in res[start:])\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(m \\cdot n)$ where $m$ and $n$ are the lengths of `num1` and `num2`, computing each pair of digits once.\n- **Space Complexity:** $O(m + n)$ to store the result digits in the array before string construction.\n\n**Algorithmic mechanics and edge cases:**\nThe product of digits at index `i` and `j` contributes to indices `i + j` (carry) and `i + j + 1` (units) in the result array. Accumulating values directly into array positions avoids complex carries between separate intermediate products. Edge cases include zero multiplication (`\"0\" * \"1234\" = \"0\"`), identical single digits (`\"2\" * \"3\" = \"6\"`), and large numbers producing leading zeros in the array.",
+        "Why": "Positioning digit products at i + j and i + j + 1 simulates grade-school arithmetic in fixed O(m + n) memory.",
+        "Risk": "Casting strings directly to int exceeds maximum integer conversion limits and fails interview constraints.",
+        "Trade": "The O(m * n) array multiplication is simpler and has lower constant overhead than Karatsuba O(n^1.58) multiplication for typical lengths.",
+        "Try": "Multiply '123' and '456' manually with the nested loop and verify that res array accumulates up to '56088'.",
+        "worked_case": "num1='12', num2='3': i=1 (2) * j=0 (3) = 6 -> res[2]=6. i=0 (1) * j=0 (3) = 3 -> res[1]=3. Array=[0, 3, 6]. Stripping leading zero gives '36'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "What is the theoretical lower bound for large integer multiplication?",
+                "A": "Harvey-Hoeven achieved O(n log n) multiplication using multi-dimensional Fast Fourier Transforms (FFT), improving upon Schönhage-Strassen."
+            }
+        ]
+    },
+    {
+        "Q": "How do you simplify a Unix-style canonical file path using a stack?",
+        "A": "**Direct answer:** Simplify Path (LeetCode 71) resolves an absolute Unix file path containing redundant slashes (`//`), current directories (`.`), and parent directories (`..`). The optimal solution splits the path by `/`, iterates through tokens, and uses a stack to manage directory navigation.\n\n```python\ndef simplify_path(path: str) -> str:\n    stack: list[str] = []\n    for part in path.split(\"/\"):\n        if part == \"\" or part == \".\":\n            continue\n        elif part == \"..\":\n            if stack:\n                stack.pop()\n        else:\n            stack.append(part)\n    return \"/\" + \"/\".join(stack)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `path`, as splitting and scanning tokens take linear time.\n- **Space Complexity:** $O(n)$ to store directory names in the stack and tokens list.\n\n**Algorithmic mechanics and edge cases:**\nSplitting by `/` automatically collapses multiple consecutive slashes into empty strings `\"\"`. An empty string or `\".\"` indicates no movement; `\"..\"` pops the most recent directory from the stack if non-empty; any valid directory name is pushed onto the stack. Edge cases include root directory `\"/\"`, paths navigating above root `\"/../\" -> \"/\"`, trailing slashes, and directories named `\"...\"` (which are treated as valid folder names).",
+        "Why": "A stack models hierarchical filesystem traversal where '..' represents popping the current directory level.",
+        "Risk": "Popping an empty stack when encountering '..' at root raises IndexError without defensive if stack: checks.",
+        "Trade": "Splitting by '/' creates an intermediate token list; a manual character parser uses O(1) extra space but increases code complexity.",
+        "Try": "Test with '/a/./b/../../c/' to show that 'a' and 'b' are pushed and popped, leaving only 'c' to produce '/c'.",
+        "worked_case": "For path='/home//foo/': split gives ['home', '', 'foo', '']. Ignore empty strings. Stack pushes 'home', then 'foo'. Result: '/' + '/'.join(['home', 'foo']) = '/home/foo'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "Why is '...' treated as a directory name rather than a syntax error or special symbol?",
+                "A": "In POSIX filesystems, only '.' (current) and '..' (parent) are reserved directory link tokens; any other string of dots is a valid filename."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find all starting indices of anagrams of string p in string s?",
+        "A": "**Direct answer:** Find All Anagrams in a String (LeetCode 438) finds all start indices of `p`'s anagrams in `s`. The optimal solution uses a fixed-size sliding window of length $|p|$ with two character frequency arrays, updating character counts incrementally in $O(1)$ per step.\n\n```python\ndef find_anagrams(s: str, p: str) -> list[int]:\n    ns, np = len(s), len(p)\n    if ns < np:\n        return []\n    p_counts = [0] * 26\n    s_counts = [0] * 26\n    for char in p:\n        p_counts[ord(char) - ord('a')] += 1\n    res: list[int] = []\n    for i in range(ns):\n        s_counts[ord(s[i]) - ord('a')] += 1\n        if i >= np:\n            s_counts[ord(s[i - np]) - ord('a')] -= 1\n        if s_counts == p_counts:\n            res.append(i - np + 1)\n    return res\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n = |s|$. Fixed array comparisons `s_counts == p_counts` take $O(26) = O(1)$ constant time.\n- **Space Complexity:** $O(1)$ auxiliary space as the frequency tables are fixed at size 26.\n\n**Algorithmic mechanics and edge cases:**\nAt each step $i$, we add the new incoming character `s[i]` and remove the outgoing character `s[i - np]`. When `s_counts == p_counts`, the substring $s[i - np + 1 : i + 1]$ is a valid anagram of `p`. Edge cases include $|s| < |p|$ (returns `[]`), $|s| == |p|$, and strings with identical repeated characters.",
+        "Why": "A fixed-size sliding window adds the right character and drops the left character in O(1) time per step.",
+        "Risk": "Recomputing collections.Counter for every substring of length np degrades total runtime to O(n * np).",
+        "Trade": "Comparing 26-element integer lists in Python is highly optimized in C and simpler than maintaining a match delta counter.",
+        "Try": "Trace with s='cbaebabacd', p='abc' and verify that indices 0 ('cba') and 6 ('bac') are captured.",
+        "worked_case": "p='abc' (counts: a=1, b=1, c=1). Window at i=2: s[:3]='cba' matches p_counts -> res=[0]. Window slides: at i=8, substring s[6:9]='bac' matches -> res=[0, 6].",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you avoid the 26-element list comparison entirely?",
+                "A": "Maintain a single integer variable matches tracking how many of the 26 character slots currently match between the window and target."
+            }
+        ]
+    },
+    {
+        "Q": "How do you identify all repeated 10-letter nucleotide sequences in a DNA molecule?",
+        "A": "**Direct answer:** Repeated DNA Sequences (LeetCode 187) identifies all 10-letter substrings that occur more than once in a DNA sequence composed of `'A'`, `'C'`, `'G'`, and `'T'`. The optimal solution uses a rolling hash or bitmask representation to store 10-letter k-mers in a hash set.\n\n```python\ndef find_repeated_dna_sequences(s: str) -> list[str]:\n    n = len(s)\n    if n < 10:\n        return []\n    mapping = {'A': 0, 'C': 1, 'G': 2, 'T': 3}\n    bitmask = 0\n    seen: set[int] = set()\n    repeated: set[str] = set()\n    for i in range(10):\n        bitmask = (bitmask << 2) | mapping[s[i]]\n    seen.add(bitmask)\n    mask_20_bits = (1 << 20) - 1\n    for i in range(10, n):\n        bitmask = ((bitmask << 2) & mask_20_bits) | mapping[s[i]]\n        if bitmask in seen:\n            repeated.add(s[i - 9:i + 1])\n        else:\n            seen.add(bitmask)\n    return list(repeated)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `s`. Updating the 20-bit integer bitmask takes $O(1)$ bitwise operations per character.\n- **Space Complexity:** $O(n)$ to store up to $n$ integer keys in the hash set.\n\n**Algorithmic mechanics and edge cases:**\nBecause there are only 4 nucleotides, each nucleotide fits in 2 bits ($00, 01, 10, 11$). A 10-nucleotide sequence fits in exactly $10 \\times 2 = 20$ bits, fitting into a standard integer. Rolling the window shifts left by 2 bits, masks to 20 bits, and bitwise-ORs the new nucleotide. Edge cases include sequences of length $< 10$, sequences with no repetitions, and strings where all nucleotides repeat identically.",
+        "Why": "Packing 10 nucleotides into a 20-bit integer reduces hash set lookup overhead from string hashing to integer hashing.",
+        "Risk": "Storing raw 10-character string slices in a set allocates millions of tiny string objects, exhausting memory on genomic data.",
+        "Trade": "Bitmask rolling hash trades simple string slicing for bit manipulation arithmetic but cuts memory by a factor of 4x.",
+        "Try": "Test with s='AAAAACCCCCAAAAACCCCCCAAAAAGGGTTT' and verify 'AAAAACCCCC' and 'CCCCCAAAAA' are returned.",
+        "worked_case": "s starts with 'AAAAACCCCC'. Mask encodes 5 zeros followed by 5 ones. When index 10-19 encounters 'AAAAACCCCC' again, its 20-bit mask is in seen, adding it to repeated.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How does this compare to the Rabin-Karp polynomial rolling hash?",
+                "A": "Rabin-Karp uses modular arithmetic (hash = (hash * base + val) % mod) which can suffer hash collisions; 20-bit bitmasks have zero collisions."
+            }
+        ]
+    },
+    {
+        "Q": "How do you determine if a string can be segmented into dictionary words?",
+        "A": "**Direct answer:** Word Break (LeetCode 139) determines whether string `s` can be partitioned into a space-separated sequence of one or more dictionary words from `wordDict`. The optimal solution uses 1D Dynamic Programming where `dp[i]` indicates whether prefix `s[:i]` can be segmented.\n\n```python\ndef word_break(s: str, word_dict: list[str]) -> bool:\n    words = set(word_dict)\n    max_len = max(len(w) for w in words) if words else 0\n    n = len(s)\n    dp = [False] * (n + 1)\n    dp[0] = True  # Base case: empty string prefix\n    for i in range(1, n + 1):\n        for j in range(max(0, i - max_len), i):\n            if dp[j] and s[j:i] in words:\n                dp[i] = True\n                break\n    return dp[n]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n \\cdot L)$ where $n = |s|$ and $L$ is the maximum length of any word in `word_dict`. Bounding the inner loop by `max_len` avoids checking invalid slice lengths.\n- **Space Complexity:** $O(n)$ for the `dp` array plus $O(M)$ to store words in a hash set.\n\n**Algorithmic mechanics and edge cases:**\n`dp[i] = True` if there exists some split point `j < i` such that `dp[j] == True` and `s[j:i]` is in `words`. Pruning the inner search to `j >= i - max_len` reduces the quadratic $O(n^2)$ search to $O(n \\cdot L)$. Edge cases include empty dictionary, single-character words, strings with no valid segmentation, and repeated single-word matches.",
+        "Why": "Dynamic programming memorizes prefix segmentations, preventing exponential re-computation on repeated subproblems.",
+        "Risk": "Unmemoized backtracking search degenerates to O(2^n) exponential time on inputs like s='aaaa...b' with dict=['a', 'aa'].",
+        "Trade": "Limiting inner slice checks to max_len optimizes worst-case string slicing from O(n^2) to O(n * L).",
+        "Try": "Trace with s='leetcode', word_dict=['leet', 'code']: dp[0]=True; at i=4, s[0:4]='leet' -> dp[4]=True; at i=8, s[4:8]='code' -> dp[8]=True.",
+        "worked_case": "s='catsandog', dict=['cats', 'dog', 'sand', 'and', 'cat']. dp[3] ('cat')=True, dp[4] ('cats')=True, dp[7] ('catsand')=True. At i=9 ('catsandog'), s[7:9]='og' not in dict; returns False.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you solve Word Break II to return all possible segmented sentences?",
+                "A": "Use DFS with memoization returning list of formed sentences for suffix s[i:], combining words with suffixes."
+            }
+        ]
+    },
+    {
+        "Q": "How do you calculate the minimum edit distance between two strings?",
+        "A": "**Direct answer:** Edit Distance (LeetCode 72 / Levenshtein Distance) calculates the minimum number of insertions, deletions, or substitutions required to convert `word1` into `word2`. The optimal solution uses 2D Dynamic Programming where `dp[i][j]` represents the edit distance between prefixes `word1[:i]` and `word2[:j]`.\n\n```python\ndef min_distance(word1: str, word2: str) -> int:\n    m, n = len(word1), len(word2)\n    # dp[j] stores distance for current word1 prefix\n    dp = list(range(n + 1))\n    for i in range(1, m + 1):\n        prev = dp[0]\n        dp[0] = i\n        for j in range(1, n + 1):\n            temp = dp[j]\n            if word1[i - 1] == word2[j - 1]:\n                dp[j] = prev\n            else:\n                dp[j] = 1 + min(prev,       # replace\n                                dp[j],       # delete\n                                dp[j - 1])   # insert\n            prev = temp\n    return dp[n]\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(m \\cdot n)$ where $m$ and $n$ are the lengths of `word1` and `word2`.\n- **Space Complexity:** $O(\\min(m, n))$ space by rolling the 2D matrix into a single 1D row array.\n\n**Algorithmic mechanics and edge cases:**\nIf `word1[i-1] == word2[j-1]`, no operation is needed: `dp[i][j] = dp[i-1][j-1]`. Otherwise, we take $1 + \\min$ of: substitution (`dp[i-1][j-1]`), deletion (`dp[i-1][j]`), or insertion (`dp[i][j-1]`). Edge cases include one or both strings being empty (returns length of the non-empty string) and identical strings (returns 0).",
+        "Why": "Dynamic programming systematically considers insertion, deletion, and replacement transitions across all prefixes.",
+        "Risk": "Allocating full m x n matrices on large texts causes memory pressure; rolling arrays maintain O(n) space.",
+        "Trade": "Space compression reduces auxiliary memory to O(n) while requiring a temporary variable prev to preserve the top-left diagonal value.",
+        "Try": "Compute distance between 'horse' and 'ros': replace 'h' with 'r', remove 'r', remove 'e' -> result 3.",
+        "worked_case": "word1='intention', word2='execution'. dp computes transitions: remove 'i', replace 'n'->'e', replace 't'->'x', replace 'e'->'c', insert 'u' -> 5 total edits.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you reconstruct the actual sequence of edit operations rather than just the edit count?",
+                "A": "Retain the full 2D DP matrix or parent pointer back-references, tracing backward from dp[m][n] to dp[0][0]."
+            }
+        ]
+    },
+    {
+        "Q": "How do you validate a string of parentheses containing wildcard asterisks?",
+        "A": "**Direct answer:** Valid Parenthesis String (LeetCode 678) determines whether a string of `'('`, `')'`, and `'*'` is valid, where `'*'` can represent an open parenthesis, a close parenthesis, or an empty string. The optimal solution uses greedy range tracking of the minimum and maximum possible open parenthesis counts.\n\n```python\ndef check_valid_string(s: str) -> bool:\n    cmin, cmax = 0, 0\n    for char in s:\n        if char == '(':\n            cmin += 1\n            cmax += 1\n        elif char == ')':\n            cmin = max(0, cmin - 1)\n            cmax -= 1\n        elif char == '*':\n            cmin = max(0, cmin - 1)  # treated as ')' or ''\n            cmax += 1              # treated as '('\n        if cmax < 0:\n            return False\n    return cmin == 0\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n$ is the length of `s`, scanning the string in a single linear pass.\n- **Space Complexity:** $O(1)$ auxiliary space because it only maintains two integer bounds.\n\n**Algorithmic mechanics and edge cases:**\n`cmin` represents the minimum possible number of unclosed open parentheses, and `cmax` represents the maximum possible count. If `cmax < 0`, there are more closing parentheses than can ever be matched, returning `False`. At the end, `cmin == 0` guarantees all open parentheses can be closed. Edge cases include `\"*\"` (True), `\"(*)\"` (True), `\")(\"` (False), and `\"***\"` (True).",
+        "Why": "Tracking the plausible range [cmin, cmax] of open parentheses captures all wildcard possibilities in O(1) space.",
+        "Risk": "Allowing cmin to become negative invalidates the lower bound; it must be clamped to 0 since surplus '(' can be nullified by '*'.",
+        "Trade": "Greedy range tracking achieves O(1) space compared to two stacks or 2D DP memoization requiring O(n) memory.",
+        "Try": "Test with '(*))': i=0 '(' -> [1,1]; i=1 '*' -> [0,2]; i=2 ')' -> [0,1]; i=3 ')' -> [0,0] -> cmin==0, returns True.",
+        "worked_case": "Evaluation walkthrough: For s='(*)': initial count range is [0, 0]. First char '(' increases range to [1, 1]. Wildcard char expands range: minimum decreases to 0 and maximum increases to 2, yielding [0, 2]. Final char ')' decreases range to [0, 1]. Range ends with minimum 0, confirming valid balance.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/stdtypes.html"],
+        "follow_ups": [
+            {
+                "Q": "Can this be solved with two stacks, and what do they store?",
+                "A": "Yes, one stack for '(' indices and one stack for '*' indices, matching remaining '(' with '*' whose index is greater."
+            }
+        ]
+    },
+    {
+        "Q": "How do you rearrange a string so that no two adjacent characters are identical?",
+        "A": "**Direct answer:** Reorganize String (LeetCode 767) rearranges characters of string `s` so that no adjacent characters are identical. The optimal solution counts character frequencies, verifies that the maximum frequency does not exceed $(n + 1) // 2$, and alternates placement using a max-heap or parity indexing.\n\n```python\nimport heapq\nfrom collections import Counter\n\ndef reorganize_string(s: str) -> str:\n    counts = Counter(s)\n    n = len(s)\n    max_freq = max(counts.values())\n    if max_freq > (n + 1) // 2:\n        return \"\"\n    # Max-heap storing (-freq, char)\n    heap = [(-freq, char) for char, freq in counts.items()]\n    heapq.heapify(heap)\n    res: list[str] = []\n    prev_freq, prev_char = 0, ''\n    while heap:\n        freq, char = heapq.heappop(heap)\n        res.append(char)\n        if prev_freq < 0:\n            heapq.heappush(heap, (prev_freq, prev_char))\n        prev_freq, prev_char = freq + 1, char\n    return \"\".join(res)\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n \\log k)$ where $n = |s|$ and $k \\le 26$ is the number of distinct characters, which simplifies to $O(n)$.\n- **Space Complexity:** $O(k) = O(1)$ auxiliary space for the heap.\n\n**Algorithmic mechanics and edge cases:**\nBy always popping the most frequent available character and holding the previously used character until the next turn, we guarantee adjacent letters never match. The pigeonhole principle dictates that if any character's frequency exceeds $(n + 1) // 2$, collisions are mathematically unavoidable (returns `\"\"`). Edge cases include single-character strings, strings with already unique characters, and impossible inputs like `'aaab'`.",
+        "Why": "A max-heap greedily places the most frequent available character while holding the previous character in reserve.",
+        "Risk": "Failing to check max_freq > (n + 1) // 2 before processing leads to deadlocks or invalid consecutive placements.",
+        "Trade": "Heap simulation is easy to reason about; alternatively, placing characters in even indices then odd indices achieves O(n) without heap operations.",
+        "Try": "Test with s='aab' and observe that 'a' is placed, held, 'b' is placed, and remaining 'a' placed to form 'aba'.",
+        "worked_case": "s='vvvlo'. Counts: v=3, l=1, o=1. n=5. max_freq=3 <= (5+1)//2=3 (possible). Heap pops 'v', holds 'v'. Pops 'l', pushes 'v'. Pops 'v', holds 'v'. Pops 'o', pushes 'v'. Pops 'v'. Result: 'vlvov'.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/heapq.html"],
+        "follow_ups": [
+            {
+                "Q": "How do you generalize this when identical characters must be separated by at least distance d?",
+                "A": "Use a queue to hold popped characters for d cooling turns before returning them to the max-heap (like Rearrange String k Distance Apart)."
+            }
+        ]
+    },
+    {
+        "Q": "How do you find the longest substring with at most k distinct characters?",
+        "A": "**Direct answer:** Longest Substring with At Most K Distinct Characters (LeetCode 340) finds the maximum length of a substring containing at most `k` distinct characters. The optimal solution uses a sliding window bounded by `left` and `right` pointers with a hash table tracking character frequencies.\n\n```python\ndef length_of_longest_substring_k_distinct(s: str, k: int) -> int:\n    if k == 0 or not s:\n        return 0\n    counts: dict[str, int] = {}\n    max_len = 0\n    left = 0\n    for right, char in enumerate(s):\n        counts[char] = counts.get(char, 0) + 1\n        while len(counts) > k:\n            left_char = s[left]\n            counts[left_char] -= 1\n            if counts[left_char] == 0:\n                del counts[left_char]\n            left += 1\n        max_len = max(max_len, right - left + 1)\n    return max_len\n```\n\n**Complexity analysis:**\n- **Time Complexity:** $O(n)$ where $n = |s|$. Both `left` and `right` pointers advance monotonically from $0$ to $n-1$.\n- **Space Complexity:** $O(k)$ auxiliary space because the dictionary stores at most $k + 1$ character keys at any time.\n\n**Algorithmic mechanics and edge cases:**\nAs the `right` pointer advances, each new character is recorded in `counts`. When `len(counts) > k`, the `left` pointer contracts the window until a character's frequency drops to 0 and is deleted from `counts`. Edge cases include $k = 0$, $k \\ge \\text{len}(s)$ (returns $\\text{len}(s)$), and strings with fewer than $k$ distinct characters.",
+        "Why": "A sliding window maintaining a frequency map of size at most k guarantees strict linear runtime.",
+        "Risk": "Failing to delete key when frequency drops to 0 keeps len(counts) artificially high and contracts the window prematurely.",
+        "Trade": "Using a standard dict takes O(k) space; an OrderedDict or map storing the last-seen index can jump left in O(1) operations.",
+        "Try": "Trace with s='eceba' and k=2: show that window 'ece' has length 3 and contracts when 'b' enters.",
+        "worked_case": "For s='eceba', k=2: right expands 'e', 'c', 'e' (len 3, dict={'e':2, 'c':1}). On 'b', dict has 3 keys; left contracts past 'e', 'c' until 'c' count drops to 0 and deleted; window is 'eb'. max_len remains 3.",
+        "citations": ["https://docs.python.org/3/tutorial/datastructures.html", "https://docs.python.org/3/library/collections.html"],
+        "follow_ups": [
+            {
+                "Q": "How can you optimize this using an OrderedDict storing last-seen indices?",
+                "A": "Store each char's rightmost index; when size exceeds k, pop the oldest item from OrderedDict and jump left directly past its index."
+            }
+        ]
+    }
+]
+
