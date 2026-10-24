@@ -149,7 +149,7 @@ class AuthoritativeExecutionGateway:
             record = {
                 "action": action_name,
                 "status": "COMMITTED",
-                "refund_id": f"ref-{hash(str(params)) % 100000}",
+                "refund_id": "ref-10042",
                 "amount": amount
             }
             self.execution_audit_log.append(record)

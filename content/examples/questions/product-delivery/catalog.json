@@ -76,7 +76,7 @@
     "language": "python",
     "explain": "A client operation reconciliation harness demonstrates how network timeouts after task acceptance cause double-billing when retries mint new keys, and verifies idempotent replay under stable client keys.",
     "steps": "Simulate client submission and network ACK drop after backend task commitment. || Demonstrate the naive UI retry trap where minting a new key triggers duplicate mutations. || Enforce resilient client operation state reconciliation using stable idempotency keys.",
-    "expect": "All client operation idempotency and reconciliation invariants verified successfully.",
+    "expect": "=== Testing Client Operation Idempotency & Retry Reconciliation Suite ===\n\nAttempt 1: Submitting with client_key 'op_uuid_8844' (Simulating network ACK drop)...\n  Network timeout! Client did not receive the HTTP 200 response.\n\n[Vulnerability] Naive UI mints a new key on 'Try Again':\n  Naive Retry Result: {'status': 'COMMITTED', 'task': {'task_id': 'task_0002', 'client_key': 'op_uuid_9999', 'amount': 120.0, 'state': 'COMMITTED'}}\n\n[Resilient] Production UI retries using the STABLE client_operation_key:\n  Reconciled Retry Result: {'status': 'REPLAYED', 'task': {'task_id': 'task_0001', 'client_key': 'op_uuid_8844', 'amount': 120.0, 'state': 'COMMITTED'}}\n\nAll client operation idempotency and reconciliation invariants verified successfully.",
     "questions": [
       953
     ]

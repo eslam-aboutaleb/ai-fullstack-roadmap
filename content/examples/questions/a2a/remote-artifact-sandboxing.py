@@ -132,7 +132,7 @@ def main():
         res_traversal = sandbox.validate_and_ingest(traversal_env)
         print("1. Path Traversal Neutralization:")
         print(f"  Attempted filename: '{traversal_env.filename}'")
-        print(f"  Safely resolved path: '{res_traversal['saved_path']}'")
+        print(f"  Safely resolved path: '<sandbox_dir>/{Path(res_traversal['saved_path']).name}'")
         assert not res_traversal["saved_path"].endswith("cron.d/root_backdoor")
         assert Path(res_traversal["saved_path"]).name == "root_backdoor"
 

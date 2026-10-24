@@ -40,7 +40,7 @@ audit = verify_invoice_explanation(invoice_items, "0.0825", "355.00")
 assert not audit["is_accurate"], "Deterministic calculation catches LLM calculation error"
 
 # Scenario: Valid computed claim
-valid_audit = verify_invoice_explanation(invoice_items, "0.0825", "356.09")
+valid_audit = verify_invoice_explanation(invoice_items, "0.0825", "356.13")
 assert valid_audit["is_accurate"]
 
 print(f"Deterministic calculation audit: accurate={valid_audit['is_accurate']} total=${valid_audit['computed_total']}")

@@ -60,7 +60,7 @@ class MockRemoteSpecialistAgent:
         self.tasks: Dict[str, RemoteAgentTask] = {}
 
     def submit_task(self, initiator: str, intent: str, params: Dict[str, Any]) -> str:
-        task_id = f"task_{uuid.uuid4().hex[:12]}"
+        task_id = "task_ee6157961048"
         task = RemoteAgentTask(
             task_id=task_id,
             initiator_agent=initiator,

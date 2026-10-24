@@ -5,7 +5,7 @@
     "language": "python",
     "explain": "Demonstrates StateGraph state machines, custom reducers for parallel branch fan-in, and conditional edge routing. Solves multi-agent coordination problems that basic loops cannot handle, using list append reducers (operator.add) for message streams, custom deduplicating set reducers to merge parallel dense and sparse search documents, and state-inspection predicates for dynamic routing.",
     "steps": "Define typed graph state with custom reducers for parallel branch fan-in. || Execute parallel search nodes concurrently and merge outputs using a deduplicating reducer. || Evaluate state predicates on conditional edges to route dynamically to review or terminal finish.",
-    "expect": "StateGraph reducers, parallel fan-in deduplication, and conditional routing verified successfully.",
+    "expect": "1. Running StateGraph with Parallel Fan-Out and Deduplicating Reducer:\n  Messages after parallel merge (3 items):\n    - Router: Classified intent for 'Can I book a luxury hotel suite in Paris?'\n    - Dense search returned 2 candidates.\n    - Sparse search returned 2 candidates.\n\n  Documents after deduplicating reducer (3 unique docs):\n    [doc_101]: EU lodging reimbursement allowance is 200 EUR.\n    [doc_102]: Executive approval required for budget overages.\n    [doc_103]: Flight booking policy requires coach class for flights <6h.\n\n2. Executing Synthesis and Conditional Edge Routing:\n  State needs_review: True\n  Conditional Edge Routed To: human_review_gate\n\nStateGraph reducers, parallel fan-in deduplication, and conditional routing verified successfully.",
     "questions": [
       616,
       211,
@@ -21,7 +21,7 @@
     "language": "python",
     "explain": "Demonstrates the essential boundary between durable checkpointers and external business database transactions. Simulates worker process crashes during the dual-write window (after external API mutation but before checkpointer commit), showing how node replay on restart recovers cleanly using deterministic idempotency keys rather than executing duplicate bookings.",
     "steps": "Execute external side-effects using client-generated durable operation keys. || Simulate a worker crash in the dual-write window before checkpointer commit. || Restart worker fleet and replay the node, asserting that the downstream service reconciles the existing receipt without duplicate mutations.",
-    "expect": "Durable checkpointer dual-write reconciliation and effect idempotency verified successfully.",
+    "expect": "1. Executing Node with Simulated Crash in Dual-Write Window:\n  [Start] Initializing new workflow for thread thread_travel_772\n  [CRASH] Worker process crashed BEFORE checkpointer could save state!\n  Caught expected crash: CRASH_DURING_DUAL_WRITE_WINDOW\n  Authoritative external booking exists, but LangGraph checkpointer is empty!\n\n2. Fleet Restarts and Replays Interrupted Node:\n  [Start] Initializing new workflow for thread thread_travel_772\n\nReplay Execution Result:\n  Confirmation: CONF-AA-100-1\n  Replayed flag from service: True\n  External Service Calls for Key: 2\n  Total Unique Bookings in Database: 1\n\nDurable checkpointer dual-write reconciliation and effect idempotency verified successfully.",
     "questions": [
       618,
       619,
@@ -37,7 +37,7 @@
     "language": "python",
     "explain": "Demonstrates why reaching a human-in-the-loop interrupt is merely execution suspension and not authorization. Resuming the graph requires validating an authenticated cryptographic approval token, enforcing reviewer RBAC roles (finance:director), and checking target resource revision concurrency to defeat Time-of-Check to Time-of-Use (TOCTOU) drift.",
     "steps": "Suspend workflow thread execution at an approval interrupt gate. || Reject unauthorized resume calls lacking required approval roles or bearing tampered tokens. || Enforce resource revision checks on resume to prevent executing against stale or modified account balances.",
-    "expect": "Human review interrupt vs cryptographic authorization verified successfully.",
+    "expect": "1. Workflow Enters Interrupt (Suspended for Review):\n  Status: WORKFLOW_SUSPENDED_AT_INTERRUPT\n  Suspended state initial revision: 1\n\n2. Attempting Resume with Insufficient Role:\n  Successfully blocked unauthorized resume: 403 Forbidden: Reviewer lacks required approval role 'finance:director'\n\n3. Attempting Resume with Tampered Approval Token:\n  Successfully rejected tampered approval: Tampered approval signature: approval token invalid\n\n4. Testing Resource Revision Drift (TOCTOU during pause):\n  Successfully blocked execution due to revision drift: Concurrent Modification Conflict: Account revision drifted from 1 to 2 during the human approval waiting period!\n\n5. Authorized Execution with Valid Token and Matching Revision:\n  Workflow Completion: COMPLETED approved by sarah_director\n  Remaining Bank Balance: $25,000.00\n\nHuman review interrupt vs cryptographic authorization verified successfully.",
     "questions": [
       215
     ]
@@ -48,7 +48,7 @@
     "language": "python",
     "explain": "Demonstrates layered timeouts, intelligent retry classification, and node-level circuit breakers in graph workflows. Bounds individual node calls within a cumulative global task deadline, applies exponential backoff with full jitter to transient errors while failing fast on permanent validation faults, and trips circuit breakers on consecutive outages to protect downstream systems.",
     "steps": "Layer node-level timeouts within a cumulative workflow task deadline. || Distinguish transient connection faults from permanent validation errors with fail-fast semantics. || Trip node circuit breakers on consecutive outages to fast-fail subsequent requests and prevent thundering herds.",
-    "expect": "Layered graph timeouts, jittered retries, and circuit breaker protection verified successfully.",
+    "expect": "1. Testing Transient Outage Recovery with Backoff Jitter:\n  Status: SUCCESS on attempt 3\n  Delays with full jitter: [31.97, 2.5] ms\n\n2. Testing Permanent Error Fast-Fail (400 Bad Request):\n  Status: PERMANENT_FAIL_FAST (Attempts: 1)\n  Error: Validation failed: invalid SKU format\n\n3. Testing Circuit Breaker Tripping on Consecutive Outages:\n  Circuit Breaker state after 3 failures: OPEN\n  Successfully fast-failed request: Circuit breaker is OPEN (3 consecutive failures). Fast-failing downstream call.\n\nLayered graph timeouts, jittered retries, and circuit breaker protection verified successfully.",
     "questions": [
       217
     ]
@@ -59,7 +59,7 @@
     "language": "python",
     "explain": "Demonstrates safe state schema migration across application deployments and private state filtering for public client streaming. Migrates legacy v1 checkpoints to modern v2 schemas without dropping in-flight workflows, rehydrating authoritative tenant scope from trusted records, and projects state through a strict allowlist to prevent leaking private system prompts or database credentials over public SSE streams.",
     "steps": "Detect legacy v1 checkpoint schemas stored in checkpointer persistence. || Rehydrate authoritative tenant context and backfill safe defaults during v1 to v2 migration. || Apply an allowlist projection filter before streaming graph state to public browser clients.",
-    "expect": "State schema evolution across deployments and private state filtering verified successfully.",
+    "expect": "1. Migrating Legacy V1 Checkpoint to Modern V2 Schema:\n  Migrated Version: 2\n  Rehydrated Tenant Scope: 'tenant_enterprise_apac'\n  Backfilled Default retry_count: 0\n\n2. Projecting State for Public Streaming Output:\n  Public Payload:\n{\n  \"workflow_id\": \"wf_flight_1001\",\n  \"schema_version\": 2,\n  \"status\": \"RUNNING\",\n  \"public_message\": \"Processing seat upgrade request...\"\n}\n\nState schema evolution across deployments and private state filtering verified successfully.",
     "questions": [
       620,
       769,

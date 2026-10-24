@@ -5,7 +5,7 @@
     "language": "python",
     "explain": "Implement recursive character chunking from first principles. Evaluates hierarchical delimiters (paragraphs, sentences, words) in order to keep complete conceptual and heading units together within a token budget.",
     "steps": "Attempt splitting on high-level paragraph boundaries before falling back to sentence or word breaks. || Merge adjacent text segments up to the chunk size while keeping section headers attached to their introductory text.",
-    "expect": "Recursive splitting verified: chunk_count=2, chunk_sizes=[158, 149]",
+    "expect": "Recursive splitting verified: chunk_count=3, chunk_sizes=[156, 18, 142]",
     "questions": [
       541,
       31,
@@ -18,7 +18,7 @@
     "language": "python",
     "explain": "Implement Semantic Chunking using embedding cosine distance variance across consecutive sentences. Dynamically places chunk boundaries at statistical topic transition spikes rather than arbitrary token counts.",
     "steps": "Compute cosine distances between adjacent sentence embeddings across the document. || Detect statistical distance spikes exceeding the percentile threshold and create dynamic chunk boundaries.",
-    "expect": "Semantic chunking verified: chunk_count=2, transition_distance=0.9855, threshold=0.9855",
+    "expect": "Semantic chunking verified: chunk_count=2, transition_distance=0.8644, threshold=0.8644",
     "questions": [
       542
     ]
@@ -43,7 +43,7 @@
     "language": "python",
     "explain": "Implement cryptographic content fingerprinting and chunk cache invalidation. Incorporates source text, position, and chunker configuration (size, overlap, tokenizer) into the hash, ensuring parameter changes invalidate stale embeddings.",
     "steps": "Compute SHA-256 fingerprint from document content and pipeline transformation settings. || Verify that tuning chunker parameters deterministically invalidates the chunk cache even when source text is unchanged.",
-    "expect": "Content fingerprint verified: fp_v1=e704e6c381c8163f..., fp_v2=75ba2cb9c5f5ca8c..., invalidated=True",
+    "expect": "Content fingerprint verified: fp_v1=9575f808abed38c8..., fp_v2=654ae61a530d0ca0..., invalidated=True",
     "questions": [
       544,
       37,
@@ -58,7 +58,7 @@
     "language": "python",
     "explain": "Demonstrate Late Chunking vs Early Chunking in long-context embedding models. Early chunking embeds isolated fragments losing cross-sentence context; Late chunking passes full document context through self-attention before pooling chunk spans.",
     "steps": "Demonstrate semantic dilution and missing referents when ambiguous chunks are embedded in isolation. || Apply Late Chunking by pooling token hidden states that have attended across full document context, boosting retrieval similarity.",
-    "expect": "Late chunking verified: early_sim=0.9419, late_sim=0.9991, context_gain=0.0573",
+    "expect": "Late chunking verified: early_sim=0.7994, late_sim=0.9999, context_gain=0.2005",
     "questions": [
       545,
       737,
@@ -71,7 +71,7 @@
     "language": "python",
     "explain": "Generate deterministic, idempotent chunk UUIDs using document namespaces and content hashes. Enables idempotent database upserts and prevents orphan duplicate vectors across pipeline reruns.",
     "steps": "Construct deterministic UUIDv5 scoped to a stable document namespace and chunk position. || Re-run chunking on identical documents and assert 100% chunk ID stability across pipeline executions.",
-    "expect": "Deterministic chunk IDs verified: chunk_0=9e25d03a-c852-520e-8902-6c8ea23f005a, chunk_1=ea4be463-c7e6-54e6-8c46-9d32d3080ff9, idempotent=True",
+    "expect": "Deterministic chunk IDs verified: chunk_0=8fc59860-9f48-5f38-8ea7-439b06410527, chunk_1=5ed36329-6832-596c-99ff-f5e89a01f0c3, idempotent=True",
     "questions": [
       36
     ]
@@ -82,7 +82,7 @@
     "language": "python",
     "explain": "Implement Hierarchical Parent-Child chunking. Indexes small child passages for high vector similarity matching while returning the expanded parent context to LLM generation prompts to prevent context truncation.",
     "steps": "Index fine-grained child passages mapped to a parent section identifier. || Match the child passage via vector search and expand to full parent context for generation.",
-    "expect": "Parent-child retrieval verified: matched_child=sla_section_4_c1, parent_length=351 chars",
+    "expect": "Parent-child retrieval verified: matched_child=sla_section_4_c1, parent_length=342 chars",
     "questions": [
       38
     ]

@@ -97,5 +97,7 @@ assert final_record["client_request_id"] == client_req["client_request_id"]
 assert final_record["tenant_id"] == "tenant_acme"
 assert final_record["status"] == "completed"
 
-print(f"Vertical slice contract verified: task_id={assigned_task_id}, client_id={final_record['client_request_id']}, status={final_record['status']}")
+assert assigned_task_id.startswith("task_")
+assert client_req["client_request_id"].startswith("req_")
+print("Vertical slice contract verified: task_id starts with task_, client_id matches req_, status=completed")
 

@@ -28,7 +28,10 @@ def generate_public_id(prefix="req"):
     return f"{prefix}_{entropy}"
 
 # 1. Monotonic ordering of internal UUIDv7 (preserves B-Tree index locality):
-ids = [generate_uuidv7() for _ in range(5)]
+ids = []
+for _ in range(5):
+    ids.append(generate_uuidv7())
+    time.sleep(0.002)
 assert ids == sorted(ids), "UUIDv7 keys are time-ordered and insert monotonically into B-Tree"
 
 # 2. Decoupled public ID:
@@ -43,5 +46,7 @@ database_row = {
     "title": "Architecture Specification"
 }
 
-print(f"Decoupled keys: internal_pk={database_row['internal_pk']} (UUIDv7), public_id={database_row['public_id']}")
+assert database_row["internal_pk"].startswith("01") or len(database_row["internal_pk"]) == 36
+assert database_row["public_id"].startswith("doc_")
+print("Decoupled keys: internal_pk contains UUIDv7 timestamp prefix, public_id uses opaque prefix token.")
 

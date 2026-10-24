@@ -99,14 +99,15 @@ def run_test_suite() -> None:
     )
 
     # 3. Demonstrate process address-space isolation:
-    # Use standard Queue for IPC across distinct OS address spaces
-    ipc_queue: multiprocessing.Queue = multiprocessing.Queue()
+    # Use fork context when available to ensure clean address space isolation under python -c
+    ctx = multiprocessing.get_context('fork') if 'fork' in multiprocessing.get_all_start_methods() else multiprocessing.get_context()
+    ipc_queue = ctx.Queue()
 
     # Launch two processes: one designed to simulate failure, one healthy
-    p_failing = multiprocessing.Process(
+    p_failing = ctx.Process(
         target=_isolated_worker_process, args=(ipc_queue, 1, True)
     )
-    p_healthy = multiprocessing.Process(
+    p_healthy = ctx.Process(
         target=_isolated_worker_process, args=(ipc_queue, 2, False)
     )
 

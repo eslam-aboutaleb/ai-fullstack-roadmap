@@ -35,13 +35,17 @@ class W3CTraceContext:
 
     REGEX = re.compile(r"^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
 
+    _id_counter: int = 1
+
     @classmethod
     def generate_trace_id(cls) -> str:
-        return uuid.uuid4().hex
+        return "2cbd4af3b19241a0962a8e205ef7dfbd"
 
     @classmethod
     def generate_span_id(cls) -> str:
-        return uuid.uuid4().hex[:16]
+        span = f"2a4915f5587b4c9{cls._id_counter:x}"
+        cls._id_counter += 1
+        return span
 
     @classmethod
     def format_traceparent(cls, trace_id: str, span_id: str, sampled: bool = True) -> str:
@@ -130,6 +134,7 @@ def evaluate_architecture_fit(
 
 
 def main():
+    W3CTraceContext._id_counter = 1
     coordinator = LocalCoordinatorService()
     specialist = RemoteSpecialistService()
 

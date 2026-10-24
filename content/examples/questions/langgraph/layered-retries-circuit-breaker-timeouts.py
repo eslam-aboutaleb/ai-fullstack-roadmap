@@ -130,6 +130,7 @@ class LayeredRetryCoordinator:
 
 
 def main():
+    random.seed(42)
     breaker = NodeCircuitBreaker(failure_threshold=3, reset_timeout_seconds=2.0)
     coordinator = LayeredRetryCoordinator(breaker=breaker, global_deadline_seconds=5.0)
 

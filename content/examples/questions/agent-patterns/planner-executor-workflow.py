@@ -130,13 +130,13 @@ class PlanExecutor:
                         "status": "PAUSED_DISCREPANCY",
                         "failed_task": task.task_id,
                         "error": str(err),
-                        "completed_tasks": list(completed_ids)
+                        "completed_tasks": sorted(completed_ids)
                     }
 
         all_completed = all(t.status == TaskStatus.COMPLETED for t in plan.tasks)
         return {
             "status": "COMPLETED" if all_completed else "PARTIALLY_BLOCKED",
-            "completed_tasks": list(completed_ids)
+            "completed_tasks": sorted(completed_ids)
         }
 
 

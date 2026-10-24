@@ -147,7 +147,7 @@
     "language": "python",
     "explain": "PostgreSQL Row-Level Security evaluation semantics demonstrate how connecting as table owner bypasses policies and how unscoped session variables cause connection pool bleeding unless guarded by unprivileged roles, FORCE RLS, and transaction-scoped SET LOCAL.",
     "steps": "Demonstrate the table owner bypass trap where unforced RLS exposes all tenant documents. || Demonstrate connection pool state bleeding across pooled TCP connections without transaction scoping. || Apply unprivileged roles, FORCE RLS, and transaction-local set_config to enforce fail-closed tenant isolation.",
-    "expect": "All PostgreSQL RLS connection role and session isolation invariants verified successfully.",
+    "expect": "=== Testing PostgreSQL Row-Level Security Connection Role & Session Isolation ===\n\n[Vulnerability] Querying as 'table_owner' returned 4 documents across ALL tenants:\n  doc_1 (tenant_alpha): Alpha Financial Strategy\n  doc_2 (tenant_alpha): Alpha Customer PII\n  doc_3 (tenant_beta): Beta Patent Submission\n  doc_4 (tenant_beta): Beta Board Minutes\n\n[Vulnerability] Request 2 on pooled connection without SET LOCAL retrieved 2 docs:\n  LEAKED -> doc_1 (tenant_alpha): Alpha Financial Strategy\n  LEAKED -> doc_2 (tenant_alpha): Alpha Customer PII\n\n[Hardened] Proper SET LOCAL query for Tenant Beta returned 2 documents:\n  doc_3 (tenant_beta): Beta Patent Submission\n  doc_4 (tenant_beta): Beta Board Minutes\n\n[Hardened] After transaction commit, querying without tenant context returns 0 documents (fails closed).\n\nAll PostgreSQL RLS connection role and session isolation invariants verified successfully.",
     "questions": [
       888
     ]

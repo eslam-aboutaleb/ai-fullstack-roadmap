@@ -39,7 +39,7 @@ class BaseWorker:
         if capability not in self.allowed_capabilities:
             raise PermissionError(
                 f"Worker '{self.worker_id}' denied access to capability '{capability}'. "
-                f"Allowed: {self.allowed_capabilities}"
+                f"Allowed: {sorted(self.allowed_capabilities)}"
             )
 
 

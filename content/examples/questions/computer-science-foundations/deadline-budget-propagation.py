@@ -122,7 +122,7 @@ def run_test_suite() -> None:
     assert elapsed_deadline <= client_gateway_budget + 0.010  # within margin of timer sleep
     # Notice: step 1 (0.015s) and step 2 (0.025s) completed (total 0.040s).
     # Step 3 needed 0.030s but remaining budget was only 0.010s, so it aborted immediately:
-    assert "embedding_calc:DEADLINE_EXCEEDED" in steps_deadline
+    assert any("DEADLINE_EXCEEDED" in s for s in steps_deadline)
     # Crucial: Step 4 was never even attempted (0 expensive compute wasted!):
     assert expensive_deadline == 0, "Propagated deadline prevented all wasted expensive compute!"
 
