@@ -162,6 +162,10 @@ mcp_policy_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/mcp_remote_
 assert mcp_policy_result.returncode==0,(mcp_policy_result.stdout,mcp_policy_result.stderr)
 assert 'PASS' in mcp_policy_result.stdout
 
+framework_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/framework_contract_compare.py')],capture_output=True,text=True,timeout=10)
+assert framework_result.returncode==0,(framework_result.stdout,framework_result.stderr)
+assert 'PASS' in framework_result.stdout
+
 inference_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/inference_capacity.py')],capture_output=True,text=True,timeout=10)
 assert inference_result.returncode==0,(inference_result.stdout,inference_result.stderr)
 assert 'PASS' in inference_result.stdout
