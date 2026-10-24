@@ -145,6 +145,10 @@ finops_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/finops_budget_l
                               capture_output=True,text=True,timeout=15)
 assert finops_result.returncode==0,(finops_result.stdout,finops_result.stderr)
 assert 'PASS' in finops_result.stdout
+
+vector_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/vector_index_migration.py')],capture_output=True,text=True,timeout=10)
+assert vector_result.returncode==0,(vector_result.stdout,vector_result.stderr)
+assert 'PASS' in vector_result.stdout
 rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
 assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
 assert 'PASS' in rag_pipeline_result.stdout
@@ -229,6 +233,8 @@ subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.p
 
 subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)
 
+from check_vector_dependency_boundary import check as check_vector_dependency_boundary
+check_vector_dependency_boundary()
 from check_interview_contract import check_fixtures as check_interview_contract_fixtures
 check_interview_contract_fixtures()
 from interview_contract import check as check_interview_contract
