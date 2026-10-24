@@ -173,6 +173,10 @@ assert 'PASS' in inference_result.stdout
 vision_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/vision_grounding_geometry.py')],capture_output=True,text=True,timeout=10)
 assert vision_result.returncode==0,(vision_result.stdout,vision_result.stderr)
 assert 'PASS' in vision_result.stdout
+
+video_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/video_temporal_alignment.py')],capture_output=True,text=True,timeout=10)
+assert video_result.returncode==0,(video_result.stdout,video_result.stderr)
+assert 'PASS' in video_result.stdout
 rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
 assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
 assert 'PASS' in rag_pipeline_result.stdout
