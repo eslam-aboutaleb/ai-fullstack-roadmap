@@ -1,33 +1,50 @@
 /**
- * Implement defense-in-depth sanitization for untrusted HTML inputs and CSP nonce validation.
+ * Implement defense-in-depth client security: safe sink text mapping, protocol allowlisting, and CSP nonce checking.
  */
 
-function sanitizeHtml(untrustedInput) {
-  // Strip <script> tags and contents
-  let clean = untrustedInput.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
-  // Strip inline event handlers (e.g., onerror=, onclick=)
-  clean = clean.replace(/\son\w+="[^"]*"/gi, "");
-  clean = clean.replace(/\son\w+='[^']*'/gi, "");
-  // Strip javascript: pseudo-protocols
-  clean = clean.replace(/href=["']javascript:[^"']*["']/gi, 'href="#"');
-  return clean;
+const ALLOWED_PROTOCOLS = new Set(["https:", "http:"]);
+
+function sanitizeNavigationUrl(untrustedUrl) {
+  try {
+    const parsed = new URL(untrustedUrl, "https://example.com");
+    if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) {
+      return "#blocked";
+    }
+    return parsed.href;
+  } catch {
+    return "#blocked";
+  }
 }
 
-function validateScriptNonce(scriptNonce, validRequestNonce) {
-  return scriptNonce === validRequestNonce;
+function validateScriptNonce(elementNonce, activeCspNonce) {
+  return typeof elementNonce === "string" && elementNonce === activeCspNonce;
 }
 
-// 1. Sanitize malicious payload
-const dirtyHtml = '<p>Welcome</p><script>alert("XSS")</script><img src="x" onerror="stealCookies()"><a href="javascript:attack()">Link</a>';
-const safeHtml = sanitizeHtml(dirtyHtml);
+function renderSafeTextSink(untrustedString) {
+  // Safe sink: encode all HTML entities so browser parsers never execute injected tags
+  return String(untrustedString)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
-const scriptsStripped = !safeHtml.includes("<script");
-const handlersRemoved = !safeHtml.includes("onerror=");
+// 1. Protocol allowlist blocks javascript: pseudo-protocol XSS
+const maliciousLink = "javascript:stealCredentials()";
+const safeLink = sanitizeNavigationUrl(maliciousLink);
+const protocolBlocked = safeLink === "#blocked";
 
-// 2. Validate CSP nonce
-const requestNonce = "nonce-4ae78f9c1";
-const nonceValid = validateScriptNonce("nonce-4ae78f9c1", requestNonce);
+// 2. Safe sink escapes script tags into non-executable entities
+const payload = '<script>alert("XSS")</script><img src=x onerror=steal()>';
+const safeEscaped = renderSafeTextSink(payload);
+const scriptTagsEscaped = !safeEscaped.includes("<script") && safeEscaped.includes("&lt;script&gt;");
+
+// 3. CSP Nonce verification
+const sessionCspNonce = "nonce-8f2a1b9c7";
+const isAuthorizedScript = validateScriptNonce("nonce-8f2a1b9c7", sessionCspNonce);
+const isUntrustedScript = validateScriptNonce("malicious-injected-nonce", sessionCspNonce);
 
 console.log(
-  `Frontend defense verified: script_tags_stripped=${scriptsStripped}, event_handlers_removed=${handlersRemoved}, nonce_valid=${nonceValid}`
+  `Frontend defense verified: protocol_blocked=${protocolBlocked}, script_tags_escaped=${scriptTagsEscaped}, nonce_valid=${isAuthorizedScript && !isUntrustedScript}`
 );
