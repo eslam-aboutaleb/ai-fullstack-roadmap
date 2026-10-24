@@ -9,8 +9,10 @@ execution_log = []
 
 def transfer_with_canonical_ordering(account_first, account_second, amount, worker_name):
     """Prevent deadlock by acquiring locks in global lexicographical order regardless of transfer direction."""
-    # Enforce canonical lock ordering:
-    first_lock, second_lock = (lock_a, lock_b) if account_first < account_second else (lock_b, lock_a)
+    # Enforce canonical lock ordering: both workers always acquire lock_a then lock_b
+    sorted_accounts = sorted([account_first, account_second])
+    first_lock = lock_a if sorted_accounts[0] == 'A' else lock_b
+    second_lock = lock_b if sorted_accounts[1] == 'B' else lock_a
     
     with first_lock:
         execution_log.append(f"{worker_name} acquired first lock")
