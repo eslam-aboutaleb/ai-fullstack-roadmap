@@ -2,11 +2,11 @@
   {
     "Q": "How do supervised, unsupervised and reinforcement learning define different feedback?",
     "spoken": "Supervised learning fits predictions against observed targets. Unsupervised methods find structure under objectives such as reconstruction or clustering without those target labels. Reinforcement learning uses interaction rewards under a sequential decision process. These are learning setups, not a ranking of intelligence or a guarantee that one method fits every product.",
-    "A": "Supervised learning fits predictions against observed targets. Unsupervised methods find structure under objectives such as reconstruction or clustering without those target labels. Reinforcement learning uses interaction rewards under a sequential decision process. These are learning setups, not a ranking of intelligence or a guarantee that one method fits every product.\n\nEngineering case: A team uses clustering to infer whether a customer action is permitted. Similarity groups do not supply the authoritative policy label needed for that decision.\n\nReasoning under a changed assumption: Its targets are constructed from data, such as masked or next-token values. The source and construction of supervision matter even when humans did not label each example.",
-    "Why": "Supervised learning fits predictions against observed targets. Unsupervised methods find structure under objectives such as reconstruction or clustering without those target labels. Reinforcement learning uses interaction rewards under a sequential decision process. These are learning setups, not a ranking of intelligence or a guarantee that one method fits every product.",
-    "Risk": "A team uses clustering to infer whether a customer action is permitted. Similarity groups do not supply the authoritative policy label needed for that decision.",
-    "Trade": "Its targets are constructed from data, such as masked or next-token values. The source and construction of supervision matter even when humans did not label each example.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "The fundamental boundary distinguishing Supervised Learning, Unsupervised Learning, and Reinforcement Learning (RL) resides entirely in the mathematical nature and timing of the feedback signal provided to the optimization objective. Supervised learning operates under instantaneous, direct evaluation: for every input feature vector x, an authoritative ground-truth target y is observed, and the objective minimizes an empirical task loss L(y, f(x)) (such as MSE for regression or cross-entropy for classification) via backpropagation or convex optimization.\n\nIn contrast, unsupervised learning receives zero external outcome labels. Its feedback signal is defined by internal geometric, distributional, or reconstruction objectives\u2014such as minimizing within-cluster variance (inertia in k-means), maximizing log-likelihood under a generative density model, or minimizing projection reconstruction error (PCA/autoencoders). A dangerous architectural misconception occurs when engineering teams mistake unsupervised cluster boundaries for authoritative business policy decisions (e.g., using k-means clusters on transaction amounts to automatically authorize user permissions or assign fraud tiers). Unsupervised similarity metrics convey only relative geometric proximity, never authoritative semantic categories.\n\nReinforcement learning introduces a third, evaluative feedback paradigm: an agent interacts with a sequential Markov Decision Process (MDP), executing action a_t in state s_t, and receives a delayed scalar reward r_t from the environment. Unlike supervised learning, the agent receives no counterfactual feedback indicating whether an unchosen alternative action would have yielded higher reward, necessitating an explicit exploration-exploitation trade-off (e.g., epsilon-greedy or Upper Confidence Bounds) and credit assignment over temporal horizons. Modern production architectures often pipeline these paradigms: self-supervised pretraining extracts foundational embeddings, supervised fine-tuning aligns capabilities, and RL (such as RLHF/DPO) steers policies under preference rewards.",
+    "Why": "Supervised learning evaluates against authoritative ground-truth targets, unsupervised learning minimizes internal geometric or reconstruction objectives without labels, and reinforcement learning optimizes sequential policies via delayed scalar rewards and active exploration.",
+    "Risk": "Mistaking unsupervised cluster groups for authoritative business or security labels results in arbitrary, ungrounded access decisions that fail compliance and security audits.",
+    "Trade": "Supervised learning provides stable, direct gradients but requires expensive human labeling; unsupervised learning leverages boundless raw data but produces uncalibrated representations requiring downstream supervised alignment.",
+    "Try": "Train a linear regressor with direct supervised labels, run 1D k-means clustering on customer transactions to show cluster separation without label knowledge, and simulate a 2-armed contextual bandit learning optimal actions via trial-and-error rewards.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -19,10 +19,10 @@
         "definition": "Supervised learning fits predictions against observed targets."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A team uses clustering to infer whether a customer action is permitted. Similarity groups do not supply the authoritative policy label needed for that decision.\",\n  \"decision\": \"Supervised learning fits predictions against observed targets\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A team uses clustering to infer whether a customer action is permitted. Similarity groups do not supply the authoritative policy label needed for that decision.",
@@ -51,17 +51,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "What makes a feature unavailable at prediction time even when it exists in the table?",
     "spoken": "A feature can encode information recorded after the decision, such as a resolution code or future account state. Define an as-of timestamp for the prediction and reconstruct what was observable then. A random split does not remove this leakage because the feature itself contains forbidden future information.",
-    "A": "A feature can encode information recorded after the decision, such as a resolution code or future account state. Define an as-of timestamp for the prediction and reconstruct what was observable then. A random split does not remove this leakage because the feature itself contains forbidden future information.\n\nEngineering case: A model predicts ticket escalation using a column filled only when the ticket is finally escalated. Offline accuracy is excellent and deployment cannot reproduce it.\n\nReasoning under a changed assumption: No. Derived fields, joins, duplicated entities and preprocessing can still encode target or future information indirectly.",
-    "Why": "A feature can encode information recorded after the decision, such as a resolution code or future account state. Define an as-of timestamp for the prediction and reconstruct what was observable then. A random split does not remove this leakage because the feature itself contains forbidden future information.",
-    "Risk": "A model predicts ticket escalation using a column filled only when the ticket is finally escalated. Offline accuracy is excellent and deployment cannot reproduce it.",
-    "Trade": "No. Derived fields, joins, duplicated entities and preprocessing can still encode target or future information indirectly.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "In production machine learning systems, the availability of a feature in a data warehouse or data lake table does not imply that the feature was legally observable at the moment of prediction. A feature is temporally unavailable if it represents an event, attribute, or mutation that occurred after the prediction decision timestamp (T_decision), creating catastrophic temporal data leakage (target leakage).\n\nConsider an automated customer support escalation model designed to route incoming tickets at creation time (T_decision = ticket_created_at). In an operational analytical database, the tickets table frequently contains columns such as resolution_code, escalation_timestamp, assigned_tier3_agent_id, or customer_csat_score. Because these columns reside in the same database table row as the ticket ID, an offline feature extraction query that naively selects \"SELECT * FROM tickets\" incorporates these downstream attributes into the training matrix. Offline cross-validation produces near 100% precision and ROC-AUC because the model discovers that resolution_code = ESCALATED_L2 perfectly predicts ticket escalation.\n\nHowever, when this model is deployed to the production inference microservice to score a new ticket at creation time, resolution_code is null or unpopulated. The model either crashes on missing features or produces degraded, random predictions because its learned weights relied almost entirely on the leaky future proxy. Eliminating temporal leakage requires establishing strict point-in-time (as-of) feature store semantics: every training feature vector must be constructed using only data whose ingestion timestamp (T_record) and event timestamp (T_event) are strictly less than or equal to T_decision. Production pipelines must enforce immutable event-time logging and validate that offline feature extraction queries use windowed as-of joins.",
+    "Why": "Features recorded downstream of a decision event in production tables leak future target information into training rows. While producing near-perfect offline metrics, they are completely absent or unpopulated at inference time.",
+    "Risk": "Deploying models trained on temporally leaky features causes catastrophic silent failure in production, where the model collapses to random guessing or default heuristics when future fields are missing at runtime.",
+    "Trade": "Point-in-time feature stores and temporal join engines (e.g., Feast, Hopsworks, BigQuery as-of joins) add pipeline engineering complexity but guarantee exact offline-to-online feature parity and eliminate leakage.",
+    "Try": "Extract features from a support ticket record using both a naive table scan and a point-in-time as-of guard. Show how masking columns populated after creation prevents trivial target proxies from contaminating the training set.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -74,10 +74,10 @@
         "definition": "A feature can encode information recorded after the decision, such as a resolution code or future account state."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A model predicts ticket escalation using a column filled only when the ticket is finally escalated. Offline accuracy is excellent and deployment cannot reproduce it.\",\n  \"decision\": \"A feature can encode information recorded after the decision, such as a resolution code or future account state\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A model predicts ticket escalation using a column filled only when the ticket is finally escalated. Offline accuracy is excellent and deployment cannot reproduce it.",
@@ -106,41 +106,41 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "How do linear regression and logistic classification choose different outputs and losses?",
     "spoken": "Linear regression predicts a numerical response and commonly minimizes squared residuals. Logistic classification transforms a score into a probability and uses a classification objective such as log loss. The decision threshold is a separate policy chosen from costs and validation data. A linear decision boundary can still be useful as a strong transparent baseline.",
-    "A": "Linear regression predicts a numerical response and commonly minimizes squared residuals. Logistic classification transforms a score into a probability and uses a classification objective such as log loss. The decision threshold is a separate policy chosen from costs and validation data. A linear decision boundary can still be useful as a strong transparent baseline.\n\nEngineering case: A team reports a classifier’s probability as an automatically authorized business decision without choosing a threshold or considering error costs.\n\nReasoning under a changed assumption: No. Assess calibration and distribution shift; high model confidence can accompany a wrong or unsupported prediction.",
-    "Why": "Linear regression predicts a numerical response and commonly minimizes squared residuals. Logistic classification transforms a score into a probability and uses a classification objective such as log loss. The decision threshold is a separate policy chosen from costs and validation data. A linear decision boundary can still be useful as a strong transparent baseline.",
-    "Risk": "A team reports a classifier’s probability as an automatically authorized business decision without choosing a threshold or considering error costs.",
-    "Trade": "No. Assess calibration and distribution shift; high model confidence can accompany a wrong or unsupported prediction.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "Linear regression and logistic classification represent fundamentally distinct statistical contracts designed for different outcome spaces. Linear regression models a continuous unbounded response y in R via an affine combination of input features: y_hat = w^T x + b. It standardly minimizes the Mean Squared Error (MSE) loss: L_MSE = (1/N) * sum((y_hat_i - y_i)^2). Because MSE penalizes residuals quadratically, applying linear regression to discrete binary outcomes (y in {0, 1}) leads to severe mathematical defects: predicted values exceed the probability simplex (producing nonsense values like -0.4 or 1.3), and extreme outliers pull the linear decision hyperplane arbitrarily far from the true classification boundary.\n\nLogistic classification resolves this by passing the unbounded linear logit z = w^T x + b through the non-linear sigmoid activation function: sigma(z) = 1 / (1 + exp(-z)), strictly constraining output predictions p = sigma(z) to the open probability interval (0, 1). To train the model, logistic classification maximizes the Bernoulli likelihood under the Binary Cross-Entropy (BCE) log-loss objective:\nL_BCE = -(1/N) * sum[ y_i * log(p_i) + (1 - y_i) * log(1 - p_i) ].\nUnlike MSE on sigmoid outputs (which produces non-convex landscapes with vanishing gradients in saturated regions), BCE ensures a strictly convex optimization surface where gradient magnitude scales directly with prediction error (p - y).\n\nCrucially, outputting a calibrated probability p does not constitute an operational decision. The decision threshold tau (where prediction is 1 if p >= tau else 0) is a separate business policy chosen from validation data under asymmetric error costs: tau* = C_FP / (C_FP + C_FN). Defaulting to tau = 0.5 is mathematically irrational when a false negative (e.g., missed fraud costing ) is far more severe than a false positive (SMS friction costing ).",
+    "Why": "Linear regression predicts unbounded continuous numbers using MSE, whereas logistic regression maps logits through sigmoid into (0, 1) probabilities optimized under convex cross-entropy loss. The decision threshold is an independent operational policy.",
+    "Risk": "Using default 0.5 decision thresholds in production without considering asymmetric error costs leads to severe business losses when false negatives carry disproportionate financial or safety consequences.",
+    "Trade": "Logistic regression produces interpretable, calibrated probabilities and convex optimization surfaces, but remains constrained to linear hyperplanes in feature space unless augmented with non-linear feature kernels or embeddings.",
+    "Try": "Implement both sigmoid activation and binary cross-entropy loss. Define an asymmetric cost matrix ( FP vs  FN) and sweep decision thresholds to prove that the cost-optimal operational threshold (tau ~ 0.05-0.14) drastically beats default 0.5.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
     "concept": "How do linear regression and logistic classification choose different outputs and losses?",
     "difficulty": "interview",
-    "misconception_target": "Missing the stated classification threshold boundary: A team reports a classifier’s probability as an automatically authorized business decision without choosing a threshold or considering error costs.",
+    "misconception_target": "Missing the stated classification threshold boundary: A team reports a classifier\u2019s probability as an automatically authorized business decision without choosing a threshold or considering error costs.",
     "definitions": [
       {
         "term": "Classification threshold",
         "definition": "Linear regression predicts a numerical response and commonly minimizes squared residuals."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
-      "code": "{\n  \"case\": \"A team reports a classifier’s probability as an automatically authorized business decision without choosing a threshold or considering error costs.\",\n  \"decision\": \"Linear regression predicts a numerical response and commonly minimizes squared residuals\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "code": "{\n  \"case\": \"A team reports a classifier\u2019s probability as an automatically authorized business decision without choosing a threshold or considering error costs.\",\n  \"decision\": \"Linear regression predicts a numerical response and commonly minimizes squared residuals\"\n}",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
-    "production_case": "A team reports a classifier’s probability as an automatically authorized business decision without choosing a threshold or considering error costs.",
+    "production_case": "A team reports a classifier\u2019s probability as an automatically authorized business decision without choosing a threshold or considering error costs.",
     "alternatives": [
       "No. Assess calibration and distribution shift; high model confidence can accompany a wrong or unsupported prediction."
     ],
     "pitfalls": [
-      "A team reports a classifier’s probability as an automatically authorized business decision without choosing a threshold or considering error costs."
+      "A team reports a classifier\u2019s probability as an automatically authorized business decision without choosing a threshold or considering error costs."
     ],
     "complexity": "Cost must be measured under the stated input size, representation and resource limits. The tiny reasoning fixture does not establish production capacity.",
     "follow_ups": [
@@ -161,17 +161,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "How do decision trees, random forests and boosting differ in how errors are controlled?",
     "spoken": "A decision tree partitions features with learned rules and can overfit small samples. A random forest averages diverse trees, often reducing variance. Boosting adds learners sequentially against an objective, which can improve fit but requires careful regularization and validation. Compare with a simple baseline under the same split and resource budget.",
-    "A": "A decision tree partitions features with learned rules and can overfit small samples. A random forest averages diverse trees, often reducing variance. Boosting adds learners sequentially against an objective, which can improve fit but requires careful regularization and validation. Compare with a simple baseline under the same split and resource budget.\n\nEngineering case: A deep tree memorizes training identities. Its perfect training accuracy collapses on new customers despite apparently interpretable rules.\n\nReasoning under a changed assumption: No. A more powerful model can exploit leakage more effectively. Split integrity and prediction-time availability remain prerequisites.",
-    "Why": "A decision tree partitions features with learned rules and can overfit small samples. A random forest averages diverse trees, often reducing variance. Boosting adds learners sequentially against an objective, which can improve fit but requires careful regularization and validation. Compare with a simple baseline under the same split and resource budget.",
-    "Risk": "A deep tree memorizes training identities. Its perfect training accuracy collapses on new customers despite apparently interpretable rules.",
-    "Trade": "No. A more powerful model can exploit leakage more effectively. Split integrity and prediction-time availability remain prerequisites.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "Decision trees, Random Forests, and Gradient Boosted Decision Trees (GBDTs) control generalization error through fundamentally different manipulations of the bias-variance decomposition: Expected Error = Bias^2 + Variance + Irreducible Noise. A single standard decision tree recursively partitions feature space using greedy orthogonal splits (e.g., Gini impurity or variance reduction). An unpruned, deep decision tree possesses extraordinarily high expressiveness (low bias), capable of achieving 100% training accuracy by memorizing individual training instances. However, it exhibits extreme variance: minor perturbations in the training dataset alter split boundaries drastically, causing generalization accuracy to collapse on unseen data.\n\nRandom Forests control error by systematically driving down variance through bootstrap aggregation (bagging) and random feature subspace projection. By training M independent deep trees on bootstrap resamples of the dataset and selecting a random subset of features (e.g., sqrt(D)) at each split, the individual tree predictions are substantially decorrelated. When predictions are averaged across the ensemble, the ensemble variance is scaled by [ (1/M) * sigma^2 + (1 - 1/M) * rho * sigma^2 ], where rho is tree correlation. Because individual trees remain deep, low bias is preserved while variance is drastically reduced.\n\nConversely, Gradient Boosting controls error by sequentially driving down bias using ensembles of shallow weak learners (e.g., depth 3\u20136 trees with high bias and low variance). Rather than training independent trees, boosting builds an additive model where each new tree is explicitly trained to predict the negative gradient (pseudo-residuals) of the loss function with respect to the previous ensemble output. Shrinkage (learning rate eta) and early stopping on validation loss prevent the sequential boosting process from fitting residual noise, yielding state-of-the-art predictive power on tabular data.",
+    "Why": "Decision trees have low bias and high variance. Random Forests reduce variance by averaging decorrelated deep trees across bootstrap samples. Gradient Boosting reduces bias by sequentially fitting shallow weak learners to loss residuals.",
+    "Risk": "Deploying unpruned single decision trees leads to severe overfitting and erratic production behavior, as trivial data shifts breach brittle axis-aligned split boundaries.",
+    "Trade": "Random forests are embarrassingly parallelizable and resilient to hyperparameter tuning, whereas gradient boosting generally achieves superior accuracy but requires sequential training and careful learning rate/early stopping tuning.",
+    "Try": "Fit a single decision stump on non-linear data to demonstrate high bias, sequentially train gradient boosted stumps to show bias reduction on residuals, and evaluate prediction variance across resampled training runs to demonstrate bagging variance reduction.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -184,10 +184,10 @@
         "definition": "A decision tree partitions features with learned rules and can overfit small samples."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A deep tree memorizes training identities. Its perfect training accuracy collapses on new customers despite apparently interpretable rules.\",\n  \"decision\": \"A decision tree partitions features with learned rules and can overfit small samples\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A deep tree memorizes training identities. Its perfect training accuracy collapses on new customers despite apparently interpretable rules.",
@@ -216,17 +216,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "When can k-means or PCA help without becoming an unsupported business label?",
     "spoken": "K-means groups points under a distance-based objective and depends on scale, initialization and a chosen cluster count. PCA projects along training-data variance directions. Use them for a declared representation or exploratory purpose, inspect stability and validate downstream usefulness. A cluster identity or high-variance direction does not automatically correspond to a meaningful category.",
-    "A": "K-means groups points under a distance-based objective and depends on scale, initialization and a chosen cluster count. PCA projects along training-data variance directions. Use them for a declared representation or exploratory purpose, inspect stability and validate downstream usefulness. A cluster identity or high-variance direction does not automatically correspond to a meaningful category.\n\nEngineering case: Customer records cluster mainly by an unscaled transaction amount. The team mistakes those magnitude groups for distinct support needs.\n\nReasoning under a changed assumption: Use stability, reconstruction or task-specific evidence and human interpretation as appropriate. Be explicit that those criteria do not prove a supervised classification claim.",
-    "Why": "K-means groups points under a distance-based objective and depends on scale, initialization and a chosen cluster count. PCA projects along training-data variance directions. Use them for a declared representation or exploratory purpose, inspect stability and validate downstream usefulness. A cluster identity or high-variance direction does not automatically correspond to a meaningful category.",
-    "Risk": "Customer records cluster mainly by an unscaled transaction amount. The team mistakes those magnitude groups for distinct support needs.",
-    "Trade": "Use stability, reconstruction or task-specific evidence and human interpretation as appropriate. Be explicit that those criteria do not prove a supervised classification claim.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "Unsupervised dimensionality reduction and clustering algorithms like PCA and k-means serve as powerful exploratory, compression, and feature-representation mechanisms, but they become hazardous operational anti-patterns when engineering teams conflate geometric proximity with authoritative business categories. K-means partitions data into k Voronoi cells by iteratively minimizing within-cluster sum-of-squares (inertia): sum(||x_i - mu_{c(i)}||^2). Because distance is computed using Euclidean norms, k-means is hypersensitive to feature scaling. If an unscaled dataset combines customer age (range 18\u201370) with annual transaction volume (range \u2013,000,000), Euclidean distance is entirely monopolized by transaction volume by a factor of 10,000x, grouping customers purely on dollar scale while completely ignoring age.\n\nSimilarly, PCA projects high-dimensional data onto orthogonal eigenvectors of the empirical covariance matrix, maximizing explained variance. However, high variance in training data does not inherently reflect predictive or operational relevance: a high-variance principal component may represent sensor background drift, seasonality, or image illumination artifacts, while the critical signal resides in lower-variance components.\n\nTo utilize k-means and PCA responsibly without establishing unsupported business claims:\n1. Always apply robust z-score standardization or QuantileTransformer before distance computations.\n2. Treat cluster identities strictly as exploratory hypotheses or auxiliary representation features (e.g., cluster distance embeddings) passed to downstream supervised models, never as definitive policy labels (e.g., concluding Cluster 3 represents 'Disgruntled Users').\n3. Validate cluster stability under random centroid restarts, bootstrap resampling, and silhouette analysis. Unsupervised structure reflects geometric distribution under a chosen distance metric, never causal real-world intent.",
+    "Why": "K-means and PCA optimize geometric variance and distance, which depend heavily on feature scaling and initialization. Cluster IDs represent geometric partitions, not authoritative business categories or semantic truth.",
+    "Risk": "Relying on unscaled k-means clusters to automate customer support routing or loan decisions groups users arbitrarily based on high-magnitude feature scales, causing compliance violations and customer harm.",
+    "Trade": "Using PCA or k-means features as inputs to downstream supervised models can compress dimensionality and mitigate multicollinearity, but introduces non-linear projection latency and reduces direct feature interpretability.",
+    "Try": "Run k-means on customer data combining age and dollar transactions with and without z-score standardization. Show how dollar magnitude monopolizes unscaled clustering, and demonstrate that scaled clusters do not map to binary policy rules.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -239,10 +239,10 @@
         "definition": "K-means groups points under a distance-based objective and depends on scale, initialization and a chosen cluster count."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"Customer records cluster mainly by an unscaled transaction amount. The team mistakes those magnitude groups for distinct support needs.\",\n  \"decision\": \"K-means groups points under a distance-based objective and depends on scale, initialization and a chosen cluster count\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "Customer records cluster mainly by an unscaled transaction amount. The team mistakes those magnitude groups for distinct support needs.",
@@ -271,17 +271,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "How should regularization and early stopping use validation data?",
     "spoken": "Regularization constrains or penalizes fitted parameters, while early stopping selects a training point from validation behavior. Both affect model choice. Fit preprocessing on training rows and keep the final test set outside those decisions. Repeated changes driven by test errors consume the test set as another validation source.",
-    "A": "Regularization constrains or penalizes fitted parameters, while early stopping selects a training point from validation behavior. Both affect model choice. Fit preprocessing on training rows and keep the final test set outside those decisions. Repeated changes driven by test errors consume the test set as another validation source.\n\nEngineering case: A learner stops at the epoch with maximum test accuracy and presents that same maximum as a fresh held-out result.\n\nReasoning under a changed assumption: No. Training loss can continue falling while the model fits noise or artifacts. Monitor the declared validation objective and investigate task-relevant slices.",
-    "Why": "Regularization constrains or penalizes fitted parameters, while early stopping selects a training point from validation behavior. Both affect model choice. Fit preprocessing on training rows and keep the final test set outside those decisions. Repeated changes driven by test errors consume the test set as another validation source.",
-    "Risk": "A learner stops at the epoch with maximum test accuracy and presents that same maximum as a fresh held-out result.",
-    "Trade": "No. Training loss can continue falling while the model fits noise or artifacts. Monitor the declared validation objective and investigate task-relevant slices.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "Model optimization must maintain strict architectural separation between three distinct data partitions: the Training set (used to compute gradients and update model parameters), the Validation set (used to tune hyperparameters, select regularization strengths, and trigger early stopping), and the Test set (used solely for an uncompromised, frozen evaluation of final generalization error).\n\nRegularization introduces explicit structural constraints or penalties into the training objective to prevent parameter weights from overfitting training noise: L_total = L_task + lambda * R(w). Common formulations include L2 regularization (Ridge / Weight Decay: R(w) = sum(w_i^2)), which shrinks weights smoothly toward zero, and L1 regularization (Lasso: R(w) = sum(|w_i|)), which drives irrelevant weights to exact zero to induce feature sparsity. The regularization coefficient lambda cannot be optimized using training loss, as training loss is minimized when lambda = 0. Lambda must be tuned across validation splits.\n\nEarly stopping acts as a dynamic regularization mechanism during iterative optimization. As training progresses over epochs, training loss continues falling monotonically as the model fits training patterns. However, validation loss eventually reaches an inflection point (the generalization limit) and begins diverging upward as the model fits sample-specific noise. An EarlyStoppingManager monitors validation loss across a patience window P (e.g., P = 3 epochs). When validation loss fails to improve for P consecutive epochs, training terminates, and model weights are restored strictly to the checkpoint corresponding to the minimum validation loss.\n\nCrucially, neither regularization tuning nor early stopping may ever reference the test set. Selecting the epoch or lambda that minimizes test loss converts the test set into a validation set, introducing subtle selection bias that invalidates reported performance.",
+    "Why": "Validation data guides model selection, hyperparameter tuning, and early stopping checkpoints. Referencing the test set during early stopping or regularization decisions causes data contamination and invalidates generalization claims.",
+    "Risk": "Peeking at test set metrics to halt training or select hyperparameters inflates reported performance, masking overfitting that will immediately surface upon production deployment.",
+    "Trade": "Early stopping saves significant GPU compute and prevents overfitting by restoring the best validation checkpoint, but requires reserving a sufficiently large, representative validation split from available training data.",
+    "Try": "Simulate training, validation, and test loss trajectories exhibiting overfitting divergence. Implement an early stopping manager with patience 3 that halts training at the optimal validation epoch and evaluates the restored weights on the frozen test set.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -294,10 +294,10 @@
         "definition": "Regularization constrains or penalizes fitted parameters, while early stopping selects a training point from validation behavior."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A learner stops at the epoch with maximum test accuracy and presents that same maximum as a fresh held-out result.\",\n  \"decision\": \"Regularization constrains or penalizes fitted parameters, while early stopping selects a training point from validation behavior\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A learner stops at the epoch with maximum test accuracy and presents that same maximum as a fresh held-out result.",
@@ -326,17 +326,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "How do precision, recall and PR metrics expose failure on an imbalanced task?",
     "spoken": "Precision asks how many predicted positives are correct; recall asks how many actual positives were found. Accuracy can favor a model that predicts only the frequent class. Threshold choice trades false positives against misses, so report counts, denominators and a cost-relevant view such as a precision-recall curve under the evaluated prevalence.",
-    "A": "Precision asks how many predicted positives are correct; recall asks how many actual positives were found. Accuracy can favor a model that predicts only the frequent class. Threshold choice trades false positives against misses, so report counts, denominators and a cost-relevant view such as a precision-recall curve under the evaluated prevalence.\n\nEngineering case: A dataset has four negatives and one positive. An always-negative model achieves 80% accuracy but zero positive recall.\n\nReasoning under a changed assumption: Their observed precision depends on the data distribution. Include the dataset and sampling design so the comparison has a defined meaning.",
-    "Why": "Precision asks how many predicted positives are correct; recall asks how many actual positives were found. Accuracy can favor a model that predicts only the frequent class. Threshold choice trades false positives against misses, so report counts, denominators and a cost-relevant view such as a precision-recall curve under the evaluated prevalence.",
-    "Risk": "A dataset has four negatives and one positive. An always-negative model achieves 80% accuracy but zero positive recall.",
-    "Trade": "Their observed precision depends on the data distribution. Include the dataset and sampling design so the comparison has a defined meaning.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "Evaluating classification models on highly imbalanced datasets (e.g., rare disease diagnosis, ad click-through prediction, or cybersecurity intrusion detection where the positive class prevalence is 1% or less) exposes the dangerous statistical failure known as the Accuracy Paradox. Aggregate accuracy computes: (TP + TN) / (TP + FP + FN + TN). On a dataset containing 990 negative examples and 10 positive examples, a trivial majority-class dummy classifier that predicts negative (0) for every single input achieves 99.0% accuracy. Despite this ostensibly stellar metric, the model is completely useless in production: it possesses exactly 0.0% recall on the critical positive event.\n\nTo diagnose performance truthfully on imbalanced workloads, engineering teams must evaluate decoupled positive-class metrics:\n- Precision: TP / (TP + FP) \u2014 of all instances the model flagged as positive, what proportion was actually positive? (Measures operational alert fidelity and false alarm friction).\n- Recall (Sensitivity): TP / (TP + FN) \u2014 of all true positive cases that occurred, what proportion did the model successfully capture? (Measures coverage and false dismissal risk).\n- F1-Score: 2 * (Precision * Recall) / (Precision + Recall) \u2014 the harmonic mean penalizing models that collapse on either dimension.\n\nFurthermore, Receiver Operating Characteristic (ROC) curves can be dangerously misleading under extreme class imbalance. Because the ROC False Positive Rate is defined as FP / (FP + TN), an enormous denominator of true negatives (TN = 990,000) keeps FPR deceptively near zero even when thousands of false positives overwhelm a tiny positive pool (TP = 100). Systems engineering teams must evaluate Precision-Recall (PR) curves and Average Precision (PR-AUC), which exclude the dominant TN count and expose false alarm dilution directly.",
+    "Why": "Accuracy is dominated by the majority class, masking 0% recall on critical minority events. Precision-Recall metrics and PR curves isolate the positive class, exposing false positives and misses directly without dilution from large negative counts.",
+    "Risk": "Relying on accuracy or ROC-AUC on imbalanced workloads leads engineering teams to deploy models that silently miss 100% of target security, fraud, or safety incidents.",
+    "Trade": "Precision and recall exist in direct tension across decision thresholds; tuning thresholds to capture 99% recall inevitably increases false alarms, requiring explicit business cost-benefit calibration.",
+    "Try": "Evaluate a 4-negative 1-positive dataset using a dummy majority model to show 80% accuracy with 0.0 recall. Construct a full Precision-Recall curve across decision thresholds on 1,000 imbalanced samples to demonstrate threshold trade-offs.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -349,10 +349,10 @@
         "definition": "Precision asks how many predicted positives are correct; recall asks how many actual positives were found."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A dataset has four negatives and one positive. An always-negative model achieves 80% accuracy but zero positive recall.\",\n  \"decision\": \"Precision asks how many predicted positives are correct; recall asks how many actual positives were found\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A dataset has four negatives and one positive. An always-negative model achieves 80% accuracy but zero positive recall.",
@@ -381,17 +381,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "Why can an accurate ranking still produce poorly calibrated probabilities?",
     "spoken": "Ranking compares ordering, while calibration compares predicted probabilities with empirical frequencies. A monotonic score transformation can preserve ranking and change probability meaning. Evaluate discrimination, reliability and support per bin separately. A lower proper scoring loss reflects more than calibration alone.",
-    "A": "Ranking compares ordering, while calibration compares predicted probabilities with empirical frequencies. A monotonic score transformation can preserve ranking and change probability meaning. Evaluate discrimination, reliability and support per bin separately. A lower proper scoring loss reflects more than calibration alone.\n\nEngineering case: Two models order all alerts identically, but one calls almost every alert 99% likely. Only about 70% of that bin is positive.\n\nReasoning under a changed assumption: Use data separated from the final test decision, such as a properly designed validation or cross-validation calibration procedure. Never fit it on the same final labels used to claim its quality.",
-    "Why": "Ranking compares ordering, while calibration compares predicted probabilities with empirical frequencies. A monotonic score transformation can preserve ranking and change probability meaning. Evaluate discrimination, reliability and support per bin separately. A lower proper scoring loss reflects more than calibration alone.",
-    "Risk": "Two models order all alerts identically, but one calls almost every alert 99% likely. Only about 70% of that bin is positive.",
-    "Trade": "Use data separated from the final test decision, such as a properly designed validation or cross-validation calibration procedure. Never fit it on the same final labels used to claim its quality.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "In predictive modeling, discrimination (ranking ability) and calibration (probability reliability) are completely orthogonal statistical properties. Discrimination measures the capacity of a model to rank positive instances above negative instances, standardly evaluated via ROC-AUC or Concordance index (C-statistic). An ROC-AUC of 1.0 indicates perfect discrimination: every positive instance received a higher assigned score than every negative instance.\n\nHowever, discrimination is strictly invariant under any monotonic increasing transformation: if a scoring function f(x) is mapped to g(x) = f(x)^10 or transformed via an arbitrary non-linear monotonic curve, the ranking order of all instances remains identical, and ROC-AUC remains unchanged. Despite maintaining perfect ranking, the transformed scores lose all meaning as genuine probabilities. A model exhibits accurate probability calibration if and only if:\nP(Y = 1 | p_hat = p) = p.\nThat is, among all instances where the model predicts a probability of 0.80 (80%), exactly 80% of those instances must be true positive outcomes in reality.\n\nIn production, models frequently exhibit severe overconfidence: modern deep neural networks and gradient boosting ensembles output raw scores near 0.99 for instances where empirical success rates are only 70%. When automated systems use these raw probabilities to drive automated risk thresholds, auction bid calculations, or medical dosing, overconfident probabilities cause massive financial or operational failures. Engineering teams must evaluate calibration using Expected Calibration Error (ECE) across reliability diagram bins and proper scoring rules like Brier Score: (1/N) * sum((p_i - y_i)^2). Post-processing calibrators (such as Platt Scaling / logistic calibration or Isotonic Regression) must be fit on held-out validation data to restore probability integrity without degrading discrimination.",
+    "Why": "ROC-AUC evaluates relative ranking order, which is preserved under any monotonic transformation, whereas calibration evaluates whether predicted probabilities equal empirical event frequencies. A model can have 1.0 ROC-AUC while its probabilities are wildly inaccurate.",
+    "Risk": "Using uncalibrated, overconfident model scores for automated business policies (e.g. credit approvals, medical risk, or bid pricing) results in severe misallocation and operational failure.",
+    "Trade": "Post-hoc calibration (Platt scaling or isotonic regression) aligns predicted probabilities with true empirical rates without altering ROC-AUC ranking, but requires reserving a dedicated validation split to fit calibrators.",
+    "Try": "Generate predictions with perfect ROC-AUC = 1.0 where negatives receive score 0.85 and positives receive 0.99. Compute Brier score and Expected Calibration Error (ECE) to show massive calibration failure despite flawless ranking.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -404,10 +404,10 @@
         "definition": "Ranking compares ordering, while calibration compares predicted probabilities with empirical frequencies."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"Two models order all alerts identically, but one calls almost every alert 99% likely. Only about 70% of that bin is positive.\",\n  \"decision\": \"Ranking compares ordering, while calibration compares predicted probabilities with empirical frequencies\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "Two models order all alerts identically, but one calls almost every alert 99% likely. Only about 70% of that bin is positive.",
@@ -436,17 +436,17 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   },
   {
     "Q": "How do you distinguish covariate shift, target prevalence shift and concept drift?",
     "spoken": "Input distributions, label prevalence and the relationship between inputs and outcomes can change in different ways. Monitor observable inputs and delayed quality labels, investigate collection changes and compare slices. A distribution alert alone does not prove a quality regression, while stable inputs do not prove the target relationship is unchanged.",
-    "A": "Input distributions, label prevalence and the relationship between inputs and outcomes can change in different ways. Monitor observable inputs and delayed quality labels, investigate collection changes and compare slices. A distribution alert alone does not prove a quality regression, while stable inputs do not prove the target relationship is unchanged.\n\nEngineering case: A form change alters missing-value patterns, and later labels reveal worse performance for one customer segment. Retraining before fixing collection would preserve a corrupted pipeline.\n\nReasoning under a changed assumption: No. The defect may be schema, label timing, policy or feature availability. Define the cause and compare a frozen candidate with a valid post-change evaluation set.",
-    "Why": "Input distributions, label prevalence and the relationship between inputs and outcomes can change in different ways. Monitor observable inputs and delayed quality labels, investigate collection changes and compare slices. A distribution alert alone does not prove a quality regression, while stable inputs do not prove the target relationship is unchanged.",
-    "Risk": "A form change alters missing-value patterns, and later labels reveal worse performance for one customer segment. Retraining before fixing collection would preserve a corrupted pipeline.",
-    "Trade": "No. The defect may be schema, label timing, policy or feature availability. Define the cause and compare a frozen candidate with a valid post-change evaluation set.",
-    "Try": "Construct the stated case, record the expected and actual outcome, then change one assumption and defend the result.",
+    "A": "When machine learning systems degrade in production, diagnosing the underlying failure requires establishing rigorous statistical distinctions between three distinct forms of distribution shift governed by Bayes joint probability decomposition: P(X, Y) = P(X) * P(Y | X) = P(Y) * P(X | Y).\n\n1. Covariate Shift occurs when the marginal feature distribution P(X) changes over time (P_{train}(X) != P_{prod}(X)), but the conditional ground-truth relationship P(Y | X) remains strictly unchanged. For example, a web form redesign alters default dropdown options or demographic mixes, altering feature frequencies, yet the likelihood of an outcome given specific feature values remains invariant. Covariate shift is detected in real time by calculating the Population Stability Index (PSI >= 0.20) or running two-sample Kolmogorov-Smirnov tests on continuous feature inputs without requiring ground-truth labels.\n\n2. Target Prevalence Shift occurs when the marginal prior distribution of labels P(Y) changes (e.g., overall fraud frequency surges during an economic crisis from 1% to 5%), but the class-conditional feature distributions P(X | Y) remain stable. This requires updating the model intercept / baseline calibration odds.\n\n3. Concept Drift represents the most severe failure mode: the fundamental functional relationship mapping features to outcomes P(Y | X) alters (P_{train}(Y | X) != P_{prod}(Y | X)). For example, fraudsters adopt entirely novel evasion tactics, or macroeconomic shocks alter credit default risk for previously safe debt-to-income ratios. Concept drift cannot be detected by monitoring input features alone; it requires tracking delayed ground-truth labels, measuring empirical loss spikes, Brier score degradation, and drop-offs in Precision-Recall AUC. Retraining blindly on corrupted pipelines without diagnosing whether drift is covariate or conceptual perpetuates invalid models.",
+    "Why": "Covariate shift changes input distributions P(X) while preserving P(Y|X); target shift changes prior label balance P(Y); concept drift fundamentally alters the relationship P(Y|X). Diagnosing drift type dictates whether to fix data pipelines or retrain model architectures.",
+    "Risk": "Retraining blindly when inputs have suffered collection corruption or schema drift encodes broken data into new model weights, permanently degrading production reliability.",
+    "Trade": "Input drift detection (PSI, KS tests) provides instant zero-latency monitoring on incoming features, whereas concept drift detection is delayed by ground-truth label collection latency.",
+    "Try": "Implement Population Stability Index (PSI) to detect covariate shift on shifted normal inputs (PSI > 0.20), and evaluate classification error rate degradation on delayed ground-truth labels to detect concept drift while inputs appear stable.",
     "domain": "ml",
     "subdomain": "machine-learning-foundations",
     "module": "machine-learning-foundations",
@@ -459,10 +459,10 @@
         "definition": "Input distributions, label prevalence and the relationship between inputs and outcomes can change in different ways."
       }
     ],
-    "execution_timeline": "State the input and invariant → trace the mechanism → reproduce the stated case → evaluate the changed assumption",
+    "execution_timeline": "State the input and invariant \u2192 trace the mechanism \u2192 reproduce the stated case \u2192 evaluate the changed assumption",
     "example": {
       "code": "{\n  \"case\": \"A form change alters missing-value patterns, and later labels reveal worse performance for one customer segment. Retraining before fixing collection would preserve a corrupted pipeline.\",\n  \"decision\": \"Input distributions, label prevalence and the relationship between inputs and outcomes can change in different ways\"\n}",
-      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter’s executable reference.",
+      "explanation": "A reasoning fixture, not a simulated measurement or an implementation. Compare it with the chapter\u2019s executable reference.",
       "output": "No runtime result claimed; inspect the linked executable example and reproduce the case."
     },
     "production_case": "A form change alters missing-value patterns, and later labels reveal worse performance for one customer segment. Retraining before fixing collection would preserve a corrupted pipeline.",
@@ -491,7 +491,7 @@
     "reviewer_status": {
       "status": "draft",
       "reviewer": "Independent review pending",
-      "reviewed_at": "2026-10-21"
+      "reviewed_at": "2026-10-24"
     }
   }
 ]
