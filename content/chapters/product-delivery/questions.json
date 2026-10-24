@@ -13,9 +13,9 @@
       "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-22"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "follow_ups": [
       {
@@ -29,12 +29,12 @@
   },
   {
     "Q": "How should a browser parse streaming chunks correctly?",
-    "A": "Buffer bytes across network reads, decode incrementally, split complete SSE frames, parse their JSON, and retain any unfinished suffix. A network chunk may contain half a JSON object or several events; it is not an event boundary.",
-    "Why": "Decode UTF-8 incrementally and accumulate SSE fields through the blank-line delimiter. Validate the completed event payload separately and test every relevant network fragmentation boundary.",
-    "Risk": "Naive JSON.parse on each read loses events or fails on multibyte characters. Error recovery must also distinguish a malformed event from a clean terminal completion.",
-    "Trade": "A small parser handles a narrow contract; a mature SSE client can cover more protocol details. Test the actual API framing and reconnection requirements.",
-    "Try": "Feed the same stream split at every possible byte boundary, including inside Unicode text. Verify identical parsed events.",
-    "spoken": "Decode bytes incrementally, preserve partial UTF-8 state and parse the transport’s actual event framing before parsing JSON. Track operation identity, sequence/replay, partial content and explicit completion separately. Bound buffers and reject malformed or conflicting events.",
+    "A": "In streaming web architectures (Server-Sent Events or NDJSON over HTTP/2 chunked transfer), network read buffers do NOT align with application event boundaries. A browser must implement a robust streaming pipeline comprising three decoupled stages: (1) Stateful Byte Decoding: Network `ReadableStreamDefaultReader.read()` returns raw `Uint8Array` chunks that can split multibyte UTF-8 characters across chunk boundaries. Using naive `TextDecoder().decode(chunk)` corrupts boundary characters; the client must instantiate a persistent `{ stream: true }` streaming decoder (`const decoder = new TextDecoder('utf-8', { stream: true })`); (2) Line-Oriented Framing Buffer: SSE events are framed by double line breaks (`\\n\\n`). The browser accumulates incoming decoded text into an internal framing buffer, searches for delimiter sequences, extracts full event blocks, and leaves any incomplete trailing fragment in the buffer for subsequent chunks; and (3) Dispatch and Envelope Parsing: For each complete block, the parser parses field prefixes (`event:`, `data:`, `id:`, `retry:`), parses the JSON payload within `data:`, and passes the typed payload to the UI state machine. A terminal chunk or connection reset without an explicit EOF payload must trigger reconnection or error recovery rather than being treated as clean completion.",
+    "Why": "Assuming network chunks equal application messages causes random JSON parsing syntax errors and corrupted unicode characters whenever payload sizes cross TCP MTU boundaries or proxy buffer limits.",
+    "Risk": "Parsing raw chunks directly with `JSON.parse` causes silent client crashes and broken streaming rendering for non-ASCII languages (e.g., Arabic, CJK, emoji) whenever multibyte code points are bisected by TCP packets.",
+    "Trade": "Maintaining a streaming decoder and line framing buffer requires ~40 lines of boilerplate or a specialized client library (such as `@microsoft/fetch-event-source`), but eliminates stream desynchronization.",
+    "Try": "Stream a JSON payload containing 4-byte emojis and multi-line markdown split artificially into 3-byte chunks; assert that `TextDecoder({ stream: true })` and line buffer reconstruct identical valid JSON frames without errors.",
+    "spoken": "Decode bytes incrementally, preserve partial UTF-8 state and parse the transport\u2019s actual event framing before parsing JSON. Track operation identity, sequence/replay, partial content and explicit completion separately. Bound buffers and reject malformed or conflicting events.",
     "domain": "frontend",
     "subdomain": "streaming-ui",
     "module": "product-delivery",
@@ -82,74 +82,114 @@
       "https://developer.mozilla.org/en-US/docs/Web/API/EventSource"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "added": true
   },
   {
     "Q": "Why do persisted message IDs matter for feedback?",
-    "A": "Feedback should reference an actual assistant message owned by the user, not a temporary browser-generated ID. The backend can then authorize the record and connect a rating to its conversation, evidence, model configuration, and trace.",
-    "Why": "Bind feedback to an owner-scoped persisted answer or operation. A client-supplied message ID must not allow another user to label or retrieve private conversation data.",
-    "Risk": "Rating an optimistic local ID can fail or attach feedback to the wrong turn. A persistence failure may leave partial text visible but no authoritative message to rate.",
-    "Trade": "Waiting for server identity adds a final synchronization step and preserves referential integrity. Client-only messages are easy to render and weak as durable references.",
-    "Try": "Simulate a stream that generates text but fails persistence. Define whether feedback is disabled and how retry behaves without duplicating the displayed answer."
+    "A": "Collecting user feedback (thumbs up/down, corrections, citation audits) requires durable attribution to the exact generation artifact produced by the backend: (1) Optimistic vs Authoritative Identifiers: Frontends often generate temporary UUIDs (or client message IDs) to render local chat bubbles instantly. However, submitting feedback against client-generated IDs breaks referential integrity if the backend server stores messages under an authoritative sequence or database UUID; (2) Telemetry Trace Binding: Quality engineering relies on linking human feedback directly to the backend OpenTelemetry trace, model parameters (temperature, model snapshot, prompt template hash), and the exact vector search retrieval manifest used for that turn; and (3) Tenant & Ownership Authorization: The feedback submission endpoint (`POST /api/conversations/{conversation_id}/messages/{message_id}/feedback`) must enforce row-level tenant security. If feedback accepted arbitrary client IDs, a malicious actor could poison evaluation datasets by submitting fake ratings against other tenants' message IDs.",
+    "Why": "Feedback submitted without an authoritative message ID cannot be joined to the corresponding LLM prompt trace, retrieved chunk IDs, or model version in the evaluation data warehouse.",
+    "Risk": "Accepting feedback on client-minted IDs allows malicious users to submit arbitrary ratings or forge feedback loops for conversations they do not own, distorting model fine-tuning and evaluation datasets.",
+    "Trade": "Disabling feedback controls until the server emits the final message commit event introduces a minor UI delay on completion, but ensures 100% referential integrity and auditability.",
+    "Try": "Submit user feedback immediately during token generation before the server commit frame arrives; verify the UI disables the feedback button until the authoritative message ID event is acknowledged.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What should the UI state machine distinguish during a turn?",
-    "A": "Distinguish draft, accepted, searching or tooling, generating, completed, failed, cancelled, and disconnected. Track evidence and persistence status separately where needed. A spinner stopping is not proof that the model completed successfully.",
-    "Why": "Use explicit waiting, running, streaming, review, complete, incomplete, failed, and cancelled states. Transitions should follow typed outcomes rather than the presence of some generated text.",
-    "Risk": "Treating every closed connection as completion can show truncated service requests as final. Late responses from a prior conversation or signed-out user can also contaminate current state.",
-    "Trade": "Explicit states add frontend logic and improve recovery. A single loading boolean is compact and cannot represent the important distinctions.",
-    "Try": "Create a reducer for stream events and test disconnect before completion, tool failure, persistence failure, cancellation, and a late event after tenant or conversation change."
+    "A": "A production conversational UI cannot rely on a binary `isLoading: boolean` flag. It must implement a finite state machine (FSM) explicitly modeling seven distinct states across the turn lifecycle: (1) `IDLE / DRAFTING`: User is composing input, attachments are staged, and input validation is performed locally; (2) `ACCEPTED / DISPATCHED`: Request has been sent over HTTP/WebSocket, local optimistic turn is appended, and cancellation is possible; (3) `RETRIEVING / TOOL_EXECUTING`: Server emits tool execution events (e.g. querying vector database, executing API call); the UI displays progressive non-blocking status badges; (4) `STREAMING_GENERATION`: First token arrives (TTFT recorded); incoming tokens append to visible markdown buffer, citations are parsed progressively; (5) `COMMITTED`: Terminal event received with authoritative message ID, persistence confirmed, and feedback buttons become active; (6) `DISCONNECTED_RECONCILING`: Transport socket dropped before completion; UI displays reconnection banner while attempting idempotent status reconciliation; and (7) `FAILED / CANCELLED`: Distinguishes between user-initiated abortion, rate limit backoff (429), tenant permission denied (403), and terminal server errors (500).",
+    "Why": "Conflating network connection status with business execution state results in truncated responses being displayed as completed answers, or users clicking retry on operations that are already running on the server.",
+    "Risk": "Treating a dropped socket as a failed generation causes users to trigger redundant LLM calls, creating runaway token costs and duplicate backend operations.",
+    "Trade": "A 7-state FSM requires structured state management (e.g. XState, Zustand, or Redux reducers), but prevents erratic UI flickering and race conditions during network degradation.",
+    "Try": "Trigger a 10-second backend generation and simulate network drop at second 5; assert the UI transitions from `STREAMING_GENERATION` to `DISCONNECTED_RECONCILING` instead of `FAILED`.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should request confirmation be presented and protected in the UI?",
-    "A": "Display the exact prepared fields, identify that no claim is yet submitted, and send the token through the authenticated confirmation route only after the user's action. Disable duplicate controls for usability while retaining server-side race protection.",
-    "Why": "Present exact parameters, operation identity, expiry, and revision. Disable misleading repeated actions in the UI, but rely on server-side approval validation and transactional idempotency for correctness.",
-    "Risk": "Corrections can leave old pending tokens valid unless the server supersedes them. The UI must not promise revocation that only exists in prompt text.",
-    "Trade": "A review screen adds friction and supports consent to material fields. The authoritative check must remain on the server because browsers can retry or be bypassed.",
-    "Try": "Test double click, refresh, expired token, cancellation race, and correction after preparation. Compare displayed state with the actual submission record."
+    "A": "When an AI agent prepares a consequential action (e.g. sending payments, deleting resources, executing SQL updates), the UI confirmation flow must guarantee informed consent and race-free execution: (1) Immutable Parameter Summary: The UI must present a structured preview of the exact parameters resolved by the agent (recipient, amount, resource target, effective timestamp). This preview must be rendered from an authoritative server-issued `ActionProposalToken`, NOT parsed from conversational LLM text; (2) Cryptographic Proposal Tokens: The backend signs an action proposal containing `(proposal_id, action_type, canonical_payload, user_id, expires_at)` using HMAC-SHA256. The client 'Confirm' button sends this token back to `POST /api/actions/execute`; (3) Double-Submit & Replay Protection: The confirmation button disables immediately upon click to prevent double clicks. The backend checks an atomic Redis/PostgreSQL CAS gate (`UPDATE proposals SET executed = true WHERE id = :id AND executed = false`) to guarantee single-execution semantics even under concurrent network submissions; and (4) Invalidation on Correction: If the user types a correction in chat ('No, send it to Alice instead'), the agent issues a new proposal token and explicitly revokes the previous token.",
+    "Why": "Allowing the frontend to submit arbitrary action parameters after confirmation allows client-side tampering, while trusting raw prompt text for confirmation opens prompt injection vulnerabilities.",
+    "Risk": "Failing to implement server-side atomic replay prevention on confirmation tokens allows rapid double-clicking or network retries to execute financial transactions or resource deletions twice.",
+    "Trade": "Signed proposal tokens require server state or stateless cryptographic validation, but eliminate the risk of executing stale or altered parameters.",
+    "Try": "Generate a proposal token, send two simultaneous POST requests confirming the same token; assert that exactly one returns HTTP 200 and the second returns HTTP 409 Conflict.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should browser caching respond to sign-out, role changes, and archived conversations?",
-    "A": "Partition cached results by trusted user and relevant resource identity, cancel or ignore obsolete in-flight responses, and clear private state at sign-out. Revalidate permissions for source opening and mutation even if a cached view once allowed access.",
-    "Why": "Invalidate or partition client caches by authenticated identity and permission revision. Cancel streams and clear private view state on sign-out, while retaining server-side ownership checks on every fetch.",
-    "Risk": "Reusing query keys across users can show private content without making a new unauthorized request. Hidden or archived messages can also remain in model context unless their lifecycle is mapped deliberately.",
-    "Trade": "Aggressive invalidation costs network requests and preserves clear session boundaries. Long-lived caches improve responsiveness and need stronger partitioning and freshness rules.",
-    "Try": "Switch users during a slow stream and verify no old message, source, or confirmation token appears in the new user's interface."
+    "A": "Client-side caching (React Query, SWR, Apollo, IndexedDB, or Apollo Cache) introduces severe multi-tenant data leakage risks if session boundaries are not strictly enforced: (1) Tenant/User Cache Namespacing: All cache keys must be hierarchically scoped by the active tenant ID and user ID (e.g., `['conversations', tenant_id, user_id, conversation_id]`). Never use bare global keys like `['current_conversation']`; (2) Complete Sign-Out Purge: On user logout or session expiration, the client application must not merely redirect to `/login`. It must explicitly invoke `queryClient.clear()`, wipe `sessionStorage`/`localStorage` auth tokens, disconnect all active WebSocket/SSE streams, and reset all in-memory state stores; (3) Role & Permission Transitions: When a user switches roles (e.g. from Admin to Viewer) or a tenant administrator revokes document access, the client must invalidate query caches and revalidate access on the next fetch; and (4) Authoritative Backend Defense: Client-side cache purging is purely a usability measure. The backend API must independently validate the user's JWT/session cookie and tenant RLS permissions on every single request, rejecting stale client requests with HTTP 401/403.",
+    "Why": "Reusing in-memory query caches across user logins on shared workstations or after role downgrades exposes confidential documents and conversation histories to unauthorized users.",
+    "Risk": "Relying on client-side route guards without clearing cached data allows an attacker inspecting browser memory or dev tools to extract sensitive embeddings, PII, and company secrets from a previous session.",
+    "Trade": "Aggressively clearing cache upon logout requires re-fetching data on subsequent login, but completely closes cross-session data leakage vulnerabilities.",
+    "Try": "Log in as User A, view confidential conversation, log out, log in as User B on the same tab; assert that memory heap and cache stores contain zero entries from User A.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should citations and tool activity be rendered accessibly and safely?",
-    "A": "Render untrusted text safely, expose expandable source details by keyboard, use meaningful labels, and avoid announcing every token to assistive technology. Show user-relevant activity without exposing internal prompts, private tool arguments, or raw exception data.",
-    "Why": "Render model text as text or a sanitized approved subset. Validate links and avoid treating returned HTML or tool output as trusted application markup.",
-    "Risk": "Raw HTML or unsafe URLs can create XSS, and a busy live region can make streaming unusable. A similarity distance should not be displayed as percent certainty.",
-    "Trade": "Progressive disclosure reduces overload but must keep verification discoverable. Detailed internal traces belong in authorized operator tools, not the customer screen.",
-    "Try": "Review a synthetic answer using only the keyboard and a screen reader. Include malicious markup and long source titles in the fixture."
+    "A": "Presenting AI outputs, source citations, and background tool operations requires balancing security, readability, and accessibility (WCAG 2.1 AA): (1) XSS Sanitization & Safe Markdown: Model output and document snippets are untrusted text. Rendering markdown must use an AST-based parser (e.g. `marked` or `react-markdown`) paired with strict DOMPurify sanitization. Dangerous HTML tags (`<script>`, `<iframe>`, `<object>`, inline `onerror=`) must be stripped, and external links must enforce `rel=\"noopener noreferrer\" target=\"_blank\"`; (2) Accessible Progressive Disclosure for Tool Activity: Agent reasoning and tool execution (e.g. 'Querying PostgreSQL database...') must be rendered in collapsible accordions with appropriate ARIA attributes (`aria-expanded=\"false\"`, `aria-controls=\"tool-panel\"`). Keyboard users must be able to expand details using Space/Enter; (3) Non-Disruptive Screen Reader Live Regions: Streaming tokens must NOT be pushed to `aria-live=\"assertive\"`, which causes screen readers to announce every arriving token and renders the application unusable. Instead, use `aria-live=\"polite\"` only on final message completion or status announcements; and (4) Citation Interactivity: Citation pills (`[1]`, `[2]`) must be keyboard-focusable buttons that open an accessible drawer or tooltip displaying the grounded excerpt, source document title, and page number without navigating away.",
+    "Why": "Unsanitized markdown rendering exposes the application to stored cross-site scripting (XSS) via adversarial prompt injection, while naive ARIA live regions overwhelm assistive technologies during token streaming.",
+    "Risk": "Directly inserting AI-generated HTML via `dangerouslySetInnerHTML` allows remote attackers to execute malicious JavaScript in the victim user's browser, hijacking sessions and stealing data.",
+    "Trade": "Strict HTML sanitization prevents arbitrary styling from LLMs, but guarantees bulletproof protection against XSS and injection attacks.",
+    "Try": "Feed an LLM output containing `<img src=x onerror=alert(1)>` and citation markdown; verify DOMPurify strips the malicious attribute while keyboard navigation to citations operates cleanly.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should client retries preserve operation identity?",
-    "A": "Reuse one idempotency key for retries of the same logical request, but create a new operation for a genuinely changed request. Record whether the server accepted or completed it. Claim confirmation should rely on its own token and durable state, not a generic chat response cache.",
-    "Why": "Preserve a durable operation key across retries and distinguish request deduplication from business idempotency. After an uncertain outcome, query status rather than restarting a write blindly.",
-    "Risk": "Reusing a key with a changed body should fail rather than replay another answer. Retrying a long-running request after a best-effort Redis wait can still duplicate model calls.",
-    "Trade": "Explicit operation identity requires lifecycle handling and supports predictable retries. Automatically retrying all failures is easy and can repeat expensive work.",
-    "Try": "Test same key/same body, same key/changed body, new key/same body, and an ambiguous timeout. Document behavior for chat versus confirmation."
+    "A": "Network instability on client devices (e.g., mobile handoffs, laptop sleep/wake) frequently disconnects requests while they are being processed by backend workers. Preserving operation identity requires a strict client-side idempotency protocol: (1) Client Operation Key Minting: When the user clicks 'Send' or triggers an action, the client generates a unique UUIDv4 `Idempotency-Key` and associates it with the active draft turn in local state; (2) Stable Re-transmission: If the connection drops or times out, the client retry loop MUST re-send the original `Idempotency-Key` with the exact same payload. It must never generate a new key for the same user intent; (3) Idempotency Store Protocol: The backend checks Redis/PostgreSQL for the key: if the request is currently processing, it returns HTTP 409 or HTTP 202 with the active task ID; if completed, it returns the cached response; if never seen, it executes the operation; (4) Payload Mismatch Rejection: If a client sends an existing `Idempotency-Key` with altered payload parameters, the server must reject it with `HTTP 422 Unprocessable Entity` ('Idempotency key reused with different request payload'); and (5) Status Polling Fallback: For long-running agent workflows, the client transitions from optimistic retry to polling `GET /api/tasks/{task_id}` using the task ID returned during initial acceptance.",
+    "Why": "Blind client retries without stable idempotency keys create duplicate LLM inference jobs, double-charge billing systems, and create divergent conversation branches.",
+    "Risk": "Allowing a client to retry a write operation under a new key when the backend already committed the prior execution creates duplicated payments, tickets, or destructive database mutations.",
+    "Trade": "Tracking operation keys in the frontend requires persisting key state across component re-renders and page reloads, but guarantees exactly-once operational semantics.",
+    "Try": "Submit a prompt, simulate a network drop after 1 second, retry with the same key; assert the backend processes the prompt once and returns the exact same completion.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should frontend, API, and agent contracts be tested together?",
-    "A": "Use a small set of full user journeys plus focused contract tests for events, ownership, persistence IDs, and confirmation effects. Fake providers make UI tests deterministic; separate live-provider tests assess actual model behavior.",
-    "Why": "Expose a stable API error and outcome schema across frontend and backend. Version incompatible changes and test clients against missing, delayed, duplicate, and unknown event types.",
-    "Risk": "A mocked stream that always ends successfully cannot reveal cancellation or malformed-event behavior. Live model tests alone are too variable for every UI assertion.",
-    "Trade": "Layered tests provide fast diagnosis and credible integration coverage. Excessive end-to-end duplication raises cost without necessarily testing new behavior.",
-    "Try": "Define five journeys: cited answer, corrected preparation, denied foreign claim, failed stream, and post-restart history. State the provider and database realism each needs."
+    "A": "Comprehensive full-stack AI application verification requires a tiered testing pyramid that isolates UI mechanics from non-deterministic LLM behavior: (1) Deterministic Frontend Contract Tests: Test UI state machines, streaming parsers, and citation rendering using MSW (Mock Service Worker) or mock HTTP servers. Inject predefined SSE streams with fragmented chunks, unicode edge cases, mid-stream disconnections, and 429/500 errors to verify UI resilience without making live LLM calls; (2) Hermetic API Integration Tests: Test FastAPI/Node.js endpoints against real PostgreSQL databases and testcontainers, using deterministic model stubs that return canned responses. Verify authentication, RLS policy enforcement, idempotency key handling, and database persistence; (3) Asynchronous Agent E2E Tests: Run Cypress or Playwright browser automation suites against staging environments with recorded LLM fixtures or rate-limited live models. Validate end-to-end user journeys: submitting queries, observing token streaming, expanding citations, submitting feedback, and confirming critical actions; and (4) Chaos & Disconnection Testing: Test client behavior under degraded network conditions using Chrome DevTools Protocol (CDP) throttling (e.g. 3G profiles, packet loss, socket termination mid-generation).",
+    "Why": "Relying solely on live LLM calls for frontend tests results in flaky CI pipelines, high latency, and massive API costs, while mocking everything hides integration breakages between backend events and UI decoders.",
+    "Risk": "Deploying frontend streaming interfaces without automated chunk-fragmentation tests allows regressions in UTF-8 decoding or state machine transitions to break user interfaces silently in production.",
+    "Trade": "Mocking LLM streams in frontend tests provides 100% deterministic CI runs under 10 seconds, but requires periodic integration runs against real models to catch upstream schema changes.",
+    "Try": "Write an MSW test that streams an SSE payload in 1-byte increments and drops the connection at 50% completion; assert the UI transitions to an accessible reconnection banner with retry controls.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What should the completed portfolio demonstration show?",
-    "A": "Show one coherent user journey across authentication, evidence retrieval, streaming, source verification, request preparation, confirmation, background indexing, and feedback. Then demonstrate a denial and a recovery case with supporting traces and tests.",
-    "Why": "Demonstrate identity, evidence, approved effects, cancellation, restart recovery, and quality measurement in one coherent journey. Use synthetic data and show a failure as well as success.",
-    "Risk": "A polished recording can hide unimplemented handoff, current-only policy scope, or in-memory deployment state. State those limitations and show the effective configuration.",
-    "Trade": "A narrow reliable application is more persuasive than many unverified agent features. Add remote agents or model adaptation only when the measured problem justifies them.",
-    "Try": "Prepare a ten-minute demo with architecture, one successful task, one adversarial denial, one crash recovery, and a held-out quality/cost report."
+    "A": "A senior-level production AI portfolio project must demonstrate rigorous software engineering and distributed systems maturity, not merely a superficial wrapper around an OpenAI API key: (1) End-to-End Grounded Retrieval: Show documents ingested, chunked, embedded, and indexed in PostgreSQL (pgvector). Demonstrate hybrid keyword + semantic search with reciprocal rank fusion (RRF) and metadata pre-filtering; (2) Production-Grade Streaming UI: Demonstrate resilient token streaming over SSE with stateful UTF-8 decoding, non-blocking tool execution badges, interactive citation drawers, and zero UI layout shift; (3) Idempotent Action Execution & Human-in-the-Loop: Demonstrate agent tool execution requiring cryptographic proposal tokens and atomic confirmation gates to prevent duplicate side effects; (4) Failure Mode & Chaos Handling: Intentionally demonstrate how the application handles failure: rate limit backoffs (429), partial stream disconnects, network drops with idempotent reconciliation, and adversarial prompt injections blocked by security guardrails; and (5) Measurable Observability & Evaluation: Present an OpenTelemetry trace dashboard and an automated evaluation report (Ragas / DeepEval) displaying faithfulness, answer relevancy, context recall, and p95 token latencies.",
+    "Why": "Anyone can build a trivial prototype; what distinguishes professional engineering is demonstrating edge case handling, distributed reliability, security guardrails, and rigorous evaluation.",
+    "Risk": "Showcasing only a 'happy path' demo where every prompt succeeds leaves interviewers questioning whether the candidate understands real-world distributed failure modes, multi-tenancy, and security.",
+    "Trade": "Building complete error recovery, tracing, and evaluation infrastructure takes more time than adding novelty features, but proves production readiness.",
+    "Try": "Structure the portfolio demonstration into three phases: (1) Happy path grounded query with citations, (2) Chaos test with mid-flight disconnect and idempotent recovery, and (3) Tracing and evaluation metrics walkthrough.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   }
 ]
