@@ -153,6 +153,10 @@ assert 'PASS' in vector_result.stdout
 platform_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/eval_platform_contract.py')],capture_output=True,text=True,timeout=10)
 assert platform_result.returncode==0,(platform_result.stdout,platform_result.stderr)
 assert 'PASS' in platform_result.stdout
+
+safety_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/ai_safety_release_gate.py')],capture_output=True,text=True,timeout=10)
+assert safety_result.returncode==0,(safety_result.stdout,safety_result.stderr)
+assert 'PASS' in safety_result.stdout
 rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
 assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
 assert 'PASS' in rag_pipeline_result.stdout
