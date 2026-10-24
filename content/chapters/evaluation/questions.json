@@ -13,9 +13,9 @@
       "https://trec.nist.gov/overview.html"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-22"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "follow_ups": [
       {
@@ -29,59 +29,94 @@
   },
   {
     "Q": "How should I create a useful evaluation dataset?",
-    "A": "Include realistic questions, expected sources or spans, answerability, permissions, and failure cases. Cover exact identifiers, paraphrases, ambiguous requests, stale knowledge rules, multi-document synthesis, multilingual inputs, and unanswerable questions. Keep a held-out set separate from tuning examples.",
-    "Why": "The evaluation modules accept datasets and injected retrieval or answer functions, so the same cases can compare chunkers, profiles, strategies, and host generation knowledge rules. Record the corpus revision and configuration alongside each run.",
-    "Risk": "Synthetic questions can mirror the source wording too closely and overstate quality. Data leakage from tuning into evaluation also produces misleading improvements.",
-    "Trade": "Human-labeled cases cost effort but reveal product relevance. Synthetic expansion is useful when reviewed and balanced against real user questions.",
-    "Try": "Author 30 questions with source-level gold evidence and five deliberate non-answerable cases. Have another reviewer check labels without seeing your retrieval output."
+    "A": "A production-grade RAG evaluation dataset cannot rely on a trivial collection of happy-path QA pairs. It requires a structured, multi-dimensional benchmark schema built on four core principles: (1) Four-Category Query Taxonomy: Benchmark suites must include: (a) Explicit factual lookups requiring single-document extraction; (b) Multi-hop queries requiring synthesis across disparate documents; (c) Paraphrased and noisy queries reflecting real-world user typos and conversational shorthand; and (d) Deliberately unanswerable or out-of-domain queries to test system refusal and abstention boundaries; (2) Rich Ground-Truth Annotations: Each evaluation instance must capture: query ID, exact query text, authoritative gold document/chunk IDs, acceptable answer variations, atomic claim decompositions, and explicit authorization/tenant metadata; (3) Strict Entity-Based Split Isolation: To prevent catastrophic data leakage, train/tuning/test partitions must be partitioned by source document and subject entity rather than random sampling. If a model fine-tunes embeddings or prompts on Document A, testing on paraphrases of Document A produces wildly inflated scores that collapse in production; and (4) Temporal Versioning: Labeled datasets must be bound to immutable corpus snapshots (`corpus_git_hash` or `corpus_version_id`), ensuring that updates to company policies do not invalidate historic evaluation baselines.",
+    "Why": "Randomly splitting QA pairs across train and test sets allows lexical and semantic leakage from shared source documents, producing misleading benchmark scores that fail to generalize to real users.",
+    "Risk": "Omitting unanswerable queries from evaluation datasets creates a false benchmark where models that hallucinate confident falsehoods score higher than models that correctly abstain.",
+    "Trade": "Authoring expert-verified ground truth with atomic claims and entity-isolated splits requires significant human engineering effort, but provides the only reliable baseline for production release gating.",
+    "Try": "Construct a 50-query evaluation set containing 10 multi-hop queries and 10 unanswerable queries partitioned strictly by document domain; verify that evaluation metrics isolate abstention accuracy from extraction recall.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Why is retrieval-only evaluation useful before generation exists?",
-    "A": "It isolates whether the system can locate supporting material. If relevant passages never reach the candidate or evidence set, a better generator cannot reliably repair that failure. Retrieval-only runs are also cheaper and more deterministic than end-to-end model evaluation.",
-    "Why": "The runner supports distinct evaluation modes and accepts host callbacks. the retrieval service can be evaluated as a subsystem without pretending it ships a complete production chat application.",
-    "Risk": "Strong retrieval metrics can hide poor evidence budgeting, unsupported claims, and an unhelpful UI. They are a stage gate, not the final product score.",
-    "Trade": "Early isolation speeds diagnosis and reduces API cost, while end-to-end testing is still needed to assess user outcomes. Use both at different stages of development.",
-    "Try": "Establish a retrieval baseline before adding a generator. Record cases where the correct source is retrieved but later excluded from the evidence budget."
+    "A": "Retrieval-only evaluation isolates the search component as an independent subsystem before introducing the latency, cost, and non-determinism of generative LLMs: (1) Performance Ceiling Determination: In any RAG pipeline, downstream generation quality is strictly bounded by retrieval recall. If the gold evidence is not retrieved within top-K candidates (`Recall@K = 0`), the generator must either hallucinate or abstain. Evaluating retrieval first identifies whether failure originates in search or in generation; (2) Deterministic, Cost-Effective Optimization: Retrieval metrics (Hit@K, Precision@K, NDCG@K, MRR) run completely offline in milliseconds using deterministic math, with zero LLM API costs or token rate limits. This enables rapid hyperparameter sweeps across chunk sizes (256 vs 512 vs 1024 tokens), chunk overlap, embedding models, and hybrid search weights (BM25 vs dense vector ratios); and (3) Reranking & Context Window Budgeting: Isolating retrieval reveals whether adding an expensive Cross-Encoder reranker justifies its latency cost by measuring the delta in `MRR@10` against raw vector search, and ensures only high-signal passages consume LLM context budget.",
+    "Why": "Evaluating only end-to-end generated answers obscures the root cause of failures: an incorrect answer could be caused by bad retrieval, poor context packing, or generator hallucination.",
+    "Risk": "Optimizing generation prompts when retrieval recall is poor wastes engineering hours tuning system instructions to compensate for missing or noisy context.",
+    "Trade": "Retrieval-only benchmarks do not test whether the generator can synthesize complex multi-document reasoning, but establish the prerequisite foundation required for generation to succeed.",
+    "Try": "Benchmark BM25 alone, dense embeddings alone, and reciprocal rank fusion (RRF) on a labeled query set; measure NDCG@10 and identify which queries fail across all retrieval modes.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How do heuristic answer scoring and LLM-as-judge differ?",
-    "A": "Heuristic scoring uses deterministic text-overlap signals and is cheap to run offline. LLM-as-judge asks a configured model to assess qualities such as faithfulness, relevance, completeness, and conciseness. Neither is an infallible measure of truth.",
-    "Why": "The corresponding service module implements both strategies with standardized score containers. Heuristics provide a stable baseline; judges can assess richer language relationships but add provider cost and evaluation-model variability.",
-    "Risk": "Overlap can reward copying a wrong answer, while judges can exhibit bias, prompt sensitivity, and correlated mistakes. A judge may also be influenced by adversarial content in the answer or evidence.",
-    "Trade": "Use deterministic metrics for broad regression feedback and calibrated human review for critical cases. Model judging can expand coverage if its agreement with humans is measured.",
-    "Try": "Score a faithful paraphrase, a copied incorrect answer, and a fluent unsupported answer using both approaches. Explain disagreements rather than averaging them away."
+    "A": "Evaluating generated answers requires understanding the fundamental trade-offs between deterministic heuristic scoring and probabilistic LLM judges: (1) Heuristic Scoring (Exact Match, BLEU, ROUGE-L, F1-token): Computes n-gram overlap between generated text and ground-truth answers. They are free, execute in microseconds, and provide stable CI/CD regression baselines. However, they suffer severe lexical brittleness: valid semantic paraphrases receive near-zero scores, while fluent answers that parrot reference text without answering the prompt receive falsely high scores; (2) LLM-as-a-Judge (e.g. GPT-4o, Claude 3.5 Sonnet, G-Eval): Prompts a powerful model to grade answers on structured dimensions (Faithfulness, Answer Relevance, Completeness, Conciseness) using calibrated rubrics. Judges capture nuanced semantic equivalence and factual entailment, but introduce non-determinism, significant API costs, latency, and cognitive biases (position bias, verbosity bias, and self-enhancement bias toward their own model family); and (3) Production Hybrid Architecture: Modern pipelines use deterministic heuristics for formatting, length, and keyword constraints, fine-tuned lightweight NLI models (e.g. DeBERTa-v3) for factual entailment verification, and calibrated LLM judges (validated with Cohen's Kappa against human expert ratings) for qualitative dimensions.",
+    "Why": "Relying solely on lexical heuristics fails to evaluate semantic accuracy, while uncalibrated LLM judges introduce hidden biases and non-deterministic scoring shifts into evaluation pipelines.",
+    "Risk": "Deploying an LLM judge without position-bias mitigation (swapping candidate order) or verbosity penalties allows verbose, hallucinated answers to outscore concise, accurate answers.",
+    "Trade": "Heuristics provide cheap, reproducible regression gates for CI/CD; LLM judges provide human-correlated evaluation but require careful calibration, caching, and temperature=0 configurations.",
+    "Try": "Evaluate three candidate answers (exact match, fluent paraphrase, and hallucination with high word overlap) using both ROUGE-L and an LLM judge; observe the failure modes of each scoring mechanism.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What does a high-value test strategy look like for this reference design?",
-    "A": "Test behavioral invariants at seams: no mutation after invalid preparation, scope constraints on both stages, explicit backend failure, stale-worker rejection, revision-correct lookup, and safe repeated job processing. Use focused fakes for deterministic races and real adapter tests for actual storage semantics.",
-    "Why": "The test suite has targeted modules for ingestion locking, embedding execution, retrieval capabilities, and sync coordination. These boundaries are more consequential than mirroring every helper's internal implementation.",
-    "Risk": "Passing fake-based tests cannot prove production rollback, SQL locking, or vendor filter behavior. Conversely, an enormous end-to-end suite can be slow and poor at locating failures.",
-    "Trade": "A layered mix gives fast feedback and credible integration evidence. Choose the smallest test that can actually falsify the relevant guarantee.",
-    "Try": "For one transaction guarantee and one retrieval filter guarantee, state which test needs a real database and which can use a controlled fake."
+    "A": "A high-value testing strategy for production RAG and AI systems follows a decoupled seam-based architecture that separates deterministic code logic from non-deterministic model behavior: (1) Seam Unit Tests with In-Memory Fakes: Fast, deterministic unit tests verify tokenizers, chunking boundary logic, metadata extractors, and SSE streaming parsers. All external LLM and embedding API clients are stubbed using deterministic in-memory fakes to ensure test suites execute in seconds without network dependencies; (2) Integration & Concurrency Tests with Testcontainers: Test PostgreSQL/pgvector queries, Redis distributed locks, RLS security policies, and CAS status updates against real containerized services. Verifies that race conditions, connection pool timeouts, and rollback semantics behave correctly under concurrency; (3) Hermetic Evaluation Regression Gates: Automated CI/CD pipelines run frozen offline evaluation datasets against candidate embedding and prompt configurations, enforcing strict threshold gates on NDCG@10, faithfulness, and zero forbidden-data disclosures; and (4) End-to-End Browser & Chaos Tests: Playwright suites test full client journeys over actual compiled web bundles, injecting network drops, chunk fragmentation, and mid-stream cancellation tokens to verify client state machine recovery.",
+    "Why": "Testing AI applications solely through end-to-end live model calls creates slow, expensive, and flaky CI pipelines that fail to isolate where regressions occur.",
+    "Risk": "Relying on in-memory mocks for database concurrency or RLS policies hides deadlocks, race conditions, and cross-tenant data leaks that only manifest against real relational engines.",
+    "Trade": "Maintaining containerized integration tests and deterministic fakes requires explicit test infrastructure setup, but guarantees reliable, reproducible builds across the team.",
+    "Try": "Write an integration test using Testcontainers that attempts two concurrent document updates under a fencing token; assert that exactly one succeeds and the other triggers an optimistic lock exception.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What is the difference between liveness, readiness, and degraded health?",
-    "A": "Liveness asks whether a process can run. Readiness asks whether it can serve its intended work. Degraded health means some useful behavior remains but a dependency or freshness condition is impaired. One healthy HTTP process does not prove its index is current or its embedding provider works.",
-    "Why": "A health collector collects configuration, connectivity, counts, sync, job, and evaluation information. a health report exposes distinctions that a host can map to probes and user-facing status.",
-    "Risk": "An expensive consistency scan in every readiness probe can overload the database. A permissive count returning zero after an error can also mask a dependency failure if interpreted carelessly.",
-    "Trade": "Deeper checks improve diagnosis and cost more I/O. Separate cheap frequent probes from scheduled expensive consistency checks.",
-    "Try": "Define probe behavior when the process is alive, the vector store is down, and the index is stale but readable. Explain whether traffic should continue in each case."
+    "A": "In cloud-native AI services running on Kubernetes or container orchestrators, health monitoring must decouple three distinct operational states: (1) Liveness (`/healthz/liveness`): Answers 'Is the process runtime healthy, or has it entered an unrecoverable deadlock or thread hang?' If the liveness probe fails, Kubernetes terminates and restarts the container. Liveness probes must be extremely lightweight (e.g. checking local event loop responsiveness) and must NEVER depend on downstream external databases or APIs; (2) Readiness (`/healthz/readiness`): Answers 'Can this specific container pod accept incoming production queries right now?' Checks active database connection pool availability, local vector index memory warming, and local model socket readiness. If readiness fails, the pod is removed from the load balancer pool without being terminated; and (3) Degraded Health (`/healthz/status`): The service is operational but running under impaired capabilities: e.g., the primary vector database replica is down and queries have fallen back to a read-only secondary, background document re-indexing is lagging by >1 hour, or the GPU reranker is saturated and the service has temporarily fallen back to BM25-only retrieval.",
+    "Why": "Conflating liveness with database readiness causes cascading container restart storms: if PostgreSQL has a temporary blip, killing all healthy API pods worsens cluster exhaustion.",
+    "Risk": "Including slow database queries or vector similarity searches in liveness probes causes Kubernetes to kill busy workers under high load, turning a transient traffic spike into a complete outage.",
+    "Trade": "Exposing granular liveness, readiness, and degraded endpoints requires explicit health probe design, but enables zero-downtime rolling deploys and automatic traffic shedding.",
+    "Try": "Simulate a database connection pool exhaustion; assert that `/healthz/readiness` returns 503 (removing the pod from routing) while `/healthz/liveness` returns 200 (preventing restart thrashing).",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What operational signals should be monitored?",
-    "A": "Track ingestion lag, scan authority failures, embedding retries and queue pressure, active-generation age, job backlog and oldest age, search latency, empty and failed retrieval rates, evidence truncation, and quality regressions. Each signal should connect to a user-visible consequence.",
-    "Why": "Events and health checks expose stage and lifecycle information. Optional OpenTelemetry integration can connect this information to a host's tracing system without making it a mandatory runtime dependency.",
-    "Risk": "Large numbers of document IDs or tenant IDs as metric labels create cardinality and privacy problems. Raw query logging can expose sensitive user intent.",
-    "Trade": "Aggregated metrics are scalable but less detailed; controlled traces aid diagnosis. Correlate with sanitized operation identifiers and use retention knowledge rules appropriate to the data.",
-    "Try": "Define an alert for rising stale-index age and another for rising backend-failure rate. Explain why their remediation differs even if both reduce answer quality."
+    "A": "Production observability for RAG systems requires full-stack telemetry combining infrastructure metrics, application pipeline stages, and domain-specific quality signals: (1) Pipeline Stage Latencies: Track p50, p95, and p99 durations across distinct spans via OpenTelemetry: Query Rewrite latency, Vector Index Search latency, Cross-Encoder Rerank latency, Prompt Assembly latency, and Time to First Token (TTFT); (2) Retrieval & Evidence Quality: Monitor empty retrieval rates (queries returning zero chunks), average vector distance distributions, evidence truncation frequency (chunks dropped due to context budget limits), and retrieval cache hit ratios; (3) Generation & Provider Metrics: Monitor token consumption (prompt tokens vs completion tokens per turn), streaming inter-token latency, provider rate limit headroom (429 status codes), and prompt cache hit rates; and (4) Safety, Guardrails & User Feedback: Track guardrail intervention frequency (input prompt injections blocked, output PII redactions triggered), explicit user feedback ratios (thumbs up vs thumbs down per tenant), and model abstention/refusal frequency.",
+    "Why": "Monitoring only HTTP status codes and CPU usage blinds operators to silent degradation: an API returning HTTP 200 can be serving empty retrievals, truncated contexts, or hallucinated answers.",
+    "Risk": "Attaching high-cardinality metadata (e.g. raw user prompts, document IDs, or raw query text) to Prometheus metrics causes metric server OOMs and leaks sensitive PII into monitoring logs.",
+    "Trade": "Emitting detailed OpenTelemetry spans for every RAG turn adds slight network and storage overhead for tracing collectors, but enables instant diagnosis of latency spikes and retrieval degradation.",
+    "Try": "Set up OpenTelemetry spans for retrieval, reranking, and generation; simulate a slow embedding endpoint and observe how distributed trace waterfalls pinpoint the bottleneck.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should a system meet an end-to-end latency target?",
-    "A": "Allocate a request deadline across stages, measure tail latency, and propagate cancellation and remaining time. Per-call timeouts and retry ceilings are ingredients, not an end-to-end deadline. Query variants, sequential stages, reranking, and generation can each consume the budget.",
-    "Why": "A bounded embedding executor and query transformation expose local bounds; telemetry gives stage durations. The host must compose them into a product-level deadline and decide which optional stages can be skipped safely.",
-    "Risk": "Summing independent p95 measurements does not yield an exact request p95, and a timeout can leave remote work running. Retry storms can worsen the same overload they attempt to recover from.",
-    "Trade": "Tight deadlines improve responsiveness while reducing recovery and ranking opportunities. A slower asynchronous ingestion path can tolerate different retry policy from an interactive search.",
-    "Try": "Trace a request with one retry and two query variants. Compare actual elapsed time with your budget and identify which optional stage should be shed first."
+    "A": "Meeting aggressive end-to-end latency targets (e.g., TTFT < 800ms, total completion < 2500ms) in RAG systems requires strict latency budgeting and asynchronous parallel execution: (1) Stage-by-Stage Latency Budgeting: Allocate deterministic time budgets to every pipeline hop: Auth & Gateway (30ms) -> Query Expansion (80ms) -> Hybrid Vector/BM25 Search (150ms) -> Cross-Encoder Reranker (150ms) -> Context Assembly (40ms) -> LLM TTFT (300ms) -> Network buffer margin (50ms); (2) Concurrent Stage Execution: Run sparse lexical search (BM25) and dense embedding vector search concurrently via `asyncio.gather()`, rather than executing them sequentially; (3) Context Caching & Speculative Reranking: Leverage LLM prompt caching (e.g. Anthropic prompt caching or OpenAI cached tokens) for static system instructions and documentation context, reducing TTFT by up to 70%; (4) Dynamic Load Shedding: Under high server concurrency, dynamically bypass non-essential stages: e.g., fall back from heavy Cross-Encoder reranking to fast Reciprocal Rank Fusion (RRF), or reduce retrieved candidate count `k` from 50 to 10; and (5) Distributed Deadline Propagation: Propagate a `X-Request-Deadline` header across all microservices; if downstream retrieval exceeds its allocated budget, abort stale generation calls immediately.",
+    "Why": "Executing RAG stages sequentially compounds latency: 200ms vector search + 250ms BM25 + 300ms reranking + 800ms generation exceeds interactive user patience thresholds before the first token appears.",
+    "Risk": "Aggressive timeouts without deadline propagation leave backend vector searches or LLM inferences running after the client disconnects, wasting expensive compute resources.",
+    "Trade": "Dynamically shedding the Cross-Encoder reranker during traffic spikes preserves interactive response times at the expense of a slight, acceptable dip in ranking precision.",
+    "Try": "Implement an asynchronous pipeline running vector search and BM25 concurrently with a 200ms deadline; verify that if one search times out, the pipeline proceeds gracefully with the remaining candidates.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How do you roll out a retrieval change safely?",
@@ -97,9 +132,9 @@
       "https://opentelemetry.io/docs/security/handling-sensitive-data/"
     ],
     "reviewer_status": {
-      "status": "reviewed",
-      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-      "reviewed_at": "2026-10-22"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "follow_ups": [
       {
@@ -113,10 +148,15 @@
   },
   {
     "Q": "How should you investigate quality drift over time?",
-    "A": "Separate source drift, query-distribution drift, model or provider changes, extraction changes, index freshness, and application-policy changes. Re-run a stable benchmark and inspect newly failing real-world cases. A single aggregate score rarely identifies the cause.",
-    "Why": "Profiles and ingestion snapshots record important configuration identity, while telemetry and evaluation capture operational and quality observations. A host should retain run metadata tying them together.",
-    "Risk": "Silent provider updates or hidden preprocessing changes may not be visible unless a model revision and adapter configuration are recorded. Privacy limits also constrain how production questions can be retained for analysis.",
-    "Trade": "Stable benchmarks preserve comparability but can become unrepresentative. Add reviewed new cases while keeping a fixed core set for historical comparison.",
-    "Try": "Simulate an unchanged corpus with a changed query mix, then a changed extractor with the old query mix. Show how you would distinguish the resulting metric changes."
+    "A": "When production RAG answer quality degrades over time, diagnosing the regression requires systematic isolation across four independent drift vectors: (1) Corpus & Document Drift: Audit document ingestion logs for newly ingested, poorly formatted, or contradictory documents. Check whether outdated policies were properly tombstoned or if duplicate chunking created index pollution; (2) Query Distribution Drift: User search behavior evolves over time (e.g. new product launches, seasonal queries, emerging slang). Compute rolling 7-day embedding centroid shifts of user queries against the golden benchmark distribution to detect semantic drift; (3) Provider & Model Drift: Upstream cloud LLM APIs frequently update model weights, quantization levels, or safety guardrails behind stable model aliases. Run frozen benchmark prompts with `temperature=0` against the provider to detect silent behavioral changes; and (4) Vector Index Degradation: Check vector index parameters. In HNSW indexes, dynamic document additions and soft deletions cause index fragmentation, reducing graph connectivity and degrading recall over time unless periodic index rebuilds or vacuuming are performed.",
+    "Why": "Assuming that quality degradation is always an LLM model issue leads teams to futile prompt engineering when the root cause is corrupted document ingestion or HNSW index fragmentation.",
+    "Risk": "Failing to version document corpus snapshots alongside evaluation benchmarks makes it impossible to determine whether an answer score dropped due to pipeline bugs or updated source data.",
+    "Trade": "Maintaining frozen regression benchmarks and tracking rolling embedding drift requires automated monitoring infrastructure, but enables immediate root cause diagnosis when metrics shift.",
+    "Try": "Simulate query distribution drift by evaluating an existing RAG system against out-of-domain queries; measure how retrieval recall and answer confidence degrade as semantic distance increases.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   }
 ]
