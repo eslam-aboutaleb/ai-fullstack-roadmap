@@ -1,36 +1,53 @@
 [
   {
-    "explain": "A delegated task has its own lifecycle and artifact result rather than being just a synchronous remote function return. These are conceptual records, not literal A2A wire messages.",
-    "steps": "Give accepted work a task identity and initial state. || Attach a produced artifact and terminal state after the work finishes.",
-    "expect": "T1 completed report1",
-    "name": "remote-task",
+    "name": "remote-task-lifecycle",
+    "filename": "remote-task-lifecycle.py",
     "language": "python",
-    "filename": "remote-task.py",
+    "explain": "Demonstrates the Agent-to-Agent (A2A) remote task lifecycle, distinguishing A2A from local MCP tools and deterministic REST APIs. Shows progressive execution states (SUBMITTED -> WORKING -> COMPLETED), interim artifact generation during long-running tasks, and safely reconciling early artifacts before terminal state transition.",
+    "steps": "Submit an asynchronous task to a remote specialist agent with unique task identity. || Handle interim artifacts received while the task is in WORKING status and mark them provisional. || Receive terminal authoritative artifacts upon completion and commit verified results.",
+    "expect": "A2A task lifecycle and early artifact reconciliation verified successfully.",
     "questions": [
       636,
       221,
-      224
+      222,
+      224,
+      851
     ]
   },
   {
-    "explain": "Remote delegation carries only the necessary resource scope and audience. A remote agent cannot inherit authority merely from receiving task text.",
-    "steps": "Define a constrained delegation record. || Reject a remote request for a resource outside that record.",
-    "expect": "False",
-    "name": "delegated-scope",
+    "name": "agent-card-discovery-auth",
+    "filename": "agent-card-discovery-auth.py",
     "language": "python",
-    "filename": "delegated-scope.py",
+    "explain": "Demonstrates the essential architectural separation between public Agent Card discovery metadata and runtime cryptographic authorization. The Agent Card advertises protocol schemas and endpoints publicly without granting execution authority; the perimeter gate requires HMAC-signed delegated JWTs with exact audience matching and downscoped scope enforcement.",
+    "steps": "Inspect public Agent Card discovery metadata without authentication credentials. || Reject unauthenticated capability invocations and confused-deputy tokens with mismatched audience claims. || Issue and verify a downscoped delegation token, proving that read-only tokens cannot execute mutation capabilities.",
+    "expect": "Agent Card discovery vs cryptographic authorization verified successfully.",
     "questions": [
+      637,
+      223,
       776,
       225
     ]
   },
   {
-    "explain": "Remote artifacts are untrusted content with type, size, and provenance checks. A successful remote status does not make embedded instructions executable.",
-    "steps": "Validate the artifact envelope and maximum size. || Keep instruction-like text as data rather than dispatching it as a local command.",
-    "expect": "True 0",
-    "name": "remote-artifact",
+    "name": "remote-cancellation-idempotency",
+    "filename": "remote-cancellation-idempotency.py",
     "language": "python",
-    "filename": "remote-artifact.py",
+    "explain": "Demonstrates remote task idempotency, network timeout status reconciliation, and effect-aware cooperative cancellation. Preserving deterministic task IDs prevents duplicate agent executions on retries; cooperative cancellation stops future execution while maintaining explicit audit records separating committed irreversible actions from aborted steps.",
+    "steps": "Dispatch remote tasks using client-generated idempotency keys. || Reconnect and reconcile authoritative task state after simulated network timeouts without duplicating work. || Issue cooperative cancellation requests and assert that irreversible side-effects remain recorded while future mutations are halted.",
+    "expect": "Remote cancellation and idempotent retry reconciliation verified successfully.",
+    "questions": [
+      638,
+      226,
+      227
+    ]
+  },
+  {
+    "name": "remote-artifact-sandboxing",
+    "filename": "remote-artifact-sandboxing.py",
+    "language": "python",
+    "explain": "Demonstrates defense-in-depth sandboxing and validation for remote A2A artifacts. Enforces cryptographic SHA-256 digest validation, path traversal filename sanitization, payload size ceilings, and indirect prompt-injection detection to prevent remote specialist outputs from compromising local coordinators.",
+    "steps": "Detect and neutralize directory traversal attacks in artifact filenames. || Validate cryptographic SHA-256 hashes against signed manifests and reject tampered payloads. || Detect indirect prompt-injection instructions embedded in specialist reports and isolate content within XML boundary tags.",
+    "expect": "Remote artifact sandboxing and prompt-injection defense verified successfully.",
     "questions": [
       639,
       777,
@@ -38,26 +55,15 @@
     ]
   },
   {
-    "explain": "Delegation earns its extra network and coordination cost only when a required capability or ownership boundary justifies it. A second model with the same inputs is not automatically a useful remote specialist.",
-    "steps": "Record whether a remote-only capability is required. || Compare the proposed architecture against the simpler local service baseline.",
-    "expect": "local_service",
-    "name": "delegation-benefit",
+    "name": "distributed-trace-propagation",
+    "filename": "distributed-trace-propagation.py",
     "language": "python",
-    "filename": "delegation-benefit.py",
+    "explain": "Demonstrates distributed W3C Trace Context propagation across A2A agent boundaries alongside architectural justification analysis. Formats and parses standard traceparent headers to link remote child spans to root coordinator traces, and evaluates whether a multi-agent architecture is justified over a local service baseline.",
+    "steps": "Mint standard W3C traceparent headers and propagate them across cross-service agent requests. || Extract incoming traceparent context on the remote specialist and establish linked child spans with identical trace IDs. || Evaluate operational requirements to determine whether multi-agent delegation or local code services should be chosen.",
+    "expect": "Distributed trace propagation and architecture evaluation verified successfully.",
     "questions": [
+      229,
       230
-    ]
-  },
-  {
-    "name": "journey-851",
-    "filename": "journey-851.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
-    "questions": [
-      851
     ]
   }
 ]
