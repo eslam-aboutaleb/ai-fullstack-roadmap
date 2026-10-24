@@ -1,36 +1,68 @@
 [
   {
-    "explain": "Middleware applies cross-cutting policy around an invocation while the business function retains domain behavior. This small wrapper checks a shared budget.",
-    "steps": "Apply admission before calling the domain function. || Return a stable budget outcome without executing denied work.",
-    "expect": "budget_exhausted",
-    "name": "middleware",
+    "name": "tool-wrapper-context-injection",
+    "filename": "tool-wrapper-context-injection.py",
     "language": "python",
-    "filename": "middleware.py",
+    "explain": "Demonstrates adapting domain service methods into model-facing tools while injecting authenticated caller identity (tenant_id, user_id) from request-local ContextVar. Strictly omits security fields from the model schema to eliminate model-injected IDOR attacks and preserves domain authorization checks in the core business service.",
+    "steps": "Generate model-facing JSON Schemas exposing only safe task parameters. || Inject authenticated tenant and user identity from ContextVar outside model control. || Enforce object authorization inside the domain service to defeat cross-tenant IDOR attacks.",
+    "expect": "Tool wrapper, ContextVar identity injection, and domain authorization verified successfully.",
+    "questions": [
+      600,
+      203
+    ]
+  },
+  {
+    "name": "lcel-chain-vs-agent-loop",
+    "filename": "lcel-chain-vs-agent-loop.py",
+    "language": "python",
+    "explain": "Demonstrates the essential architectural difference between LangChain Expression Language (LCEL) runnable composition and dynamic agent loops. Overloads the pipe operator (|) to compose prompt formatting, model calling, and JSON output parsing in a single forward pass, comparing its deterministic latency against multi-turn dynamic agent loops.",
+    "steps": "Compose a deterministic Prompt | Model | Parser pipeline using LCEL runnable pipe syntax. || Execute the runnable chain in a single forward pass with zero tool-selection errors. || Execute a dynamic agent loop that inspects intermediate observations to determine subsequent investigative steps.",
+    "expect": "LCEL runnable composition vs dynamic agent loop verified successfully.",
+    "questions": [
+      601,
+      202,
+      204,
+      207
+    ]
+  },
+  {
+    "name": "middleware-budget-guardrails",
+    "filename": "middleware-budget-guardrails.py",
+    "language": "python",
+    "explain": "Demonstrates factoring out cross-cutting operational concerns using framework middleware and callbacks. Enforces hard cumulative token budgets by raising BudgetExhaustedError before dispatch and scrubs sensitive credentials (API keys, credit cards, SSNs) from callback telemetry sinks.",
+    "steps": "Track cumulative session token usage and raise BudgetExhaustedError when exceeding limits. || Intercept model prompts and tool observations using lifecycle callbacks. || Scrub sensitive credentials and PII patterns before logging or emitting telemetry events.",
+    "expect": "Middleware budget guardrails, callback interception, and PII sanitization verified successfully.",
     "questions": [
       602,
-      206
+      206,
+      209
     ]
   },
   {
-    "explain": "A message sequence separates system instructions, user input, and tool observations. Runtime adapters translate this public model into their provider-specific message classes.",
-    "steps": "Preserve each message's origin. || Inspect the role order before invoking a model adapter.",
-    "expect": "['system', 'user', 'tool']",
-    "name": "message-shape",
+    "name": "stream-event-adapter-contract",
+    "filename": "stream-event-adapter-contract.py",
     "language": "python",
-    "filename": "message-shape.py",
+    "explain": "Demonstrates decoupling internal framework events from public client API contracts. Translates granular framework events (on_chat_model_stream, on_tool_start, on_tool_end) into clean Server-Sent Events (SSE), strips internal system prompts and private connection strings, and validates final output against structured JSON schemas.",
+    "steps": "Filter private internal prompts, hyperparameters, and connection strings from event streams. || Translate granular framework stream events into stable public SSE frames. || Validate completed structured outputs against client contracts before emitting completion events.",
+    "expect": "Stream event adapter, client contract decoupling, and output validation verified successfully.",
     "questions": [
-      202
+      603,
+      205,
+      208
     ]
   },
   {
-    "name": "journey-923",
-    "filename": "journey-923.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "framework-agnostic-hexagonal-core",
+    "filename": "framework-agnostic-hexagonal-core.py",
+    "language": "python",
+    "explain": "Demonstrates isolating enterprise architecture from framework churn using Hexagonal Architecture (Ports and Adapters). Core domain services and database transactions maintain zero framework imports; AI capabilities are defined as an abstract port and implemented interchangeably with LangChain or native vendor clients with zero breaking changes.",
+    "steps": "Define business calculations and database persistence in a pure, framework-agnostic domain service. || Define an abstract application port for AI operations and implement a LangChain adapter. || Migrate to a native Python client adapter with 100% parity and zero changes to domain logic or public API contracts.",
+    "expect": "Framework-agnostic hexagonal architecture and zero-churn replacement verified successfully.",
     "questions": [
+      762,
+      763,
+      201,
+      210,
       923
     ]
   }
