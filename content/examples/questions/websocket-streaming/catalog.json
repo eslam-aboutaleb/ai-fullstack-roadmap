@@ -1,57 +1,57 @@
 [
   {
-    "explain": "A missing acknowledgment leaves the client uncertain even after the server committed. Reconnect should query or reuse the same command identity, not invent a new effect.",
-    "steps": "Record the authoritative command receipt. || Resolve a repeated command ID to the existing result.",
-    "expect": "completed receipt1",
-    "name": "command-ack",
+    "name": "command-ack-reconnect-protocol",
+    "filename": "command-ack-reconnect-protocol.py",
     "language": "python",
-    "filename": "command-ack.py",
+    "explain": "Implement WebSocket application-layer command acknowledgments and idempotent reconnection. Retains unacknowledged commands in a pending queue and replays them with deterministic operation keys to prevent duplicate side effects.",
+    "steps": "Dispatch command over WebSocket and commit mutation in server durable ledger. || Replay command on a reconnected socket, returning the cached receipt without executing duplicate mutations.",
+    "expect": "WebSocket command ACK verified: status=completed, receipt=receipt_order_88, duplicate_mutations=0",
     "questions": [
       656,
       434
     ]
   },
   {
-    "explain": "Long-lived connections must recheck sensitive resource actions as identity or permissions expire. A successful handshake does not authorize the session forever.",
-    "steps": "Record initial authentication and expiry. || Deny a later action when the current time is outside that validity.",
-    "expect": "False",
-    "name": "session-recheck",
+    "name": "session-reauth-revocation",
+    "filename": "session-reauth-revocation.py",
     "language": "python",
-    "filename": "session-recheck.py",
+    "explain": "Enforce per-command authorization and dynamic session revocation on long-lived WebSockets. Re-checks token validity windows and severs active connections immediately upon administrative credential revocation.",
+    "steps": "Authorize incoming commands against token expiration timestamps on an active session. || Enforce dynamic permission revocation, immediately rejecting subsequent commands and severing the socket.",
+    "expect": "WebSocket session auth verified: initial_command_authorized=True, expired_token_rejected=True, revoked_session_closed=True",
     "questions": [
       658,
       432
     ]
   },
   {
-    "explain": "A responsive connection can coexist with a stalled worker. Transport heartbeat and application progress need independent signals.",
-    "steps": "Keep last pong and last task-progress times separately. || Detect a stalled task even when the connection is alive.",
-    "expect": "True True",
-    "name": "heartbeat-vs-task",
+    "name": "heartbeat-vs-task-monitor",
+    "filename": "heartbeat-vs-task-monitor.py",
     "language": "python",
-    "filename": "heartbeat-vs-task.py",
+    "explain": "Disentangle transport-level ping/pong heartbeats from application-level agent task progress. Detects stalled agent model tasks even when the underlying WebSocket socket connection remains healthy.",
+    "steps": "Evaluate WebSocket transport ping/pong liveness against transport timeout thresholds. || Evaluate agent task token emission progress, flagging stalled tasks independently of socket health.",
+    "expect": "Heartbeat vs task monitor verified: connection_alive=True, task_stalled=True, transport_timeout_detected=True",
     "questions": [
       436
     ]
   },
   {
-    "explain": "A new connection may reach another replica, so durable task state cannot live only on the original socket server. A shared-store abstraction provides the recoverable identity.",
-    "steps": "Reconnect to a different replica. || Read the task from shared authoritative state rather than the local connection registry.",
-    "expect": "completed",
-    "name": "websocket-scale",
+    "name": "distributed-websocket-broker",
+    "filename": "distributed-websocket-broker.py",
     "language": "python",
-    "filename": "websocket-scale.py",
+    "explain": "Scale stateful WebSockets horizontally across multi-replica clusters using a distributed pub/sub backplane. Broadcasts events across pods to reach locally connected clients without sticky session bottlenecks.",
+    "steps": "Attach independent WebSocket clients across separate server pod replicas. || Publish completion events to a distributed message bus, delivering events to all connected clients across pods.",
+    "expect": "Distributed WebSocket scale verified: cross_replica_delivered=True, client_alpha_received=True, client_bravo_received=True",
     "questions": [
       438
     ]
   },
   {
-    "explain": "Binary media and structured control events require explicit framing and limits. Their queue policies can differ because dropping stale media is different from losing a business receipt.",
-    "steps": "Classify a binary payload separately from a JSON-shaped control envelope. || Enforce media bytes and allowed control types independently.",
-    "expect": "audio cancel",
-    "name": "binary-control",
+    "name": "binary-text-multiplex-frame",
+    "filename": "binary-text-multiplex-frame.py",
     "language": "python",
-    "filename": "binary-control.py",
+    "explain": "Multiplex raw binary audio PCM frames with typed JSON control frames on a single WebSocket. Ingests microphone audio while processing in-band text interruption commands to halt model synthesis immediately.",
+    "steps": "Stream raw binary audio chunks into an audio buffer for voice recognition. || Ingest an in-band JSON text interrupt frame, immediately halting audio synthesis for barge-in interactivity.",
+    "expect": "Binary text multiplexing verified: binary_audio_frames=2, text_control_frames=1, interrupt_handled=True",
     "questions": [
       439,
       433,
@@ -59,24 +59,23 @@
     ]
   },
   {
-    "explain": "A meaningful duplex test suite includes reconnect, duplicate effects, slow consumers, and permission expiry. The manifest identifies required cases and fails when evidence is absent.",
-    "steps": "Declare required behavioral fixtures. || Compare them with executed case IDs rather than counting test files.",
-    "expect": "['slow_consumer']",
-    "name": "websocket-checks",
+    "name": "websocket-production-suite",
+    "filename": "websocket-production-suite.py",
     "language": "python",
-    "filename": "websocket-checks.py",
+    "explain": "Verify production WebSocket resilience across four mandatory failure modes: reconnection recovery, duplicate command rejection, auth expiration, and slow consumer buffer saturation.",
+    "steps": "Execute automated checks verifying reconnection cursor recovery and duplicate command idempotency. || Assert that expired auth tokens are rejected and slow consumer buffer saturation is detected.",
+    "expect": "WebSocket production suite verified: all_checks_passed=True, failure_modes_tested=4",
     "questions": [
       440
     ]
   },
   {
-    "name": "journey-982",
-    "filename": "journey-982.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "causal-sequence-epoch-fence",
+    "filename": "causal-sequence-epoch-fence.py",
+    "language": "python",
+    "explain": "Enforce causal sequence horizons and session epoch fencing across WebSocket reconnects. Fences out delayed in-flight commands from older sockets and rejects stale sequence numbers to prevent state corruption.",
+    "steps": "Advance session epoch and commit commands sequentially on an active connection. || Simulate arrival of delayed packets from an older connection epoch, asserting that the server fences and discards them.",
+    "expect": "Causal sequence epoch fence verified: newer_command_committed=True, delayed_stale_command_fenced=True, duplicate_seq_rejected=True",
     "questions": [
       982
     ]
