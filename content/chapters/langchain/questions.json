@@ -81,10 +81,24 @@
   },
   {
     "Q": "How would you decide whether a runtime-to-LangChain migration is worthwhile?",
-    "A": "Compare required integrations, operational complexity, framework support, team familiarity, migration risk, and measured behavior. Require parity on tool routing, scope enforcement, confirmation, streaming, memory, evaluation, and tracing before changing the production runtime.",
+    "A": "**Start from a task contract, not a framework popularity contest.** A direct provider SDK focuses on model I/O and streaming. LangChain provides composable model/tool/retrieval components; LlamaIndex focuses on data ingestion/index/query abstractions; LangGraph models explicit stateful execution and checkpoints; Google ADK and OpenAI Agents SDK supply their own agent lifecycle abstractions. These layers are not interchangeable: an SDK can call a model without guaranteeing workflow persistence, and an orchestration framework does not prove safe business effects.\n\n**Fair comparison method.** Keep the same synthetic input documents, authenticated user, initial context, tool schemas, deterministic mock response or pinned real provider configuration, output schema, budget, data retention policy and failure schedule. Measure comparable outputs—authorized citations, refusal cases, schema validity, tool dispatch and side effects—before wall-clock latency. Log separate initialization, first token and total task latency distributions, memory/dependency footprint, traces and retry/cost behavior. Do not compare a warmed-up framework against a cold-start SDK and claim the SDK is slower.\n\n**Worked case.** Implement a policy assistant whose single allowed action is owner-scoped read-only search. With the same gold return-policy document, the direct reference, graph reference and retrieval reference must produce the same answer and source ID. Remove search permission: all must refuse without reading any private data. Add a malicious adapter that claims to call a write tool: the harness must reject it independently of how nice its generated text looks.\n\n**Local implementation.** `labs/framework_contract_compare.py` creates three small reference execution strategies under a shared Task/Outcome schema, verifies paired results, owner scope, denied tools and forbidden effects. It records fixture timing only; it does **not** import or measure LangChain, LlamaIndex, LangGraph, ADK or the OpenAI Agents SDK. Real pinned adapter implementations, tracing exporters, semantic retrieval and normalized provider cost measurements are future integration acceptance items.\n\n**Senior trade-off.** Choose a framework only after you identify a needed capability that you cannot implement cheaply and safely with direct SDK plus ordinary application code. More orchestration can improve complex interrupt/recovery semantics but adds dependency maintenance, implicit retries, serializer/version compatibility and debugging load. Keep authorization, owner-scoped durable state, evaluation and effect ownership outside the model framework.\n\n**Follow-up.** If the application requires human approval and crash recovery across replicas, the plain direct SDK example becomes insufficient unless you add a durable workflow engine and effect journal. Compare that *complete* architecture fairly against a graph/agent framework, not against a one-function demo.",
     "Why": "Compare routing, scope enforcement, approval, memory, streaming, recovery, and trace privacy on the same fixtures. Preserve product contracts or explicitly redesign them with migration and rollback evidence.",
     "Risk": "Benchmarking only a successful coverage response misses multi-turn correction, tool failure, and duplicate writes. New abstractions can also change trace payload disclosure.",
     "Trade": "A better-fit ecosystem can justify the cost; keeping the example stack may be more valuable when problems are domain contracts rather than orchestration limitations.",
-    "Try": "Write an architecture decision record with one concrete unmet need, a parity checklist, a limited experiment, and a rollback condition."
+    "Try": "Execute the framework task contract, deny search, then insert a tool-calling adapter and inspect its rejection; repeat with pinned real frameworks before making performance claims.",
+    "citations": [
+      "https://docs.langchain.com/oss/python/langchain/overview"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What evidence makes a graph agent worth replacing a direct SDK call in a production workflow?",
+        "A": "Demonstrate a requirement such as durable crash recovery, supervised interrupts or multi-step resumable state under equal data/tool contracts. Measure the complete direct-SDK implementation including its own ledger and retries, compare traces and failure oracles, and account for framework upgrade and operational complexity."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
   }
 ]
