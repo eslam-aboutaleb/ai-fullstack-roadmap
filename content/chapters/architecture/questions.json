@@ -54,9 +54,9 @@
       "https://martinfowler.com/bliki/InterfaceSegregationPrinciple.html"
     ],
     "reviewer_status": {
-      "reviewer": "independent technical review pending",
-      "reviewed_at": "2026-10-20",
-      "status": "draft"
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
     },
     "added": true
   },
@@ -66,70 +66,115 @@
     "Why": "Accepting collaborators via constructor dependency injection allows high-level RAG workflows to remain agnostic to underlying storage engines and model vendors, enabling isolated unit testing and painless technology migrations.",
     "Risk": "An adapter can satisfy a Python method signature while violating atomicity or isolation semantics. Structural compatibility is weaker than behavioral compatibility, so tests need to exercise the promised guarantees.",
     "Trade": "Interfaces add indirection and documentation work. They pay off when deployment stacks differ or when failure paths need deterministic testing.",
-    "Try": "Replace version storage with a tiny recording fake. Verify the order of find, close, create, delete, and upsert calls without assuming that call order alone proves rollback safety."
+    "Try": "Replace version storage with a tiny recording fake. Verify the order of find, close, create, delete, and upsert calls without assuming that call order alone proves rollback safety.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Why use Protocol instead of requiring every adapter to inherit a base class?",
-    "A": "Python Protocol supports structural typing: an object can satisfy a contract by providing the required members. This is useful when a host already has settings or session providers and should not need to inherit library-specific classes.",
-    "Why": "Retrieval settings and several storage seams express the attributes or methods consumers need. Some interfaces also use runtime_checkable, but runtime checks do not fully validate annotations, returned values, or transactional behavior.",
-    "Risk": "Duck typing can postpone integration errors until execution. Validate configuration at startup and run adapter contract tests; do not interpret isinstance against a protocol as a complete certification.",
-    "Trade": "Protocols reduce inheritance coupling while offering less shared implementation. Abstract base classes remain useful when construction rules or common behavior must be enforced.",
-    "Try": "Supply a dataclass as settings, then remove a required attribute. Compare static type feedback with the eventual runtime failure."
+    "A": "Using Python `typing.Protocol` (PEP 544 structural subtyping) rather than nominal abstract base classes (`abc.ABC`) provides three critical architectural advantages in AI system design: (1) Decoupling from Vendor and Framework Hierarchies: When an interface is defined as an ABC (`class BaseVectorStore(ABC)`), any third-party adapter or customer storage driver must explicitly inherit from your package. With Protocols, any class that implements the required method signatures (`search()`, `upsert()`, `delete()`) satisfies the contract automatically without coupling to your library's import hierarchy; (2) Granular Interface Composition: Classes can effortlessly satisfy multiple orthogonal protocols (such as `Searchable`, `TtlExpirable`, and `AdvisoryLockable`) without encountering multiple inheritance conflicts or fragile `super()` method resolution order (MRO) bugs; and (3) Lightweight Testing & In-Memory Fakes: Unit tests and fakes do not need to mock out complex base class constructor logic or internal state. Any simple dataclass or mock matching the method signatures passes static type checkers (mypy/pyright) seamlessly.",
+    "Why": "Requiring nominal class inheritance creates tight coupling between external plugins and core package internals, making third-party integrations brittle and hard to test in isolation.",
+    "Risk": "Structural typing verifies method names and signatures during static type checking, but cannot verify semantic invariants or transaction atomicity at runtime. Rigorous contract test suites are still required.",
+    "Trade": "Protocols provide maximum flexibility and zero inheritance coupling, but offer no shared code reuse. Abstract base classes remain superior when common boilerplate execution logic must be shared across implementations.",
+    "Try": "Define a `VectorStore` Protocol and implement an adapter without subclassing it; assert that `isinstance(adapter, VectorStore)` passes when decorated with `@runtime_checkable`.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What does the Fluent Builder pattern contribute here?",
-    "A": "A retrieval-service builder assembles collaborators through readable configuration methods and an asynchronous build step. The local constructor chooses in-memory defaults while still requiring an embedding function. The result is a convenient facade over the lower-level components.",
-    "Why": "This keeps a small experiment short while allowing chunkers, stores, version stores, and settings to be replaced. The builder is composition convenience; it does not make an in-memory setup durable or create a learned local embedding model.",
-    "Risk": "Hidden defaults can be carried into production. Review the resolved store, embedding dimension, scope policy, and state retention before deploying an instance built for local use.",
-    "Trade": "A builder is easier to discover than a large constructor but adds another assembly surface to maintain. Direct constructors are clearer for unusual production wiring.",
-    "Try": "Run the offline quickstart, then rewrite its setup with explicit collaborators. Describe which defaults you would replace for a multi-worker service."
+    "A": "Constructing a production-ready RAG retrieval service requires assembling multiple interdependent subsystems: embedding clients, vector stores, BM25 tokenizers, rerankers, cache gateways, and telemetry sinks. The Fluent Builder pattern addresses this complexity through: (1) Elimination of Telescoping Constructors: Direct constructors with 10+ arguments are error-prone and brittle. The builder provides readable, chained configuration methods (`.with_embedding_provider(...)`, `.with_pgvector_store(...)`, `.with_cross_encoder(...)`) that make assembly explicit and self-documenting; (2) Pre-Flight Validation of Incompatible Configurations: The builder enforces prerequisite checks: e.g. verifying that the embedding model output dimension (1536) exactly matches the vector index table schema dimension before construction proceeds; and (3) Asynchronous Resource Warming: A builder's `.build()` method can execute asynchronous warm-up steps: establishing database connection pools, pre-warming local tokenizers into memory, and validating API health endpoints before exposing the service to incoming user traffic.",
+    "Why": "Allowing unvalidated parameter combinations in large service constructors leads to silent runtime misconfigurations, such as embedding dimension mismatches that only fail on the first user query.",
+    "Risk": "Builders that conceal sensible defaults (like falling back to an in-memory dictionary when a vector database URL is omitted) can cause accidental deployment of non-persistent components to production.",
+    "Trade": "A builder adds an extra configuration layer to maintain, but prevents invalid service states and encapsulates complex asynchronous initialization.",
+    "Try": "Implement a builder that validates embedding dimension against vector store configuration during `.build()`; assert that mismatched dimensions raise an explicit configuration error.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How are Factory, Registry, Strategy, and Adapter different patterns?",
-    "A": "A factory constructs a collaborator. A registry maps names to implementations. A strategy selects interchangeable behavior such as dense, lexical, or hybrid retrieval. An adapter translates an external vendor API into the domain layer's unified contract. The patterns solve different problems and often appear together.",
-    "Why": "Store factories and registries choose backend implementations; retrieval strategies compose search capabilities; backend classes translate vendor operations. This allows configuration-driven construction without forcing every search behavior into a storage class.",
-    "Risk": "A name-based registry can defer typos or missing optional dependency failures until runtime. Validate names and dependencies during startup, and avoid loading plugins based on arbitrary untrusted input.",
-    "Trade": "Configurable assembly improves extension but increases possible combinations. Support a documented matrix rather than assuming every registered backend supports every strategy and filter.",
-    "Try": "Explain how adding a new vector backend differs from adding a query reranker. Identify the construction, contract, and behavior changes separately."
+    "A": "In modular AI systems, these four design patterns govern distinct architectural responsibilities across creation, translation, and execution: (1) Adapter (Structural): Translates an incompatible third-party API (e.g. Pinecone SDK, Qdrant client, or PostgreSQL via psycopg3) into the application's unified internal domain contract (`VectorStoreProtocol`); (2) Strategy (Behavioral): Encapsulates interchangeable search algorithms behind a common interface (e.g. `DenseVectorStrategy`, `LexicalBM25Strategy`, and `HybridRRFStrategy`), allowing the orchestrator to switch retrieval logic dynamically at runtime; (3) Factory (Creational): Encapsulates the instantiation logic for complex objects, reading environment configuration to instantiate the appropriate adapter and its dependencies; and (4) Registry (Creational/Directory): A centralized catalog mapping string identifiers (`'pgvector'`, `'qdrant'`, `'hybrid'`) to factory constructors, enabling plugin-based extensibility without hardcoding conditional import trees throughout the codebase.",
+    "Why": "Conflating algorithm selection with storage drivers produces monolithic classes where switching a search strategy requires modifying low-level database code.",
+    "Risk": "Using string registries without startup validation can cause runtime crashes on the first request if an unregistered adapter name or missing optional dependency is specified.",
+    "Trade": "Decoupling into four distinct patterns increases the number of classes in the codebase, but enables independent unit testing, plugin extensibility, and zero-downtime technology swaps.",
+    "Try": "Create a registry containing two retrieval strategies; write a factory that instantiates the selected strategy based on a config string and executes a query through an adapter.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Why split the vector-store interface into smaller capability protocols?",
-    "A": "A broad store interface is convenient when one backend supports every operation. Separate vector search, lexical search, fetch, and write capabilities let callers depend only on the operations they need. A keyword-only route should not require an embedding provider.",
-    "Why": "The retrieval service's retrieval strategies compose vector and lexical capabilities, permitting different backends for different signals. Capability declarations describe supported filters and guarantees before the strategy executes.",
-    "Risk": "A backend may advertise a capability it implements incompletely. Mandatory constraints should fail closed, and contract tests should verify semantics rather than only checking that methods exist.",
-    "Trade": "More interfaces create more concepts, but avoid fake implementations of unsupported methods. A single-store facade remains helpful for simple applications.",
-    "Try": "Design a lexical-only adapter. List the interfaces it needs and the vector-specific methods it should never have to emulate."
+    "A": "Splitting a monolithic storage interface into smaller capability protocols adheres to the Interface Segregation Principle (ISP) and prevents leaky, fat abstractions: (1) The 'Fat Interface' Trap: A single `VectorStore` interface that demands `vector_search()`, `keyword_search()`, `advisory_lock()`, `json_metadata_filter()`, and `delete_by_prefix()` forces backends that lack these features (e.g. pure vector databases like Pinecone or Chroma) to raise `NotImplementedError` or provide broken stubs; (2) Fine-Grained Capability Protocols: Decompose the contract into atomic capabilities: `VectorSearchable`, `LexicalSearchable`, `MetadataFilterable`, `BatchDeletable`, and `AdvisoryLockable`; and (3) Runtime Feature Negotiation: The retrieval strategy inspects capabilities (`if isinstance(store, LexicalSearchable)` or via explicit capability flags) to determine whether to execute hybrid search or fall back gracefully to pure dense search, ensuring robust multi-backend portability.",
+    "Why": "Forcing all storage engines into a single monolithic interface forces developers to write dummy no-op methods that fail unexpectedly during edge-case query execution.",
+    "Risk": "Advertising a capability (such as metadata filtering) that is only partially implemented by an underlying engine causes silent query corruption or unindexed full-table scans in production.",
+    "Trade": "Multiple small protocols require callers to check capabilities or use composite facades, but completely eliminate runtime `NotImplementedError` surprises across different cloud backends.",
+    "Try": "Design a keyword-only adapter and pass it to a hybrid retrieval strategy; assert that the strategy detects the absence of `VectorSearchable` and adapts its query execution path.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "What does a SQL adapter interface abstract, and what remains PostgreSQL-specific?",
-    "A": "A SQL adapter interface abstracts session construction, execution, fetching, and advisory locking. It lets orchestration avoid direct dependence on one SQL library. It does not make PostgreSQL full-text functions or pgvector operators portable to an arbitrary database engine.",
-    "Why": "The PostgreSQL vector adapter still owns database-specific SQL. An alternative driver can implement the factory contract while preserving PostgreSQL semantics; a different database usually needs a different storage adapter and capability declaration.",
-    "Risk": "Replacing the driver without matching transaction and lock behavior can invalidate ingestion guarantees. A no-op advisory-lock implementation is not an equivalent production replacement.",
-    "Trade": "The extra seam improves driver flexibility and testability but carries semantic obligations. Direct driver calls would be simpler and more tightly coupled.",
-    "Try": "Write down the minimum behavior an async database driver adapter must preserve for a locked ingestion transaction. Include failure and rollback cases."
+    "A": "Designing a SQL adapter interface requires a pragmatic distinction between portable relational infrastructure and engine-specific superpowers: (1) What the Interface Safely Abstracts: Connection pooling, async session acquisition, transaction context managers (`async with session.begin():`), prepared statement parameter binding, and standard CRUD query execution. This decouples orchestration from specific driver libraries (asyncpg vs psycopg3 vs SQLAlchemy); (2) What Remains PostgreSQL-Specific: Highly optimized database capabilities that cannot be ported without massive performance loss: (a) pgvector operators (`<->` L2 distance, `<=>` cosine distance, and HNSW index tuning parameters); (b) PostgreSQL transactional advisory locks (`pg_advisory_xact_lock()`) for distributed ingestion fencing; and (c) Row-Level Security (RLS) policies and session-variable injection (`SET LOCAL app.current_tenant = :tenant`); and (3) Portability Discipline: Do NOT attempt to build a generic database abstraction layer that dumbs PostgreSQL down to SQLite or MySQL. Keep PostgreSQL-specific DDL and queries inside a dedicated `PostgresVectorAdapter` behind a general capability protocol.",
+    "Why": "Attempting to write an engine-agnostic SQL layer forces teams to abandon pgvector HNSW indexing, RLS security, and advisory locking, crippling system performance and security.",
+    "Risk": "Emulating PostgreSQL advisory locks on an unsupported database using naive `SELECT ... FOR UPDATE` rows causes locking bugs, deadlocks, and concurrent ingestion race conditions.",
+    "Trade": "Binding to PostgreSQL's native vector and concurrency features creates vendor commitment, but delivers 10x higher performance and enterprise ACID reliability.",
+    "Try": "Write an async SQL adapter that uses `pg_advisory_xact_lock` for ingestion concurrency; verify that concurrent transactions across two sessions block and release correctly.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "Why use dataclasses and explicit converters at API boundaries?",
-    "A": "Dataclasses make fields, defaults, and meanings discoverable without requiring a validation framework. Explicit converters keep dictionary-based adapters compatible while typed consumers work with Document, SearchResult, RetrievalRequest, and RetrievalResponse.",
-    "Why": "As_dicts and typed retrieval bridges separate legacy shapes from newer APIs. This supports gradual adoption without forcing every host and backend to migrate simultaneously.",
-    "Risk": "Type annotations alone do not validate hostile input, and conversions can lose fields such as reranker scores if an older result type does not represent them. Validate transport input and choose the typed response when you need its richer score information.",
-    "Trade": "Compatibility layers cost code and can preserve ambiguity. Removing them simplifies internals but may break downstream callers; a migration policy must be explicit.",
-    "Try": "Convert one typed hit to a dictionary and back. Check identity, metadata, distance, RRF score, and reranker score separately."
+    "A": "Using immutable dataclasses internally and explicit converters at API boundaries enforces strict architectural seams between internal domain logic and external consumers: (1) Strongly-Typed Domain Models: Internal business logic operates on strongly-typed, immutable dataclasses (`Document`, `Chunk`, `RetrievalResult`, `ProvenanceSpan`). This guarantees discoverability, static type validation, and IDE autocompletion throughout the core engine; (2) API Boundary Decoupling: External clients communicate via HTTP JSON, gRPC, or message queues. Explicit converter functions (`to_api_response()`, `from_request_dict()`) translate between internal dataclasses and external transport schemas, ensuring internal refactorings never break public API contracts; and (3) Security & Data Sanitization Air-Gap: Converters act as an explicit data sanitization barrier. Internal models often carry large high-dimensional vector embeddings, database primary keys, and diagnostic traces. Converters explicitly omit these sensitive or bandwidth-heavy fields, returning only authorized public fields to callers.",
+    "Why": "Returning internal domain models directly from API routes leaks database primary keys, internal scores, and embedding vectors, while tightly coupling external clients to internal class refactors.",
+    "Risk": "Using untyped dictionaries throughout domain logic leads to silent bugs caused by misspelled dictionary keys, missing fields, and lack of type checking.",
+    "Trade": "Writing explicit bidirectional converters adds boilerplate mapping code, but guarantees API backward compatibility and prevents data leakage.",
+    "Try": "Create an internal `SearchResult` dataclass containing embedding vectors and a tenant ID; write a converter that serializes only the public text and citation span, verifying sensitive fields are stripped.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How does the Null Object pattern appear in telemetry?",
-    "A": "A a null event sink implements the event-sink contract while doing nothing. Consumers can emit an event without checking whether telemetry is configured at every call site. This keeps optional observability out of the main control flow.",
-    "Why": "Constructors select a null sink when no sink is supplied. A real sink can later export sanitized events, and the business path can retain the same call structure.",
-    "Risk": "A null sink can make missing production instrumentation invisible. Also inspect whether a supplied sink can raise or block; optional observability should not accidentally become an uncontrolled availability dependency.",
-    "Trade": "Fewer branches improve readability, while silent default behavior requires explicit operational verification. An application may choose mandatory instrumentation at its composition root.",
-    "Try": "Run the same retrieval with a recording sink and a null sink. Verify equal results and inspect which dimensions the recording sink receives."
+    "A": "The Null Object pattern eliminates defensive conditional branching by providing a no-op implementation of the telemetry interface: (1) The Defensive Branching Anti-Pattern: When metrics and tracing are optional, developers litter business code with conditional checks: `if self.telemetry: self.telemetry.record_span(...)`. This clutters domain logic and creates subtle bugs when telemetry is partially configured; (2) The `NullTelemetrySink` Implementation: A `NullTelemetrySink` implements the complete `TelemetrySinkProtocol` (methods like `record_latency()`, `increment_counter()`, `emit_span()`) with empty pass-through methods (`pass`). It consumes zero CPU cycles and requires no network dependencies; and (3) Clean Dependency Injection: Services default to `NullTelemetrySink` in their constructors. Unit tests, offline benchmarks, and CLI tools run cleanly with zero logging side-effects, while production services inject an `OpenTelemetrySink` or `PrometheusSink` at the composition root without changing a single line of business logic.",
+    "Why": "Pervasive `if self.telemetry is not None` checks degrade code readability, increase cyclomatic complexity, and make core business algorithms hard to follow.",
+    "Risk": "If a custom telemetry sink raises unhandled network exceptions or blocks on slow network sockets, it can bring down the entire user-facing search pipeline unless properly decoupled.",
+    "Trade": "A Null Object introduces a small no-op class into the codebase, but completely decouples core retrieval logic from monitoring infrastructure.",
+    "Try": "Execute a full retrieval pipeline with a `NullTelemetrySink` and an `InMemoryRecordingSink`; verify that identical search results are returned and zero errors occur with the null sink.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   },
   {
     "Q": "How should I defend the architecture in an interview without inventing author intent?",
-    "A": "Describe observed boundaries, explain the problems they address, and distinguish inference from documented intent. For example, injected sessions support host transaction ownership; you can infer a portability benefit without claiming the author measured it against every ORM or framework.",
-    "Why": "Tie architectural explanations to an invariant and a failure scenario. For example, caller-owned transactions allow a business update and an outbox record to commit together. Explain the consequences without inventing historical author intent.",
-    "Risk": "Repeating comments as guarantees can mislead. Some comments simplify current behavior: the generic hybrid strategy awaits stages sequentially, and sliding-window chunks use UUIDs rather than universally deterministic IDs.",
-    "Trade": "Qualified service requests sound less absolute but survive technical scrutiny. A good design defense acknowledges obligations pushed to host adapters and conditions under which another design would win.",
-    "Try": "Prepare a five-minute defense with three source references, two explicit limitations, and one alternative architecture you would choose under different requirements."
+    "A": "Defending system architecture in high-stakes technical interviews requires grounding explanations in concrete engineering constraints, state invariants, and verifiable trade-offs rather than speculation: (1) Anchor on Invariants and Failure Modes: Explain architectural boundaries by identifying the specific failure mode they prevent: e.g., 'We separate the SQL transaction boundary from the retrieval service so that the caller can commit document metadata and a transactional outbox event atomically, preventing orphaned search chunks if the database crashes'; (2) Compare Explicit Alternatives: Contrast the chosen pattern against alternatives with clear trade-offs: e.g., 'We chose structural Protocols over nominal class inheritance to allow third-party database plugins without forcing external dependencies, accepting looser nominal guarantees in exchange for complete ecosystem decoupling'; and (3) Acknowledge Operational Costs and Limitations: Never describe an architecture as universally optimal. Articulate its concrete overheads (indirection, serialization latency, converter maintenance) and define the exact scale threshold where a simpler monolithic approach would be preferable.",
+    "Why": "Interviewers immediately detect when candidates recite generic textbook design patterns without understanding the physical distributed failure modes that justified them.",
+    "Risk": "Claiming an architecture has 'no downsides' reveals engineering immaturity; every architectural boundary trades operational simplicity for change isolation or fault tolerance.",
+    "Trade": "Qualifying architectural claims with explicit constraints sounds less absolute, but demonstrates senior engineering rigor and survives deep technical scrutiny.",
+    "Try": "Prepare a structured 3-minute defense of your RAG architecture covering: (1) One core invariant, (2) One trade-off compared to a simpler baseline, and (3) The exact failure mode prevented.",
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent review pending",
+      "reviewed_at": "2026-10-24"
+    }
   }
 ]
