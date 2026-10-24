@@ -150,6 +150,10 @@ vector_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/vector_index_mi
 assert vector_result.returncode==0,(vector_result.stdout,vector_result.stderr)
 assert 'PASS' in vector_result.stdout
 
+platform_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/eval_platform_contract.py')],capture_output=True,text=True,timeout=10)
+assert platform_result.returncode==0,(platform_result.stdout,platform_result.stderr)
+assert 'PASS' in platform_result.stdout
+
 safety_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/ai_safety_release_gate.py')],capture_output=True,text=True,timeout=10)
 assert safety_result.returncode==0,(safety_result.stdout,safety_result.stderr)
 assert 'PASS' in safety_result.stdout
