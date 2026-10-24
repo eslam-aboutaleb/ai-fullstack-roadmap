@@ -145,3 +145,4 @@ def test_revision_publication() -> None:
 
 if __name__ == "__main__":
     test_revision_publication()
+

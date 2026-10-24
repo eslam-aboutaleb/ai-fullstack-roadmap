@@ -172,3 +172,4 @@ def test_work_reduction() -> None:
 
 if __name__ == "__main__":
     test_work_reduction()
+

@@ -169,3 +169,4 @@ def test_perception_invalidation_guard() -> None:
 
 if __name__ == "__main__":
     test_perception_invalidation_guard()
+

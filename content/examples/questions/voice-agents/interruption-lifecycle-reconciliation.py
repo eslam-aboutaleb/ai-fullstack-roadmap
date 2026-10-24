@@ -130,3 +130,4 @@ def test_interruption_lifecycle_reconciliation() -> None:
 
 if __name__ == "__main__":
     test_interruption_lifecycle_reconciliation()
+

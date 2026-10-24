@@ -137,3 +137,4 @@ def test_instruction_precedence() -> None:
 
 if __name__ == "__main__":
     test_instruction_precedence()
+

@@ -146,3 +146,4 @@ def test_partial_transcript_reconciliation() -> None:
 
 if __name__ == "__main__":
     test_partial_transcript_reconciliation()
+

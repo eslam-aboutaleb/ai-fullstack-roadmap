@@ -125,3 +125,4 @@ def test_portable_skill_contract() -> None:
 
 if __name__ == "__main__":
     test_portable_skill_contract()
+
