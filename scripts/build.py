@@ -12,6 +12,7 @@ from learning_pages import build as build_learning_pages, load_practice
 from question_data import build as build_question_data, search_shards
 from course_pages import build as build_course_pages, load as load_courses
 from curriculum_audit import build as build_curriculum_audit
+from learning_blueprint import build as build_learning_blueprint
 from simulation_pages import panel as simulation_panel, CHAPTERS as SIMULATION_CHAPTERS
 HERE=Path(__file__).resolve().parent;REPOSITORY=HERE.parent;CONTENT=REPOSITORY/'content';ROOT=REPOSITORY/'_build'
 CHAPTERS=load();BY={c['slug']:c for c in CHAPTERS}
@@ -384,6 +385,7 @@ def build():
  practice_counts=build_learning_pages(ROOT,write,CHAPTERS,url)
  course_counts=build_course_pages(ROOT,write,url,controls)
  build_curriculum_audit(ROOT,write,CHAPTERS,CURRICULUM,url)
+ build_learning_blueprint(ROOT,write,CHAPTERS,CURRICULUM,url)
  manifest=dict(edition='interview-led-v6',title='AI Full-Stack Engineering Roadmap',questions=TOTAL,study_topics=STUDY_TOTAL,max_study_id=MAX_ID,chapters=len(CHAPTERS),chapters_with_review_notes=len(CHAPTERS),added_guided_lessons=sum(q.get('added',False) for c in CHAPTERS for q in c['lessons']),guided_lessons=sum(len(c['lessons']) for c in CHAPTERS),chapter_topics={c['slug']:len(c['questions'])+len(c['lessons']) for c in CHAPTERS},chapter_order=[c['slug'] for c in CHAPTERS],stages=len(STAGES),suggested_experiments=len(CHAPTERS),downloadable_labs=sum(len(list((REPOSITORY/'labs').glob(pattern))) for pattern in ('*.py','*.js','*.html')),examples=len(EXAMPLES),questions_with_code=len(QUESTION_CODE),distinct_question_examples=len(QUESTION_RECIPES),chapter_specific_diagrams=len(CHAPTERS),overview_diagrams=4,source_snapshots=0,answer_diagrams=len(VISUALS),chapter_answer_limit=None,conceptual_worked_questions=sum(q.get('answer_format')=='conceptual' for c in CHAPTERS for q in c['questions']),acronym_definitions=len(ACRONYMS),configured_base_path=BASE_PATH,question_data_shards=question_shards,**practice_counts,**course_counts,coverage_matrix={d:sum(1 for c in CHAPTERS for q in c.get('questions',[]) if q.get('domain')==d) for d in set(q.get('domain','') for c in CHAPTERS for q in c.get('questions',[]) if q.get('domain'))})
  manifest_path=ROOT/'manifest.json';manifest_path.write_text(json.dumps(manifest,indent=2)+'\n');print(json.dumps({k:v for k,v in manifest.items() if k not in ('chapter_order','chapter_topics')},indent=2))
 if __name__=='__main__':build()
