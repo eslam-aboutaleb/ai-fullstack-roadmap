@@ -52,12 +52,7 @@ LESSONS = [
         "references": [
             "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
             "https://www.typescriptlang.org/docs/handbook/2/types-from-types.html"
-        ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        }
+        ]
     },
     {
         "Q": "How do React Fiber reconciliation, concurrent rendering and hook state lifecycles coordinate UI updates?",
@@ -102,12 +97,7 @@ LESSONS = [
         "references": [
             "https://react.dev/reference/react/useTransition",
             "https://react.dev/learn/reconciliation"
-        ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        }
+        ]
     },
     {
         "Q": "How do resilient API integration, streaming fetch, abort controllers and cache synchronization operate?",
@@ -150,12 +140,7 @@ LESSONS = [
         "references": [
             "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
             "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams"
-        ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        }
+        ]
     },
     {
         "Q": "How do cross-window messaging, iframe sandboxing and multi-tab coordination maintain origin isolation?",
@@ -191,12 +176,7 @@ LESSONS = [
         "references": [
             "https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage",
             "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#sandbox"
-        ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        }
+        ]
     },
     {
         "Q": "How do frontend system design, state architecture and Core Web Vitals optimize applications at scale?",
@@ -236,12 +216,7 @@ LESSONS = [
         "references": [
             "https://web.dev/explore/learn-core-web-vitals",
             "https://react.dev/reference/react/lazy"
-        ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        }
+        ]
     },
     {
         "Q": "How do frontend security defenses against XSS, CSP nonces and CSRF/CORS boundaries protect client applications?",
@@ -281,11 +256,6 @@ LESSONS = [
         "references": [
             "https://owasp.org/www-community/attacks/xss/",
             "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP"
-        ],
-        "reviewer_status": {
-            "status": "reviewed",
-            "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-            "reviewed_at": "2026-10-24"
-        }
+        ]
     }
 ]

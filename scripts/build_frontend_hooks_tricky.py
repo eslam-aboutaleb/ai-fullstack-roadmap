@@ -11,12 +11,6 @@ from revised_content_gate import validate_record
 import data_frontend_react_hooks_tricky
 import data_frontend_ts_tricky
 
-REVIEWER_STATUS = {
-    "status": "reviewed",
-    "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
-    "reviewed_at": "2026-10-24"
-}
-
 def main():
     slug = 'frontend-foundations'
     ch_dir = ROOT / 'content/chapters' / slug
@@ -24,10 +18,8 @@ def main():
     new_react_qs = data_frontend_react_hooks_tricky.QUESTIONS
     new_ts_qs = data_frontend_ts_tricky.QUESTIONS
 
-    # Step 1: Ensure reviewer status, difficulty, and answer_format on all new questions
+    # Step 1: Ensure difficulty and answer_format on all new questions
     for q in new_react_qs + new_ts_qs:
-        if 'reviewer_status' not in q:
-            q['reviewer_status'] = REVIEWER_STATUS
         if 'answer_format' not in q:
             q['answer_format'] = 'conceptual'
         if 'difficulty' not in q:
@@ -59,8 +51,8 @@ def main():
     for q in filtered_new_react + filtered_new_ts:
         ident = f'interview/{slug}/{q["Q"]}'
         digest = content_digest(q)
-        reviewer = q['reviewer_status']['reviewer']
-        reviewed_at = q['reviewer_status']['reviewed_at']
+        reviewer = q.get('reviewer_status', {}).get('reviewer', '')
+        reviewed_at = q.get('reviewer_status', {}).get('reviewed_at', '')
         notes = (f"User delegated the acceptance verdict to Codex. AI-authored/self-reviewed. "
                  f"Reviewed direct answer to {q['Q']} for technical depth, code correctness, "
                  f"edge cases, risk/trade analysis and changed-assumption follow-up. "
