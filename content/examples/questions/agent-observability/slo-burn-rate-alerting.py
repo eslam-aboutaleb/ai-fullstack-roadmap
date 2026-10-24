@@ -83,7 +83,7 @@ def main() -> None:
     catastrophic_burn_alerted = True
 
     # Invariant: Alert MUST link directly to a runbook and correlated trace query
-    assert "https://runbooks.internal" in catastrophic_alert.runbook_url
+    assert catastrophic_alert.runbook_url.startswith("https://runbooks.internal/")
     assert "status:error" in catastrophic_alert.trace_filter
     runbook_linked = True
 
