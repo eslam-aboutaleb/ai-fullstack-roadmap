@@ -1,0 +1,418 @@
+[
+  {
+    "Q": "Why does the native Fetch API not reject promises on 4xx and 5xx HTTP responses, and how do you handle errors properly?",
+    "A": "**Direct answer:** The native Fetch API is designed to model HTTP network transport rather than application-level status codes. A fetch Promise only rejects when an actual network failure occurs (e.g., DNS lookup failure, loss of internet connectivity, or CORS preflight rejection). If the remote server responds with a valid HTTP status code—such as `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, or `500 Internal Server Error`—the HTTP transaction succeeded at the network layer, so the Promise resolves normally. Proper error handling requires explicitly inspecting `response.ok` (which is `true` for status codes in the range 200–299).\n\n```typescript\nexport class HttpError extends Error {\n    constructor(public status: number, public statusText: string, public body: any) {\n        super(`HTTP ${status} ${statusText}`);\n        this.name = 'HttpError';\n    }\n}\n\nexport async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {\n    const response = await fetch(url, {\n        headers: { 'Content-Type': 'application/json', ...init?.headers },\n        ...init\n    });\n\n    if (!response.ok) {\n        const errorBody = await response.json().catch(() => null);\n        throw new HttpError(response.status, response.statusText, errorBody);\n    }\n\n    if (response.status === 204) return null as T; // No Content\n    return response.json() as Promise<T>;\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Transport resolution:** Promise resolves as soon as HTTP response headers are received, before body bytes are fully transferred.\n- **Memory handling:** `response.json()` consumes the stream; checking `response.ok` before parsing avoids parsing HTML error pages as JSON.\n\n**Algorithmic mechanics and edge cases:**\nWhen servers crash, they frequently return `502 Bad Gateway` with an HTML body from Nginx or Cloudflare. Calling `response.json()` blindly on a 502 error throws a `SyntaxError: Unexpected token < in JSON`, masking the true HTTP 502 status code unless caught gracefully.",
+    "Why": "Explicit response.ok validation prevents unhandled HTTP 4xx/5xx status codes from masquerading as successful data responses.",
+    "Risk": "Assuming fetch rejects on 404 or 500 causes UI components to treat error payloads as valid data, causing crashes down the line.",
+    "Trade": "Requires writing a centralized API wrapper rather than calling raw fetch directly across application components.",
+    "Try": "Call fetch to a non-existent URL and catch the result, observing that the promise resolves rather than rejecting.",
+    "worked_case": "Walkthrough scenario: An authentication endpoint returns HTTP 401 with { message: 'Invalid credentials' }. A developer using raw await fetch() does not check response.ok and executes const user = await res.json(). The app treats the error object as a valid user profile, displaying 'Welcome, undefined' and redirecting to the dashboard. Adding if (!res.ok) throw new HttpError(res.status) correctly diverts execution to the login form error handler.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#checking_that_the_fetch_was_successful",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Response/ok"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens if you attempt to call both response.json() and response.text() on the same Response object?",
+        "A": "It throws a TypeError: Body has already been consumed, because the underlying ReadableStream can only be read once unless cloned with response.clone()."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you implement deterministic request cancellation and timeout enforcement using AbortController and AbortSignal?",
+    "A": "**Direct answer:** `AbortController` provides a standardized mechanism to abort asynchronous operations, including `fetch` requests, event listeners, and custom promises. Instantiating `const controller = new AbortController()` provides an `AbortSignal` object passed to `fetch({ signal: controller.signal })`. Calling `controller.abort(reason)` immediately closes the underlying TCP/HTTP connection, rejects the fetch promise with a `DOMException` named `'AbortError'`, and stops data transmission. Modern browsers also support `AbortSignal.timeout(ms)` to automatically trigger timeouts without manual timer management.\n\n```typescript\n// 1. Automatic timeout using AbortSignal.timeout (or fallback with AbortController):\nexport async function fetchWithTimeout<T>(url: string, timeoutMs: number = 8000): Promise<T> {\n    const controller = new AbortController();\n    const timeoutId = setTimeout(() => controller.abort(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);\n\n    try {\n        const response = await fetch(url, { signal: controller.signal });\n        if (!response.ok) throw new Error(`HTTP ${response.status}`);\n        return await response.json();\n    } catch (err: any) {\n        if (err.name === 'AbortError') {\n            console.warn(`Request aborted or timed out: ${url}`);\n        }\n        throw err;\n    } finally {\n        clearTimeout(timeoutId); // Prevent timer leak!\n    }\n}\n\n// 2. Combining multiple signals with AbortSignal.any (TS / modern browsers):\n// const combinedSignal = AbortSignal.any([userCancelSignal, AbortSignal.timeout(5000)]);\n```\n\n**Complexity analysis and mechanics:**\n- **Network resource freeing:** Calling `abort()` instructs the browser network stack to send an HTTP/2 RST_STREAM frame, instantly freeing socket pools.\n- **Cleanup invariant:** Always clear the timer in a `finally` block to prevent timers from leaking and holding memory references.\n\n**Algorithmic mechanics and edge cases:**\nIn React `useEffect`, returning `() => controller.abort()` cleanly cancels in-flight requests when components unmount or dependencies change. In React 18 Strict Mode (which mounts, unmounts, and remounts components in development), AbortController cleanly prevents state updates on unmounted instances.",
+    "Why": "Deterministic cancellation prevents socket starvation and eliminates stale responses overwriting fresh UI state.",
+    "Risk": "Failing to clear timeout timers in a finally block causes memory leaks and premature aborts on long-lived connections.",
+    "Trade": "Adds error handling branching to distinguish user-initiated AbortErrors from true network connectivity failures.",
+    "Try": "Initiate a slow fetch with AbortSignal.timeout(50) and observe the catch block receiving an AbortError DOMException.",
+    "worked_case": "Walkthrough scenario: A user opens a modal that fetches a 10MB report. The user immediately closes the modal. Without AbortController, the 10MB download continues in the background, consuming mobile data and parsing 10MB into memory. With controller.abort() called in the modal unmount cleanup, the browser terminates the HTTP connection in 1ms, saving battery, bandwidth, and CPU.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
+      "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do you distinguish between a request cancelled by a user and one that timed out?",
+        "A": "Inspect signal.reason or catch error.name; AbortSignal.timeout() passes a TimeoutError DOMException, whereas manual abort passes AbortError or custom reason."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you implement exponential backoff with randomized jitter to prevent thundering herd retries in API clients?",
+    "A": "**Direct answer:** When API calls fail due to transient server issues (HTTP 429 Too Many Requests, 503 Service Unavailable, or network drops), immediate retries or fixed-interval retries cause thousands of concurrent clients to hammer the recovering backend at the exact same timestamp—a catastrophic phenomenon known as the **Thundering Herd problem**. Exponential backoff increases delay exponentially ($\text{base} \times 2^{\text{attempt}}$) while **Full Jitter** randomizes the wait time between 0 and the calculated maximum backoff.\n\n```typescript\nexport interface RetryOptions {\n    maxRetries?: number;\n    baseDelayMs?: number;\n    maxDelayMs?: number;\n}\n\nexport async function fetchWithRetry<T>(\n    fn: () => Promise<T>,\n    options: RetryOptions = {}\n): Promise<T> {\n    const { maxRetries = 3, baseDelayMs = 300, maxDelayMs = 5000 } = options;\n\n    for (let attempt = 0; attempt <= maxRetries; attempt++) {\n        try {\n            return await fn();\n        } catch (error: any) {\n            // Do not retry 4xx client errors (except 429 Too Many Requests)\n            const status = error?.status;\n            const isRetryable = !status || status === 429 || status >= 500;\n            if (attempt === maxRetries || !isRetryable) throw error;\n\n            // Exponential backoff with Full Jitter:\n            const calculatedCap = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt));\n            const jitteredDelay = Math.random() * calculatedCap;\n\n            console.info(`Retry attempt ${attempt + 1} after ${Math.round(jitteredDelay)}ms`);\n            await new Promise(resolve => setTimeout(resolve, jitteredDelay));\n        }\n    }\n    throw new Error('Unreachable retry state');\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Delay calculation:** Attempt 0: random [0, 300ms]. Attempt 1: random [0, 600ms]. Attempt 2: random [0, 1200ms]. Cap: 5000ms.\n- **Traffic smoothing:** Random uniform distribution flattens retry spikes into a smooth, manageable stream of traffic for backend databases.\n\n**Algorithmic mechanics and edge cases:**\nNever retry non-idempotent mutations (`POST` payments) unless the server supports an `Idempotency-Key` header; retrying a timed-out payment request without an idempotency key can charge the customer multiple times.",
+    "Why": "Full jitter spreads client retry traffic uniformly across time, preventing recovering servers from crashing repeatedly.",
+    "Risk": "Retrying non-retryable 4xx client errors (like 400 Bad Request or 401 Unauthorized) wastes bandwidth and logs useless errors.",
+    "Trade": "Increases latency for operations that fail repeatedly before succeeding, but ensures system survivability under load.",
+    "Try": "Simulate 100 concurrent clients retrying with fixed intervals vs jittered exponential backoff and plot server request arrival distribution.",
+    "worked_case": "Walkthrough scenario: A microservice restarts, causing 10,000 active mobile apps to fail simultaneously with 503. With fixed 1000ms retries, all 10,000 clients retry at exactly t=1000ms, t=2000ms, crashing the microservice on startup. With Full Jitter, retries spread smoothly between 0ms and 1200ms, allowing the service to process batches smoothly and recover.",
+    "citations": [
+      "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/",
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What should the client inspect before calculating exponential backoff on HTTP 429 responses?",
+        "A": "Inspect the Retry-After response header; if present, the client should respect the server's explicit waiting duration before applying local backoff."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does the Stale-While-Revalidate (SWR) caching strategy work in modern client-side data fetching libraries?",
+    "A": "**Direct answer:** Stale-While-Revalidate (SWR), derived from HTTP RFC 5861, is a caching strategy that prioritizes instant UI responsiveness while maintaining eventual data consistency. When a component requests data: \n1. **Stale:** The client immediately returns cached (potentially stale) data from memory if available, allowing the UI to render in 0ms without a loading spinner.\n2. **Revalidate:** Simultaneously in the background, the client dispatches a network fetch to the backend authority.\n3. **Update:** Once fresh data arrives, the client updates the cache and re-renders the UI seamlessly only if the data has changed.\n\n```typescript\n// Conceptual implementation of a memory-backed SWR Cache:\nclass SWRCache {\n    private store = new Map<string, { data: any; timestamp: number }>();\n\n    async get<T>(\n        key: string,\n        fetcher: () => Promise<T>,\n        onUpdate: (data: T) => void\n    ): Promise<T> {\n        const cached = this.store.get(key);\n        if (cached) {\n            // Return stale data immediately for instant render!\n            // Revalidate in background:\n            fetcher().then(fresh => {\n                if (JSON.stringify(fresh) !== JSON.stringify(cached.data)) {\n                    this.store.set(key, { data: fresh, timestamp: Date.now() });\n                    onUpdate(fresh); // Trigger update\n                }\n            }).catch(console.error);\n            return cached.data;\n        }\n\n        // No cache: await initial network fetch\n        const data = await fetcher();\n        this.store.set(key, { data, timestamp: Date.now() });\n        return data;\n    }\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Perceived latency:** 0ms instantaneous render on subsequent page views or tab focuses.\n- **Structural Sharing:** Libraries like TanStack Query compare old and new data structures recursively, preserving unchanged object references to avoid unnecessary component re-renders.\n\n**Algorithmic mechanics and edge cases:**\nSWR libraries typically trigger automatic background revalidation on three key lifecycle events: **Window Focus** (when user returns from another tab), **Network Reconnection** (when user regains internet), and **Interval Polling**.",
+    "Why": "SWR delivers instantaneous zero-latency navigation while ensuring the interface synchronizes with backend updates in the background.",
+    "Risk": "Displaying stale cached data without a subtle background syncing indicator can mislead users on critical financial or inventory screens.",
+    "Trade": "Increases background network requests to keep cached views synchronized with the remote database.",
+    "Try": "Implement a simple SWR hook and observe page rendering instantaneously from cache followed by a silent background data update.",
+    "worked_case": "Walkthrough scenario: A user navigates to their profile page. Without SWR, every navigation triggers a 300ms spinner. With SWR, the profile page renders cached user data in 0ms. In the background, SWR revalidates with the server, finds that the user's avatar URL updated 5 minutes ago, updates the cache, and smoothly updates the avatar image without flickering the rest of the page.",
+    "citations": [
+      "https://swr.vercel.app/",
+      "https://tanstack.com/query/latest/docs/framework/react/overview"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is Structural Sharing in TanStack Query?",
+        "A": "Structural sharing copies unchanged nested objects from the previous cache entry rather than creating new objects, preserving reference equality and preventing React re-renders."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you implement optimistic UI updates with deterministic rollbacks when an asynchronous mutation fails?",
+    "A": "**Direct answer:** Optimistic UI is a design pattern where the client updates its interface immediately upon user action, *assuming* the backend server mutation will succeed, rather than forcing the user to wait for an HTTP roundtrip. To remain truthful, the client must capture a snapshot of the previous state *before* applying the optimistic update. If the mutation rejects or times out, the client deterministically rolls back to the captured snapshot and presents an actionable error notification.\n\n```typescript\ninterface Todo { id: string; text: string; completed: boolean; }\n\nexport async function toggleTodoOptimistic(\n    todoId: string,\n    getTodos: () => Todo[],\n    setTodos: (todos: Todo[]) => void,\n    apiToggle: (id: string) => Promise<void>\n) {\n    // 1. Snapshot previous authoritative state:\n    const rollbackSnapshot = getTodos();\n\n    // 2. Apply optimistic update immediately:\n    setTodos(rollbackSnapshot.map(t =>\n        t.id === todoId ? { ...t, completed: !t.completed } : t\n    ));\n\n    try {\n        // 3. Dispatch server mutation in background:\n        await apiToggle(todoId);\n    } catch (error) {\n        // 4. On failure: deterministic rollback to snapshot!\n        console.error('Mutation failed, rolling back state:', error);\n        setTodos(rollbackSnapshot);\n        alert('Could not update todo. Changes reverted.');\n    }\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Interaction responsiveness:** 0ms perceived latency for user clicks.\n- **Rollback guarantees:** State snapshot ensures partial network failures restore exact previous state without data corruption.\n\n**Algorithmic mechanics and edge cases:**\nHandling race conditions across concurrent optimistic mutations requires careful state queues. In TanStack Query, `onMutate` cancels in-flight query refetches (`cancelQueries`), snapshots the previous cache, updates the cache optimistically, and `onError` restores the snapshot context before `onSettled` re-synchronizes with the authoritative server.",
+    "Why": "Optimistic updates make applications feel instantaneous and responsive, emulating local desktop software speeds.",
+    "Risk": "Failing to snapshot and rollback on failure leaves the UI showing changes that never persisted to the database.",
+    "Trade": "Significantly higher state management complexity and error handling logic for every optimistic mutation.",
+    "Try": "Implement an optimistic like button that rolls back when an API endpoint artificially rejects with a 500 error.",
+    "worked_case": "Walkthrough scenario: A user marks an email as 'Archived'. The email disappears from the inbox in 0ms. The background POST /archive fails with a network timeout. The catch block executes: the archived email reappears in its exact position in the inbox, and an alert toast reads: 'Network error. Email could not be archived.' The interface remains completely truthful.",
+    "citations": [
+      "https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates",
+      "https://react.dev/reference/react/useOptimistic"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is it important to cancel in-flight queries before applying an optimistic update?",
+        "A": "If an older background query resolves after you apply the optimistic update, its stale response will overwrite your optimistic change before the mutation completes."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you consume and render a chunked streaming LLM response using Fetch ReadableStream and TextDecoder?",
+    "A": "**Direct answer:** Modern generative AI backends stream text tokens incrementally over HTTP using chunked transfer encoding or Server-Sent Events. In the browser, `response.body` on a Fetch `Response` is a `ReadableStream<Uint8Array>`. To consume the stream without buffering the entire payload into memory, obtain a reader using `response.body.getReader()` and decode bytes into UTF-8 string chunks using `TextDecoder({ stream: true })` inside an asynchronous loop.\n\n```typescript\nexport async function streamLLMResponse(\n    prompt: string,\n    signal: AbortSignal,\n    onToken: (token: string) => void\n): Promise<void> {\n    const response = await fetch('/api/chat', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ prompt }),\n        signal\n    });\n\n    if (!response.ok || !response.body) {\n        throw new Error(`Streaming failed: HTTP ${response.status}`);\n    }\n\n    const reader = response.body.getReader();\n    const decoder = new TextDecoder('utf-8');\n\n    try {\n        while (true) {\n            const { value, done } = await reader.read();\n            if (done) break;\n            // stream: true ensures multi-byte UTF-8 characters split across chunks decode correctly:\n            const chunkText = decoder.decode(value, { stream: true });\n            onToken(chunkText);\n        }\n    } finally {\n        reader.releaseLock();\n    }\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Memory efficiency:** O(1) memory consumption; each byte buffer is garbage collected after decoding rather than accumulating in a single massive buffer.\n- **Time to First Token (TTFT):** Delivers text to the screen within ~100ms of backend generation, rather than waiting 15 seconds for complete response generation.\n\n**Algorithmic mechanics and edge cases:**\nThe `{ stream: true }` parameter in `decoder.decode()` is critical. A multi-byte character (like an emoji or Japanese kanji) can be split across two separate TCP network chunks. Without `{ stream: true }`, `TextDecoder` emits a corrupted replacement character `` instead of holding the partial bytes in reserve until the next chunk arrives.",
+    "Why": "Streaming reduces perceived latency from tens of seconds down to milliseconds for generative AI experiences.",
+    "Risk": "Omitting { stream: true } causes multi-byte Unicode characters split across network packets to render as corrupted replacement glyphs.",
+    "Trade": "Requires progressive markdown rendering and state accumulation rather than a single simple JSON payload parse.",
+    "Try": "Stream a long paragraph and log chunk lengths to observe that browser chunks vary in size depending on TCP packet arrival.",
+    "worked_case": "Walkthrough scenario: An AI code assistant generates a 500-line function. A standard JSON fetch forces the user to stare at a spinner for 20 seconds. Streaming with ReadableStream renders the function header, imports, and logic token-by-token within 150ms of generation. If the user realizes the prompt was misunderstood, they click Cancel, which aborts the reader immediately, saving backend GPU compute.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams",
+      "https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/decode"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is reader.releaseLock() called in a finally block?",
+        "A": "getReader() locks the stream to that reader; if an error occurs, releasing the lock ensures the stream can be closed, cancelled, or read by another handler."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do Server-Sent Events (SSE) compare with WebSockets for real-time frontend streaming, and how do you handle reconnects?",
+    "A": "**Direct answer:** Server-Sent Events (SSE) and WebSockets provide real-time web capabilities with distinct architectural trade-offs:\n- **Server-Sent Events (`EventSource`):** Unidirectional (server-to-client only), runs over standard HTTP/HTTPS (efficiently multiplexed over HTTP/2), natively supports automatic reconnection with backoff, supports message IDs (`id:`) for missed message replay, and traverses corporate proxies and firewalls without configuration.\n- **WebSockets (`WebSocket`):** Full-duplex bidirectional (client-to-server and server-to-client), upgrades to a raw TCP socket protocol (`ws://`, `wss://`), requires custom application code for reconnection, ping/pong heartbeats, and message recovery.\n\n```typescript\n// 1. Native EventSource with automatic reconnection:\nconst sse = new EventSource('/api/live-feed');\nsse.onmessage = (event) => {\n    console.log('Received SSE message:', event.data, 'Event ID:', event.lastEventId);\n};\nsse.onerror = (err) => {\n    console.warn('SSE connection dropped; browser will automatically reconnect...');\n};\n\n// 2. Fetch-based SSE parser (when custom Authorization headers are required):\nasync function fetchSSE(url: string, token: string, onEvent: (data: string) => void) {\n    const response = await fetch(url, {\n        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'text/event-stream' }\n    });\n    const reader = response.body!.getReader();\n    const decoder = new TextDecoder();\n    let buffer = '';\n\n    while (true) {\n        const { value, done } = await reader.read();\n        if (done) break;\n        buffer += decoder.decode(value, { stream: true });\n        const lines = buffer.split('\\n\\n');\n        buffer = lines.pop() || ''; // Keep partial line in buffer\n        for (const block of lines) {\n            if (block.startsWith('data: ')) onEvent(block.replace(/^data: /, ''));\n        }\n    }\n}\n```\n\n**Complexity analysis and mechanics:**\n- **HTTP/2 multiplexing:** Native EventSource shares the same single TCP connection as page assets under HTTP/2, whereas WebSockets require dedicated TCP connections.\n- **Replay mechanism:** When reconnecting, the browser automatically sends `Last-Event-ID: <id>`, allowing the server to replay missed messages.\n\n**Algorithmic mechanics and edge cases:**\nThe native browser `EventSource` API does not support passing custom HTTP headers (like `Authorization: Bearer <token>`). To send auth tokens over SSE, developers either pass tokens in URL query parameters (which risk proxy logging) or use `fetch` with `ReadableStream` to parse the SSE text protocol manually.",
+    "Why": "SSE provides automatic reconnection and HTTP/2 multiplexing for server-to-client streaming without WebSocket overhead.",
+    "Risk": "Native EventSource cannot send custom Authorization headers, tempting developers to leak sensitive tokens in URL query strings.",
+    "Trade": "SSE is strictly unidirectional; bidirectional communication requires sending client data via separate HTTP POST requests.",
+    "Try": "Connect to an SSE endpoint, terminate the server, and observe browser DevTools network tab automatically retrying the connection.",
+    "worked_case": "Walkthrough scenario: A financial stock ticker streams prices to 50,000 users. Because prices flow strictly server-to-client, the team chooses SSE over WebSockets. When a mobile user passes through a tunnel, the connection drops. Upon exiting the tunnel, the browser's EventSource automatically reconnects and sends Last-Event-ID: 4102. The server sends missed trades starting from 4103, restoring data consistency with zero custom reconnection code.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events",
+      "https://html.spec.whatwg.org/multipage/server-sent-events.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the HTTP/1.1 connection limit problem with native EventSource?",
+        "A": "HTTP/1.1 limits browsers to 6 concurrent connections per domain; opening 6 SSE tabs exhausts the connection pool entirely. HTTP/2 eliminates this restriction via multiplexing."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you implement a robust WebSocket client with heartbeat ping-pong, reconnection backoff, and offline queueing?",
+    "A": "**Direct answer:** A production-grade WebSocket client must survive network drops, server restarts, and sleeping laptops. It requires three core pillars:\n1. **Heartbeat (Ping/Pong):** Periodic ping frames to detect silent connection drops (TCP half-open states) where the socket is dead but the browser has not fired `onclose`.\n2. **Exponential Reconnection Backoff:** Progressively backing off reconnection intervals with jitter to prevent server overload upon restart.\n3. **Offline Message Queue:** Buffering messages sent while disconnected and flushing them in FIFO order once the socket transitions to `OPEN`.\n\n```typescript\nexport class ResilientWebSocket {\n    private ws: WebSocket | null = null;\n    private queue: string[] = [];\n    private pingTimer: number | null = null;\n    private attempts = 0;\n\n    constructor(private url: string, private onMessage: (msg: any) => void) {\n        this.connect();\n    }\n\n    private connect() {\n        this.ws = new WebSocket(this.url);\n        this.ws.onopen = () => {\n            this.attempts = 0;\n            this.startHeartbeat();\n            this.flushQueue();\n        };\n        this.ws.onmessage = (event) => {\n            if (event.data === 'pong') return;\n            this.onMessage(JSON.parse(event.data));\n        };\n        this.ws.onclose = () => this.handleDisconnect();\n    }\n\n    send(data: any) {\n        const payload = JSON.stringify(data);\n        if (this.ws && this.ws.readyState === WebSocket.OPEN) {\n            this.ws.send(payload);\n        } else {\n            this.queue.push(payload); // Buffer offline!\n        }\n    }\n\n    private flushQueue() {\n        while (this.queue.length && this.ws?.readyState === WebSocket.OPEN) {\n            this.ws.send(this.queue.shift()!);\n        }\n    }\n\n    private startHeartbeat() {\n        this.pingTimer = window.setInterval(() => {\n            if (this.ws?.readyState === WebSocket.OPEN) this.ws.send('ping');\n        }, 30000);\n    }\n\n    private handleDisconnect() {\n        if (this.pingTimer) clearInterval(this.pingTimer);\n        const delay = Math.min(10000, 500 * Math.pow(2, this.attempts)) + Math.random() * 500;\n        this.attempts++;\n        setTimeout(() => this.connect(), delay);\n    }\n}\n```\n\n**Complexity analysis and mechanics:**\n- **State tracking:** `ws.readyState` transitions through `CONNECTING` (0), `OPEN` (1), `CLOSING` (2), `CLOSED` (3).\n- **Buffer bounds:** The offline queue must enforce a maximum size limit (e.g. 500 messages) to prevent out-of-memory crashes during extended network outages.\n\n**Algorithmic mechanics and edge cases:**\nMobile devices put background browser tabs into deep sleep, freezing timers. When the user returns, the connection is typically dead. Listening to `document.addEventListener('visibilitychange', ...)` and triggering an immediate ping/reconnect check when `document.visibilityState === 'visible'` revives the socket instantly.",
+    "Why": "Heartbeats detect silent connection drops and offline queues prevent message loss during transient network reconnects.",
+    "Risk": "Unbounded offline queues consume excessive memory during long network outages and overwhelm backends upon reconnect.",
+    "Trade": "Significantly higher client complexity than raw WebSocket APIs, requiring heartbeats, queues, and visibility listeners.",
+    "Try": "Disable WiFi for 15 seconds while sending messages through ResilientWebSocket, restore WiFi, and verify messages flush in order.",
+    "worked_case": "Walkthrough scenario: A collaborative whiteboard app loses connection when a user walks into an elevator. The user continues drawing three shapes. The shapes enter this.queue. When the elevator doors open and 4G reconnects, onopen executes flushQueue(), transmitting all three shapes to the server without data loss or user intervention.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is document visibilitychange crucial for mobile WebSocket applications?",
+        "A": "Mobile operating systems freeze timer execution in background tabs; listening to visibilitychange allows immediate socket health checks upon foregrounding."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do Axios request and response interceptors work, and how do you handle automatic JWT token refresh loops?",
+    "A": "**Direct answer:** Axios interceptors are middleware functions that intercept HTTP requests before they are sent and HTTP responses before they are handled by application code. The most critical enterprise application of interceptors is **transparent JWT access token refresh**. When an API request fails with `401 Unauthorized`: \n1. The interceptor pauses the rejected request.\n2. If a refresh is already in progress, subsequent requests subscribe to a pending promise queue rather than dispatching duplicate refresh calls.\n3. Once the refresh token endpoint returns a fresh access token, the interceptor updates the failed request's `Authorization` header and replays it using the original Axios instance.\n\n```typescript\nimport axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';\n\nexport const apiClient = axios.create({ baseURL: '/api' });\nlet isRefreshing = false;\nlet failedQueue: Array<{\n    resolve: (token: string) => void;\n    reject: (err: any) => void;\n}> = [];\n\nconst processQueue = (error: any, token: string | null = null) => {\n    failedQueue.forEach(prom => error ? prom.reject(error) : prom.resolve(token!));\n    failedQueue = [];\n};\n\napiClient.interceptors.response.use(\n    response => response,\n    async (error: AxiosError) => {\n        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };\n        if (error.response?.status === 401 && !originalRequest._retry) {\n            if (isRefreshing) {\n                // Queue requests while token refresh is in flight:\n                return new Promise((resolve, reject) => {\n                    failedQueue.push({ resolve, reject });\n                }).then(token => {\n                    originalRequest.headers.Authorization = `Bearer ${token}`;\n                    return apiClient(originalRequest);\n                });\n            }\n\n            originalRequest._retry = true;\n            isRefreshing = true;\n\n            try {\n                const { data } = await axios.post('/api/auth/refresh');\n                processQueue(null, data.accessToken);\n                originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;\n                return apiClient(originalRequest);\n            } catch (refreshErr) {\n                processQueue(refreshErr, null);\n                window.location.href = '/login'; // Session expired\n                return Promise.reject(refreshErr);\n            } finally {\n                isRefreshing = false;\n            }\n        }\n        return Promise.reject(error);\n    }\n);\n```\n\n**Complexity analysis and mechanics:**\n- **Concurrency locking:** `isRefreshing` mutex lock ensures exactly 1 refresh request is dispatched, even if 15 parallel API calls trigger 401 simultaneously.\n- **Infinite loop guard:** `_retry = true` flag prevents infinite 401 retry loops if the refresh token itself is expired or revoked.\n\n**Algorithmic mechanics and edge cases:**\nThe refresh endpoint call itself (`axios.post('/api/auth/refresh')`) must use a separate vanilla Axios instance; using `apiClient` would trigger the 401 interceptor recursively if the refresh token fails.",
+    "Why": "A refresh queue handles token rotation seamlessly in the background without interrupting the user's active session.",
+    "Risk": "Failing to queue concurrent 401 requests triggers a barrage of simultaneous refresh calls that revoke single-use refresh tokens.",
+    "Trade": "Requires maintaining in-memory request queues and global mutex flags inside the API client module.",
+    "Try": "Simulate 5 simultaneous API calls triggering 401 and verify that only 1 POST /refresh is sent while all 5 calls replay successfully.",
+    "worked_case": "Walkthrough scenario: A user loads a dashboard with 6 widgets making parallel API calls. The user's access token expired 2 seconds ago. All 6 requests return 401. The first request triggers isRefreshing=true and calls /api/auth/refresh. The other 5 enter failedQueue. When the refresh returns a new token, processQueue resolves all 5 queued promises with the new token, and all 6 requests replay smoothly, displaying dashboard data without logging out the user.",
+    "citations": [
+      "https://axios-http.com/docs/interceptors",
+      "https://auth0.com/docs/secure/tokens/refresh-tokens"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens if a refresh token rotation policy is enabled on the backend and 2 refresh requests are sent concurrently?",
+        "A": "The backend revokes the entire token family as a potential token theft replay attack, logging out the user instantly."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do cursor-based and offset-based pagination differ in frontend infinite scroll implementations?",
+    "A": "**Direct answer:** Pagination divides large datasets into manageable pages. In frontend infinite scroll applications, the choice between offset-based and cursor-based pagination fundamentally affects performance and data consistency:\n- **Offset-based pagination (`limit=20&offset=40`):** Relies on skipping rows in the database. When new items are inserted at the top of the feed while the user is scrolling, the entire list shifts downward: items from page 1 spill into page 2, causing the user to see duplicate items on screen. Furthermore, database performance degrades to $O(N)$ as offset grows large.\n- **Cursor-based pagination (`limit=20&cursor=item_9823`):** Uses a unique, indexed pointer (such as an opaque ID, timestamp, or base64 token) to fetch the next set of items *strictly after that cursor*. It is completely immune to item insertions or deletions at the top of the feed and executes in $O(1)$ indexed database time.\n\n```typescript\ninterface PaginatedResponse<T> {\n    items: T[];\n    nextCursor: string | null;\n}\n\nexport async function fetchFeedPage(cursor: string | null): Promise<PaginatedResponse<Post>> {\n    const params = new URLSearchParams({ limit: '20' });\n    if (cursor) params.set('cursor', cursor);\n    const res = await fetch(`/api/feed?${params.toString()}`);\n    if (!res.ok) throw new Error('Feed error');\n    return res.json();\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Frontend deduplication:** Even with cursor pagination, client feeds should maintain a Set of seen IDs (`seenIds.has(id)`) to guarantee zero duplicate keys in React lists.\n- **IntersectionObserver:** An invisible sentinel `<div ref={sentinelRef} />` at the bottom of the list triggers the next page fetch when it enters the viewport.\n\n**Algorithmic mechanics and edge cases:**\nCursor pagination cannot jump directly to arbitrary page numbers (e.g. 'Jump to Page 42'); it only supports sequential forward or backward traversal, making it ideal for infinite feeds and timelines (Twitter, Instagram, TikTok) rather than tabular data grids.",
+    "Why": "Cursor pagination guarantees consistent infinite scroll lists without duplicate or skipped items when new data is posted.",
+    "Risk": "Offset pagination produces duplicate entries and missing posts when items are inserted while the user is actively scrolling.",
+    "Trade": "Cursor pagination prevents jumping directly to arbitrary page numbers, limiting its use to sequential infinite lists.",
+    "Try": "Prepend items to an offset-paginated mock API and observe the client list rendering duplicated rows across page boundaries.",
+    "worked_case": "Walkthrough scenario: A user scrolls an active social media feed. On offset pagination, after reading 20 posts, 5 new posts are published. The client requests offset=20. The last 5 posts from page 1 have shifted into indices 20-25, causing the user to see those 5 posts repeated on screen. With cursor=post_20, the database fetches rows created before post_20 regardless of new insertions, eliminating duplicates.",
+    "citations": [
+      "https://tanstack.com/query/latest/docs/framework/react/guides/infinite-queries",
+      "https://slack.engineering/evolving-api-pagination-at-slack/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do you detect when the user has scrolled to the bottom of an infinite list efficiently?",
+        "A": "Use an IntersectionObserver attached to a sentinel element at the bottom of the list rather than listening to window onscroll events."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does cache query invalidation and optimistic mutation matching work in TanStack Query (React Query)?",
+    "A": "**Direct answer:** TanStack Query organizes cached asynchronous data using hierarchical array keys called **Query Keys** (e.g., `['todos', 'detail', todoId]`). Query invalidation (`queryClient.invalidateQueries({ queryKey })`) marks matching queries as stale and automatically refetches active queries in the background. Partial matching allows invalidating broad hierarchies (`['todos']` invalidates all todo lists and details) or specific targets (`['todos', 'list']`).\n\n```typescript\nimport { useMutation, useQueryClient } from '@tanstack/react-query';\n\nexport function useAddTodo() {\n    const queryClient = useQueryClient();\n\n    return useMutation({\n        mutationFn: (newTodo: { title: string }) => api.createTodo(newTodo),\n        // 1. Optimistic update:\n        onMutate: async (newTodo) => {\n            await queryClient.cancelQueries({ queryKey: ['todos'] });\n            const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);\n            queryClient.setQueryData<Todo[]>(['todos'], old => [\n                ...(old || []),\n                { id: 'temp-' + Date.now(), title: newTodo.title, completed: false }\n            ]);\n            return { previousTodos }; // Context snapshot\n        },\n        // 2. Rollback on error:\n        onError: (err, newTodo, context) => {\n            if (context?.previousTodos) {\n                queryClient.setQueryData(['todos'], context.previousTodos);\n            }\n        },\n        // 3. Always refetch authoritative server state on settlement:\n        onSettled: () => {\n            queryClient.invalidateQueries({ queryKey: ['todos'] });\n        }\n    });\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Hierarchical matching:** Matching uses prefix comparison: `['todos']` matches `['todos']`, `['todos', 'list']`, and `['todos', 1]`.\n- **Smart refetching:** Inactive queries (not currently rendered on screen) are marked stale but are NOT refetched until a component mounts and requests them.\n\n**Algorithmic mechanics and edge cases:**\nQuery keys must be treated as deterministic serializations. If an object is used inside a query key (`['users', { filter: 'active' }]`), TanStack Query sorts object keys internally so that `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` match the identical cache entry.",
+    "Why": "Hierarchical query keys enable granular or bulk cache invalidation with automatic active-component synchronization.",
+    "Risk": "Mutating query key objects in place breaks cache lookup because TanStack Query relies on stable key hashing.",
+    "Trade": "Automates cache lifecycles at the expense of strict reliance on consistent query key naming conventions.",
+    "Try": "Invalidate queryKey: ['users'] and verify that only currently mounted components trigger background network requests.",
+    "worked_case": "Walkthrough scenario: An application displays a user list and user count. Adding a user updates the database. Calling invalidateQueries({ queryKey: ['users'] }) matches both ['users', 'list'] and ['users', 'count'], triggering background refetches for both mounted widgets simultaneously, ensuring the list and count stay in complete synchronization.",
+    "citations": [
+      "https://tanstack.com/query/latest/docs/framework/react/guides/query-invalidation",
+      "https://tanstack.com/query/latest/docs/framework/react/guides/query-keys"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the difference between staleTime and gcTime (formerly cacheTime) in TanStack Query?",
+        "A": "staleTime defines how long data is considered fresh before needing revalidation; gcTime defines how long inactive data remains in memory before garbage collection."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you prevent race conditions when multiple fast-typing search requests are dispatched simultaneously?",
+    "A": "**Direct answer:** In typeahead search inputs, network latency is non-deterministic: a slow request for a short query (`'ca'`) can resolve *after* a fast request for a longer query (`'cats'`), causing outdated results to overwrite the user's fresh search. To prevent this classic race condition, frontends combine three strategies:\n1. **Abort prior requests:** Passing an `AbortController.signal` to cancel the previous in-flight request when a new character is typed.\n2. **Sequential request IDs:** Maintaining an incrementing transaction ID or timestamp in a ref and discarding any response whose ID is older than the latest dispatched ID.\n3. **Debouncing:** Delaying request dispatch by ~250ms of typing inactivity to eliminate intermediate requests.\n\n```tsx\nfunction TypeaheadSearch() {\n    const [query, setQuery] = useState('');\n    const [results, setResults] = useState<string[]>([]);\n    const abortControllerRef = useRef<AbortController | null>(null);\n    const latestRequestIdRef = useRef<number>(0);\n\n    const handleSearch = (text: string) => {\n        setQuery(text);\n        // 1. Abort previous in-flight request:\n        if (abortControllerRef.current) abortControllerRef.current.abort();\n        const controller = new AbortController();\n        abortControllerRef.current = controller;\n\n        // 2. Increment transaction ID:\n        const currentRequestId = ++latestRequestIdRef.current;\n\n        fetch(`/api/search?q=${encodeURIComponent(text)}`, { signal: controller.signal })\n            .then(res => res.json())\n            .then(data => {\n                // 3. Verify this response is still the latest one:\n                if (currentRequestId === latestRequestIdRef.current) {\n                    setResults(data);\n                }\n            })\n            .catch(err => {\n                if (err.name !== 'AbortError') console.error(err);\n            });\n    };\n\n    return <input value={query} onChange={e => handleSearch(e.target.value)} />;\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Bandwidth reduction:** Aborting prior requests saves client mobile data and frees backend search server threads.\n- **Zero UI tearing:** Generation counter guarantees that only the user's most recent intention updates the DOM.\n\n**Algorithmic mechanics and edge cases:**\nUsing RxJS `switchMap` or TanStack Query handles this automatically under the hood: when query keys change, `switchMap` unsubscribes from the prior observable, terminating the old stream.",
+    "Why": "Generation tracking and request aborting guarantee that delayed network responses never overwrite newer user queries.",
+    "Risk": "Without race condition guards, fast typers regularly end up with search results that don't match the text in the input box.",
+    "Trade": "Requires managing an AbortController ref and generation counter alongside standard input state.",
+    "Try": "Simulate slow network latency on query 'a' (2000ms) and fast on 'ab' (100ms) and verify results reflect 'ab'.",
+    "worked_case": "Walkthrough scenario: A user types 'react'. The request for 'r' takes 800ms due to database cold start. The request for 'react' hits cache in 50ms, rendering React documentation. At t=800ms, the response for 'r' arrives. Without generation tracking, the 50ms results are overwritten by 'r' results, leaving the user viewing results for 'r' while the input reads 'react'. Generation tracking rejects the 'r' response instantly.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
+      "https://react.dev/learn/synchronizing-with-effects#fetching-data"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How does RxJS switchMap solve this problem natively?",
+        "A": "switchMap automatically cancels and unsubscribes from the previous inner observable whenever a new value is emitted by the source stream."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you implement request deduplication in flight so concurrent components don't trigger duplicate network calls?",
+    "A": "**Direct answer:** When multiple independent components on a page require the exact same dataset (e.g. Current User profile, Organization Settings, Feature Flags) on initial load, naive implementations dispatch identical duplicate HTTP requests simultaneously. **In-Flight Request Deduplication** caches the active `Promise` in memory keyed by request URL and parameters. When a second component requests the same resource while the first request is still in flight, it receives the *existing unresolved Promise*, resulting in exactly one network call that fulfills both callers simultaneously.\n\n```typescript\nexport class RequestDeduplicator {\n    private inFlight = new Map<string, Promise<any>>();\n\n    async dedupe<T>(key: string, fetcher: () => Promise<T>): Promise<T> {\n        // If identical request is already pending, return existing promise!\n        const existing = this.inFlight.get(key);\n        if (existing) return existing as Promise<T>;\n\n        const promise = fetcher()\n            .finally(() => {\n                // Clean up once resolved or rejected so subsequent calls fetch fresh:\n                this.inFlight.delete(key);\n            });\n\n        this.inFlight.set(key, promise);\n        return promise;\n    }\n}\n\nexport const deduplicator = new RequestDeduplicator();\n\n// Used across ComponentA, ComponentB, ComponentC:\n// const user = await deduplicator.dedupe('/api/me', () => fetch('/api/me').then(r => r.json()));\n```\n\n**Complexity analysis and mechanics:**\n- **Network reduction:** Collapses N concurrent component requests into exactly 1 HTTP transmission.\n- **Memory lifecycle:** `.finally(() => inFlight.delete(key))` ensures in-flight cache holds zero references after completion, preventing memory leaks.\n\n**Algorithmic mechanics and edge cases:**\nIf the in-flight request fails, the shared Promise rejects for all concurrent subscribers. Deleting the key in `.finally()` allows subsequent user retry attempts to dispatch a fresh network attempt.",
+    "Why": "Deduplicating in-flight requests eliminates redundant server load and network contention during initial dashboard rendering.",
+    "Risk": "Forgetting to delete the key in finally() permanently traps the endpoint in a resolved promise that never fetches fresh data.",
+    "Trade": "Only deduplicates requests occurring within the same in-flight time window; persistent caching requires SWR or TanStack Query.",
+    "Try": "Call dedupe('/api/config') simultaneously from 5 separate components and verify the network tab shows exactly 1 HTTP request.",
+    "worked_case": "Walkthrough scenario: An application dashboard has a Navbar, Sidebar, and MainProfile widget. All three mount at t=0 and request fetch('/api/user/me'). Without deduplication, 3 identical GET requests hit the backend, tripling session verification load. With RequestDeduplicator, Navbar creates the promise, Sidebar and MainProfile attach to it, and exactly 1 GET request is executed.",
+    "citations": [
+      "https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults",
+      "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/finally"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How does React 19 native cache() function relate to request deduplication?",
+        "A": "In Server Components, React's cache(fn) deduplicates identical function calls per server request, ensuring multiple components calling getUser() execute the database query only once."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you handle file uploads with progress tracking, resumable multipart uploads, and drag-and-drop state?",
+    "A": "**Direct answer:** The native Fetch API cannot track upload progress because `ReadableStream` upload support is limited across browsers. Reliable file uploads with percentage progress tracking require `XMLHttpRequest` and its `xhr.upload.onprogress` event. For large files (>50MB), enterprise frontends implement **Chunked / Resumable Uploads** (e.g. using the TUS protocol or S3 Multipart Upload), slicing the `File` using `file.slice(start, end)` into 5MB chunks and uploading them sequentially or in parallel with retry tokens.\n\n```typescript\nexport function uploadWithProgress(\n    url: string,\n    file: File,\n    onProgress: (percent: number) => void\n): Promise<any> {\n    return new Promise((resolve, reject) => {\n        const xhr = new XMLHttpRequest();\n        const formData = new FormData();\n        formData.append('file', file);\n\n        // Track upload progress events:\n        xhr.upload.onprogress = (event) => {\n            if (event.lengthComputable) {\n                const percent = Math.round((event.loaded / event.total) * 100);\n                onProgress(percent);\n            }\n        };\n\n        xhr.onload = () => {\n            if (xhr.status >= 200 && xhr.status < 300) {\n                resolve(JSON.parse(xhr.responseText));\n            } else {\n                reject(new Error(`Upload failed: ${xhr.status}`));\n            }\n        };\n        xhr.onerror = () => reject(new Error('Network upload error'));\n        xhr.open('POST', url);\n        xhr.send(formData);\n    });\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Drag-and-Drop:** Handlers must call `e.preventDefault()` on `dragover` to allow drops, and extract files from `e.dataTransfer.files`.\n- **Resumability:** Slicing `file.slice()` reads binary chunks from disk as `Blob` without loading the entire multi-gigabyte file into JavaScript RAM.\n\n**Algorithmic mechanics and edge cases:**\nDirect uploads to Cloud Storage (AWS S3, Google Cloud Storage) should use pre-signed PUT URLs obtained from the backend, bypassing the application server completely and saving backend bandwidth.",
+    "Why": "Progress tracking and chunked slicing allow reliable transmission of multi-gigabyte assets over unstable consumer connections.",
+    "Risk": "Attempting to read an entire 2GB video file into memory using FileReader.readAsArrayBuffer crashes the browser tab with OOM.",
+    "Trade": "Requires using legacy XMLHttpRequest or specialized protocols like TUS rather than simple fetch calls.",
+    "Try": "Drag a file over a drop zone and inspect event.dataTransfer.files to read file metadata before uploading.",
+    "worked_case": "Walkthrough scenario: A user uploads a 500MB video on a 4G connection. At 80%, the connection drops. In a single-file upload, the entire 500MB upload fails and must restart from 0%. With chunked multipart uploading (5MB chunks), the client records that chunks 1 through 80 succeeded. When connection restores, it resumes from chunk 81, saving 400MB of duplicate data transfer.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/upload",
+      "https://tus.io/protocols/resumable-upload.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is e.preventDefault() required on the dragover event for HTML5 drag and drop?",
+        "A": "By default, browsers reject dropped files or attempt to navigate to the file URL; calling preventDefault() signals that the element is a valid drop target."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How does GraphQL normalized client caching (e.g., Apollo Client) differ from document-level REST endpoint caching?",
+    "A": "**Direct answer:** REST clients typically cache responses at the **document/URL level**: a request to `GET /api/users/12` caches the entire response body under that specific endpoint string. If `GET /api/users` also returns user 12 with updated details, the two cache entries have no relationship, resulting in data desynchronization. In contrast, GraphQL clients (like Apollo Client or Relay) use a **Normalized Cache**: they disassemble incoming query response trees into individual entities identified by a globally unique key (typically `__typename:id`, e.g. `User:12`) and store them in a flat dictionary.\n\n```typescript\n// Conceptual representation of Apollo's Normalized Cache:\n// Flattened Entity Store:\nconst normalizedCache = {\n    'User:12': { id: '12', __typename: 'User', name: 'Alice', role: 'admin' },\n    'User:15': { id: '15', __typename: 'User', name: 'Bob', role: 'member' },\n    'Post:101': { id: '101', __typename: 'Post', title: 'Hello', author: { __ref: 'User:12' } },\n    'ROOT_QUERY': {\n        'currentUser': { __ref: 'User:12' },\n        'posts': [{ __ref: 'Post:101' }]\n    }\n};\n```\n\n**Complexity analysis and mechanics:**\n- **Automatic propagation:** Updating `User:12`'s name via any mutation automatically updates every component reading `User:12`, regardless of which query fetched it.\n- **Normalization overhead:** O(E) where E is the number of entities in the GraphQL response graph, breaking trees into reference pointers.\n\n**Algorithmic mechanics and edge cases:**\nNormalization requires every GraphQL query to request `id` and `__typename`. If a query omits the `id` field, Apollo cannot generate a stable cache key, falling back to caching the object embedded under the query, which destroys cross-query synchronization.",
+    "Why": "Normalized caching ensures that mutating an entity in one widget instantly synchronizes across all other widgets on the screen.",
+    "Risk": "Omitting id from GraphQL queries causes Apollo to store unnormalized objects that fail to synchronize across screens.",
+    "Trade": "Delivers automatic entity synchronization at the expense of higher CPU normalization costs and client bundle size.",
+    "Try": "Inspect Apollo Client Cache in Apollo DevTools and observe nested queries decomposing into ROOT_QUERY references.",
+    "worked_case": "Walkthrough scenario: An application has a TopNav displaying the user's name ('Alice') and a ProfileSettings form. The user changes their name to 'Alicia' in ProfileSettings. In REST, TopNav stays 'Alice' until its own endpoint refetches. In normalized GraphQL, the mutation updates entity User:1 in the normalized store. Both TopNav and ProfileSettings reference User:1, so TopNav updates its text to 'Alicia' in 0ms without refetching.",
+    "citations": [
+      "https://www.apollographql.com/docs/react/caching/overview/",
+      "https://relay.dev/docs/principles-and-architecture/thinking-in-graphql/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What happens in a normalized cache if an entity does not have an id field?",
+        "A": "The client cannot normalize the entity into the global flat table; it remains nested inside the parent query result, preventing cross-component synchronization."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  },
+  {
+    "Q": "How do you design an offline-first data layer with IndexedDB synchronization and conflict resolution?",
+    "A": "**Direct answer:** An offline-first frontend architecture treats local client storage (IndexedDB) as the primary source of truth, with backend networks acting as an asynchronous synchronization peer. The architecture consists of three core components:\n1. **Local IndexedDB Store:** All user reads and writes interact with a local IndexedDB database (via lightweight wrappers like `idb` or Dexie.js), providing 0ms local operations regardless of network state.\n2. **Outbox Synchronization Queue:** Mutations are appended to an IndexedDB `outbox` table with timestamps and idempotency keys.\n3. **Sync Engine & Conflict Resolution:** When online, a sync worker drains the outbox to the server. Conflicts (e.g. concurrent edits on different devices) are resolved via **Last-Write-Wins (LWW)** timestamps or **Conflict-Free Replicated Data Types (CRDTs)**.\n\n```typescript\ninterface OutboxMutation {\n    id: string;          // UUID\n    entity: string;      // 'notes'\n    action: 'CREATE' | 'UPDATE' | 'DELETE';\n    payload: any;\n    timestamp: number;\n}\n\nexport class OfflineSyncEngine {\n    async queueMutation(mutation: Omit<OutboxMutation, 'id' | 'timestamp'>) {\n        const record: OutboxMutation = {\n            ...mutation,\n            id: crypto.randomUUID(),\n            timestamp: Date.now()\n        };\n        await db.outbox.add(record);\n        this.triggerSync();\n    }\n\n    async triggerSync() {\n        if (!navigator.onLine) return;\n        const pending = await db.outbox.orderBy('timestamp').toArray();\n        for (const mutation of pending) {\n            try {\n                await api.syncMutation(mutation);\n                await db.outbox.delete(mutation.id); // Remove on success\n            } catch (err) {\n                console.warn('Sync paused due to network error:', err);\n                break; // Stop draining on network failure\n            }\n        }\n    }\n}\n```\n\n**Complexity analysis and mechanics:**\n- **Storage capacity:** IndexedDB supports gigabytes of data (typically 50-80% of available disk space), unlike `localStorage`'s 5MB limit.\n- **Asynchronous I/O:** IndexedDB operations run on a background worker thread, preventing main-thread UI jank.\n\n**Algorithmic mechanics and edge cases:**\nListening to `window.addEventListener('online', () => syncEngine.triggerSync())` triggers immediate queue draining upon network recovery. Server endpoints must be idempotent to tolerate duplicate replay transmissions if a connection drops mid-acknowledgment.",
+    "Why": "Offline-first architectures guarantee that users can create, edit, and read data uninterrupted regardless of network connectivity.",
+    "Risk": "Naive last-write-wins conflict resolution can silently overwrite data edited concurrently by another collaborator on a different device.",
+    "Trade": "Delivers offline reliability at the expense of requiring local schema migrations and synchronization conflict logic.",
+    "Try": "Store an entity in IndexedDB, turn on Chrome DevTools Offline mode, mutate the data, restore online mode, and observe queue sync.",
+    "worked_case": "Walkthrough scenario: An inspector on a factory floor fills out equipment inspection forms in a basement with zero cellular signal. The app saves forms to IndexedDB and appends 12 records to db.outbox. The inspector ascends to the surface, and navigator.onLine fires. OfflineSyncEngine drains all 12 items to the server in chronological order, displaying 'All changes saved to cloud'.",
+    "citations": [
+      "https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API",
+      "https://developer.mozilla.org/en-US/docs/Web/API/Navigator/onLine"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is localStorage unsuitable for offline-first data stores?",
+        "A": "localStorage has a 5MB storage limit, lacks indexing, only stores strings, and executes synchronously on the main thread, blocking animations and user input."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    },
+    "answer_format": "conceptual",
+    "difficulty": "interview"
+  }
+]
