@@ -1,36 +1,68 @@
 [
   {
-    "explain": "Middleware applies cross-cutting policy around an invocation while the business function retains domain behavior. This small wrapper checks a shared budget.",
-    "steps": "Apply admission before calling the domain function. || Return a stable budget outcome without executing denied work.",
-    "expect": "budget_exhausted",
-    "name": "middleware",
+    "name": "tool-wrapper-context-injection",
+    "filename": "tool-wrapper-context-injection.py",
     "language": "python",
-    "filename": "middleware.py",
+    "explain": "Demonstrates adapting domain service methods into model-facing tools while injecting authenticated caller identity (tenant_id, user_id) from request-local ContextVar. Strictly omits security fields from the model schema to eliminate model-injected IDOR attacks and preserves domain authorization checks in the core business service.",
+    "steps": "Generate model-facing JSON Schemas exposing only safe task parameters. || Inject authenticated tenant and user identity from ContextVar outside model control. || Enforce object authorization inside the domain service to defeat cross-tenant IDOR attacks.",
+    "expect": "1. Model-Facing Tool Schema Inspection:\n{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"lookup_order\",\n    \"description\": \"Lookup customer order details by order_id.\",\n    \"parameters\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"order_id\": {\n          \"type\": \"string\",\n          \"description\": \"The order_id parameter\"\n        }\n      },\n      \"required\": [\n        \"order_id\"\n      ]\n    }\n  }\n}\n\n2. Authorized Invocation for Tenant Alpha:\n  Result: {'success': True, 'result': {'order_id': 'ORD-101', 'tenant': 'tenant_alpha', 'data': {'customer': 'Alice', 'total': 150.0, 'status': 'SHIPPED'}}}\n\n3. Testing Cross-Tenant Access Protection (Tenant Beta Order):\n  IDOR Result: {'success': False, 'error': '\"Order \\'ORD-999\\' not found for tenant \\'tenant_alpha\\'\"'}\n\n4. Testing Unauthenticated Request Context:\n  Unauth Result: {'error': 'Unauthenticated: No active tenant context in request'}\n\nTool wrapper, ContextVar identity injection, and domain authorization verified successfully.",
+    "questions": [
+      600,
+      203
+    ]
+  },
+  {
+    "name": "lcel-chain-vs-agent-loop",
+    "filename": "lcel-chain-vs-agent-loop.py",
+    "language": "python",
+    "explain": "Demonstrates the essential architectural difference between LangChain Expression Language (LCEL) runnable composition and dynamic agent loops. Overloads the pipe operator (|) to compose prompt formatting, model calling, and JSON output parsing in a single forward pass, comparing its deterministic latency against multi-turn dynamic agent loops.",
+    "steps": "Compose a deterministic Prompt | Model | Parser pipeline using LCEL runnable pipe syntax. || Execute the runnable chain in a single forward pass with zero tool-selection errors. || Execute a dynamic agent loop that inspects intermediate observations to determine subsequent investigative steps.",
+    "expect": "1. LCEL Runnable Composition Pipeline (Prompt | Model | Parser):\n  Result type: <class 'dict'>\n  Parsed JSON Output: {'summary': 'Q3 Revenue reached $4.2M, exceeding forecast by 12%.'}\n  Latency: <1.0 ms (Single deterministic forward pass)\n\n2. Dynamic Agent Loop Execution:\n  Total Iterations: 3\n  Trajectory Steps: ['search_archive', 'read_document']\n  Final Answer: According to Q3 Financial Review: Q3 Revenue reached $4.2M, exceeding forecast by 12%.\n\nLCEL runnable composition vs dynamic agent loop verified successfully.",
+    "questions": [
+      601,
+      202,
+      204,
+      207
+    ]
+  },
+  {
+    "name": "middleware-budget-guardrails",
+    "filename": "middleware-budget-guardrails.py",
+    "language": "python",
+    "explain": "Demonstrates factoring out cross-cutting operational concerns using framework middleware and callbacks. Enforces hard cumulative token budgets by raising BudgetExhaustedError before dispatch and scrubs sensitive credentials (API keys, credit cards, SSNs) from callback telemetry sinks.",
+    "steps": "Track cumulative session token usage and raise BudgetExhaustedError when exceeding limits. || Intercept model prompts and tool observations using lifecycle callbacks. || Scrub sensitive credentials and PII patterns before logging or emitting telemetry events.",
+    "expect": "1. Running Turn with Sensitive Credentials:\n  Step 1 Result: Completed turn using 200 tokens.\n  Cumulative Tokens: 200/500\n\n2. Verifying Callback Telemetry Sanitization:\n  Sanitized Prompt: 'Query customer profile with [REDACTED_API_KEY] and card [REDACTED_CREDIT_CARD]'\n  Sanitized Tool Obs: 'Customer SSN is [REDACTED_SSN]; account in good standing.'\n\n3. Step 2 Result: Completed turn using 200 tokens. (Tokens: 400/500)\n\n4. Testing Token Budget Exhaustion Invariant:\n  Successfully blocked turn exceeding budget: Token budget exhausted! Requested 200 tokens, but remaining allowance is 100 (Total budget: 500)\n\nMiddleware budget guardrails, callback interception, and PII sanitization verified successfully.",
     "questions": [
       602,
-      206
+      206,
+      209
     ]
   },
   {
-    "explain": "A message sequence separates system instructions, user input, and tool observations. Runtime adapters translate this public model into their provider-specific message classes.",
-    "steps": "Preserve each message's origin. || Inspect the role order before invoking a model adapter.",
-    "expect": "['system', 'user', 'tool']",
-    "name": "message-shape",
+    "name": "stream-event-adapter-contract",
+    "filename": "stream-event-adapter-contract.py",
     "language": "python",
-    "filename": "message-shape.py",
+    "explain": "Demonstrates decoupling internal framework events from public client API contracts. Translates granular framework events (on_chat_model_stream, on_tool_start, on_tool_end) into clean Server-Sent Events (SSE), strips internal system prompts and private connection strings, and validates final output against structured JSON schemas.",
+    "steps": "Filter private internal prompts, hyperparameters, and connection strings from event streams. || Translate granular framework stream events into stable public SSE frames. || Validate completed structured outputs against client contracts before emitting completion events.",
+    "expect": "Transforming Internal Framework Events into Public Client Contract:\nSSE Frame 1:\nevent: tool_status\ndata: {\"tool\": \"search_kb\", \"status\": \"RUNNING\"}\nSSE Frame 2:\nevent: tool_status\ndata: {\"tool\": \"search_kb\", \"status\": \"COMPLETED\"}\nSSE Frame 3:\nevent: token_delta\ndata: {\"text\": \"{\\\"answer\\\": \\\"You \"}\nSSE Frame 4:\nevent: token_delta\ndata: {\"text\": \"have 15 days of PTO \"}\nSSE Frame 5:\nevent: token_delta\ndata: {\"text\": \"remaining.\\\"}\"}\nSSE Frame 6:\nevent: final_answer\ndata: {\"result\": {\"answer\": \"You have 15 days of PTO remaining.\"}}\n\nStream event adapter, client contract decoupling, and output validation verified successfully.",
     "questions": [
-      202
+      603,
+      205,
+      208
     ]
   },
   {
-    "name": "journey-923",
-    "filename": "journey-923.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "framework-agnostic-hexagonal-core",
+    "filename": "framework-agnostic-hexagonal-core.py",
+    "language": "python",
+    "explain": "Demonstrates isolating enterprise architecture from framework churn using Hexagonal Architecture (Ports and Adapters). Core domain services and database transactions maintain zero framework imports; AI capabilities are defined as an abstract port and implemented interchangeably with LangChain or native vendor clients with zero breaking changes.",
+    "steps": "Define business calculations and database persistence in a pure, framework-agnostic domain service. || Define an abstract application port for AI operations and implement a LangChain adapter. || Migrate to a native Python client adapter with 100% parity and zero changes to domain logic or public API contracts.",
+    "expect": "1. Enterprise Controller running with LangChain Adapter:\n  Account ID: ACC-001\n  Credit Limit: $36,250.00\n  Briefing: Executive Briefing for Acme Logistics (ENTERPRISE): Current Balance is $14,500.00. Approved Credit Limit: $36,250.00.\n\n2. Migrating to Native Client Adapter (Zero changes to domain service or public API):\n  Account ID: ACC-001\n  Credit Limit: $36,250.00\n  Briefing: Executive Briefing for Acme Logistics (ENTERPRISE): Current Balance is $14,500.00. Approved Credit Limit: $36,250.00.\n\nFramework-agnostic hexagonal architecture and zero-churn replacement verified successfully.",
     "questions": [
+      762,
+      763,
+      201,
+      210,
       923
     ]
   }

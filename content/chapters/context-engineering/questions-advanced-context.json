@@ -1,0 +1,114 @@
+[
+  {
+    "Q": "How does dynamic extractive token pruning compress long contexts without triggering generative hallucination or fact drift?",
+    "A": "**Dynamic extractive token pruning reduces context length by selectively removing low-information tokens rather than rewriting or summarizing text.** In long-context RAG and multi-agent trajectories, passing thousands of raw document tokens increases inference latency, multiplies API token costs, and degrades transformer attention across the middle of the context (lost-in-the-middle). While abstractive LLM summarization can shrink context, it introduces 'fact drift'—subtly altering negation, dropping edge-case clauses, confusing quantities, or hallucinating false consensus while sounding fluent.\\n\\n**Token-level perplexity and attention attribution.** Extractive compression frameworks (such as LLMLingua and LLMLingua-2) deploy a lightweight, small language model (SLM, e.g., a 0.5B–1B parameter model) to calculate the information entropy or perplexity of every token conditioned on the prompt. Tokens that exhibit low perplexity (e.g., highly predictable syntax tokens, redundant conversational filler, and boilerplate phrasing) contribute minimal novel information and are pruned.\n\nTokens with high information entropy—proper nouns, numerical quantities, negation verbs, dates, and domain-specific terms—are strictly preserved.\\n\\n**Zero-hallucination guarantee through verbatim preservation.** Because extractive pruning only deletes tokens and never generates new tokens, it carries a mathematical impossibility of introducing novel hallucinations: every token that reaches the downstream model was present in the original authoritative document. Production implementations incorporate entity and syntax guards: forcing preservation of punctuation, numbers, and named entities, and preserving code blocks via Abstract Syntax Tree (AST) masking. This achieves 2x–4x token reduction with near-zero loss in reasoning accuracy.",
+    "Why": "A legal compliance RAG pipeline compresses a 4,000-token contract. An abstractive summarizer drops 'unless authorized by section 4', reversing the legal rule. Extractive token pruning drops filler adjectives while keeping the exact exception clause intact.",
+    "worked_case": "A legal compliance RAG pipeline compresses a 4,000-token contract. An abstractive summarizer drops 'unless authorized by section 4', reversing the legal rule. Extractive token pruning drops filler adjectives while keeping the exact exception clause intact.",
+    "Risk": "Aggressive extractive pruning can inadvertently drop essential punctuation (like a negative 'not' or a decimal point) if entity and negation guards are omitted.",
+    "Trade": "Extractive pruning requires running an auxiliary small language model inference step (5–15ms latency) before calling the primary LLM, trading small preprocessing compute for large token savings.",
+    "Try": "Run an extractive compression script on a 2,000-token terms-of-service document. Confirm that all numerical thresholds, dates, and negation words are 100% preserved in the pruned output.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "context-engineering",
+    "citations": [
+      "https://arxiv.org/abs/2310.05736",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can extractive pruning compress code blocks safely?",
+        "A": "Standard token-entropy pruning breaks programming language syntax. Code compression must use AST-aware parsers that preserve syntax trees while pruning comments or docstrings."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do KV-cache eviction strategies enable multi-turn agent execution without unbounded memory growth?",
+    "A": "**KV-cache eviction bounds the GPU VRAM consumption of autoregressive transformers during unbounded multi-turn conversations.** In standard transformer inference, the Key and Value (KV) activation tensors for all preceding tokens are cached in GPU memory to avoid recomputing self-attention on subsequent generation steps. As conversation history grows to tens of thousands of tokens, this KV cache consumes gigabytes of VRAM per user session, eventually causing Out-Of-Memory (OOM) server crashes or forcing aggressive connection drops.\\n\\n**The Attention Sink phenomenon and StreamingLLM.** Naively evicting older tokens by sliding a fixed window (e.g., keeping only the last 1,024 tokens) causes catastrophic model degradation: the model loses language fluency and hallucinates gibberish. Researchers discovered the 'attention sink' phenomenon: the initial 1–4 tokens in a sequence receive a disproportionately massive amount of attention score regardless of their semantics, serving as a numerical stabilizer for softmax normalization.\n\nStreamingLLM exploits this by retaining the initial 4 tokens (the attention sink) paired with a rolling local window of recent tokens (e.g., the last 1,024 tokens), while safely discarding the intermediate middle tokens.\\n\\n**Dynamic importance eviction via Heavy-Hitter Oracle (H2O).** Advanced algorithms like H2O (Heavy-Hitter Oracle) dynamically profile cumulative attention scores across all attention heads. Tokens that receive consistently high attention weights across multiple generation steps (heavy hitters) are retained in VRAM alongside recent tokens, while low-attention tokens are evicted. This enables infinite-horizon multi-turn agent execution under a strictly bounded, constant memory footprint.",
+    "Why": "A customer support agent runs for 50 turns. At turn 45, standard KV caching exceeds 24GB VRAM on an A10G GPU and crashes. StreamingLLM keeps the initial system tokens plus the last 1,000 tokens, maintaining fluency and constant 4GB VRAM.",
+    "worked_case": "A customer support agent runs for 50 turns. At turn 45, standard KV caching exceeds 24GB VRAM on an A10G GPU and crashes. StreamingLLM keeps the initial system tokens plus the last 1,000 tokens, maintaining fluency and constant 4GB VRAM.",
+    "Risk": "Evicting tokens from the KV cache permanently destroys the model's direct in-memory recollection of evicted turns, causing the model to forget facts stated in the middle of the chat.",
+    "Trade": "KV-cache eviction prevents GPU OOM crashes in long chat sessions, but forgotten details must be explicitly retrieved via secondary vector search or conversation checkpoints.",
+    "Try": "Benchmark transformer inference memory across 10,000 sequential tokens using standard caching vs StreamingLLM. Confirm memory scales linearly without eviction but remains flat under StreamingLLM.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "context-engineering",
+    "citations": [
+      "https://arxiv.org/abs/2309.17453",
+      "https://arxiv.org/abs/2306.14048"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Does KV-cache eviction affect prompt caching on API providers?",
+        "A": "Yes. Provider prompt caching relies on exact prefix matching; evicting or altering tokens in the middle of a prompt invalidates prefix cache hits on hosted APIs."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How do exponential decay and logarithmic retrieval frequency resolve contradictory user preferences across temporal epochs in long-term memory?",
+    "A": "**Autonomous agent memory systems must resolve temporal obsolescence and contradictory facts as user preferences change over time.** In persistent agent applications, user preferences evolve: a user who stated 'I am a meat eater' in 2024 may state 'I adopted a strictly vegan diet' in 2026. If an agent naively retrieves all memory chunks based solely on semantic vector similarity, both contradictory statements will enter the prompt context with equal authority, confusing the LLM into generating contradictory or offensive recommendations.\\n\\n**Multi-factor salience scoring.** Production memory architectures resolve temporal contradictions by scoring candidate memories across three orthogonal mathematical dimensions: S(m) = w_sim * CosineSim(q, m) + w_rec * exp(-lambda * delta_t) + w_freq * ln(1 + freq).\n\nHere, exponential decay exp(-lambda * delta_t) sharply reduces the base salience of older memories over time delta_t, while logarithmic retrieval frequency ln(1 + freq) rewards memories that are continuously reinforced across sessions.\\n\\n**Entity-level contradiction reconciliation.** When memories are retrieved, the context assembler applies entity-level contradiction detection: (1) Entity extraction: parsing retrieved memory nodes into structured subject-predicate-object triples; (2) Polarity check: identifying conflicting predicates targeting the identical entity; and (3) Monotonic override: when a contradiction is detected, the memory node with the more recent timestamp strictly overrides the older node. Furthermore, the memory store updates the older node with an invalidation tombstone (`is_obsolete: true`), preventing future prompt pollution.",
+    "Why": "A travel booking agent retrieves two memories: 'Prefers economy seating (2023)' and 'Only book business class due to back injury (2026)'. Pure vector search ranks both high. Exponential recency decay ranks the 2026 preference decisively higher.",
+    "worked_case": "A travel booking agent retrieves two memories: 'Prefers economy seating (2023)' and 'Only book business class due to back injury (2026)'. Pure vector search ranks both high. Exponential recency decay ranks the 2026 preference decisively higher.",
+    "Risk": "Overly aggressive recency decay can cause an agent to forget permanent, unchanging user facts (like birth dates or legal names) that were recorded once long ago.",
+    "Trade": "Entity-level contradiction resolution requires running extraction classifiers or graph checks during memory ingestion, increasing write-time overhead to guarantee read-time coherence.",
+    "Try": "Create two memory nodes with opposing food preferences dated two years apart. Run the salience scoring equation and assert that the newer preference scores higher despite identical query similarity.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "context-engineering",
+    "citations": [
+      "https://arxiv.org/abs/2304.03442",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Should permanent facts use a different decay parameter lambda?",
+        "A": "Yes. Production architectures partition memory into immutable profile facts (lambda = 0) and ephemeral behavioral preferences (lambda > 0)."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "Why does tabular context compression dramatically outperform raw JSON serialization in token efficiency and reasoning accuracy?",
+    "A": "**Serializing database records as raw JSON into LLM prompts is an expensive and error-prone anti-pattern.** When an agent retrieves database rows or API responses, naive implementations dump the raw JSON string directly into the prompt context: `[{\"id\": 1, \"name\": \"Widget A\", \"price\": 19.99, \"stock\": 120}, {\"id\": 2, \"name\": \"Widget B\", \"price\": 45.00, \"stock\": 15}, ...]`. This serialization repeats dictionary keys on every single row, surrounding values with redundant curly braces, quotes, and colons.\\n\\n**Token waste and attention dispersion.** In a 50-row database query, up to 65% of the consumed token budget is wasted on structural JSON punctuation rather than domain data.\n\nFurthermore, transformer self-attention mechanisms must spend attention heads navigating nested syntactic delimiters, which degrades numerical reasoning, column-wise aggregation, and mathematical filtering over the data.\\n\\n**Tabular compression via Markdown and CSV.** Compressing tabular tool results into GitHub Flavored Markdown (GFM) tables or CSV format defines column headers exactly once: `| id | name | price | stock |` followed by raw data rows. This simple transformation achieves: (1) 50%–70% token footprint reduction, allowing 3x more database records to fit within the identical context window; (2) Alignment with pretraining distributions: models have processed millions of markdown tables and CSVs in web scrapes, making them significantly more accurate at row-column lookups; and (3) Faster generation: fewer input tokens directly lower Time-To-First-Token (TTFT) and inference latency.",
+    "Why": "An agent queries 100 customer transactions. Raw JSON consumes 8,500 tokens, crowding out user instructions and causing an API error. Serialized as a Markdown table, the identical data consumes only 2,900 tokens.",
+    "worked_case": "An agent queries 100 customer transactions. Raw JSON consumes 8,500 tokens, crowding out user instructions and causing an API error. Serialized as a Markdown table, the identical data consumes only 2,900 tokens.",
+    "Risk": "Converting complex, deeply nested JSON objects into flat tables can lose hierarchical relationships unless child objects are cleanly projected into dot-notation columns.",
+    "Trade": "Tabular projection requires writing schema-aware serialization logic on the server rather than dumping `json.dumps()`, trading minor server-side formatting for major token and quality savings.",
+    "Try": "Format a 20-row database result as raw JSON, CSV, and a Markdown table. Measure the exact token counts using a tokenizer and compare the LLM's accuracy when calculating column totals.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "context-engineering",
+    "citations": [
+      "https://arxiv.org/abs/2305.14818",
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Is CSV or Markdown table better for LLM reasoning?",
+        "A": "Markdown tables typically perform better for models with strong instruction following because pipe delimiters `|` provide clear visual boundary tokens across multi-line contexts."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  }
+]

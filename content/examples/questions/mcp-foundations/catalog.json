@@ -1,81 +1,53 @@
 [
   {
-    "explain": "MCP capability calls, A2A task delegation, and ordinary REST resource operations represent different contracts. This dispatch model names their responsibilities without implementing their wire protocols.",
-    "steps": "Map a use case to its integration responsibility. || Keep a capability call separate from a delegated long-running task.",
-    "expect": "capability task resource",
-    "name": "protocol-responsibilities",
+    "name": "jsonrpc-framing-dispatch",
+    "filename": "jsonrpc-framing-dispatch.py",
     "language": "python",
-    "filename": "protocol-responsibilities.py",
+    "explain": "JSON-RPC 2.0 message framing parses requests, responses, and notifications while isolating protocol errors from application-level tool failures with isError: true.",
+    "steps": "Parse the incoming JSON-RPC frame and validate jsonrpc 2.0 version. || Distinguish one-way notifications omitting an ID from correlated requests. || Return application tool failures with isError: true inside the result payload rather than protocol error frames.",
+    "expect": "Handshake confirmed!\nMCP JSON-RPC 2.0 framing and dispatch verified successfully.",
     "questions": [
       625,
       341,
-      628,
-      345,
-      222
+      345
     ]
   },
   {
-    "explain": "Tools perform operations, resources expose content, and prompts provide reusable interaction templates. Their conceptual categories do not establish a caller's authority.",
-    "steps": "Declare one fixture for each primitive. || Inspect the different responsibility labels before designing a server surface.",
-    "expect": "operation content template",
-    "name": "mcp-primitives",
+    "name": "mcp-initialization-handshake",
+    "filename": "mcp-initialization-handshake.py",
     "language": "python",
-    "filename": "mcp-primitives.py",
-    "questions": [
-      626,
-      342
-    ]
-  },
-  {
-    "explain": "A compatibility gate checks declared protocol and schema revisions before dispatch. This models negotiation policy and is not an MCP initialization implementation.",
-    "steps": "Pin the versions exercised by the client. || Reject a server capability whose schema is outside that tested set.",
-    "expect": "False",
-    "name": "protocol-compatibility",
-    "language": "python",
-    "filename": "protocol-compatibility.py",
+    "explain": "The three-way initialization handshake negotiates protocol version and capabilities, rejecting any operational tool requests before notifications/initialized arrives.",
+    "steps": "Validate protocol version and negotiate client/server capabilities in the initialize request. || Require notifications/initialized before transitioning connection to initialized. || Reject premature tool or resource requests arriving before handshake completion.",
+    "expect": "MCP initialization handshake and capability state machine verified successfully.",
     "questions": [
       627,
-      773,
       343,
-      360
+      947,
+      1065
     ]
   },
   {
-    "explain": "Discovery metadata describes a capability but does not authorize invoking it. The host can reject a dangerous tool despite a reassuring description.",
-    "steps": "Keep advertised text separate from host permission state. || Require trusted scope before admitting a capability.",
-    "expect": "False",
-    "name": "remote-description",
+    "name": "tool-lifecycle-schema-validation",
+    "filename": "tool-lifecycle-schema-validation.py",
     "language": "python",
-    "filename": "remote-description.py",
+    "explain": "The MCP tool execution lifecycle enforces strict JSON Schema input contracts and returns typed multi-modal content payloads.",
+    "steps": "Declare inputSchema with property types and numeric boundaries. || Validate arguments defensively and return actionable domain errors with isError: true. || Emit typed multi-modal content blocks including text and base64 images.",
+    "expect": "MCP tool execution lifecycle and schema validation verified successfully.",
     "questions": [
-      629,
-      772,
-      347,
-      637,
-      223
+      626,
+      342,
+      344
     ]
   },
   {
-    "explain": "Validate tool arguments and enforce a bounded output contract before touching a service. This validator is a minimal teaching example rather than full JSON Schema validation.",
-    "steps": "Require exactly the declared fields and their runtime types. || Limit excerpt size independently from the model's requested value.",
-    "expect": "False",
-    "name": "tool-contract",
+    "name": "stdio-vs-sse-transports",
+    "filename": "stdio-vs-sse-transports.py",
     "language": "python",
-    "filename": "tool-contract.py",
+    "explain": "STDIO transport routes newline-delimited JSON-RPC over stdin/stdout with strict stderr logging, while SSE/Streamable HTTP handles remote authenticated sessions.",
+    "steps": "Isolate subprocess logging strictly to stderr to prevent stdout wire corruption. || Establish remote SSE event streams with session IDs and authenticated HTTP POST dispatches. || Match transport selection to deployment boundary and media duplexity requirements.",
+    "expect": "MCP STDIO vs SSE transport mechanics verified successfully.",
     "questions": [
-      344,
-      774,
-      353
-    ]
-  },
-  {
-    "explain": "Choose transport from communication and media requirements rather than from an agent framework. Browser authentication and deployment constraints still need separate review.",
-    "steps": "Declare whether the task needs media timing, duplex commands, or server-only updates. || Select a candidate transport responsibility from those requirements.",
-    "expect": "webrtc websocket sse",
-    "name": "transport-choice",
-    "language": "python",
-    "filename": "transport-choice.py",
-    "questions": [
+      628,
       346,
       654,
       431,
@@ -84,26 +56,40 @@
     ]
   },
   {
-    "explain": "A protocol cancellation signal requests that work stop, while durable task state establishes what actually happened. A late committed effect remains an effect.",
-    "steps": "Record cancellation as a request. || Read the authoritative task outcome before telling the user the operation was undone.",
-    "expect": "requested completed",
-    "name": "protocol-cancel",
+    "name": "resource-templates-subscriptions",
+    "filename": "resource-templates-subscriptions.py",
     "language": "python",
-    "filename": "protocol-cancel.py",
+    "explain": "MCP resources expose passive context through fixed URIs, RFC 6570 templates, and reactive push notifications with tenant isolation.",
+    "steps": "Resolve parameterized URI templates and enforce tenant-scoped data boundaries. || Return typed contents with accurate MIME types via resources/read. || Track client subscriptions and emit notifications/resources/updated on underlying data changes.",
+    "expect": "MCP Resource URIs, dynamic templates, and subscriptions verified successfully.",
     "questions": [
-      349
+      629,
+      348
     ]
   },
   {
-    "name": "journey-947",
-    "filename": "journey-947.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "prompt-templates-workflow",
+    "filename": "prompt-templates-workflow.py",
+    "language": "python",
+    "explain": "Prompt templates standardize server-curated workflows with dynamic argument interpolation and embedded resources in a complete first MCP server.",
+    "steps": "Advertise parameterized prompt templates with argument requirements. || Compile multi-turn user/assistant messages embedding active MCP resources. || Combine tools, resources, and prompts into a minimal inspectable server architecture.",
+    "expect": "MCP Prompt templates and first server architecture verified successfully.",
     "questions": [
-      947
+      772,
+      350
+    ]
+  },
+  {
+    "name": "client-security-sandboxing",
+    "filename": "client-security-sandboxing.py",
+    "language": "python",
+    "explain": "Client-side host security sanitizes child process environments, enforces filesystem jails, screens adversarial tool descriptions, and handles cooperative cancellation.",
+    "steps": "Scrub host environment secrets before spawning child MCP processes. || Validate requested file paths against canonical workspace root boundaries. || Screen remote tool descriptions for adversarial prompt injection patterns. || Track cooperative cancellation tokens and enforce execution deadlines.",
+    "expect": "Host client security boundaries and cancellation verified successfully.",
+    "questions": [
+      773,
+      347,
+      349
     ]
   }
 ]

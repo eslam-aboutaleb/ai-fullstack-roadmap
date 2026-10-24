@@ -1,46 +1,75 @@
 [
   {
-    "explain": "A bounded selector chooses eligible passages without exceeding an already reserved evidence budget. This greedy heuristic is illustrative and may miss a better combination.",
-    "steps": "Iterate passages in a declared priority order. || Add a passage only if its full rendered cost fits the remaining budget.",
-    "expect": "['rule', 'exception'] 80",
-    "name": "evidence-packing",
+    "name": "dynamic-context-budget",
+    "filename": "dynamic-context-budget.py",
     "language": "python",
-    "filename": "evidence-packing.py",
+    "explain": "Calculate dynamic context window token budgets with guaranteed generation headroom and knapsack evidence packing. Allocates tokens across system instructions, tool schemas, and conversation history, packing only evidence that fits the remaining budget.",
+    "steps": "Deduct fixed prompt overhead and reserved output headroom from the model context limit. || Pack candidate evidence passages greedily by relevance score, discarding items that exceed the remaining allowance.",
+    "expect": "Dynamic budget allocation verified: input=5000/5888, headroom=2048, admitted=['doc_1_high_relevance', 'doc_2_mid_relevance']",
     "questions": [
+      582,
+      311,
       312,
       317
     ]
   },
   {
-    "explain": "A controlled position experiment moves the same evidence to the start, middle, and end. It defines comparable requests but does not claim any particular model will fail in the middle.",
-    "steps": "Keep the evidence and distractors fixed. || Construct three packets that vary only evidence position for later model evaluation.",
-    "expect": "[0, 2, 4]",
-    "name": "position-probe",
+    "name": "conversation-sliding-compaction",
+    "filename": "conversation-sliding-compaction.py",
     "language": "python",
-    "filename": "position-probe.py",
+    "explain": "Implement multi-tier conversation memory combining a sliding window of verbatim recent turns, recursive bulleted summaries of older history, and an immutable entity ledger that prevents catastrophic forgetting.",
+    "steps": "Maintain recent conversational turns verbatim for immediate dialogue flow. || Compact older turns into a bulleted summary while updating structured entity key-values in a persistent ledger.",
+    "expect": "Conversation compaction verified: active_turns=2, entities=['account_id', 'budget_limit']",
+    "questions": [
+      583,
+      314
+    ]
+  },
+  {
+    "name": "lost-in-the-middle-mitigation",
+    "filename": "lost-in-the-middle-mitigation.py",
+    "language": "python",
+    "explain": "Demonstrate Liu et al. 'Lost in the Middle' attention degradation and mitigate it using U-shaped context reranking. Positions the most relevant evidence at the start (primacy) and end (recency) of the prompt context.",
+    "steps": "Analyze attention degradation in the middle of long context windows. || Distribute retrieved documents in a U-shape, placing rank 1 at index 0 and rank 2 at the final index.",
+    "expect": "U-shaped reranking verified: original=['doc_1_best', 'doc_2_high', 'doc_3_mid', 'doc_4_low', 'doc_5_lowest'] -> u_shaped=['doc_1_best', 'doc_3_mid', 'doc_5_lowest', 'doc_4_low', 'doc_2_high']",
     "questions": [
       315
     ]
   },
   {
-    "explain": "Optimization is useful only under a quality constraint. A cheaper variant that fails the target is not chosen solely because it uses fewer tokens.",
-    "steps": "Set the quality requirement before comparing variants. || Filter by quality, then choose cost among the eligible configurations.",
-    "expect": "baseline",
-    "name": "quality-per-cost",
+    "name": "kv-cache-prefix-reuse",
+    "filename": "kv-cache-prefix-reuse.py",
     "language": "python",
-    "filename": "quality-per-cost.py",
+    "explain": "Demonstrate KV (Key-Value) cache prefix reuse across prompt requests. Static system prompts and tool definitions placed in byte-identical leading prefixes enable GPU KV cache reuse; dynamic timestamps bust prefix caching.",
+    "steps": "Place static system instructions and tool schemas in an immutable leading prompt prefix. || Verify that dynamic suffix additions reuse cached prefix attention states without re-evaluating static tokens.",
+    "expect": "KV cache prefix reuse verified: static_prefix_cached=True (prefill=6 tokens), dynamic_busted=False",
+    "questions": [
+      585,
+      316
+    ]
+  },
+  {
+    "name": "bpe-tokenizer-vs-heuristics",
+    "filename": "bpe-tokenizer-vs-heuristics.py",
+    "language": "python",
+    "explain": "Demonstrate why character heuristics (1 token = 4 chars) fail on JSON source code and non-Latin multilingual text. Exact Byte-Pair Encoding (BPE) tokenization prevents prompt truncation and out-of-budget crashes.",
+    "steps": "Compare heuristic character token counts against exact BPE tokenization across JSON payloads and Arabic script. || Measure error rates exceeding 100% on formatted code and multi-byte UTF-8 text.",
+    "expect": "BPE token boundary analysis: JSON (chars=972): heuristic=243, true_bpe=486; Arabic (chars=1005): heuristic=251, true_bpe=837",
     "questions": [
       586,
+      754,
+      313,
+      318,
       319
     ]
   },
   {
+    "name": "release-gate",
+    "filename": "release-gate.py",
+    "language": "python",
     "explain": "Release gates combine quality, critical invariants, and rollback readiness. A strong average score cannot override a permission violation.",
     "steps": "Record each mandatory release condition independently. || Block release if any critical condition fails.",
     "expect": "False",
-    "name": "release-gate",
-    "language": "python",
-    "filename": "release-gate.py",
     "questions": [
       320,
       119,
@@ -50,14 +79,14 @@
     ]
   },
   {
-    "name": "journey-873",
-    "filename": "journey-873.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "compression-exception-audit",
+    "filename": "compression-exception-audit.py",
+    "language": "python",
+    "explain": "Audit prompt compression pipelines to prove extractive compaction preserves decisive exceptions and negations. Catches regressions where compression removes critical legal qualifiers.",
+    "steps": "Extract mandatory negation and exception signals from input policy text before compression. || Execute post-flight audit asserting that all decisive qualifiers survived extractive compaction.",
+    "expect": "Compression audit verified: naive_pruned=True, safe_exception_preserved=True",
     "questions": [
+      584,
       873
     ]
   }

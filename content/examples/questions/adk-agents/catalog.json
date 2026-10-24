@@ -1,54 +1,78 @@
 [
   {
-    "explain": "An agent definition connects instructions, tool contracts, model adapter, and stop policy. This is a runtime-neutral configuration model, not an ADK constructor call.",
-    "steps": "Register a narrowly described tool and its expected argument. || Attach the tool set and budget to the agent configuration.",
-    "expect": "read_policy 4",
-    "name": "agent-definition",
+    "name": "agent-definition-runtime-loop",
+    "filename": "agent-definition-runtime-loop.py",
     "language": "python",
-    "filename": "agent-definition.py",
+    "explain": "Demonstrates defining an agent with instructions, model adapter, tool registry, and execution limits. Shows how a dynamic agent loop inspects intermediate observations to select subsequent tools and differentiates an autonomous agent from a fixed pipeline, enforcing hard ceilings on turns, tokens, and loop detection.",
+    "steps": "Instantiate an agent configuration specifying instructions, model, tools, and execution bounds. || Execute an autonomous task where the agent dynamically chooses actions based on runtime feedback. || Enforce hard bounding policies including turn limits, token ceilings, and duplicate action detection.",
+    "expect": "1. Initialized Agent 'order-support-v1' with 2 registered tools.\n   Max turns ceiling: 4, Max token budget: 2000\n\n2. Agent Execution Trace:\n   Total Turns: 3\n   Total Tokens Used: 360\n   Halt Reason: TASK_COMPLETED\n   Final Answer: Your order ORDER-101 has shipped via FedEx (TRK-9921) and is In Transit, arriving tomorrow by 5pm.\n\nAgent definition, dynamic runtime loop, and execution bounding verified successfully.",
     "questions": [
       596,
-      192,
-      597
+      191,
+      199
     ]
   },
   {
-    "explain": "functools.wraps preserves metadata and the inspectable wrapped signature while instrumentation surrounds the business function. Actual SDK registration remains in the chapter's integration example.",
-    "steps": "Wrap the function without rebuilding its argument list. || Inspect the resulting callable's signature and call it normally.",
-    "expect": "(document_id: str) -> str P1",
-    "name": "function-signature",
+    "name": "tool-registry-signature-decorator",
+    "filename": "tool-registry-signature-decorator.py",
     "language": "python",
-    "filename": "function-signature.py",
+    "explain": "Demonstrates generating model-facing JSON Schemas from Python type hints and docstrings while preserving signatures through functools.wraps. Distinguishes returned tool errors (is_error: True) that allow model self-correction from fatal unhandled infrastructure exceptions that must halt execution, combining deterministic tool validation with flexible model reasoning.",
+    "steps": "Decorate Python functions with metadata preservation and auto-generate strict JSON Schemas. || Dispatch tools with deterministic argument and boundary validation. || Return recoverable domain errors as tool observations while re-raising fatal infrastructure crashes.",
+    "expect": "1. Signature and Schema Inspection:\n{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"calculate_vat_invoice\",\n    \"description\": \"Calculate VAT rate and total amount for cross-border invoicing.\",\n    \"parameters\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"subtotal\": {\n          \"type\": \"number\"\n        },\n        \"country_code\": {\n          \"type\": \"string\"\n        }\n      },\n      \"required\": [\n        \"subtotal\",\n        \"country_code\"\n      ]\n    }\n  }\n}\n\n2. Successful Tool Dispatch:\n  Result (is_error=False): {'subtotal': 100.0, 'country': 'DE', 'vat_rate': 0.19, 'vat_amount': 19.0, 'total': 119.0}\n\n3. Returned Tool Error (Domain Validation Failure):\n  Result (is_error=True): Validation error: Unsupported country code 'JP'. Supported: ['DE', 'FR', 'GB', 'US']\n\n4. Raised Infrastructure Exception (Fatal Crash):\n  Successfully re-raised fatal infrastructure exception: FATAL INFRASTRUCTURE EXCEPTION in tool failing_db_tool: Connection reset by peer (TCP RST received from database cluster)\n\nTool registry schema generation, signature preservation, and error taxonomy verified successfully.",
     "questions": [
+      597,
+      192,
       193,
-      600,
-      203
+      197,
+      200
     ]
   },
   {
-    "explain": "A fixed workflow is sufficient when branching is known; durable state is a separate requirement from model-chosen tool use. The decision table keeps these reasons distinct.",
-    "steps": "Declare the capability actually required. || Choose the implementation responsibility before selecting a library.",
-    "expect": "fixed_workflow",
-    "name": "framework-fit",
+    "name": "session-state-compaction-store",
+    "filename": "session-state-compaction-store.py",
     "language": "python",
-    "filename": "framework-fit.py",
+    "explain": "Demonstrates partitioning agent memory into transient session scratchpads, durable conversation logs, and authoritative domain database records. Implements sliding-window turn compaction to summarize older turns when context grows, and enforces optimistic concurrency control (version locking) to prevent split-brain cross-replica race conditions.",
+    "steps": "Partition active session state from durable conversation and transactional database records. || Compact older conversation turns into structured summaries when turn limits are reached. || Enforce optimistic concurrency locks on session updates to reject stale concurrent writes across server replicas.",
+    "expect": "1. Created initial session sess_user_772 (version=1)\n\n2. Appending turns and verifying sliding-window compaction:\n  Total recent turns retained: 4 (Max allowed: 4)\n  Compacted Summary:\n    [Compacted Earlier Context]: user: Hello, I want to return a defective pair -> [Compacted Earlier Context]: assistant: I can help with that. What is your order\n  Final Prompt Context Length: 6 messages\n\n3. Testing Cross-Replica Split-Brain Race Condition:\n  Replica A committed turn successfully. DB Version is now: 8\n  Successfully blocked stale replica write: Optimistic Lock Conflict: Expected version 7, but current DB version is 8. Another replica has committed state concurrently!\n\nSession memory partitioning, compaction, and cross-replica continuity verified successfully.",
+    "questions": [
+      598,
+      195,
+      196
+    ]
+  },
+  {
+    "name": "provider-adapter-handshake",
+    "filename": "provider-adapter-handshake.py",
+    "language": "python",
+    "explain": "Demonstrates what a unified provider adapter (like LiteLLM) abstracts versus what remains provider-specific. Standardizes chat messages, tool definitions, and response parsing across OpenAI and Anthropic, while isolating provider-specific parameters like extended thinking budgets and reasoning effort flags.",
+    "steps": "Translate unified chat messages and tool definitions into OpenAI wire format with reasoning_effort. || Translate unified chat messages into Anthropic wire format with thinking.budget_tokens. || Normalize heterogeneous provider responses into a uniform typed output structure.",
+    "expect": "1. Calling OpenAI through Unified Adapter:\n  Tool Calls parsed: ['query_inventory']\n  Args: {'item_id': 'SKU-404'}\n  Provider-specific wire payload: high\n\n2. Calling Anthropic through Unified Adapter:\n  Tool Calls parsed: ['query_inventory']\n  Args: {'item_id': 'SKU-404'}\n  Provider-specific wire payload: {'type': 'enabled', 'budget_tokens': 2000}\n\nProvider adapter abstraction and provider-specific parameter isolation verified.",
+    "questions": [
+      194
+    ]
+  },
+  {
+    "name": "human-handoff-protocol",
+    "filename": "human-handoff-protocol.py",
+    "language": "python",
+    "explain": "Demonstrates why a human handoff requires an explicit state machine and protocol rather than a naive prompt instruction. Transitions the session from AUTONOMOUS to PAUSED_FOR_HUMAN, creates a structured support ticket with sentiment flags and pending actions, and silences the autonomous agent until a human supervisor resolves the case.",
+    "steps": "Detect handoff triggers (user demand or low confidence) during conversation. || Transition session state to PAUSED_FOR_HUMAN and dispatch a structured support ticket to the queue. || Enforce gateway guardrails to block rogue autonomous agent output while awaiting human resolution.",
+    "expect": "1. Autonomous Response:\n  Reply: 'Autonomous response: I can help with 'What are your business hours?''\n  State: AUTONOMOUS\n\n2. Triggering Structured Handoff:\n  Reply: 'I have transferred your case to a human support supervisor with full context. Ticket #TICK-1092-88 has been opened. An agent will be with you shortly.'\n  State: PAUSED_FOR_HUMAN\n  Created Ticket ID: TICK-1092-88\n  Ticket Intent: TRANSACTION_DISPUTE (Confidence: 0.42)\n  Pending Action: {'action': 'waive_late_fee', 'amount': 35.0}\n\n3. Testing Agent Silencing Invariant:\n  Successfully blocked rogue agent message: Agent response blocked: session is in 'PAUSED_FOR_HUMAN'. Autonomous model is silenced while awaiting human intervention.\n\n4. Human Supervisor Resolves Case:\n  Final State: RESOLVED\n  Last Message: [Supervisor Mark]: I have reviewed your disputed charge of $35.00 and waived the fee.\n\nHuman handoff protocol and state machine invariants verified successfully.",
+    "questions": [
+      198
+    ]
+  },
+  {
+    "name": "sdk-benchmark-reproducibility",
+    "filename": "sdk-benchmark-reproducibility.py",
+    "language": "python",
+    "explain": "Demonstrates reproducible benchmarking for agent SDK applications using deterministic offline mock adapters. Compares candidate agent definitions against baselines across paired test suites, measuring genuine behavioral improvements (task success %, tool error elimination, and token efficiency) rather than superficial script pass rates.",
+    "steps": "Configure deterministic mock adapters with fixed random seeds for offline testing. || Execute paired benchmark test suites comparing baseline and candidate agent trajectories. || Measure and verify statistically significant improvements in completion rate, error reduction, and token cost.",
+    "expect": "Running Paired Deterministic Benchmark Suite:\n{\n  \"total_cases\": 3,\n  \"baseline\": {\n    \"success_rate\": 0.3333333333333333,\n    \"tool_error_count\": 1,\n    \"avg_tokens_per_task\": 270.0\n  },\n  \"candidate\": {\n    \"success_rate\": 1.0,\n    \"tool_error_count\": 0,\n    \"avg_tokens_per_task\": 230.0\n  }\n}\n\nBaseline Success Rate: 33.3%, Errors: 1\nCandidate Success Rate: 100.0%, Errors: 0\n\nDeterministic benchmark suite and genuine behavioral improvement verified successfully.",
     "questions": [
       599,
-      601,
-      204,
-      371,
-      390
-    ]
-  },
-  {
-    "name": "journey-852",
-    "filename": "journey-852.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
-    "questions": [
+      760,
+      761,
       852
     ]
   }

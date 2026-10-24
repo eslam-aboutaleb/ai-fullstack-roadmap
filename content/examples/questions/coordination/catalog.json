@@ -8,9 +8,7 @@
     "filename": "transactional-outbox.py",
     "questions": [
       560,
-      98,
-      610,
-      389
+      98
     ]
   },
   {
@@ -85,13 +83,12 @@
     ]
   },
   {
-    "name": "journey-874",
-    "filename": "journey-874.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "distributed-lock-fencing-token-barrier",
+    "filename": "distributed-lock-fencing-token-barrier.py",
+    "language": "python",
+    "explain": "A distributed lock with receiver-enforced fencing tokens protects against split-brain writes caused by client garbage collection pauses and expired lease timeouts.",
+    "steps": "Acquire a distributed lock lease with a monotonic fencing token. || Simulate a client pause where the lease expires and a subsequent worker acquires the lock with an incremented token. || Assert that the storage engine rejects the paused worker's stale write at the storage boundary.",
+    "expect": "=== Testing Distributed Lock Lease & Fencing Token Barrier ===\nWorker A acquired lock: token=31, expires_at=102.0\nSimulating 3.0s GC pause for Worker A (lease expires during pause)...\nWorker B acquired lock: token=32, expires_at=105.0\nWorker B committed: {'record_id': 'doc_42', 'payload': 'Payload written by Worker B (Version 2.0)', 'fencing_token': 32, 'last_writer': 'worker_B'}\n\nWorker A wakes up and attempts to commit with stale token 31...\nSuccessfully intercepted stale write at storage boundary:\n  Write REJECTED for writer 'worker_A'. Presented token 31 is not greater than current storage token 32. State was already committed by a newer owner!\n\nAll distributed lock fencing token invariants verified successfully.",
     "questions": [
       874
     ]

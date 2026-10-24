@@ -1,51 +1,91 @@
 [
   {
-    "explain": "A deterministic router sends a known task to the correct bounded service. Tool-first execution avoids a model making decisions that code can establish exactly.",
-    "steps": "Classify an explicit intent enum. || Dispatch through a declared service map rather than arbitrary generated function names.",
-    "expect": "order_status",
-    "name": "router-pattern",
+    "name": "react-vs-fixed-chain",
+    "filename": "react-vs-fixed-chain.py",
     "language": "python",
-    "filename": "router-pattern.py",
+    "explain": "Demonstrates the fundamental architectural difference between a deterministic fixed chain and a dynamic ReAct agent loop. The fixed pipeline blindly transitions across stages even when retrieval finds zero evidence; the ReAct loop dynamically inspects intermediate observations, reformulates queries on negative feedback, bounds maximum iterations, and enforces duplicate-action stopping invariants.",
+    "steps": "Execute a fixed pipeline and observe low confidence when literal keyword match fails. || Execute a ReAct agent loop with max-iteration bounds and dynamic query reformulation. || Verify that the agent inspects the negative observation, queries broad synonyms, and successfully converges.",
+    "expect": "Fixed Chain Result:\n  Confidence: 0.2\n  Answer: I could not find exact travel policy rules for your query.\n\nReAct Agent Execution:\n  Step 1: Thought=User asks 'What is the hotel reimbursement rate in Berlin?'. I need to search the knowledge base for lodging allowances.\n          Action=search -> Input={'query': 'What is the hotel reimbursement rate in Berlin?'}\n          Obs=NO_MATCHES_FOUND...\n  Step 2: Thought=Observation yielded no results for 'What is the hotel reimbursement rate in Berlin?'. Reformulating query to broad terms.\n          Action=search -> Input={'query': 'travel lodging allowance'}\n          Obs=[travel_policy_europe]: European business travel allowance i...\n  Step 3: Thought=Found relevant policy documents. Synthesizing final response.\n          Action=finish -> Input={'answer': 'Policy extract: [travel_policy_europe]: European business travel allowance is 200 EUR per diem for lodging.\\n[travel_policy_americas]: Americas business travel allowance is 250 USD per diem for lodging.\\n[per_diem_exceptions]: Executive VP approval is required for exceeding lodging allowances by >20%.'}\n          Obs=TERMINATED...\n\nFinal Answer: Policy extract: [travel_policy_europe]: European business travel allowance is 200 EUR per diem for lodging.\n[travel_policy_americas]: Americas business travel allowance is 250 USD per diem for lodging.\n[per_diem_exceptions]: Executive VP approval is required for exceeding lodging allowances by >20%.\nTotal Iterations: 3",
     "questions": [
-      605,
-      382,
-      388
+      604,
+      764,
+      388,
+      390,
+      857
     ]
   },
   {
-    "explain": "A supervisor gives bounded independent subtasks to specialists and combines typed outputs. The fixture demonstrates task/result contracts, not autonomous delegation.",
-    "steps": "Define one task per specialist. || Aggregate their results without granting workers the parent's entire authority.",
-    "expect": "['policy', 'status']",
-    "name": "supervisor-workers",
+    "name": "intent-semantic-router",
+    "filename": "intent-semantic-router.py",
     "language": "python",
-    "filename": "supervisor-workers.py",
+    "explain": "Demonstrates multi-tier hierarchical intent routing to prevent prompt dilution and tool schema bloat. A deterministic regex fast-path matches structured identifiers with zero model overhead, a semantic vector classifier matches domain-specific specialist routes, and an explicit fallback handler captures ambiguous or low-confidence requests.",
+    "steps": "Evaluate query against regex fast-path patterns for structured reference IDs. || Calculate cosine similarity against domain prototype embeddings. || Route to specialized handler or trigger fallback ambiguity agent if score is below threshold.",
+    "expect": "Intent Router Evaluation:\n\nQuery: 'Check tracking status for INV-98421 immediately'\n  -> Routed To: order_lookup_service (Tier: regex_fastpath, Conf: 1.00)\n  -> Reason: Matched exact transactional reference pattern\n  -> Params: {'reference_id': 'INV-98421'}\n\nQuery: 'Why was my credit card charged twice for last month's invoice?'\n  -> Routed To: billing_specialist (Tier: semantic_classifier, Conf: 0.58)\n  -> Reason: Semantic vector matched dedicated specialist route\n  -> Params: {'scores': {'billing_specialist': 0.5773502691896258, 'technical_support': 0.0, 'hr_benefits': 0.0}}\n\nQuery: 'Our API client keeps getting 500 error on the auth token endpoint'\n  -> Routed To: technical_support (Tier: semantic_classifier, Conf: 0.91)\n  -> Reason: Semantic vector matched dedicated specialist route\n  -> Params: {'scores': {'technical_support': 0.9128709291752769, 'billing_specialist': 0.0, 'hr_benefits': 0.0}}\n\nQuery: 'How many sick days and PTO vacation hours do I have left this year?'\n  -> Routed To: hr_benefits (Tier: semantic_classifier, Conf: 0.71)\n  -> Reason: Semantic vector matched dedicated specialist route\n  -> Params: {'scores': {'hr_benefits': 0.7071067811865477, 'billing_specialist': 0.0, 'technical_support': 0.0}}\n\nQuery: 'Hello, who made this application?'\n  -> Routed To: general_clarification_agent (Tier: fallback_ambiguity, Conf: 0.00)\n  -> Reason: Top score 0.000 below acceptance threshold 0.45\n  -> Params: {'scores': {'billing_specialist': 0.0, 'technical_support': 0.0, 'hr_benefits': 0.0}}\n\nAll routing tiers verified successfully.",
+    "questions": [
+      605,
+      382
+    ]
+  },
+  {
+    "name": "planner-executor-workflow",
+    "filename": "planner-executor-workflow.py",
+    "language": "python",
+    "explain": "Demonstrates Planner-Executor separation with pre-flight security policy inspection and dynamic discrepancy recovery. The planner proposes a structured DAG task plan; the host environment verifies permissions and budgets before executing any mutations. If a step encounters a real-world error (e.g. out of stock), execution safely pauses and triggers dynamic re-planning.",
+    "steps": "Submit a proposed plan to the pre-flight policy validator and reject unauthorized financial actions. || Execute valid plan steps respecting topological dependencies until a runtime discrepancy occurs. || Trigger the planner to generate an alternative recovery plan based on the failure observation.",
+    "expect": "Pre-flight Security Inspection:\n  Valid: False, Message: Policy Violation: Action 'execute_wire_transfer' requires 'admin' role. Found: {'operator'}\n\nExecuting Initial Plan:\n  Execution result: PAUSED_DISCREPANCY\n  Failed task: reserve_slot: Cannot reserve slot: SKU-202 is out of stock\n\nPlanner generates recovery plan based on failure observation...\n  Recovery execution result: COMPLETED\n  Completed tasks: ['notify_backorder', 'prep_refund']\n  Dispatched notifications: ['Item SKU-202 out of stock; refund draft prepared.']\n\nPlanner-Executor pattern with policy gate and recovery verified.",
+    "questions": [
+      606,
+      383
+    ]
+  },
+  {
+    "name": "supervisor-specialist-workers",
+    "filename": "supervisor-specialist-workers.py",
+    "language": "python",
+    "explain": "Demonstrates Supervisor-Specialist architecture with strict capability and permission boundaries. Read-only research workers are isolated from financial ledger workers, preventing tool confusion and schema bloat. The supervisor assigns typed subtasks and aggregates structured outputs without leaking global coordinator authority.",
+    "steps": "Attempt an unauthorized ledger action on a read-only research worker and assert capability rejection. || Require authenticated bearer tokens for financial calculations. || Coordinate specialists and aggregate typed contract responses into a unified customer answer.",
+    "expect": "Testing Capability Isolation:\n  Researcher rejected ledger action: True (Error: Worker 'research_specialist' denied access to capability 'calculate_refund'. Allowed: ['fetch_glossary', 'search_policy'])\n  Ledger rejected invalid token: True (Error: Unauthenticated request: valid bearer token required for ledger access)\n\nSupervisor Orchestration Result:\n{\n  \"status\": \"SUCCESS\",\n  \"account_id\": \"ACCT-100\",\n  \"tier\": \"tier_gold\",\n  \"net_refund\": 120.0,\n  \"policy\": \"Gold tier members receive 30 days return window and free return shipping.\",\n  \"summary\": \"Approved refund of $120.00 under tier_gold terms (Gold tier members receive 30 days return window and free return shipping.)\"\n}\n\nSupervisor-specialist worker pattern with typed contracts verified.",
     "questions": [
       607,
       384
     ]
   },
   {
-    "explain": "Delegation returns a subtask result to the caller, whereas handoff changes who owns the active interaction. Ownership must be explicit to prevent simultaneous conflicting responses.",
-    "steps": "Keep parent ownership during a delegated read. || Change the interaction owner only on a recorded handoff transition.",
-    "expect": "parent specialist",
-    "name": "handoff-delegation",
+    "name": "handoff-vs-delegation",
+    "filename": "handoff-vs-delegation.py",
     "language": "python",
-    "filename": "handoff-delegation.py",
+    "explain": "Demonstrates the essential difference between delegation (subroutine execution where the primary agent retains interaction ownership) and handoff (state serialization and transfer of interaction ownership to a target recipient like Tier-2 human support). Enforces ownership invariants to eliminate dual-responder race conditions.",
+    "steps": "Perform a delegated currency calculation where the primary concierge maintains session ownership. || Initiate a formal handoff to human support, serializing state and relinquishing ownership. || Verify that the concierge is blocked from responding once ownership is transferred.",
+    "expect": "1. Delegation Pattern:\n  User: 'Can you convert 100 EUR for me?'\n  Concierge Reply: '100 EUR is currently $108.00 USD.'\n  Current Owner: PRIMARY_CONCIERGE\n\n2. Handoff Initiation:\n  Concierge Reply: 'I am transferring your case with full context to our Tier-2 Human Support team. Please hold.'\n  Current Owner: HUMAN_SUPPORT_TIER2\n\n3. Testing Ownership Invariant (Dual-Responder Prevention):\n  Successfully blocked concierge response: Concierge cannot reply: active interaction owner is 'HUMAN_SUPPORT_TIER2'\n\n4. Target Agent Resumes Interaction:\n  Human Reply: '[Sarah - Tier 2 Support]: Hello! I see your conversation history and transaction. Let me assist you.'\n\nHandoff vs Delegation architectural distinction verified.",
     "questions": [
       608,
       385
     ]
   },
   {
-    "name": "journey-857",
-    "filename": "journey-857.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "evaluator-optimizer-critic",
+    "filename": "evaluator-optimizer-critic.py",
+    "language": "python",
+    "explain": "Demonstrates the Evaluator-Optimizer pattern with objective deterministic checks and bounded iterations, alongside a demonstration of why ensemble voting repeats shared mistakes. The critic runs deterministic AST schema checks first and returns structured diagnostic feedback, guiding the generator to convergence. Shows that 3 voting agents agree with an outdated document while deterministic grounding catches the error immediately.",
+    "steps": "Run an Evaluator-Optimizer loop where a critic validates SQL queries and returns actionable feedback. || Guide generator revisions to satisfy schema, injection, and bounding rules within 3 iterations. || Compare voting ensemble failure on outdated context against deterministic external date grounding.",
+    "expect": "Evaluator-Optimizer Iteration Loop:\n\nIteration 1:\n  Draft: 'SELECT id, name FROM customers WHERE active = 1;'\n  Passed: False (Score: 0.25)\n  Violations: [\"Security hazard: Query contains prohibited token ';'\", \"Unknown table 'customers'. Allowed tables: ['audit_logs', 'orders', 'users']\", 'Missing LIMIT clause (risk of unbounded result set)']\n\nIteration 2:\n  Draft: 'SELECT id, name FROM users WHERE active = 1;'\n  Passed: False (Score: 0.50)\n  Violations: [\"Security hazard: Query contains prohibited token ';'\", 'Missing LIMIT clause (risk of unbounded result set)']\n\nIteration 3:\n  Draft: 'SELECT id, name FROM users WHERE active = 1 LIMIT 50'\n  Passed: True (Score: 1.00)\n\nConverged: True in 3 iterations\nFinal Query: SELECT id, name FROM users WHERE active = 1 LIMIT 50\n\n==================================================\nCorrelated Ensemble Failure vs Independent Grounding:\n  Ensemble Consensus: APPROVED (3/3 votes)\n  Grounding Check Passed: False\n  Grounding Diagnostic: Policy date 2021-05-01 is obsolete (requires >= 2024-01-01)\n\nEvaluator-Optimizer and ensemble failure mechanisms verified successfully.",
     "questions": [
-      857
+      609,
+      765,
+      386,
+      387
+    ]
+  },
+  {
+    "name": "saga-outbox-agent-mutations",
+    "filename": "saga-outbox-agent-mutations.py",
+    "language": "python",
+    "explain": "Demonstrates enterprise consistency patterns around agent state mutations. The Transactional Outbox pattern guarantees atomic persistence of database changes and side-effect events in a single commit, eliminating dual-write inconsistencies. The Saga pattern orchestrates distributed forward actions and automatically triggers compensating reverse actions if any downstream step fails.",
+    "steps": "Commit an order and an outbox event atomically to eliminate dual-write partial failures. || Relay pending outbox events through a background dispatcher. || Execute a multi-step saga and automatically execute compensating rollback transactions upon downstream courier failure.",
+    "expect": "1. Transactional Outbox Execution:\n  Successfully committed order and relayed 1 outbox event(s).\n  Dispatched payload: ('OrderCreated', {'order_id': 'ORD-1001', 'customer_id': 'CUST-55', 'amount': 149.99})\n\n2. Saga Orchestration with Compensation Rollback:\n  Saga Status: ROLLED_BACK\n  Failed Step: dispatch_courier\n  Audit Trail:\n    - INVENTORY_RESERVED\n    - PAYMENT_AUTHORIZED\n    - STEP_FAILED: dispatch_courier (Courier API Error: Destination address outside delivery zone)\n    - COMPENSATION: PAYMENT_REFUNDED\n    - COMPENSATION: INVENTORY_RELEASED\n\n3. Successful Saga Execution:\n  Saga Status: COMMITTED\n\nOutbox and Saga distributed patterns verified successfully.",
+    "questions": [
+      610,
+      389
     ]
   }
 ]

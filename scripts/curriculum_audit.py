@@ -58,7 +58,7 @@ def build(out,write,chapters,curriculum,url):
                           'lesson_ids':[q['id'] for q in chapter['lessons']],'question_ids':[q['id'] for q in chapter['questions']],
                           'enriched_lessons':sum('conceptual_narrative' in q for q in chapter['lessons']),
                           'enriched_questions':sum('spoken' in q or q.get('answer_format')=='conceptual' for q in chapter['questions']),
-                          'legacy_lessons_needing_depth_review':[q['id'] for q in chapter['lessons'] if len(q['explain'].split())<120 and 'conceptual_narrative' not in q],
+                          'legacy_lessons_needing_depth_review':[q['id'] for q in chapter['lessons'] if len(q.get('explain', q.get('A', '')).split())<120 and 'conceptual_narrative' not in q],
                           'references':chapter['review']['references'],'technical_review':'independent review pending'})
     (out/'questions/curriculum-audit.json').write_text(json.dumps({'version':1,'chapters':inventory,'notes':'Counts and metadata are automatic. Word count flags prioritize review; they do not prove factual accuracy or depth.'},indent=2)+'\n')
     rows=''.join('<tr><th scope="row"><a href="'+url(c['chapter']+'.html')+'">'+E(c['title'])+'</a></th><td>'+E(c['track'])+'</td><td>'+(' · '.join('<a href="'+url(dep+'.html')+'">'+E(by[dep]['title'])+'</a>' for dep in c['prerequisites']) or 'Entry point')+'</td><td>'+str(len(c['lesson_ids']))+' lessons / '+str(len(c['question_ids']))+' questions</td><td>'+str(c['enriched_lessons'])+' / '+str(c['enriched_questions'])+'</td><td>'+str(len(c['legacy_lessons_needing_depth_review']))+'</td></tr>' for c in inventory)

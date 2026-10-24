@@ -1,61 +1,42 @@
 [
   {
-    "explain": "Product success is measured against a non-AI baseline on the same user task. Generated text is useful only if it improves the relevant outcome without breaking constraints.",
-    "steps": "Compare completion time and supported-answer rate under the same fixture. || Require the support target before accepting the faster variant.",
-    "expect": "False",
-    "name": "user-baseline",
+    "name": "vertical-slice-data-contract",
+    "filename": "vertical-slice-data-contract.py",
     "language": "python",
-    "filename": "user-baseline.py",
+    "explain": "Demonstrate Vertical Slice Architecture: validate end-to-end data contracts across frontend client payloads, API gateway validation and authorization, and asynchronous background worker execution.",
+    "steps": "Construct typed frontend request envelope with client-generated correlation ID. || Validate Pydantic schema and tenant isolation in API gateway before dispatching to worker. || Verify that final durable database record matches the client correlation ID and tenant scope.",
+    "expect": "Vertical slice contract verified: task_id starts with task_, client_id matches req_, status=completed",
     "questions": [
-      806
+      697,
+      131,
+      132,
+      135
     ]
   },
   {
-    "explain": "A task reserves shared budget before expensive work and returns unused funds afterward. This arithmetic model needs atomic durable enforcement across real replicas.",
-    "steps": "Compare the reservation with available budget. || Refuse the second reservation when it would exceed the remaining allowance.",
-    "expect": "True False",
-    "name": "quota-reservation",
+    "name": "sse-streaming-reconnection",
+    "filename": "sse-streaming-reconnection.py",
     "language": "python",
-    "filename": "quota-reservation.py",
+    "explain": "Implement reactive Server-Sent Events (SSE) streaming with Last-Event-ID reconnection reconciliation. Resumes token streaming after transient network drops without duplicate or missing tokens.",
+    "steps": "Stream token chunks formatted with sequential W3C SSE event IDs. || Reconnect with Last-Event-ID header after a simulated network drop and replay subsequent tokens seamlessly.",
+    "expect": "SSE reconnection reconciliation verified: full_text='The database transaction completed with success.', total_events=6",
     "questions": [
-      807
+      698,
+      133,
+      134
     ]
   },
   {
-    "explain": "Upload, extraction, indexing, and active search visibility are distinct states. Receiving all file bytes does not establish that a document is searchable.",
-    "steps": "Store preparation stages separately from publication. || Display indexing status until a complete generation has been activated.",
-    "expect": "indexing False",
-    "name": "lifecycle-progress",
+    "name": "technical-review-artifacts",
+    "filename": "technical-review-artifacts.py",
     "language": "python",
-    "filename": "lifecycle-progress.py",
-    "questions": [
-      136
-    ]
-  },
-  {
-    "explain": "End-to-end checks compare visible UI outcomes with authoritative records. A completed screen with no committed result is a contract failure even if text generation succeeded.",
-    "steps": "Record the screen's terminal state and the effect ledger independently. || Require them to agree on the operation identity.",
-    "expect": "False",
-    "name": "end-to-end-evidence",
-    "language": "python",
-    "filename": "end-to-end-evidence.py",
-    "questions": [
-      808,
-      279,
-      420,
-      280
-    ]
-  },
-  {
-    "explain": "A completion artifact checklist turns a learning claim into reviewable work. Missing recovery evidence keeps the topic incomplete even when a demo exists.",
-    "steps": "Declare explanation, implementation, failure reproduction, and trade-off evidence. || Report the missing artifact instead of equating a learned flag with competence.",
-    "expect": "['failure_reproduction']",
-    "name": "capstone-artifacts",
-    "language": "python",
-    "filename": "capstone-artifacts.py",
+    "explain": "Compile tangible engineering verification artifacts and evaluation telemetry for technical architecture reviews. Packages faithfulness metrics, latency percentiles, security regression suites, and token economics.",
+    "steps": "Aggregate quantitative faithfulness, context precision, and latency percentiles into a review dossier. || Verify negative-path security suite results (zero cross-tenant leaks and 100% prompt injection blocking).",
+    "expect": "Technical review dossier verified: faithfulness=0.942, p95=780ms, cost_per_query=$0.000388",
     "questions": [
       699,
       139,
+      140,
       701,
       300,
       471,
@@ -63,15 +44,41 @@
     ]
   },
   {
-    "name": "journey-921",
-    "filename": "journey-921.json",
-    "language": "json",
-    "explain": "A source-linked reasoning fixture. JSON parsing checks representation only; reproduce the actual mechanism with the chapter reference.",
-    "steps": "Inspect the declared input and required invariant. || Trace the chapter mechanism and reproduce the stated case. || Change the stated assumption and defend the result.",
-    "expect": "Reasoning input only; no program result is claimed. Reproduce the scenario using the chapter’s runnable reference.",
-    "limit": "A JSON case is parsed for representation integrity only, not executed as a proof of its semantic claim.",
+    "name": "non-ai-baseline-comparison",
+    "filename": "non-ai-baseline-comparison.py",
+    "language": "python",
+    "explain": "Benchmark an AI RAG pipeline against a deterministic non-AI baseline (FTS + keyword rule matcher) to quantitatively justify return on investment (ROI), latency trade-offs, and architecture complexity.",
+    "steps": "Measure accuracy, latency, and infrastructure cost across deterministic and AI implementations. || Calculate monthly net savings and annual ROI based on human support ticket deflection rates.",
+    "expect": "Non-AI baseline ROI verified: baseline_cost=$66084.99999999999/mo, ai_cost=$25419.99999999999/mo, annual_roi=$487980.0",
     "questions": [
-      921
+      806
+    ]
+  },
+  {
+    "name": "multi-tenant-cost-accounting",
+    "filename": "multi-tenant-cost-accounting.py",
+    "language": "python",
+    "explain": "Implement multi-tenant token cost accounting, dollar quotas, and atomic rate limit enforcement. Verifies tenant balance prior to execution and reconciles exact token spend with Decimal financial arithmetic.",
+    "steps": "Authorize operations against tenant dollar balance and monthly quota limits. || Deduct exact model API token costs from tenant ledger, raising 429 Quota Exceeded when funds are exhausted.",
+    "expect": "Multi-tenant billing verified: req1_cost=$0.000435, req2_quota_blocked=True",
+    "questions": [
+      807
+    ]
+  },
+  {
+    "name": "distributed-tracing-correlation",
+    "filename": "distributed-tracing-correlation.py",
+    "language": "python",
+    "explain": "Implement W3C distributed tracing correlation across browser events, API gateways, message queues, and model APIs. Propagates traceparent headers to debug latency bottlenecks and duplicate execution races.",
+    "steps": "Generate W3C traceparent header on client interaction and propagate through API gateway. || Correlate background Celery worker and model provider spans under the same global trace ID.",
+    "expect": "Distributed tracing verified: connected_spans=4, root_to_leaf_linked=True",
+    "questions": [
+      808,
+      921,
+      136,
+      279,
+      420,
+      280
     ]
   }
 ]

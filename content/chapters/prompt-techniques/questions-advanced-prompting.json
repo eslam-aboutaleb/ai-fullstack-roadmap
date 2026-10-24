@@ -1,0 +1,114 @@
+[
+  {
+    "Q": "How does grammar-guided constrained decoding guarantee 100% JSON Schema adherence compared to post-hoc validation?",
+    "A": "**Grammar-guided constrained decoding enforces schema adherence at the neural logit level during token generation, preventing syntax errors before they occur.** In traditional agent pipelines, developers use post-hoc validation: prompting an LLM to 'respond in valid JSON matching schema X', then parsing the output string with Pydantic or `json.loads()`. When the model drops a closing brace, hallucinates an invalid enum, or outputs markdown chatter (`Here is the JSON:`), the parser fails, requiring expensive and slow retry loops.\\n\\n**Logit masking via finite state machines (FSM).** Constrained decoding engines (such as Outlines, Guidance, and vLLM) compile the target JSON Schema or Pydantic model into a Context-Free Grammar (CFG) or deterministic Finite State Machine (FSM).\n\nAt every single autoregressive decoding step, the FSM determines the exact set of valid subsequent tokens in the model's vocabulary that can legally follow the current prefix. The engine constructs a dynamic logit mask, setting the logits of all invalid tokens to -infinity (probability zero).\\n\\n**Zero retry overhead and guaranteed structure.** Because invalid tokens have zero mathematical probability of being sampled, the model is physically incapable of generating malformed JSON, unclosed quotes, or illegal enum keys. This achieves: (1) 100% deterministic schema conformance on the very first generation attempt; (2) Zero latency spent on JSON syntax error retries; and (3) Elimination of preamble conversational filler, accelerating Time-To-First-Token.",
+    "Why": "An agent calls a banking API requiring enum `[\"CHECKING\", \"SAVINGS\"]`. Under standard prompting, the model occasionally outputs `\"checking_account\"`, crashing the API. Grammar-guided decoding constrains sampling so only the exact enum strings can physically be generated.",
+    "worked_case": "An agent calls a banking API requiring enum [\"CHECKING\", \"SAVINGS\"]. Under standard prompting, the model occasionally outputs \"checking_account\", crashing the API. Grammar-guided decoding constrains sampling so only the exact enum strings can physically be generated.",
+    "Risk": "Over-constraining decoding on open-ended text fields can artificially truncate creative reasoning if the regex or grammar is overly rigid.",
+    "Trade": "Grammar compilation adds a one-time startup latency (50–200ms) to build the FSM index, but completely eliminates runtime retry costs and API schema failures.",
+    "Try": "Compile a JSON schema requiring an integer age and an enum status into a regex FSM. Verify that invalid characters receive -inf logit masks during simulated token selection.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "prompt-techniques",
+    "citations": [
+      "https://arxiv.org/abs/2307.09702",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Does constrained decoding guarantee semantic correctness of the data?",
+        "A": "No. Constrained decoding guarantees strict structural and syntactic conformance (e.g. valid JSON, correct types, valid enums), but does not verify whether the factual content is true."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "How does Self-Consistency with majority voting improve multi-step algorithmic reasoning, and how do you detect consensus failure?",
+    "A": "**Self-Consistency improves complex multi-step reasoning by sampling diverse reasoning trajectories and selecting the marginal consensus answer.** In standard greedy decoding (temperature T = 0), an LLM generates a single deterministic Chain-of-Thought (CoT) reasoning path. If the model makes a single calculation error or logical misstep early in the trajectory, the entire downstream chain derails, resulting in an incorrect final answer.\\n\\n**Sampling diverse reasoning paths at non-zero temperature.** Self-Consistency (Wang et al.) replaces single greedy decoding with stochastic sampling. The system samples N parallel generation paths (e.g., N = 5 to 10 at T = 0.7) from the identical prompt.\n\nBecause temperature introduces stochasticity, the model explores diverse reasoning strategies, decomposition steps, and linguistic formulations to solve the problem. Despite exploring different intermediate paths, correct mathematical, logical, and code solutions naturally converge toward the identical final outcome.\\n\\n**Consensus aggregation and failure detection.** The pipeline parses the terminal answer from each path and applies majority voting: (1) High confidence consensus: if 8 of 10 sampled paths agree on answer X, the system returns X with high calibrated confidence; (2) Consensus failure detection: if the 10 paths produce a flat, uniform distribution of divergent answers (e.g., 2 for A, 2 for B, 2 for C, and 4 unique values), the system detects high model uncertainty. Rather than emitting a low-confidence guess, the architecture triggers automated human-in-the-loop escalation or routes the task to a larger frontier reasoning model.",
+    "Why": "A financial calculation question is processed by greedy decoding, which makes a subtraction error in step 2 and outputs $4,200. Self-Consistency samples 7 paths: 5 paths take different calculation routes and converge on $3,800, successfully outvoting the erroneous path.",
+    "worked_case": "A financial calculation question is processed by greedy decoding, which makes a subtraction error in step 2 and outputs $4,200. Self-Consistency samples 7 paths: 5 paths take different calculation routes and converge on $3,800, successfully outvoting the erroneous path.",
+    "Risk": "If a question contains a common deceptive cognitive trap, majority voting can select a universally shared misconception if the model family shares systematic pretraining bias.",
+    "Trade": "Sampling N parallel reasoning paths multiplies inference token cost and GPU compute by N, making it best suited for high-stakes financial, medical, or legal decisions.",
+    "Try": "Run a multi-step arithmetic problem through an LLM 5 times at T=0.7. Extract the final numerical answers and compute the consensus vote and variance.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "prompt-techniques",
+    "citations": [
+      "https://arxiv.org/abs/2203.11171",
+      "https://scikit-learn.org/stable/modules/model_evaluation.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How do you apply majority voting when answers are natural language explanations rather than numbers?",
+        "A": "Use semantic clustering: embed the generated answers into vector space and select the centroid of the densest semantic cluster as the consensus representative."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "Why do LLMs frequently fail negative constraints and how must prompts and systems be architected to enforce them?",
+    "A": "**The failure of negative constraints in large language models stems directly from the associative mechanics of causal self-attention.** When a developer writes a negative instruction (e.g., 'Do NOT mention the competitor Acme Corp' or 'Do not use technical jargon'), the forbidden token strings ('Acme Corp', 'technical jargon') are explicitly introduced into the prompt context. Because transformer attention heads compute bidirectional associations across all in-context tokens, the representation of the forbidden concepts is strongly activated in the model's working memory, increasing the probability of sampling tokens associated with those exact prohibited concepts (the classic 'pink elephant' phenomenon).\\n\\n**Prompt reframing: positive behavioral directives.** To dramatically improve adherence, prompt engineers reframe negative restrictions into explicit positive instructions: (1) Instead of 'Do not mention price', instruct: 'Focus exclusively on product features, architecture, and deployment options'; (2) Instead of 'Do not apologize', instruct: 'Respond directly, objectively, and concisely without conversational preambles'.\n\nProviding positive operational guardrails gives the model active token paths to pursue rather than asking it to suppress activated vocabulary.\\n\\n**Architectural verification firewalls.** For mission-critical negative constraints (such as legal compliance, brand safety, or privacy), prompt instructions must never serve as the sole enforcement mechanism. Production architectures deploy automated output verification filters: (1) Deterministic regex and keyword blocklists that intercept generated streaming tokens; (2) Semantic boundary classifiers (e.g., NeMo Guardrails or Llama Guard) that scan output text; and (3) Automated stream cancellation that truncates response streams immediately upon detecting a prohibited token.",
+    "Why": "A customer bot is prompted: 'Do not discuss discounts under any circumstances'. A user asks: 'What discounts do you have?'. The bot responds: 'Regarding discounts, we do not offer discounts, but our special promotional rate is...'. Reframing to: 'State that all pricing is fixed as displayed' eliminates the discount discussion.",
+    "worked_case": "A customer bot is prompted: 'Do not discuss discounts under any circumstances'. A user asks: 'What discounts do you have?'. The bot responds: 'Regarding discounts, we do not offer discounts, but our special promotional rate is...'. Reframing to: 'State that all pricing is fixed as displayed' eliminates the discount discussion.",
+    "Risk": "Relying purely on negative prompt instructions for safety or regulatory compliance invites frequent policy breaches due to attention activation leaks.",
+    "Trade": "Reframing prompts requires thoughtful instructional design, and deploying automated post-generation verification filters adds sub-5ms output latency but guarantees strict negative policy enforcement.",
+    "Try": "Compare a negative prompt ('Do not mention dogs') vs a positive prompt ('Write exclusively about felines and aquatic animals') across 20 creative story completions. Measure the frequency of forbidden mentions.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "prompt-techniques",
+    "citations": [
+      "https://arxiv.org/abs/2305.14818",
+      "https://genai.owasp.org/llm-top-10/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can logit biasing enforce negative constraints?",
+        "A": "Yes. Logit biasing can set the bias of specific forbidden token IDs to -100, mathematically preventing the model from outputting those exact tokens."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  },
+  {
+    "Q": "When does automatic prompt optimization outperform manual prompt engineering, and what are its limits?",
+    "A": "**Automatic prompt optimization replaces subjective, trial-and-error prompt tweaking with principled algorithmic search over prompt program parameter spaces.** In traditional workflows, developers manually rewrite system instructions and hand-pick few-shot examples through ad-hoc testing.\n\nThis approach is labor-intensive, un-reproducible, and brittle: tweaking a prompt to fix an edge case on one query frequently introduces subtle regressions across dozens of other queries.\\n\\n**Algorithmic optimization frameworks (DSPy and MIPROv2).** Frameworks like DSPy (Declarative Self-improving Python) and MIPROv2 treat prompt engineering as a machine learning optimization problem: (1) Declarative modules: separating task logic (signatures defining inputs and outputs) from execution prompts; (2) Bootstrap few-shot teleprompters: automatically evaluating candidate few-shot exemplars across a training dataset, retaining only effective multi-step demonstrations; and (3) Bayesian prompt search: exploring variations of instructional phrasing, task guidelines, and reasoning exemplars to maximize a quantitative domain reward metric (e.g., accuracy, citation faithfulness, schema compliance).\\n\\n**Operational boundaries and limitations.** Automatic prompt optimization decisively outperforms manual authoring on complex multi-stage pipelines (multi-hop RAG, agentic tool routing). However, it has clear operational limits: (1) It requires a high-quality labeled validation dataset with a deterministic evaluation metric; (2) The optimization loop executes hundreds of LLM calls, consuming substantial token budgets during compilation; and (3) An optimized prompt is overfitted to the specific target model family: swapping from GPT-4o to Claude 3.5 Sonnet requires re-running the optimization.",
+    "Why": "A team spends two weeks manually tweaking a 5-step RAG prompt, achieving 76% accuracy. Using DSPy with a 200-sample training set, the MIPROv2 optimizer explores candidate instructions and few-shot pairs, boosting accuracy to 89% in 45 minutes of automated execution.",
+    "worked_case": "A team spends two weeks manually tweaking a 5-step RAG prompt, achieving 76% accuracy. Using DSPy with a 200-sample training set, the MIPROv2 optimizer explores candidate instructions and few-shot pairs, boosting accuracy to 89% in 45 minutes of automated execution.",
+    "Risk": "Optimizing prompts on a small or unrepresentative dataset will overfit to idiosyncratic quirks in the training split, leading to poor generalization in production.",
+    "Trade": "Automated prompt optimization requires building golden evaluation datasets and spending upfront LLM tokens during optimization, but delivers significantly higher, measurable accuracy and repeatability.",
+    "Try": "Set up a simple DSPy pipeline for a classification task. Compare the baseline zero-shot accuracy against a BootstrapFewShot optimized pipeline over a 50-example validation split.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "ai-systems",
+    "subdomain": "prompt-techniques",
+    "citations": [
+      "https://arxiv.org/abs/2310.03714",
+      "https://arxiv.org/abs/2406.11695"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can DSPy optimize prompts for local models running on Ollama or vLLM?",
+        "A": "Yes. DSPy communicates with any provider supporting chat completion APIs, allowing automated prompt compilation directly against local open-weight models."
+      }
+    ],
+    "reviewer_status": {
+      "status": "reviewed",
+      "reviewer": "Codex AI technical review (user-delegated verdict; authored/self-reviewed)",
+      "reviewed_at": "2026-10-24"
+    }
+  }
+]

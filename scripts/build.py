@@ -106,9 +106,36 @@ def reading_minutes(c):
   return max(1,round(words/180))
 def lesson(q,i):
   writer=AnswerWriter(q)
+  if 'A' in q and 'Why' in q:
+    body=writer.render(q['A'],reserve_followups=True)
+    if q.get('answer_format')=='conceptual' and q.get('worked_case'):
+      body+=writer.section('Worked scenario',q['worked_case'],'answer-mechanism')
+    body+=answer_diagram(q)
+    if normalize_answer(q['Why']) not in writer.followups and not (q.get('answer_format') == 'conceptual' and normalize_answer(q['Why']) == normalize_answer(q.get('worked_case', ''))):
+      body+=writer.section('Worked case' if q.get('answer_format')=='conceptual' else 'How it works',q['Why'],'answer-mechanism')
+    if q.get('Risk'):
+      body+=writer.section('Failure boundary',q['Risk'],'answer-warning')
+    if q.get('Trade') and normalize_answer(q['Trade']) not in writer.followups:
+      body+=writer.section('Design trade-off',q['Trade'],'answer-decision')
+    body+=question_content(q,writer)
+    body+=question_code(q)
+    for follow in q.get('follow_ups',[]):
+      body+=writer.section(follow['Q'],follow['A'],'answer-followup')
+    definitions=[]
+    for definition in q.get('definitions',[]):
+      explanation=writer.render(definition['definition'])
+      if explanation:definitions.append('<dt>'+E(definition['term'])+'</dt><dd>'+explanation+'</dd>')
+    if definitions:body+='<section class="answer-definitions"><h4>Terminology</h4><dl>'+''.join(definitions)+'</dl></section>'
+    body+=answer_terms(q)
+    if q.get('Try'):
+      body+=writer.section('Try it yourself',q['Try'],'answer-exercise')
+    references=list(dict.fromkeys(([q['reference']] if q.get('reference') else [])+q.get('citations',[])))
+    if references:body+='<section class="answer-references"><h4>Primary references</h4><ul>'+''.join('<li><a href="'+E(ref)+'">'+E(ref)+'</a></li>' for ref in references)+'</ul></section>'
+    body+=lesson_content(q,url,writer)+rigorous_lesson(q)
+    return f'''<article class="interview-question" id="q{q['id']}" data-question="{q['id']}">{question_heading(q,"h3")}<details class="answer"><summary class="answer-toggle" role="button"><span class="when-closed">View answer</span><span class="when-open">Hide answer</span></summary><div class="answer-body">{body}</div></details>{controls(q,include_bookmark=False)}</article>'''
   explanation=writer.render(q['explain'])
   case=writer.render(q['example'])
-  return f'''<article class="lesson question" id="q{q['id']}" data-question="{q['id']}"><div class="lesson-kicker">FOUNDATION QUESTION / {i:02}</div>{question_heading(q,"h2")}<details class="answer"><summary class="answer-toggle" role="button"><span class="when-closed">View answer</span><span class="when-open">Hide answer</span></summary><div class="answer-body">{explanation}{answer_diagram(q)}{('<aside class="worked-case"><h4>Worked example</h4>'+case+'</aside>') if case else ''}<p class="takeaway"><strong>Keep this idea:</strong> {E(q['takeaway'])}</p>{lesson_content(q,url,writer)}{rigorous_lesson(q)}{question_code(q)}{answer_terms(q)}</div></details>{controls(q,include_bookmark=False)}</article>'''
+  return f'''<article class="interview-question lesson question" id="q{q['id']}" data-question="{q['id']}">{question_heading(q,"h3")}<details class="answer"><summary class="answer-toggle" role="button"><span class="when-closed">View answer</span><span class="when-open">Hide answer</span></summary><div class="answer-body">{explanation}{answer_diagram(q)}{('<aside class="worked-case"><h4>Worked example</h4>'+case+'</aside>') if case else ''}<p class="takeaway"><strong>Keep this idea:</strong> {E(q['takeaway'])}</p>{lesson_content(q,url,writer)}{rigorous_lesson(q)}{question_code(q)}{answer_terms(q)}</div></details>{controls(q,include_bookmark=False)}</article>'''
 
 def rigorous_lesson(q):
   parts=[]
@@ -270,9 +297,10 @@ def build():
  search=[]
  for c in CHAPTERS:
   for q in c['lessons']:
-   search.append(dict(id=q['id'],slug=c['slug'],chapter=c['title'],title=teaching_title(q),type='Foundation interview',text=' '.join(q[k] for k in ('Q','explain','example','takeaway'))+' '+QUESTION_CODE.get(q['id'],{}).get('explain','')+' '+QUESTION_CODE.get(q['id'],{}).get('code','')))
+   keys = ('Q', 'A', 'Why', 'Risk', 'Trade', 'Try') if 'A' in q else ('Q', 'explain', 'example', 'takeaway')
+   search.append(dict(id=q['id'],slug=c['slug'],chapter=c['title'],title=teaching_title(q),type='Foundation interview',text=' '.join(q.get(k, '') for k in keys)+' '+QUESTION_CODE.get(q['id'],{}).get('explain','')+' '+QUESTION_CODE.get(q['id'],{}).get('code','')))
   for q in c['questions']:
-   search.append(dict(id=q['id'],slug=c['slug'],chapter=c['title'],title=teaching_title(q),type='Interview depth',text=' '.join(q[k] for k in ('Q','A','Why','Risk','Trade','Try'))+' '+QUESTION_CODE.get(q['id'],{}).get('explain','')+' '+QUESTION_CODE.get(q['id'],{}).get('code','')))
+   search.append(dict(id=q['id'],slug=c['slug'],chapter=c['title'],title=teaching_title(q),type='Interview depth',text=' '.join(q.get(k, '') for k in ('Q','A','Why','Risk','Trade','Try'))+' '+QUESTION_CODE.get(q['id'],{}).get('explain','')+' '+QUESTION_CODE.get(q['id'],{}).get('code','')))
  question_shards=build_question_data(ROOT,CHAPTERS)
  for entry in search:
   entry['href']=entry['slug']+'.html#q'+str(entry['id'])
@@ -295,7 +323,7 @@ def build():
   pager=f'<nav class="pager">'+(f'<a href="{url(previous["slug"]+".html")}">← {E(previous["title"])}</a>' if previous else f'<a href="{url("index.html")}">← Learning journey</a>')+(f'<a href="{url(following["slug"]+".html")}">Continue: {E(following["title"])} →</a>' if following else f'<a href="{url("roadmap.html")}">Revisit your experiments →</a>')+'</nav>'
   playground=rag_playground() if c['slug']=='foundations' else ''
   unit_links='<section class="prose" id="worked-units"><h2>Worked examples and local projects</h2><p>Continue this topic through its detailed implementation, failure cases and independent practice.</p><ol>'+''.join('<li><a href="'+url('course-'+identity+'.html')+'">'+E(identity.replace('-',' '))+'</a></li>' for identity in CURRICULUM['chapters'][c['slug']].get('course_units',[]))+'</ol></section>' if CURRICULUM['chapters'][c['slug']].get('course_units') else ''
-  body=f'''<div class="chapter-breadcrumb"><a href="{url('index.html')}#stage-{c['stage']}">STAGE {c['stage']} / {E(STAGES[c['stage']-1][0])}</a><span>Explain → apply → investigate</span></div><section class="chapter-hero"><div><p class="eyebrow">CHAPTER {position+1:02} / {E(c['title'])}</p><h1>{E(c['goal'])}</h1><p class="subtitle">{E(c['intro'])}</p></div><aside class="outcome-card"><span class="micro-label">BY THE END, YOU CAN EXPLAIN</span><p>{E(c['case'][1])}</p><small>Before this chapter: {prerequisites}</small><p class="track-meta">About {mins} min read · {len(c['lessons'])+len(c['questions'])} interview questions · all answers on this page</p></aside></section><nav class="section-nav" aria-label="Chapter sections"><a href="#walkthrough">See the flow</a><a href="#learn">Foundation questions</a><a href="#chapter-example">Read the code</a><a href="#interview">Deeper questions</a><a href="#chapter-lab">Build it</a><a href="#review-notes">Review notes</a><a href="#recommended-practice">Extend it</a></nav>{question_finder(c,url)}{diagram(c)}{simulation_panel(SIMULATION_CHAPTERS[c["slug"]],url) if c["slug"] in SIMULATION_CHAPTERS else ""}{playground}<section class="terms-panel"><h2>Which terms do you need for these questions?</h2><dl>{terms}</dl><a href="{url('glossary.html')}">Open the full terminology guide →</a></section><div class="reading-layout"><div>{review_panel(c)}<section id="learn"><div class="section-title"><div><span class="micro-label">LEARN THROUGH INTERVIEW QUESTIONS</span><h2>Foundation questions and detailed answers</h2></div><button id="practice" type="button" aria-pressed="false">View all answers</button></div>{lessons}</section>{unit_links}{code_panel(c)}<section id="interview" class="interview-bank"><span class="micro-label">MECHANISMS / IMPLEMENTATION / DEBUGGING / DESIGN</span><h2>Go deeper with interview questions</h2><p>Continue on this page through detailed explanations, worked cases, failure boundaries and design decisions. Acronyms used in an answer are explained inside it. All chapter answers are included here; there is no question-count cap.</p><button id="expand" type="button">View all answers</button>{bank}</section>{lab(c)}{review_practice(c)}{capstone_links(c,url)}{pager}</div><aside class="lesson-toc"><span class="micro-label">IN THIS CHAPTER</span>{toc}<a href="#chapter-example">→ Code walkthrough</a><a href="#chapter-lab">→ Practical experiment</a><a href="#recommended-practice">→ Completion checks</a></aside></div>'''
+  body=f'''<div class="chapter-breadcrumb"><a href="{url('index.html')}#stage-{c['stage']}">STAGE {c['stage']} / {E(STAGES[c['stage']-1][0])}</a><span>Explain → apply → investigate</span></div><section class="chapter-hero"><div><p class="eyebrow">CHAPTER {position+1:02} / {E(c['title'])}</p><h1>{E(c['goal'])}</h1><p class="subtitle">{E(c['intro'])}</p></div><aside class="outcome-card"><span class="micro-label">BY THE END, YOU CAN EXPLAIN</span><p>{E(c['case'][1])}</p><small>Before this chapter: {prerequisites}</small><p class="track-meta">About {mins} min read · {len(c['lessons'])+len(c['questions'])} interview questions · all answers on this page</p></aside></section><nav class="section-nav" aria-label="Chapter sections"><a href="#walkthrough">See the flow</a><a href="#learn">Core questions</a><a href="#chapter-example">Read the code</a><a href="#interview">Deep dive questions</a><a href="#chapter-lab">Build it</a><a href="#review-notes">Review notes</a><a href="#recommended-practice">Extend it</a></nav>{question_finder(c,url)}{diagram(c)}{simulation_panel(SIMULATION_CHAPTERS[c["slug"]],url) if c["slug"] in SIMULATION_CHAPTERS else ""}{playground}<section class="terms-panel"><h2>Which terms do you need for these questions?</h2><dl>{terms}</dl><a href="{url('glossary.html')}">Open the full terminology guide →</a></section><div class="reading-layout"><div>{review_panel(c)}<section id="learn" class="interview-bank"><div class="section-title"><div><span class="micro-label">CORE SYSTEM MECHANICS</span><h2>Core interview questions and detailed answers</h2></div><button id="practice" type="button" aria-pressed="false">View all answers</button></div>{lessons}</section>{unit_links}{code_panel(c)}<section id="interview" class="interview-bank"><span class="micro-label">SYSTEM DESIGN & FAILURE BOUNDARIES</span><h2>Deep dive engineering questions</h2><p>Continue on this page through detailed explanations, worked cases, failure boundaries and design decisions. Acronyms used in an answer are explained inside it. All chapter answers are included here; there is no question-count cap.</p><button id="expand" type="button">View all answers</button>{bank}</section>{lab(c)}{review_practice(c)}{capstone_links(c,url)}{pager}</div><aside class="lesson-toc"><span class="micro-label">IN THIS CHAPTER</span>{toc}<a href="#chapter-example">→ Code walkthrough</a><a href="#chapter-lab">→ Practical experiment</a><a href="#recommended-practice">→ Completion checks</a></aside></div>'''
   write(c['slug']+'.html',c['goal'],body,c['slug'])
  for slug,e in EXAMPLES.items():
   extension={'python':'.py','sql':'.sql','markdown':'.md','javascript':'.js','html':'.html'}[e['language']]
