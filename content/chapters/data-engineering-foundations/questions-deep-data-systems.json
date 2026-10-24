@@ -1,0 +1,164 @@
+[
+  {
+    "Q": "What is the architectural difference between Row-Oriented and Column-Oriented database engines, and why are columnar formats like Parquet 100x faster for analytics?",
+    "A": "**Row-oriented and column-oriented database engines organize on-disk byte layouts to optimize opposing query workloads: single-record transactions versus aggregate analytics.** In traditional row-oriented OLTP databases (such as PostgreSQL or MySQL), all fields belonging to a single row are stored contiguously on fixed-size disk blocks (e.g., 8KB pages): `[Row1_colA, Row1_colB, Row1_colC], [Row2_colA, Row2_colB, Row2_colC]`. This layout is optimal for transactional workloads where queries read or mutate individual entities by primary key (`SELECT * FROM users WHERE id = 42`), because the entire row is retrieved in a single disk read.\\n\\n**The I/O bottleneck in analytical aggregations.** Consider an analytical query computing average transaction value across 100,000,000 records: `SELECT AVG(amount) FROM transactions`. In a row-oriented database, the storage engine must load every single 8KB disk page into RAM, reading billions of bytes of unneeded customer names, addresses, and timestamps simply to extract the 8-byte `amount` float from each row, saturating disk I/O and memory bandwidth.\\n\\n**Columnar storage, compression, and vectorized SIMD execution.** Column-oriented engines (ClickHouse, Snowflake, DuckDB) and storage formats (Apache Parquet) store all values for a given column contiguously: `[Row1_amount, Row2_amount, ... RowN_amount]`. For analytical aggregates, the engine reads *only* the specific column queried, slashing disk I/O by over 90%. Furthermore, because contiguous data in a column shares the identical data type, columnar formats achieve extraordinary compression ratios (using run-length encoding, dictionary encoding, and delta encoding) and enable modern CPU vectorized execution (SIMD instructions evaluating millions of rows per CPU cycle).",
+    "Why": "A monthly revenue query takes 14 minutes in PostgreSQL because the database reads 45GB of row data from disk to access one column. The identical query in Parquet / ClickHouse reads only 180MB of compressed column data, completing in 220ms.",
+    "worked_case": "A monthly revenue query takes 14 minutes in PostgreSQL because the database reads 45GB of row data from disk to access one column. The identical query in Parquet / ClickHouse reads only 180MB of compressed column data, completing in 220ms.",
+    "Risk": "Using columnar formats for high-velocity single-row transactional writes or updates causes massive write amplification and continuous file fragmentation.",
+    "Trade": "Columnar engines deliver 100x faster analytical aggregates and 5x better compression, but are inefficient for single-row point lookups and real-time updates.",
+    "Try": "Save a 1,000,000-row DataFrame as both CSV/SQLite and Parquet. Compare file sizes and benchmark `SELECT AVG(col)` query runtimes on both formats.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering",
+    "citations": [
+      "https://parquet.apache.org/docs/overview/",
+      "https://clickhouse.com/docs/en/development/architecture"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why is Parquet an immutable file format?",
+        "A": "Parquet files are written in immutable column chunks with embedded metadata footers; updating a single row requires rewriting the entire file, which is why updates are handled via append-and-merge compaction."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do Log-Structured Merge Trees in NoSQL engines compare with B-Trees in relational databases for write-heavy workloads?",
+    "A": "**Log-Structured Merge Trees (LSM-Trees) and B-Trees represent two distinct storage engine architectures optimized for opposing I/O profiles: append-only ingestion versus in-place point reads.** Traditional relational databases (PostgreSQL, MySQL InnoDB) rely on B-Tree variants. B-Trees perform in-place updates: when a record is modified, the engine navigates the tree and overwrites the exact disk page hosting that record. Under high-concurrency write workloads, updating B-Tree pages scattered across gigabytes of storage causes massive random disk I/O, write amplification, and page lock contention, degrading write throughput.\\n\\n**The LSM-Tree sequential append architecture.** Engines like Apache Cassandra, RocksDB, and ScyllaDB replace in-place page mutation with append-only LSM-Trees: (1) Ingestion: incoming writes are sequentially appended to an on-disk Write-Ahead Log (WAL) for durability and simultaneously inserted into an in-memory sorted data structure called the Memtable (typically a SkipList); (2) Flushing: when the Memtable reaches capacity (e.g. 64MB), it is flushed to disk as an immutable Sorted String Table (SSTable) using pure sequential I/O, completely avoiding random disk writes; and (3) Compaction: background workers merge multiple SSTables, reconciling duplicate keys and purging deleted records (tombstones).\\n\\n**The read penalty and Bloom filters.** Because a key may reside in any of several SSTables on disk, reads in LSM-trees are more expensive than B-Trees. To prevent reading every SSTable from disk, LSM-trees maintain in-memory Bloom filters for each SSTable: a probabilistic data structure that can instantly determine with zero false negatives whether a key is definitely absent from an SSTable.",
+    "Why": "An IoT logging platform receives 100,000 sensor writes per second. A PostgreSQL B-Tree saturates disk IOPS due to random page updates. Cassandra with LSM-Trees handles the writes effortlessly via sequential WAL appends and Memtable flushes.",
+    "worked_case": "An IoT logging platform receives 100,000 sensor writes per second. A PostgreSQL B-Tree saturates disk IOPS due to random page updates. Cassandra with LSM-Trees handles the writes effortlessly via sequential WAL appends and Memtable flushes.",
+    "Risk": "If write volume outpaces background compaction, SSTables accumulate on disk, causing catastrophic read latency degradation (read amplification) and space exhaustion.",
+    "Trade": "LSM-Trees provide unmatched sequential write throughput at the cost of higher read latency, periodic compaction I/O spikes, and complex tombstone management.",
+    "Try": "Write a basic in-memory Memtable using a Python dictionary. Flush it to sorted text files once it reaches 100 items, and implement a merge-compaction function to combine two sorted files.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering",
+    "citations": [
+      "https://github.com/facebook/rocksdb/wiki/RocksDB-Overview",
+      "https://cassandra.apache.org/doc/latest/cassandra/architecture/storage_engine.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is a tombstone in an LSM-tree?",
+        "A": "Because SSTables are immutable, deleting a key cannot erase on-disk bytes; instead, a special marker called a tombstone is written, which purges the key during subsequent compaction cycles."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How does Query-Driven Data Modeling work in Wide-Column stores like Apache Cassandra, and why is relational normalization forbidden?",
+    "A": "**Wide-column distributed databases like Apache Cassandra mandate Query-Driven Data Modeling: designing database tables strictly around application read queries rather than entity relationships.** In relational database design, developers normalize data into logical entities (Users, Products, Orders) and rely on SQL JOINs at query time to satisfy arbitrary access patterns. In Cassandra, data is partitioned and distributed across hundreds of cluster nodes; distributed cross-node JOINs, subqueries, and table locks are physically impossible because they would require catastrophic network-wide synchronization.\\n\\n**Partition Keys, Clustering Columns, and Data Locality.** Every Cassandra table definition must be engineered around a specific query: `CREATE TABLE orders_by_user (user_id UUID, order_id UUID, order_date TIMESTAMP, total_amount DECIMAL, PRIMARY KEY (user_id, order_date)) WITH CLUSTERING ORDER BY (order_date DESC)`. The PRIMARY KEY consists of two distinct components: (1) The Partition Key (`user_id`): passed through a consistent hashing function (Murmur3Partitioner) to determine the exact cluster nodes that store the data; and (2) The Clustering Column (`order_date`): dictates the physical sorted order of rows stored on disk within that partition, allowing fast range queries for a given user.\\n\\n**Intentional data duplication by design.** If an application needs to query orders by `user_id` AND query orders by `order_id`, normalizing data into one table is fatal. The application must create two separate tables (`orders_by_user` and `orders_by_id`) and write to both. Primary modeling anti-patterns include: creating hot partitions (e.g. using a low-cardinality status string as a partition key) and allowing partitions to exceed 100MB, which causes JVM garbage collection pauses and node instability.",
+    "Why": "A developer models Cassandra like PostgreSQL, putting all orders in one table with order_id as the primary key. When the UI asks for 'all orders for user X', the query executes a full-cluster scan across all 50 nodes, timing out and taking down cluster nodes.",
+    "worked_case": "A developer models Cassandra like PostgreSQL, putting all orders in one table with order_id as the primary key. When the UI asks for 'all orders for user X', the query executes a full-cluster scan across all 50 nodes, timing out and taking down cluster nodes.",
+    "Risk": "Allowing a single partition to grow beyond 100MB or accumulating over 100,000 cells causes severe Cassandra read timeouts and node crashes.",
+    "Trade": "Query-driven modeling delivers predictable, sub-10ms reads at petabyte scale, at the cost of duplicate data storage and application-managed multi-table writes.",
+    "Try": "Design a Cassandra schema for a messaging application supporting two queries: 'Get recent messages in a channel' and 'Get a message by its message_id'. Create two dedicated tables with distinct partition keys.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering",
+    "citations": [
+      "https://cassandra.apache.org/doc/latest/cassandra/data_modeling/intro.html",
+      "https://www.datastax.com/learn/data-modeling-by-example"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can Cassandra materialize views automatically?",
+        "A": "Cassandra supports Materialized Views, but in production they are often avoided due to subtle replication lag and hidden cluster write overhead, favoring application-level dual writes."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "What is the CAP Theorem and PACELC Theorem, and how do distributed databases navigate the trade-off between Consistency, Latency, and Partition Tolerance?",
+    "A": "**The CAP and PACELC theorems formalize the fundamental physical constraints governing distributed state across networked machines.** The CAP Theorem (Brewer) states that a distributed data store can guarantee at most two of three properties simultaneously: Consistency (C: every read receives the most recent write or an error), Availability (A: every non-failing node returns a non-error response, without guaranteeing it is the most recent write), and Partition Tolerance (P: the system continues to operate despite arbitrary network drops or communication delays between nodes).\\n\\n**Why network partitions make CP vs AP mandatory.** In real-world physical networks, network Partitions (P) are unavoidable due to fiber cuts, switch failures, and cloud routing glitches. Therefore, distributed architectures cannot choose 'CA'; they must choose how to behave when a partition occurs: (1) CP systems (e.g., Google Spanner, CockroachDB, etcd, MongoDB with majority write): prioritize strict Consistency. When a partition disconnects minority nodes, the minority refuses reads and writes, ensuring no client reads stale data or causes split-brain state; (2) AP systems (e.g., Apache Cassandra, DynamoDB, Couchbase): prioritize Availability. Nodes on both sides of the network split continue accepting reads and writes, sacrificing immediate consistency in favor of eventual consistency and zero downtime.\\n\\n**The PACELC Theorem (Daniel Abadi).** The CAP theorem only describes behavior during rare partition events. The PACELC theorem expands this to normal operating conditions: **If there is a Partition (P)**, trade Availability (A) vs Consistency (C); **Else (E)**, trade Latency (L) vs Consistency (C). For example, DynamoDB and Cassandra are PA/EL (Availability during partitions; Low Latency normally via eventual consistency). Spanner and CockroachDB are PC/EC (Consistency during partitions; Consistency normally via Raft/Paxos consensus rounds, accepting higher network latency).",
+    "Why": "A cloud region experiences a network partition. An AP system (Cassandra) allows users in both regions to book hotel rooms, causing double-bookings that require manual reconciliation. A CP system (Spanner) locks the minority region until the partition heals, preventing double-bookings.",
+    "worked_case": "A cloud region experiences a network partition. An AP system (Cassandra) allows users in both regions to book hotel rooms, causing double-bookings that require manual reconciliation. A CP system (Spanner) locks the minority region until the partition heals, preventing double-bookings.",
+    "Risk": "Assuming an AP database provides transactional read-your-writes guarantees leads to phantom reads, stale inventory displays, and state corruption.",
+    "Trade": "CP databases guarantee zero data divergence at the cost of higher latency and request rejections during network partitions; AP databases guarantee high availability at the cost of eventual consistency anomalies.",
+    "Try": "Map four databases (PostgreSQL, Cassandra, CockroachDB, Redis) onto the PACELC taxonomy matrix and justify the placement of each based on their consensus protocols.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering",
+    "citations": [
+      "https://en.wikipedia.org/wiki/PACELC_theorem",
+      "https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the difference between linearizability and serializability in distributed systems?",
+        "A": "Serializability is a multi-operation transactional property guaranteeing transactions appear to execute in some serial order; linearizability is a single-operation real-time property guaranteeing any read reflects the latest write in wall-clock time."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do Replication Lag and Read-Your-Writes consistency issues manifest in read-replica database architectures, and how do applications mitigate them?",
+    "A": "**Replication lag in distributed read-replica topologies breaks causal consistency, causing users to observe their own committed modifications vanish upon page refresh.** To scale read throughput, production relational architectures deploy a single primary database (accepting all INSERT, UPDATE, and DELETE mutations) paired with multiple asynchronous read replicas. The primary streams its Write-Ahead Log (WAL) to replicas over the network, where background receiver processes replay WAL records to update local tables.\\n\\n**The Replication Lag illusion.** Because replication is asynchronous to prevent slowing down primary write commits, replicas lag behind the primary by milliseconds to seconds (or minutes during network congestion or heavy batch updates). A classic user experience failure occurs: (1) A user updates their profile address on the website; (2) The web application writes to the primary database, commits the transaction, and returns HTTP 200; (3) The browser immediately navigates or refreshes, issuing a GET request; (4) The load balancer routes the read request to a read replica that is 400ms behind; (5) The replica returns the user's old address; and (6) The user assumes their update failed, repeatedly re-submitting the form or contacting customer support.\\n\\n**Architectural mitigations for Read-Your-Writes consistency.** Production web applications eliminate replication lag anomalies through three engineering patterns: (1) Session Pinning with Cooldown Timers: after a user performs a write mutation, the application sets a short-lived cookie or Redis flag pinning all subsequent read requests from that specific user to the *primary database* for a 5-second cooldown window; (2) Monotonic Log Sequence Number (LSN) tracking: the primary returns its commit LSN to the client; the client passes this token on reads, and the proxy routes the read to a replica only if `replica_last_replay_lsn >= client_commit_lsn`; and (3) Explicit Primary routing for sensitive workflows (checkout, authentication).",
+    "Why": "A user resets their password. The write commits to the primary. The user immediately attempts to log in. The login authentication query hits a replica experiencing 800ms of lag. The replica compares against the old password hash, rejecting the valid login.",
+    "worked_case": "A user resets their password. The write commits to the primary. The user immediately attempts to log in. The login authentication query hits a replica experiencing 800ms of lag. The replica compares against the old password hash, rejecting the valid login.",
+    "Risk": "Routing authentication or billing reads to asynchronous replicas without LSN validation allows stale credentials and duplicate payments.",
+    "Trade": "Pinning users to the primary database after writes guarantees immediate consistency, at the cost of sending extra read load to the primary instance during write-heavy bursts.",
+    "Try": "Simulate replication lag in PostgreSQL by configuring `recovery_min_apply_delay = '2s'` on a replica. Write a row to the primary and immediately query the replica to observe the lag window.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering",
+    "citations": [
+      "https://www.postgresql.org/docs/current/warm-standby.html",
+      "https://martinfowler.com/articles/patterns-of-distributed-systems/read-your-writes.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can synchronous replication eliminate replication lag entirely?",
+        "A": "Yes, but synchronous replication forces the primary to wait for network acknowledgment from replicas before committing, adding latency to every single write and blocking writes if replicas fail."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do Database Migrations execute zero-downtime schema changes on multi-million row tables using the Expand-and-Contract pattern?",
+    "A": "**Executing naive schema changes on large production tables causes table-level lock contention that crashes web applications; zero-downtime migrations require the Expand-and-Contract pattern.** In relational databases like PostgreSQL, running naive DDL commands\u2014such as `ALTER TABLE orders ADD COLUMN status_code VARCHAR NOT NULL DEFAULT 'PENDING';` or renaming a column on a 50-million-row table\u2014requests an AccessExclusiveLock. This lock blocks all concurrent SELECT, INSERT, UPDATE, and DELETE operations. Incoming web worker requests queue up, exhausting database connection pools and precipitating a full application outage.\\n\\n**The four-phase Expand-and-Contract lifecycle.** Zero-downtime migrations (managed via tools like Alembic or Flyway) decouple schema changes across four discrete deployment phases: (1) Phase 1 (Expand): Deploy non-locking DDL to add the new column as nullable, or create non-blocking indexes concurrently (`CREATE INDEX CONCURRENTLY`). Deploy application code v1 that continues reading from the old column but dual-writes updates to both the old and new columns; (2) Phase 2 (Backfill): Run an idempotent, throttled background migration worker (e.g., processing 2,000 rows at a time: `UPDATE orders SET new_col = old_col WHERE id BETWEEN :start AND :end AND new_col IS NULL`). Throttling ensures the backfill does not saturate disk I/O or cause lock escalation; (3) Phase 3 (Switch): Once backfill reaches 100% parity, deploy application code v2 that reads exclusively from the new column while maintaining dual-writes; and (4) Phase 4 (Contract): Once code v2 is stable, deploy code v3 that ceases writing to the old column, followed by a final non-locking migration that drops the obsolete old column.",
+    "Why": "A team renames a column on a 30M-row table during a production deployment. The DDL locks the table for 4 minutes. All 200 web workers block waiting for the lock, maxing out database connections and throwing 504 Gateway Timeouts across the entire site.",
+    "worked_case": "A team renames a column on a 30M-row table during a production deployment. The DDL locks the table for 4 minutes. All 200 web workers block waiting for the lock, maxing out database connections and throwing 504 Gateway Timeouts across the entire site.",
+    "Risk": "Running DDL that acquires an AccessExclusiveLock behind a long-running SELECT query blocks all subsequent read and write queries, starving the connection pool in seconds.",
+    "Trade": "Expand-and-contract requires multi-stage deployments, dual-writing application logic, and backfill scripts, trading deployment speed for zero user downtime and zero data loss.",
+    "Try": "Write an Alembic migration using the expand-and-contract pattern to rename a column on an orders table. Verify that application v1 and v2 can run simultaneously against the intermediate database state.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "data-engineering",
+    "subdomain": "data-engineering",
+    "citations": [
+      "https://martinfowler.com/bliki/ParallelRun.html",
+      "https://alembic.sqlalchemy.org/en/latest/cookbook.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why must CREATE INDEX CONCURRENTLY be used in production PostgreSQL?",
+        "A": "Standard CREATE INDEX acquires a ShareLock that blocks all concurrent writes; CONCURRENTLY executes in multiple transactions without blocking writes, though it takes longer to complete."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]

@@ -1,0 +1,164 @@
+[
+  {
+    "Q": "How do ORMs implement the Unit of Work and Identity Map patterns, and how do they detect and flush changes to the database?",
+    "A": "**Modern Object-Relational Mappers (ORMs like SQLAlchemy and Hibernate) coordinate database interactions through two fundamental architectural patterns: the Identity Map and the Unit of Work.** Without these patterns, interacting with relational tables via object-oriented code results in duplicated in-memory entity representations, out-of-order SQL emissions, and fragmented transaction management.\\n\\n**The Identity Map pattern.** The Identity Map maintains an in-memory dictionary mapping primary keys to loaded object instances within the lifecycle of a single session: `session.identity_map[(User, 42)] = user_instance`. If a query requests user ID 42 multiple times during a transaction (e.g., across distinct functions or service layers), the ORM intercepts the call and returns the exact same in-memory object reference. This prevents entity duplication, eliminates redundant database SELECT queries for already-loaded rows, and guarantees that in-memory mutations remain consistent across the application.\\n\\n**The Unit of Work pattern and dirty checking.** The Unit of Work acts as a transaction-scoped buffer that tracks all newly created (`new`), modified (`dirty`), and marked-for-deletion (`deleted`) objects. When an application modifies attributes on a model, the ORM intercepts the change via descriptor instrumentation. When `session.flush()` or `session.commit()` is invoked, the Unit of Work: (1) Examines snapshots to compute exact column-level diffs; (2) Performs a topological sort of all pending INSERT, UPDATE, and DELETE operations based on foreign key dependency graphs; and (3) Emits minimal, batched SQL statements to the database, ensuring foreign key constraints are never violated during execution.",
+    "Why": "A service updates a user's email in function A and adds an order in function B. Without the Unit of Work, function A would immediately issue an un-batched SQL UPDATE. With Unit of Work, both operations are batched and flushed together in a single atomic transaction.",
+    "worked_case": "A service updates a user's email in function A and adds an order in function B. Without the Unit of Work, function A would immediately issue an un-batched SQL UPDATE. With Unit of Work, both operations are batched and flushed together in a single atomic transaction.",
+    "Risk": "Keeping long-lived ORM sessions open across multiple HTTP requests bloats the Identity Map, consuming excessive RAM and causing stale in-memory reads.",
+    "Trade": "Unit of Work defers SQL execution until flush, improving network batching and foreign key ordering while requiring developers to remember that Python attribute changes are not instantly persisted.",
+    "Try": "Inspect `session.dirty` and `session.new` in SQLAlchemy after modifying model attributes. Call `session.flush()` and verify with SQL logging when the UPDATE statement is emitted.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "backend",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://docs.sqlalchemy.org/en/20/orm/session_basics.html",
+      "https://martinfowler.com/eaaCatalog/unitOfWork.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the difference between flush() and commit() in an ORM session?",
+        "A": "flush() emits SQL queries to the database transaction buffer without committing; commit() emits flush() and then issues the final COMMIT instruction to finalize the transaction."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "What is the N+1 Query Problem in ORMs, how does it manifest in production, and how do joinedload, selectinload, and subqueryload solve it?",
+    "A": "**The N+1 Query Problem is the most pervasive performance defect in ORM-driven applications, turning a single logical data fetch into dozens or hundreds of sequential database queries.** It occurs when an application queries a list of N parent entities and subsequently accesses a related child collection configured with default lazy loading. The ORM executes 1 initial query to retrieve the N parent rows, followed by N separate, sequential queries to fetch the children for each individual parent (1 + N total network round-trips), causing massive database connection pool saturation, latency spikes, and severe CPU contention.\\n\\n**Three distinct Eager Loading strategies in SQLAlchemy 2.0.** To eliminate lazy-loading waterfalls, modern ORMs provide three explicit eager-loading strategies, each engineered for specific relational topologies: (1) `joinedload()`: Executes an SQL `LEFT OUTER JOIN` in a single combined query. It is optimal for 1-to-1 relationships and many-to-one foreign key lookups. However, applying joinedload to one-to-many or many-to-many collections creates Cartesian product row duplication, transferring massive redundant data over the network; (2) `selectinload()`: Executes exactly two queries: `SELECT * FROM parents` followed immediately by `SELECT * FROM children WHERE parent_id IN (1, 2, ..., N)`. It completely avoids Cartesian product row duplication, making it the premier strategy for 1-to-many collections in PostgreSQL; and (3) `subqueryload()`: Executes two queries using an SQL subquery (`WHERE parent_id IN (SELECT id FROM parents ...)`), useful when parent IDs cannot be listed in an IN clause.",
+    "Why": "An API endpoint lists 50 customer accounts with their recent orders. Under lazy loading, loading the page executes 51 SQL queries, taking 1,800ms. Applying `selectinload(Account.orders)` reduces the execution to exactly 2 queries, dropping latency to 28ms.",
+    "worked_case": "An API endpoint lists 50 customer accounts with their recent orders. Under lazy loading, loading the page executes 51 SQL queries, taking 1,800ms. Applying `selectinload(Account.orders)` reduces the execution to exactly 2 queries, dropping latency to 28ms.",
+    "Risk": "Applying joinedload across multiple nested one-to-many collections causes a Cartesian explosion of rows returned, exhausting web worker memory.",
+    "Trade": "Eager loading eliminates round-trip query waterfalls at the cost of fetching related collections upfront even if some code paths do not read them.",
+    "Try": "Enable SQLAlchemy SQL echo logging (`echo=True`). Query 10 parent records with lazy loading vs `selectinload`. Count the exact number of SQL statements emitted to the console.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "backend",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html",
+      "https://docs.sqlalchemy.org/en/20/orm/loading_relationships.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can linters or tests automatically detect N+1 queries in CI pipelines?",
+        "A": "Yes. Libraries like nplusone or custom query-counter fixtures in pytest track database statement counts per API endpoint, asserting that query counts remain constant regardless of dataset size."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How should SQLAlchemy AsyncSession and connection pools be managed in FastAPI to prevent cross-request session leakage and pool starvation?",
+    "A": "**Managing asynchronous database sessions in high-concurrency Python web frameworks requires strict session lifecycle scoping and carefully calibrated connection pools.** In asynchronous frameworks like FastAPI running on Uvicorn, multiple concurrent HTTP requests execute cooperatively on a single-threaded asyncio event loop. If database sessions or connections are mismanaged, applications suffer from cross-request data leaks, concurrency race conditions, and connection pool starvation.\\n\\n**The Session-Per-Request pattern via Dependency Injection.** An AsyncSession must never be instantiated as a global or module-level variable. Global sessions cause concurrent coroutines to interleave operations on the same session instance, corrupting transaction state and throwing `InvalidRequestError: Object is already attached to session`. The production standard is the session-per-request pattern implemented via FastAPI dependencies with async context managers: `async def get_db(): async with async_session_maker() as session: try: yield session; await session.commit() except Exception: await session.rollback(); raise`. This guarantees that every request receives its own isolated session and transaction boundary that closes deterministically even on unhandled exceptions.\\n\\n**Connection pool sizing and anti-starvation rules.** The underlying engine connection pool (e.g., using asyncpg) must be sized according to: `Total Connections = (Uvicorn Workers * (pool_size + max_overflow)) < PostgreSQL max_connections`. A frequent cause of connection pool starvation is holding a database transaction open while awaiting a slow external HTTP API call or long LLM completion. Production systems mandate that external network I/O must never occur inside an active database transaction; commit or close the database session before invoking third-party APIs.",
+    "Why": "A developer places an OpenAI API call inside an open database transaction. When the LLM takes 12 seconds to stream a response, all 20 connection pool slots are held open waiting on the LLM, starving all incoming user login requests and crashing the API.",
+    "worked_case": "A developer places an OpenAI API call inside an open database transaction. When the LLM takes 12 seconds to stream a response, all 20 connection pool slots are held open waiting on the LLM, starving all incoming user login requests and crashing the API.",
+    "Risk": "Holding database connections while awaiting slow external network calls rapidly exhausts database connection pools, taking down the entire application.",
+    "Trade": "Strict session-per-request scoping requires dependency injection boilerplate on every route, but completely eliminates concurrency race conditions and connection leaks.",
+    "Try": "Simulate 50 concurrent requests hitting a FastAPI route that forgets to close its session in an error branch. Observe the pool exhaustion error `TimeoutError: QueuePool limit of size 5 overflow 10 reached`.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "backend",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html",
+      "https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    ],
+    "follow_ups": [
+      {
+        "Q": "What is the greenlet requirement in SQLAlchemy asyncio?",
+        "A": "SQLAlchemy uses greenlet under the hood to bridge its synchronous core execution engine with the asyncio event loop, requiring greenlet binary wheels to be installed."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How does Optimistic Concurrency Control work in ORMs using version columns, and when is it preferred over Pessimistic Locking?",
+    "A": "**Optimistic Concurrency Control (OCC) and Pessimistic Locking represent two opposing concurrency control strategies with contrasting scalability, throughput, and contention characteristics.** When multiple users or processes concurrently attempt to modify the same database entity (e.g., updating inventory stock or booking an appointment slot), the system must prevent lost updates and race conditions.\\n\\n**Pessimistic Locking (SELECT ... FOR UPDATE).** Pessimistic locking assumes conflicts are frequent. It instructs the database engine to acquire an exclusive row-level lock immediately upon reading the row: `SELECT * FROM inventory WHERE id = 1 FOR UPDATE`. Any other concurrent transaction attempting to read or update that row is blocked and queued until the holding transaction commits. While safe, pessimistic locking has major drawbacks: it degrades throughput under high concurrency, creates high lock contention, and risks database deadlocks if multiple rows are locked in inconsistent orders across transactions.\\n\\n**Optimistic Concurrency Control via version columns.** OCC assumes conflicts are rare. It avoids taking database locks during read time, instead adding an integer version counter to the table: `version_id = Column(Integer, default=1)`. When updating, the ORM generates conditional SQL: `UPDATE inventory SET stock = :new_stock, version_id = version_id + 1 WHERE id = :id AND version_id = :original_version`. If a concurrent transaction updated the row in the interim, the version number has incremented; the WHERE clause matches zero rows, and the ORM immediately raises `StaleDataError`. The application catches the exception and cleanly retries or informs the user. OCC is vastly superior for read-heavy workloads, stateless REST APIs, and workflows involving user think-time.",
+    "Why": "In an e-commerce checkout, 50 users view the last concert ticket. Pessimistic locking locks the row for 10 minutes while User 1 fills out payment details, blocking all other users. OCC allows all users to browse; only the final submit checks the version column, rejecting concurrent checkouts safely.",
+    "worked_case": "In an e-commerce checkout, 50 users view the last concert ticket. Pessimistic locking locks the row for 10 minutes while User 1 fills out payment details, blocking all other users. OCC allows all users to browse; only the final submit checks the version column, rejecting concurrent checkouts safely.",
+    "Risk": "In extremely high-contention write workloads (e.g. flash sales with 10,000 writes/sec to a single row), OCC causes massive retry loops and high abort rates.",
+    "Trade": "OCC eliminates database lock queuing and deadlocks at the cost of requiring application-level retry logic when `StaleDataError` is raised.",
+    "Try": "Add a `version_id` column to a SQLAlchemy model with `__mapper_args__ = {version_id_col: version_id}`. Open two sessions, modify the same record in both, and commit the second to observe `StaleDataError`.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "backend",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://docs.sqlalchemy.org/en/20/orm/versioning.html",
+      "https://en.wikipedia.org/wiki/Optimistic_concurrency_control"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Can timestamps be used as version columns instead of integers?",
+        "A": "Yes, but integer version counters are preferred because system clocks can experience drift, NTP adjustments, or identical timestamp collisions during sub-millisecond concurrent writes."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do SQL Transaction Isolation Levels differ in PostgreSQL MVCC, and what anomalies occur in each?",
+    "A": "**Transaction isolation levels define the mathematical guarantees that prevent concurrent transactions from observing or interfering with each other's uncommitted or intermediate states.** In PostgreSQL, isolation is implemented via Multi-Version Concurrency Control (MVCC): rows are never overwritten in place; instead, row updates create new tuple versions stamped with `xmin` (creating transaction ID) and `xmax` (deleting transaction ID). Readers never block writers, and writers never block readers.\\n\\n**The three operational isolation levels and their anomalies.** The ANSI SQL standard defines four isolation levels, which PostgreSQL implements across three concrete tiers: (1) Read Committed (default): Every individual query within the transaction takes a fresh snapshot of committed data. It prevents Dirty Reads (reading uncommitted changes), but permits Non-Repeatable Reads (executing the same SELECT query twice yields different values if another transaction commits an update in between) and Phantom Reads (new rows inserted by another committed transaction appear in a second query); (2) Repeatable Read: The entire transaction takes a single immutable snapshot at the start of its first query. It prevents Dirty Reads, Non-Repeatable Reads, and Phantom Reads. However, it permits Write Skew: two concurrent transactions check an overlapping constraint (e.g. ensuring at least one doctor remains on call), each modifying a different row; both commit successfully, leaving zero doctors on call; and (3) Serializable: The strictest level, implemented via Serializable Snapshot Isolation (SSI). It tracks read-write antidependencies (SIREAD locks) in memory; if a cycle is detected, the database aborts the transaction with `ERROR: 40001 could not serialize access`, requiring an application retry.",
+    "Why": "Two hospital dispatchers concurrently take Doctor A and Doctor B off call. Under Repeatable Read, both check `SELECT count(*) WHERE on_call=true` (returns 2). Both transactions update one doctor to false and commit, leaving zero doctors on call. Under Serializable, the second commit fails with a serialization error.",
+    "worked_case": "Two hospital dispatchers concurrently take Doctor A and Doctor B off call. Under Repeatable Read, both check `SELECT count(*) WHERE on_call=true` (returns 2). Both transactions update one doctor to false and commit, leaving zero doctors on call. Under Serializable, the second commit fails with a serialization error.",
+    "Risk": "Running all application transactions under Serializable without automated retry middleware causes frequent 40001 database aborts to bubble up as 500 errors to end users.",
+    "Trade": "Serializable guarantees absolute mathematical correctness and eliminates all concurrency anomalies, but introduces transaction aborts and memory tracking overhead.",
+    "Try": "Open two psql shells. Begin transactions in both with `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`. Update opposite rows based on an intersecting premise and observe Write Skew.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "backend",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "https://wiki.postgresql.org/wiki/SSI"
+    ],
+    "follow_ups": [
+      {
+        "Q": "Why doesn't PostgreSQL support Read Uncommitted?",
+        "A": "PostgreSQL's MVCC architecture naturally isolates uncommitted tuples via xmin/xmax transaction visibility checks; supporting dirty reads would require deliberately bypassing core MVCC guarantees."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  },
+  {
+    "Q": "How do Distributed Locks with Redis work, and why can GC pauses or network partitions break lock exclusivity?",
+    "A": "**Distributed locks coordinate mutual exclusion across independent processes that share no physical memory, but are susceptible to timing assumptions in asynchronous networks.** In a single Redis instance, a safe distributed lock is acquired using the atomic command: `SET resource_name client_uuid NX PX 30000`, which sets the key only if it does not exist (`NX`), bound to an automatic 30-second expiry (`PX`). Releasing the lock requires a Lua script that verifies the `client_uuid` matches before deleting the key, preventing a process from inadvertently deleting a lock held by another worker.\\n\\n**The Redlock algorithm across multi-node clusters.** To survive single-node Redis failures, the Redlock algorithm acquires the lock across N independent Redis masters (typically N = 5). The client attempts to acquire the lock on all nodes sequentially with a small timeout. If the client acquires the lock on a majority (at least 3 nodes) within a total time less than the validity duration, the lock is granted.\\n\\n**The fatal GC pause vulnerability (Martin Kleppmann's critique).** Distributed locks that rely on wall-clock lease expiry fail in asynchronous distributed systems due to Stop-The-World (STW) pauses. Consider: Worker 1 acquires a lock with a 10-second TTL. Immediately after acquisition, Worker 1 experiences a 15-second GC pause, OS swapping delay, or network stall. While Worker 1 is paused, its 10-second lease expires in Redis. Worker 2 requests and acquires the lock. Worker 1 wakes up from its GC pause, assumes it still owns the lock, and issues its write to shared storage. Both workers write concurrently, completely violating mutual exclusion and corrupting data. The only provable defense is Fencing Tokens: monotonically increasing numbers validated by the underlying storage engine.",
+    "Why": "Worker 1 acquires a lock to process a payment batch. A 20-second JVM garbage collection pause stalls Worker 1. Redis expires the lock. Worker 2 acquires the lock and begins charging customers. Worker 1 resumes and also charges customers, double-billing thousands of users.",
+    "worked_case": "Worker 1 acquires a lock to process a payment batch. A 20-second JVM garbage collection pause stalls Worker 1. Redis expires the lock. Worker 2 acquires the lock and begins charging customers. Worker 1 resumes and also charges customers, double-billing thousands of users.",
+    "Risk": "Assuming a distributed lock guarantees absolute exclusivity without storage-level fencing tokens allows delayed processes to corrupt production databases.",
+    "Trade": "Redis distributed locks provide fast, best-effort coordination for non-critical tasks; mission-critical mutations require consensus-backed stores (etcd, Zookeeper) paired with monotonic fencing tokens.",
+    "Try": "Implement a Redis lock in Python with a 2-second TTL. Acquire the lock, call `time.sleep(3)` to simulate a pause, and attempt to write. Confirm that the lock was lost during sleep.",
+    "answer_format": "conceptual",
+    "difficulty": "advanced design scenario",
+    "domain": "backend",
+    "subdomain": "database-concurrency",
+    "citations": [
+      "https://redis.io/docs/latest/develop/use/distlock/",
+      "https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html"
+    ],
+    "follow_ups": [
+      {
+        "Q": "How does a fencing token protect storage from delayed workers?",
+        "A": "The storage engine tracks the highest fencing token observed; any write request presenting a token lower than the highest recorded token is rejected as stale."
+      }
+    ],
+    "reviewer_status": {
+      "status": "draft",
+      "reviewer": "Independent technical review pending"
+    }
+  }
+]
