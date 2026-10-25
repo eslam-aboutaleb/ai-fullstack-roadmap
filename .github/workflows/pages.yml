@@ -15,9 +15,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  commit-messages:
+    name: Commit message format
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/commit-messages.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
+    permissions:
+      contents: read
+      pull-requests: read
+
   quality:
     name: Static content and examples
-    uses: eslam-aboutaleb/ci-workflows/.github/workflows/project-check.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/project-check.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
     with:
       project-dir: .
       target: ci-quality
@@ -25,10 +32,10 @@ jobs:
       node-version: '22'
 
   workflow-lint:
-    uses: eslam-aboutaleb/ci-workflows/.github/workflows/workflow-lint.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/workflow-lint.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
 
   security:
-    uses: eslam-aboutaleb/ci-workflows/.github/workflows/security.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/security.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
     permissions:
       contents: read
       actions: read
@@ -185,7 +192,7 @@ jobs:
   gate:
     name: Quality gate
     if: always()
-    needs: [quality, browser-check, model-check, advanced-check, workflow-lint, security, editorial-revisions]
+    needs: [commit-messages, quality, browser-check, model-check, advanced-check, workflow-lint, security, editorial-revisions]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
