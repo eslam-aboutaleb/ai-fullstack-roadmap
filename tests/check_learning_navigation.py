@@ -40,21 +40,20 @@ def check(page, base):
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
         page.screenshot(path=f'/tmp/roadmap-design-navigation-{width}.png')
     page.set_viewport_size({'width': 1280, 'height': 720})
-    page.goto(base + '/design-scenarios.html')
-    page.get_by_role('link', name='How do you reject a stale worker result after its job has been reclaimed?', exact=True).click()
-    page.wait_for_function('window.GuideAppReady === true')
-    answer = page.locator(page.evaluate('location.hash'))
-    assert answer.locator('details.answer').get_attribute('open') is not None
+    def open_scenario(question_title):
+        page.goto(base + '/design-scenarios.html')
+        page.get_by_role('link', name=question_title, exact=True).click()
+        page.wait_for_function('window.GuideAppReady === true')
+        locator = page.locator(page.evaluate('location.hash'))
+        assert locator.locator('details.answer').get_attribute('open') is not None
+        assert locator.locator('.answer-diagram').count() == 1
+        return locator
+
+    answer = open_scenario('How do you reject a stale worker result after its job has been reclaimed?')
     assert 'attempt' in answer.locator('pre code').first.inner_text()
-    assert answer.locator('.answer-diagram').count() == 1
-    page.goto(base + '/design-scenarios.html')
-    page.get_by_role('link', name='How do you bind encrypted records to the correct tenant, record and schema while detecting tampering?', exact=True).click()
-    page.wait_for_function('window.GuideAppReady === true')
-    encryption = page.locator(page.evaluate('location.hash'))
-    assert encryption.locator('details.answer').get_attribute('open') is not None
+    encryption = open_scenario('How do you bind encrypted records to the correct tenant, record and schema while detecting tampering?')
     assert 'cryptography dependency required' in encryption.locator('.question-code').inner_text()
     assert 'AESGCM' in encryption.locator('pre code').first.inner_text()
-    assert encryption.locator('.answer-diagram').count() == 1
     page.goto(base + '/classification.html')
     page.wait_for_function('window.GuideAppReady === true')
     assert page.locator('article[data-question]').count() == 18

@@ -86,6 +86,14 @@ class Memory:
         return count
 
 
+def _expect_error(exc_type, call, message):
+    try:
+        call()
+    except exc_type:
+        return
+    raise AssertionError(message)
+
+
 def check():
     db=sqlite3.connect(":memory:")
     a=Memory(db,Principal("tenant-A"))
@@ -97,21 +105,16 @@ def check():
     assert b.recall("language",valid_at=20,known_at=20) is None
     assert a.remember("language","Arabic",valid_at=15,recorded_at=17,source="explicit correction",
                       request_id="a-2",consent=True)
-    assert a.recall("language",valid_at=16,known_at=16)["value"]=="English"
-    assert a.recall("language",valid_at=16,known_at=18)["value"]=="Arabic"
-    assert a.recall("language",valid_at=12,known_at=20)["value"]=="English"
+    for valid_at, known_at, expected in ((16, 16, "English"), (16, 18, "Arabic"), (12, 20, "English")):
+        assert a.recall("language", valid_at=valid_at, known_at=known_at)["value"] == expected
     assert a.remember("theme","dark",valid_at=21,recorded_at=21,expires_at=30,
                       source="user choice",request_id="a-3",consent=True)
     assert a.recall("theme",valid_at=29,known_at=29)["value"]=="dark"
     assert a.recall("theme",valid_at=30,known_at=30) is None
-    try:a.remember("secret","x",valid_at=20,recorded_at=20,
-                   source="untrusted web",request_id="bad",consent=False)
-    except PermissionError:pass
-    else:raise AssertionError("unconsented memory committed")
-    try:a.remember("language","spoof",valid_at=10,recorded_at=11,
-                   source="explicit user",request_id="a-1",consent=True)
-    except ValueError:pass
-    else:raise AssertionError("idempotency collision not rejected")
+    _expect_error(PermissionError, lambda: a.remember("secret","x",valid_at=20,recorded_at=20,
+                  source="untrusted web",request_id="bad",consent=False), "unconsented memory committed")
+    _expect_error(ValueError, lambda: a.remember("language","spoof",valid_at=10,recorded_at=11,
+                  source="explicit user",request_id="a-1",consent=True), "idempotency collision not rejected")
     assert a.forget("language",recorded_at=31)==2
     assert a.recall("language",valid_at=15,known_at=31) is None
     assert b.forget("theme",recorded_at=31)==0

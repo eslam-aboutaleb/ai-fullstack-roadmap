@@ -9,14 +9,14 @@
 │   └── static/.nojekyll
 ├── content/
 │   ├── course.json               # Stage order and chapter slugs
-│   ├── chapters/<slug>/          # Five JSON files per chapter
+│   ├── chapters/<slug>/          # Structured JSON + canonical questions.md pack per chapter
 │   ├── examples/
-│   │   ├── chapters/             # 48 editable chapter examples + catalog
-│   │   └── questions/<topic>/    # 298 inline examples + topic catalogs
+│   │   ├── chapters/             # 59 editable chapter examples + catalog
+│   │   └── questions/<topic>/    # 562 inline examples + topic catalogs
 │   ├── diagrams/                 # Editable overview-diagram sources
 │   └── shared/                   # Glossary, references, stable study IDs
 ├── labs/                         # Optional HTTP/streaming, voice, OCR, foundation labs
-├── scripts/                      # Build, package, and content loaders
+├── scripts/                      # Build/CLI entrypoints (`questions.py`, `build.py`, `roadmap/`)
 ├── tests/                        # Site, example, and source-layout verification
 ├── docs/                         # Contributor architecture and verification record
 ├── CONTRIBUTING.md
@@ -46,7 +46,7 @@ script location rather than the caller's current directory.
 The builder flattens selected assets and example paths to preserve published
 URLs. Grouping a source recipe under a topic does not change its public filename
 or question anchor. Only public static files and the generated example/lab
-folders are packaged; contributor documents, chapter JSON, tests, and Git metadata
+folders are packaged; contributor documents, source chapter JSON/Markdown, tests, and Git metadata
 are excluded.
 
 ## Chapter ownership
@@ -55,11 +55,20 @@ Each chapter has:
 
 - `chapter.json`: title, introduction, terms, concrete case, and diagram flow.
 - `lessons.json`: guided explanations, preserving their existing reading order.
-- `questions.json`: deeper practice material, preserving the existing answers.
+- `questions.md`: single canonical Markdown pack containing all deeper interview questions (`scripts/roadmap/question_markdown.py`, authored/validated via `scripts/questions.py`).
 - `review.json`: additions, recommended work, completion checks, reference keys.
 - `code-notes.json`: the chapter-level code walkthrough.
 
 Examples live under the shared example folders because a focused example may support multiple chapters.
+
+## Script architecture (`scripts/` & `scripts/roadmap/`)
+
+Reusable build, content loading, prose rendering, course builders, and editorial gates live in
+`scripts/roadmap/` (`config.py`, `question_markdown.py`, `examples.py`, `editorial.py`,
+`content.py`, `prose.py`, `courses.py`, `practice.py`, `audit_pages.py`, `site_builder.py`).
+Top-level `scripts/*.py` files provide lightweight CLI entrypoints (`questions.py`, `build.py`,
+`package.py`, `course_data.py`, `interview_contract.py`) and compatibility facades so existing
+checks continue working with zero import-time side effects.
 
 ## Code-example ownership
 
@@ -81,8 +90,6 @@ change those IDs. New question titles must be registered with
 `python3 scripts/course_data.py --assign-ids`; ordinary builds do not mutate
 source identity files.
 
-The migration from `authoring/` split the existing large lesson/question files
-into chapter folders and extracted embedded example strings into editable code
-files. All 810 question records, 298 inline examples, and 48 chapter examples
-were compared with the pre-migration data. Existing root HTML and example copies
-were generated artifacts and now belong only in ignored output folders.
+All 1,163 question records live in 59 canonical per-chapter `questions.md` files
+verified losslessly against content digests, paired with 562 inline examples and
+59 chapter examples. Existing root HTML and example copies belong only in ignored output folders.

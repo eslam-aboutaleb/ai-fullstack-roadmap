@@ -4,7 +4,7 @@ This is a reference algorithm, NOT a claim about any provider's tokenizer,
 long-context accuracy or prompt cache billing. Actual production token counts
 must come from a pinned provider tokenizer and exact request serialization.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 import json
 
@@ -97,11 +97,10 @@ def run_checks():
     assert 'SECRET' not in json.dumps(packet)
     assert packet['excluded']==[{'id':'filler-A','reason':'budget'}]
     assert packet['included'][1]['citation']=="A#2"
-    assert cache_key(identity,"q")!=cache_key(other,"q")
-    assert cache_key(identity,"q")!=cache_key(Access("owner-A","acl:3","corpus:9","model:v2","prompt:v3"),"q")
-    assert cache_key(identity,"q")!=cache_key(Access("owner-A","acl:2","corpus:10","model:v2","prompt:v3"),"q")
-    assert cache_key(identity,"q")!=cache_key(Access("owner-A","acl:2","corpus:9","model:v3","prompt:v3"),"q")
-    assert cache_key(identity,"q")!=cache_key(Access("owner-A","acl:2","corpus:9","model:v2","prompt:v4"),"q")
+    for field, changed in (('principal', 'owner-B'), ('acl_revision', 'acl:3'),
+                           ('corpus_revision', 'corpus:10'), ('model_revision', 'model:v3'),
+                           ('prompt_revision', 'prompt:v4')):
+        assert cache_key(identity, "q") != cache_key(replace(identity, **{field: changed}), "q")
     try:assemble(identity,"q",items,max_context=8,system_tokens=4,tool_schema_tokens=3,reserve_output=2)
     except ValueError:pass
     else:raise AssertionError("mandatory instructions silently truncated")

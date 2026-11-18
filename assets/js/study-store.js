@@ -13,13 +13,16 @@
     for (const event of incoming) clock = Math.max(clock, event.time || 0);
     if (notify) store.dispatchEvent(new Event('change'));
   }
+  function resetBarrier(existing, records) {
+    const resets = records.filter(record => record.kind === 'reset').map(record => ({...record,id:RESET_ID}));
+    return model.merge(existing ? [existing] : [], resets).at(-1);
+  }
   function transaction(records) {
     return new Promise((resolve, reject) => {
       const tx = database.transaction('events', 'readwrite'), table = tx.objectStore('events');
       const gate = table.get(RESET_ID);
       gate.onsuccess = () => {
-        const resets = records.filter(record => record.kind === 'reset').map(record => ({...record,id:RESET_ID}));
-        const barrier = model.merge(gate.result ? [gate.result] : [], resets).at(-1);
+        const barrier = resetBarrier(gate.result, records);
         if (barrier) {
           if (!gate.result || barrier.time > gate.result.time) table.clear();
           table.put(barrier); update([barrier], false);
@@ -41,8 +44,7 @@
       if (!records.length) { localStorage.setItem('ai-study-storage-probe', '1'); localStorage.removeItem('ai-study-storage-probe'); }
       let previous;
       try { previous = JSON.parse(localStorage.getItem(PREFIX+RESET_ID) || 'null'); } catch { /* recover below */ }
-      const resets = records.filter(record => record.kind === 'reset').map(record => ({...record,id:RESET_ID}));
-      const barrier = model.merge(previous && model.eventValid(previous) ? [previous] : [], resets).at(-1);
+      const barrier = resetBarrier(previous && model.eventValid(previous) ? previous : null, records);
       if (barrier && (!previous || barrier.time > previous.time)) {
         const keys = [];
         for (let index=0;index<localStorage.length;index++) keys.push(localStorage.key(index));

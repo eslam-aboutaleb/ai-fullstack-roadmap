@@ -5,6 +5,7 @@ tokens multiplied by tokens produces microUSD. This is a bounded reference
 implementation, not an actual provider invoice or usage-meter integration.
 """
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from decimal import Decimal, ROUND_CEILING
 from pathlib import Path
 import sqlite3
@@ -45,6 +46,16 @@ class Ledger:
     def _begin(self):
         self.db.execute("BEGIN IMMEDIATE")
 
+    @contextmanager
+    def _tx(self):
+        self._begin()
+        try:
+            yield
+        except BaseException:
+            self.db.execute("ROLLBACK")
+            raise
+        self.db.execute("COMMIT")
+
     def reserve(self, owner, attempt_id, task_id, max_micro_usd,
                 budget_micro_usd, price_revision):
         if not all(isinstance(x,str) and x.strip() for x in
@@ -52,15 +63,13 @@ class Ledger:
             raise ValueError("trusted scope and stable attempt IDs required")
         if any(type(x) is not int or x<0 for x in (max_micro_usd,budget_micro_usd)):
             raise ValueError("nonnegative integer microUSD amounts required")
-        self._begin()
-        try:
+        with self._tx():
             existing=self.db.execute(
                 "SELECT owner, task, cap, budget, price_revision FROM holds WHERE id=?",
                 (attempt_id,)).fetchone()
             if existing:
                 if existing!=(owner,task_id,max_micro_usd,budget_micro_usd,price_revision):
                     raise ValueError("attempt replay conflicts with original reservation")
-                self.db.execute("COMMIT")
                 return False
             used=self.db.execute("""SELECT COALESCE(SUM(CASE WHEN status='settled'
                 THEN actual ELSE cap END),0) FROM holds WHERE owner=?""",(owner,)).fetchone()[0]
@@ -69,11 +78,7 @@ class Ledger:
             self.db.execute("INSERT INTO holds VALUES (?,?,?,?,?,?,?,?)",
                             (attempt_id,owner,task_id,max_micro_usd,budget_micro_usd,
                              "reserved",None,price_revision))
-            self.db.execute("COMMIT")
             return True
-        except Exception:
-            self.db.execute("ROLLBACK")
-            raise
 
     def settle(self, owner, attempt_id, actual_micro_usd):
         # Unknown provider usage is NOT treated as free; retain the reservation.
@@ -81,8 +86,7 @@ class Ledger:
             return False
         if type(actual_micro_usd) is not int or actual_micro_usd<0:
             raise ValueError("actual charge must be a nonnegative integer")
-        self._begin()
-        try:
+        with self._tx():
             row=self.db.execute("SELECT owner,cap,status,actual FROM holds WHERE id=?",
                                 (attempt_id,)).fetchone()
             if row is None or row[0]!=owner:
@@ -90,17 +94,12 @@ class Ledger:
             if row[2]=="settled":
                 if row[3]!=actual_micro_usd:
                     raise ValueError("conflicting settlement")
-                self.db.execute("COMMIT")
                 return False
             if actual_micro_usd>row[1]:
                 raise ValueError("charge exceeds authorized reservation; reconcile externally")
             self.db.execute("UPDATE holds SET status='settled',actual=? WHERE id=?",
                             (actual_micro_usd,attempt_id))
-            self.db.execute("COMMIT")
             return True
-        except Exception:
-            self.db.execute("ROLLBACK")
-            raise
 
     def usage(self, owner):
         rows=self.db.execute("SELECT status,cap,actual FROM holds WHERE owner=?",

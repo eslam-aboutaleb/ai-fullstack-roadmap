@@ -9,6 +9,9 @@
   document.querySelectorAll('[data-hint], [data-solution]').forEach(details => details.addEventListener('toggle', () => {
     if (details.open) touched.add(details.closest('[data-assessment], [data-lab]').id);
   }));
+  function attemptFields(card, item) {
+    return {topic: item.topic, assessment: item.id, hintsUsed: touched.has(card.id)};
+  }
   document.querySelectorAll('[data-assessment]').forEach(card => {
     const item = data.assessments.find(a => a.id === card.dataset.assessment);
     const button = card.querySelector('[data-grade]'); button.disabled = false;
@@ -28,7 +31,7 @@
       }
       button.disabled = true;
       try {
-        await store.recordAttempt({topic:item.topic, assessment:item.id, kind:item.kind, passed, independent:item.independent, hintsUsed:touched.has(card.id), summary:summary.slice(0,2000)});
+        await store.recordAttempt({...attemptFields(card, item), kind: item.kind, passed, independent: item.independent, summary: summary.slice(0, 2000)});
       } finally { button.disabled = false; }
     });
   });
@@ -59,7 +62,7 @@
     let active, timer;
     function finish() { clearTimeout(timer); active?.terminate(); active = undefined; run.disabled = false; stop.disabled = true; }
     async function record(passed, summary) {
-      await store.recordAttempt({topic:item.topic, assessment:item.id, kind:'coding', passed, independent:true, hintsUsed:touched.has(card.id), summary:summary.slice(0,2000)});
+      await store.recordAttempt({...attemptFields(card, item), kind: 'coding', passed, independent: true, summary: summary.slice(0, 2000)});
     }
     run.disabled = !('Worker' in window);
     if (run.disabled) status.textContent = 'This browser does not support Workers. Download and run the local source instead.';
@@ -101,6 +104,14 @@
       worker.postMessage({ticket, code:editor.value, cases:item.cases, language:item.language, runtimeURL:new URL('runtime/pyodide/', ROOT).href});
     });
   });
+  function resetSection(selector, titleText) {
+    const el = document.querySelector(selector);
+    el.replaceChildren();
+    const heading = document.createElement('h2');
+    heading.textContent = titleText;
+    el.append(heading);
+    return el;
+  }
   function renderStudy() {
     const summary = document.querySelector('#study-summary');
     if (!summary || !window.GUIDE_TOPICS) return;
@@ -108,16 +119,14 @@
     const counts = {Familiar:0, Practiced:0, Independent:0, Mastered:0};
     for (const id of topics.keys()) { const stage = model.mastery(state,id).stage; if (stage in counts) counts[stage]++; }
     summary.textContent = Object.entries(counts).map(([stage,count]) => `${count} ${stage}`).join(' · ') + ` · ${state.attempts.length} attempts`;
-    const due = document.querySelector('#study-due'); due.replaceChildren();
-    const heading = document.createElement('h2'); heading.textContent = 'Due for review'; due.append(heading);
+    const due = resetSection('#study-due', 'Due for review');
     const dueIds = Object.keys(state.reviews).filter(id => state.reviews[id].nextReview <= Date.now() && topics.has(id));
     if (!dueIds.length) { const empty = document.createElement('p'); empty.textContent = 'Nothing due. Try a new assessment or coding lab.'; due.append(empty); }
     for (const id of dueIds) {
       const paragraph = document.createElement('p'), link = document.createElement('a');
       link.href = new URL(topics.get(id).url, ROOT); link.textContent = topics.get(id).title; paragraph.append(link); due.append(paragraph);
     }
-    const history = document.querySelector('#study-history'); history.replaceChildren();
-    const title = document.createElement('h2'); title.textContent = 'Recent attempts'; history.append(title);
+    const history = resetSection('#study-history', 'Recent attempts');
     const list = document.createElement('ol');
     for (const attempt of [...state.attempts].reverse().slice(0,100)) {
       const li = document.createElement('li');

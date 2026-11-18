@@ -54,7 +54,7 @@ builds before starting; stop and rerun it after editing source files.
 | --- | --- |
 | Chapter title, introduction, terms, flow, or case | `content/chapters/<slug>/chapter.json` |
 | Guided explanations | `content/chapters/<slug>/lessons.json` |
-| Deeper practice questions and answers | `content/chapters/<slug>/questions.json` |
+| Deeper practice questions and answers | `content/chapters/<slug>/questions.md` |
 | Review notes and extension/completion checks | `content/chapters/<slug>/review.json` |
 | Chapter code walkthrough | `content/chapters/<slug>/code-notes.json` |
 | Chapter example code and its scope | `content/examples/chapters/<slug>.*` and `catalog.json` |
@@ -65,7 +65,7 @@ builds before starting; stop and rerun it after editing source files.
 | Glossary or primary references | `content/shared/glossary.json`, `references.json` |
 | Styling and browser interactions | `assets/css/`, `assets/js/` |
 | Integration labs | `labs/` |
-| Page rendering and source loading | `scripts/` |
+| Page rendering, question CLI, and shared loaders | `scripts/` (`scripts/questions.py` and `scripts/roadmap/`) |
 | Verification | `tests/` |
 
 Generated `_build/` and `_site/` are ignored. They are recreated by the tools;
@@ -75,16 +75,18 @@ are grouped into folders.
 
 ## Edit an existing question
 
-1. Find its chapter in `content/chapters/` and edit its JSON record. Keep the
-   question's existing `Q` title when changing only its answer; titles are part
-   of the study-identity key.
+1. Find its chapter in `content/chapters/<slug>/questions.md` and edit its
+   Markdown question block (or scaffold/format via `scripts/questions.py`).
+   Keep the question's existing heading when changing only its answer; titles
+   are part of the study-identity key.
 2. Find the question ID in `content/shared/study_ids.json`. Search for that ID
    in `content/examples/questions/**/catalog.json` to find its inline example.
    For example, `rg -n '"gradient"' content/examples/questions` finds the
    gradient recipe and its source filename.
 3. Update code, explanation, walkthrough, and expected output together. Related
    questions can share a focused example; review all IDs in its `questions` list.
-4. Run `make check` and inspect the affected chapter with `make serve`.
+4. Run `python3.11 scripts/questions.py validate`, `make check`, and inspect
+   the affected chapter with `make serve`.
 
 If you reword an existing `Q` title, move its matching key in `study_ids.json`
 to the new title while keeping the same numeric ID. Do not allocate a new ID
@@ -92,9 +94,13 @@ for a wording-only correction, renumber existing IDs, or reuse a retired ID.
 
 ## Add a lesson or question
 
-1. Append a record to a chapter's `lessons.json` or `questions.json`, matching
-   the neighboring fields. Lessons use `Q`, `explain`, `example`, and `takeaway`.
-   Questions use `Q`, `A`, `Why`, `Risk`, `Trade`, and `Try`.
+1. Add a question block to `content/chapters/<slug>/questions.md` — either
+   interactively/via CLI (`python3 -B scripts/questions.py scaffold --chapter <slug> --title "..." --id <next>`)
+   or by editing the chapter's canonical `questions.md` pack directly (for
+   lessons, append a record to `lessons.json`). Questions require `Why`, `Risk`,
+   `Trade`, `Try`, plus either `answer_format: conceptual` with `worked_case`
+   or full production/timeline/complexity subsections (`Production Case`,
+   `Execution Timeline`, `Complexity`) with an assigned inline example.
 2. Register the new identity explicitly:
 
    ```sh
@@ -103,9 +109,16 @@ for a wording-only correction, renumber existing IDs, or reuse a retired ID.
 
    This appends IDs after the current maximum and preserves existing mappings.
    Normal builds read the identity file without rewriting it.
-3. Assign that ID to a relevant inline example or add a new one. Every question
-   must have exactly one explicit example assignment; no keyword fallback is used.
-4. Run `make check` and review the generated question and study controls.
+3. Assign that ID to a relevant inline example or add a new one (or use
+   `answer_format: conceptual` when no runnable snippet applies). Every
+   non-conceptual question must have one explicit example assignment; no
+   keyword fallback is used.
+4. Validate formatting and run checks:
+
+   ```sh
+   python3 -B scripts/questions.py validate
+   make check
+   ```
 
 ## Add or change an inline example
 
@@ -212,8 +225,10 @@ input/output cases. Keep stable IDs and explicit learning outcomes. Do not make 
 subjective answer an automatic pass. `content/courses/` contains structured units,
 prerequisites, definitions, independent exercises and primary references.
 
-Question source can be split into `questions-<name>.json` beside `questions.json`.
-All records still require registered study IDs and explicit example assignments.
+All chapter questions live in a single canonical Markdown pack per chapter at
+`content/chapters/<slug>/questions.md` (parsed by `scripts/roadmap/question_markdown.py`
+and managed via `scripts/questions.py`), eliminating multi-shard `questions-*.json`
+drift. All records still require registered study IDs and explicit example assignments.
 All full answers live on their chapter page; JSON data uses 40-record shards
 and search uses static per-track shards. `tests/check_question_data.py` and `tests/check_scale_browser.py` build and
 navigate 1,200 test records without adding filler to public content.
@@ -270,7 +285,7 @@ All main chapter answers are rendered on their canonical chapter page; do not
 create a second paginated question bank or truncate the chapter. Add as many distinct questions
 as a subject needs, including more than 100 where justified. Prefer a mechanism,
 worked example, failure, design choice or meaningful follow-up over paraphrases.
-Use `questions-*.json` for additional editable source shards and register new IDs
+Add all chapter questions inside `content/chapters/<slug>/questions.md` and register new IDs
 with `scripts/course_data.py --assign-ids`; never rename old registry keys merely
 to change a display heading.
 

@@ -11,7 +11,9 @@
   // Navigation is the entry view. Focus is an explicit choice for this page,
   // rather than a saved preference that hides navigation on future visits.
   let focusMode = false;
+  const noteTimers = new Map();
   function save() {
+    flushPendingNotes();
     const previous = store.snapshot;
     const changes = [];
     for (const field of ['learned', 'bookmarks', 'notes', 'reviews', 'confidence']) {
@@ -46,14 +48,14 @@
   }
 
   function syncControls() {
-  document.documentElement.dataset.theme = state.theme;
-  document.body.classList.toggle('distraction-free', focusMode);
-  const focusButton = document.querySelector('#distraction-free');
-  if (focusButton) {
-    focusButton.setAttribute('aria-pressed', String(focusMode));
-    focusButton.textContent = focusMode ? 'Show sidebar' : 'Focus mode';
-  }
-  const themeBtn = document.querySelector('#theme');
+    document.documentElement.dataset.theme = state.theme;
+    document.body.classList.toggle('distraction-free', focusMode);
+    const focusButton = document.querySelector('#distraction-free');
+    if (focusButton) {
+      focusButton.setAttribute('aria-pressed', String(focusMode));
+      focusButton.textContent = focusMode ? 'Show sidebar' : 'Focus mode';
+    }
+    const themeBtn = document.querySelector('#theme');
     if (themeBtn) {
       const labels = { light: 'Theme: Light ☀️', warm: 'Theme: Warm ☕', dark: 'Theme: Dark 🌙' };
       themeBtn.textContent = labels[state.theme] || 'Change theme';
@@ -65,23 +67,56 @@
       el.setAttribute('aria-pressed', String(on));
       el.textContent = on ? 'Bookmarked' : 'Bookmark';
     });
-    document.querySelectorAll('[data-note]').forEach(el => { if (document.activeElement !== el || state.notes[el.dataset.note] === undefined) el.value = state.notes[el.dataset.note] || ''; });
+    document.querySelectorAll('[data-note]').forEach(el => { if (document.activeElement !== el && !noteTimers.has(el)) el.value = state.notes[el.dataset.note] || ''; });
     updateProgress();
   }
 
-  store.addEventListener('change', () => { state = store.snapshot; syncControls(); });
+  store.addEventListener('change', () => {
+    state = store.snapshot;
+    try {
+      if (state.theme !== 'light' || localStorage.getItem('guide-theme') !== null) {
+        localStorage.setItem('guide-theme', state.theme);
+      }
+    } catch { /* ignore storage errors in restricted contexts */ }
+    syncControls();
+  });
   syncControls();
 
   document.querySelector('#theme')?.addEventListener('click', () => {
     const idx = THEMES.indexOf(state.theme);
     state.theme = THEMES[(idx + 1) % THEMES.length];
     document.documentElement.dataset.theme = state.theme;
+    try { localStorage.setItem('guide-theme', state.theme); } catch {}
     save();
     syncControls();
   });
 
+  function commitNote(el) {
+    const timer = noteTimers.get(el);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      noteTimers.delete(el);
+    }
+    const id = el.dataset.note;
+    const value = el.value.slice(0, 20000);
+    if ((store.snapshot.notes[id] || '') === value && state.notes[id] === value) return;
+    state.notes[id] = value;
+    store.set('notes', id, value);
+  }
+  function flushPendingNotes() {
+    for (const el of [...noteTimers.keys()]) commitNote(el);
+  }
+  const rawFlush = store.flush.bind(store);
+  store.flush = () => {
+    flushPendingNotes();
+    return rawFlush();
+  };
+
   document.querySelector('#reset-progress')?.addEventListener('click', async () => {
     if (!window.confirm('Clear this browser’s notes, bookmarks, and practice history? Export a backup first.')) return;
+    for (const timer of noteTimers.values()) clearTimeout(timer);
+    noteTimers.clear();
+    try { localStorage.removeItem('guide-theme'); } catch {}
     await store.clear();
     state = store.snapshot; syncControls(); search();
   });
@@ -89,9 +124,15 @@
     const id = el.dataset.bookmark;
     state.bookmarks[id] = !state.bookmarks[id]; save(); syncControls();
   }));
-  document.querySelectorAll('[data-note]').forEach(el => el.addEventListener('input', () => {
-    state.notes[el.dataset.note] = el.value.slice(0, 20000); save();
-  }));
+  document.querySelectorAll('[data-note]').forEach(el => {
+    el.addEventListener('input', () => {
+      clearTimeout(noteTimers.get(el));
+      noteTimers.set(el, setTimeout(() => commitNote(el), 250));
+    });
+    el.addEventListener('change', () => commitNote(el));
+    el.addEventListener('blur', () => commitNote(el));
+  });
+  window.addEventListener('pagehide', flushPendingNotes);
 
   const originalCode = new WeakMap();
   document.querySelectorAll('pre code').forEach(block => originalCode.set(block, block.textContent));
@@ -185,14 +226,14 @@
     document.querySelectorAll('[data-term]').forEach(el => { el.hidden = !el.dataset.term.includes(term); });
   });
 
-  /* Modal Search (Spotlight Cmd+K / /) */
+  /* Modal Search (Spotlight Cmd+K / /) backed by native <dialog> */
   let searchModal = document.querySelector('.search-modal');
   if (!searchModal) {
-    searchModal = document.createElement('div');
+    searchModal = document.createElement('dialog');
     searchModal.className = 'search-modal';
-    searchModal.setAttribute('role', 'dialog');
-    searchModal.setAttribute('aria-modal', 'true');
+    searchModal.id = 'search-modal';
     searchModal.setAttribute('aria-label', 'Search course topics');
+    searchModal.setAttribute('closedby', 'any');
     searchModal.innerHTML = `
       <div class="search-modal-box">
         <div class="search-modal-input">
@@ -216,28 +257,17 @@
   const modalClose = searchModal.querySelector('#modal-close');
   let selectedIndex = -1;
 
-  let searchOpener;
-  const inertBefore = new Map();
   function openSearchModal() {
-    if (searchModal.classList.contains('is-open')) return;
-    searchOpener = document.activeElement;
-    for (const child of document.body.children) {
-      if (child === searchModal || ['SCRIPT', 'STYLE'].includes(child.tagName)) continue;
-      inertBefore.set(child, child.inert);
-      child.inert = true;
-    }
-    searchModal.classList.add('is-open');
+    if (searchModal.open) return;
     modalQuery.value = '';
     selectedIndex = -1;
+    searchModal.showModal();
     runModalSearch();
     modalQuery.focus();
   }
 
   function closeSearchModal() {
-    searchModal.classList.remove('is-open');
-    for (const [child, inert] of inertBefore) child.inert = inert;
-    inertBefore.clear();
-    searchOpener?.focus();
+    if (searchModal.open) searchModal.close();
   }
 
   async function runModalSearch() {
@@ -288,18 +318,29 @@
     }
   }
 
-  searchModal.addEventListener('keydown', event => {
-    if (event.key !== 'Tab') return;
-    const controls = [...searchModal.querySelectorAll('input, button, a[href]')];
-    const first = controls[0], last = controls[controls.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  let pointerStartedOutside = false;
+  const isOutsideDialogBox = (event) => {
+    const box = searchModal.querySelector('.search-modal-box');
+    if (!box) return false;
+    const rect = box.getBoundingClientRect();
+    return (
+      event.clientX < rect.left ||
+      event.clientX > rect.right ||
+      event.clientY < rect.top ||
+      event.clientY > rect.bottom
+    );
+  };
+  searchModal.addEventListener('pointerdown', (event) => {
+    pointerStartedOutside = event.target === searchModal && isOutsideDialogBox(event);
+  });
+  searchModal.addEventListener('pointerup', (event) => {
+    if (pointerStartedOutside && event.target === searchModal && isOutsideDialogBox(event)) {
+      closeSearchModal();
+    }
+    pointerStartedOutside = false;
   });
   modalQuery?.addEventListener('input', runModalSearch);
   modalClose?.addEventListener('click', closeSearchModal);
-  searchModal.addEventListener('click', (e) => {
-    if (e.target === searchModal) closeSearchModal();
-  });
 
   modalQuery?.addEventListener('keydown', (e) => {
     const items = modalResults.querySelectorAll('.result');
@@ -338,19 +379,14 @@
   });
 
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && searchModal.classList.contains('is-open')) {
-      closeSearchModal();
-      return;
-    }
     if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
       event.preventDefault();
       openSearchModal();
       return;
     }
-    if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.isContentEditable && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
+    if (event.key === '/' && !searchModal.open && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.isContentEditable && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
       event.preventDefault();
       openSearchModal();
-      return;
     }
   });
 

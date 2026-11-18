@@ -114,5 +114,104 @@
     "questions": [
       967
     ]
+  },
+  {
+    "name": "hyde-retrieval-with-fallback",
+    "filename": "hyde-retrieval-with-fallback.py",
+    "language": "python",
+    "explain": "Generate a hypothetical document representation to bridge query vocabulary gaps, while falling back to direct retrieval if hypothesis generation fails.",
+    "steps": "Generate a hypothetical answer passage from the query using a model probe. || Embed the hypothetical passage and merge nearest-neighbor results with direct query retrieval.",
+    "expect": "direct_top (0.104, 'ecc-startup') hyde_top (0.67, 'ecc-startup') hyde+query",
+    "questions": [
+      1652
+    ]
+  },
+  {
+    "name": "query-decomposition-dag",
+    "filename": "query-decomposition-dag.py",
+    "language": "python",
+    "explain": "Decompose complex questions into a directed acyclic graph of subqueries, running independent nodes concurrently and dependent nodes sequentially.",
+    "steps": "Parse subquery dependencies and compute topological execution levels. || Execute each independent level concurrently and thread intermediate facts into subsequent retrieval stages.",
+    "expect": "[['acquired_company'], ['industry', 'jurisdiction'], ['rules']] rules for payments in EU",
+    "questions": [
+      1653
+    ]
+  },
+  {
+    "name": "conversational-condensation-guard",
+    "filename": "conversational-condensation-guard.py",
+    "language": "python",
+    "explain": "Transform ambiguous follow-up conversation turns into standalone search queries while asserting that protected identifiers, dates, and negations are preserved.",
+    "steps": "Extract entity identifiers and negation constraints from original dialogue history. || Validate candidate standalone rewrite against protected tokens and reject drifted or inverted queries.",
+    "expect": "[] ['missing P-102', 'invented P-120'] ['dropped negation']",
+    "questions": [
+      1654
+    ]
+  },
+  {
+    "name": "mmr-diverse-selection",
+    "filename": "mmr-diverse-selection.py",
+    "language": "python",
+    "explain": "Apply Maximal Marginal Relevance (MMR) greedy selection to trade query relevance against redundant overlap with already selected passages.",
+    "steps": "Select highest relevance candidate for initial seed evidence. || Iteratively select candidates maximizing marginal relevance minus lambda-weighted similarity to already chosen documents.",
+    "expect": "lambda=1.0 ['notice-a', 'notice-b'] lambda=0.3 ['notice-a', 'exceptions']",
+    "questions": [
+      1655
+    ]
+  },
+  {
+    "name": "corrective-retrieval-loop",
+    "filename": "corrective-retrieval-loop.py",
+    "language": "python",
+    "explain": "Assess initial retrieval sufficiency against mandatory domain concepts and trigger bounded secondary corrections before deciding to answer or abstain.",
+    "steps": "Evaluate retrieved passage set against required domain concepts and error identifiers. || Trigger alternative retrieval strategy when coverage is insufficient, terminating with abstention when budget expires.",
+    "expect": "answer [('dense', ['d1'], 'insufficient'), ('lexical', ['d2'], 'sufficient')]",
+    "questions": [
+      1656
+    ]
+  },
+  {
+    "name": "late-interaction-maxsim",
+    "filename": "late-interaction-maxsim.py",
+    "language": "python",
+    "explain": "Score multi-aspect queries using ColBERT-style late interaction MaxSim operator to preserve granular token-level alignment lost by mean pooling.",
+    "steps": "Compute contextual token embedding matrices for query and candidate documents. || For each query token, take maximum similarity over document tokens and sum across query terms.",
+    "expect": "{'both': 1.0, 'blurry': 1.0} {'both': 1.998, 'blurry': 1.414}",
+    "questions": [
+      1657
+    ]
+  },
+  {
+    "name": "contextual-chunk-enrichment",
+    "filename": "contextual-chunk-enrichment.py",
+    "language": "python",
+    "explain": "Enrich raw chunk index text with document and section hierarchy for higher retrieval recall while retaining unmodified original text for generation.",
+    "steps": "Prepend document title and section path context to chunk text for vector and lexical indexing. || Retain unmodified source passage as immutable citation evidence for generative synthesis.",
+    "expect": "overlap_before 3 overlap_after 5 heading-derived",
+    "questions": [
+      1658
+    ]
+  },
+  {
+    "name": "score-fusion-pitfalls",
+    "filename": "score-fusion-pitfalls.py",
+    "language": "python",
+    "explain": "Demonstrate the failure modes of raw score addition versus min-max normalization and rank-based Reciprocal Rank Fusion (RRF) across different score distributions.",
+    "steps": "Demonstrate how raw score addition causes higher-scale BM25 scores to overpower dense cosine similarity. || Apply Reciprocal Rank Fusion (RRF) to combine disparate scoring distributions purely by ranked positions.",
+    "expect": "raw ['D', 'B', 'C', 'A'] minmax ['B', 'A', 'D', 'C'] rrf ['B', 'A', 'D', 'C']",
+    "questions": [
+      1659
+    ]
+  },
+  {
+    "name": "graph-vector-evidence",
+    "filename": "graph-vector-evidence.py",
+    "language": "python",
+    "explain": "Seed knowledge graph traversal from vector-retrieved entities and maintain strict provenance and verification status on multi-hop relationship edges.",
+    "steps": "Resolve seed entities from semantic passage search into canonical knowledge graph nodes. || Traverse relationship edges to discover multi-hop connections, filtering unverified inferences when strict provenance is required.",
+    "expect": "[{'supplier': 'SupplierX', 'path': ['CompanyA', 'CompanyB'], 'sources': ['press-12', 'contract-7']}]",
+    "questions": [
+      1660
+    ]
   }
 ]

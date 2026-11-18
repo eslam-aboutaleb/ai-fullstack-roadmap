@@ -44,6 +44,14 @@ def locations(identity, url):
             if value == url or value == identity: return True
             return parent_key == 'links' and identity in {part.strip() for part in value.split(',')}
         if contains(source): found.append(str(path.relative_to(ROOT)))
+    for md_path in sorted((CONTENT / 'chapters').glob('*/questions.md')):
+        from roadmap.question_markdown import loads_questions_md
+        try:
+            source = loads_questions_md(md_path.read_text(encoding='utf-8'), source=str(md_path))
+        except Exception:
+            continue
+        if any(url in q.get('citations', []) or url == q.get('reference') for q in source):
+            found.append(str(md_path.relative_to(ROOT)))
     return found
 
 

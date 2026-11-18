@@ -20,8 +20,8 @@ def check():
     assert set(EXAMPLES) == {chapter['slug'] for chapter in chapters}
     for chapter in chapters:
         folder = ROOT / 'content/chapters' / chapter['slug']
-        assert {path.name for path in folder.iterdir() if path.is_file() and not re.fullmatch(r'questions-[a-zA-Z0-9_-]+\.json', path.name)} == {
-            'chapter.json', 'lessons.json', 'questions.json', 'review.json', 'code-notes.json'}
+        assert {path.name for path in folder.iterdir() if not path.name.startswith('.')} == {
+            'chapter.json', 'lessons.json', 'questions.md', 'review.json', 'code-notes.json'}
         notes = json.loads((folder / 'code-notes.json').read_text())
         assert notes and all(isinstance(note, str) and note for note in notes)
     registered = {item['file'] for item in CATALOG.values()} | {'catalog.json'}
@@ -49,10 +49,11 @@ def check():
             course_data.CONTENT = content_copy
             identities_path = content_copy / 'shared/study_ids.json'
             original_identities = json.loads(identities_path.read_text())
-            questions_path = content_copy / 'chapters/foundations/questions.json'
-            questions = json.loads(questions_path.read_text())
+            questions_path = content_copy / 'chapters/foundations/questions.md'
+            from roadmap.question_markdown import loads_questions_md, dumps_questions_md
+            questions = loads_questions_md(questions_path.read_text(), source='foundations/questions.md')
             questions.append({**questions[0], 'Q': 'Synthetic contributor registration check?'})
-            questions_path.write_text(json.dumps(questions))
+            questions_path.write_text(dumps_questions_md(questions, chapter_slug='foundations'))
             try:
                 load()
             except ValueError as error:

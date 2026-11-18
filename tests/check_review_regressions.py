@@ -42,12 +42,13 @@ def check():
     with tempfile.TemporaryDirectory() as directory:
         copied = Path(directory)/'content'
         shutil.copytree(ROOT/'content', copied)
-        path = copied/'chapters/foundations/questions.json'
-        rows = json.loads(path.read_text())
+        path = copied/'chapters/foundations/questions.md'
+        from roadmap.question_markdown import loads_questions_md, dumps_questions_md
+        rows = loads_questions_md(path.read_text(), source='foundations/questions.md')
         enriched = next(q for q in rows if 'spoken' in q)
         enriched['added'] = False
         enriched['difficulty'] = 'invalid-facet'
-        path.write_text(json.dumps(rows))
+        path.write_text(dumps_questions_md(rows, chapter_slug='foundations'))
         old_content = course_data.CONTENT
         try:
             course_data.CONTENT = copied

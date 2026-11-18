@@ -2,7 +2,7 @@
 
 **Live site:** [AI Full-Stack Engineering Roadmap](https://eslam-aboutaleb.github.io/ai-fullstack-roadmap/)
 
-A prerequisite-ordered learning journey through 56 chapters: programming and the web first, then backend/data, mathematics, ML/deep learning, model applications, RAG, agents and production. It teaches through 1,103 question-and-answer entries on the chapter pages (356 foundation explanations and 747 deeper interview questions), plus 40 companion course units. Answers include worked examples and in-answer acronym definitions; chapters have no question-count limit.
+A prerequisite-ordered learning journey through 59 chapters: programming and the web first, then backend/data, mathematics, ML/deep learning, model applications, RAG, agents and production. It teaches through 1,536 question-and-answer entries on the chapter pages (373 foundation explanations and 1,163 deeper interview questions in canonical per-chapter `questions.md` packs), plus 40 companion course units. Answers include worked examples and in-answer acronym definitions; chapters have no question-count limit.
 
 ## Static architecture
 
@@ -16,7 +16,7 @@ The published site is a **GitHub Pages-only static application**: HTML, CSS, Jav
 - `content/diagrams/` — learning journey diagrams
 - `assets/` — site styles and browser scripts
 - `labs/` — optional hands-on integration labs
-- `scripts/` — site build and packaging tools
+- `scripts/` — CLI entrypoints (`questions.py`, `build.py`, `package.py`) and shared `scripts/roadmap/` modules
 - `tests/` — content and build checks
 - `docs/` — repository structure and verification notes
 

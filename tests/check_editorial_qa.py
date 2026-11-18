@@ -4,6 +4,7 @@ import json, sys, re, difflib
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTENT = ROOT / 'content'
+sys.path.insert(0, str(ROOT / 'scripts'))
 
 def normalize(text):
     return re.sub(r'\s+', ' ', text.lower().strip())
@@ -14,14 +15,13 @@ def check():
     STAGES = [tuple(stage) for stage in course['stages']]
 
     all_questions = []
+    from roadmap.content import load_chapter_questions
     for number, (_, _, _, slugs) in enumerate(STAGES, 1):
         for slug in slugs:
-            q_path = CONTENT / 'chapters' / slug / 'questions.json'
-            if not q_path.exists():
+            folder = CONTENT / 'chapters' / slug
+            if not folder.exists():
                 continue
-            questions = json.loads(q_path.read_text())
-            for shard in sorted(q_path.parent.glob('questions-*.json')):
-                questions.extend(json.loads(shard.read_text()))
+            questions = load_chapter_questions(folder)
             for q in questions:
                 qid = q.get('id', normalize(q['Q'])[:20])
                 all_questions.append((slug, qid, q['Q']))
@@ -36,14 +36,23 @@ def check():
         else:
             seen[norm] = (slug, qid, qtext)
 
-    # Near-duplicate detection (>90% similarity)
+    # Near-duplicate detection (>90% similarity, length-ratio + quick_ratio pruned)
     near_dups = []
-    texts = [(slug, qid, normalize(qtext)) for slug, qid, qtext in all_questions]
+    texts = sorted(
+        [(len(normalize(qtext)), slug, qid, normalize(qtext)) for slug, qid, qtext in all_questions],
+        key=lambda item: item[0],
+    )
     for i in range(len(texts)):
+        l1, s1, id1, t1 = texts[i]
         for j in range(i + 1, len(texts)):
-            sim = difflib.SequenceMatcher(None, texts[i][2], texts[j][2]).ratio()
-            if sim > 0.90:
-                near_dups.append((texts[i], texts[j], round(sim, 2)))
+            l2, s2, id2, t2 = texts[j]
+            if l1 + l2 and (2 * l1 / (l1 + l2)) <= 0.90:
+                break
+            sm = difflib.SequenceMatcher(None, t1, t2)
+            if sm.real_quick_ratio() > 0.90 and sm.quick_ratio() > 0.90:
+                sim = sm.ratio()
+                if sim > 0.90:
+                    near_dups.append(((s1, id1, t1), (s2, id2, t2), round(sim, 2)))
 
     errors = []
     if exact_dups:

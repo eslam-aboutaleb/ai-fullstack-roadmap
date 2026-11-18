@@ -88,15 +88,19 @@ class Support:
         row = self.row(run)
         return {'run': run, 'state': row[0], 'source': row[1], 'operation': row[2], 'payload': json.loads(row[3])}
 
+    def _pending_row(self, run):
+        self.db.execute('BEGIN IMMEDIATE')
+        state, source, op, payload = self.row(run)
+        if state != 'awaiting-approval':
+            raise ValueError('pending proposal required')
+        return source, op, payload
+
     def approve(self, run, *, now=None, lifetime=60):
         now = time.time() if now is None else now
         if not 0 < lifetime <= 300:
             raise ValueError('approval lifetime must be 1..300 seconds')
         with self.db:
-            self.db.execute('BEGIN IMMEDIATE')
-            state, source, op, payload = self.row(run)
-            if state != 'awaiting-approval':
-                raise ValueError('only a pending proposal can be approved')
+            source, op, payload = self._pending_row(run)
             self.db.execute('INSERT OR REPLACE INTO approvals VALUES(?,?,?,?,?,?)',
                             (self.owner, run, op, payload, source, now + lifetime))
             self.event(run, 'approved', {'operation': op, 'expires': now + lifetime})
@@ -134,10 +138,7 @@ class Support:
 
     def cancel(self, run):
         with self.db:
-            self.db.execute('BEGIN IMMEDIATE')
-            state, _, _, _ = self.row(run)
-            if state != 'awaiting-approval':
-                raise ValueError('a committed effect cannot be undone by cancellation')
+            self._pending_row(run)
             self.db.execute("UPDATE runs SET state='cancelled' WHERE owner=? AND run=?", (self.owner, run))
             self.db.execute('DELETE FROM approvals WHERE owner=? AND run=?', (self.owner, run))
             self.event(run, 'cancelled', {'effect_created': False})

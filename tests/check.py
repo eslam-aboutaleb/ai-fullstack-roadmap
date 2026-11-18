@@ -9,16 +9,28 @@ assert sys.version_info >= (3,11), 'Use Python 3.11+ to exercise examples'
 ROOT=Path(__file__).resolve().parent.parent
 SITE=ROOT/'_site'
 
+
+def run_script(path, *args, require_pass=False, timeout=15, use_b=True, cwd=None, env=None):
+    cmd = [sys.executable] + (['-B'] if use_b else []) + [str(path), *args]
+    result = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0:
+        raise AssertionError(f'{path}: exit {result.returncode}: {result.stderr or result.stdout}')
+    if require_pass and 'PASS' not in result.stdout:
+        raise AssertionError(f'{path}: missing PASS in stdout: {result.stdout}')
+    return result
+
+
 # Verify the site is base-path safe under the GitHub Pages repository path.
 env = dict(os.environ, PAGES_BASE_PATH='/ai-fullstack-roadmap/')
-subprocess.run([sys.executable,'-B','scripts/build.py'], cwd=ROOT, check=True, env=env)
-subprocess.run([sys.executable,'-B','scripts/package.py'], cwd=ROOT, check=True, env=env)
+for script in ('scripts/build.py', 'scripts/package.py'):
+    run_script(script, cwd=ROOT, env=env, timeout=120)
 sys.path.insert(0, str(ROOT / 'tests'))
 from check_base_path import check as check_base_path
 check_base_path()
 # Rebuild without a base path for the default local and remaining checks.
-subprocess.run([sys.executable,'-B','scripts/build.py'], cwd=ROOT, check=True, env=dict(os.environ, PAGES_BASE_PATH=''))
-subprocess.run([sys.executable,'-B','scripts/package.py'], cwd=ROOT, check=True)
+local_env = dict(os.environ, PAGES_BASE_PATH='')
+for script in ('scripts/build.py', 'scripts/package.py'):
+    run_script(script, cwd=ROOT, env=local_env, timeout=120)
 class Page(HTMLParser):
     def __init__(self,text):
         super().__init__();self.ids=set();self.refs=[];self.questions=[]
@@ -72,20 +84,12 @@ for slug,e in EXAMPLES.items():
         result=subprocess.run([sys.executable,'-I','-c',e['code']],capture_output=True,text=True,timeout=10)
         assert result.returncode==0,(slug,result.stderr)
         executed+=1
-math_lab_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/math_interview_mechanics.py')],
-                               capture_output=True,text=True,timeout=10)
-assert math_lab_result.returncode==0,(math_lab_result.stdout,math_lab_result.stderr)
-assert 'PASS' in math_lab_result.stdout
+run_script(ROOT / 'labs/math_interview_mechanics.py', require_pass=True, timeout=10)
 
 for path in (SITE/'examples'/'labs').glob('*.py'):ast.parse(path.read_text())
-result=subprocess.run([sys.executable,str(SITE/'examples/labs/voice_pipeline.py')],capture_output=True,text=True,timeout=10)
-assert result.returncode==0,result.stderr
-result=subprocess.run([sys.executable,str(SITE/'examples/labs/foundation_bridge.py')],capture_output=True,text=True,timeout=10)
-assert result.returncode==0,result.stderr
-context_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/context_packet_policy.py')],
-                              capture_output=True,text=True,timeout=10)
-assert context_result.returncode==0,(context_result.stdout,context_result.stderr)
-assert 'PASS' in context_result.stdout
+for lab_name in ('voice_pipeline.py', 'foundation_bridge.py'):
+    run_script(SITE / 'examples/labs' / lab_name, use_b=False, timeout=10)
+run_script(ROOT / 'labs/context_packet_policy.py', require_pass=True, timeout=10)
 
 for slug in manifest['chapter_order']:
     assert {'review-notes','recommended-practice'}.issubset(pages[SITE/(slug+'.html')].ids),slug
@@ -123,66 +127,28 @@ check_question_data()
 
 for lab_name in ('async_job_engine.py', 'model_training.py', 'attention_math.py', 'rag_evaluation.py', 'durable_agent.py',
                  'data_contract_pipeline.py', 'llm_contracts.py', 'retrieval_scorecard.py', 'production_scorecard.py', 'restore_drill.py'):
-    result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/lab_name)], capture_output=True, text=True, timeout=20)
-    assert result.returncode == 0, (lab_name, result.stderr)
+    run_script(ROOT / 'labs' / lab_name, timeout=20)
 print('Async, training/gradients, attention, retrieval and durable-effect pilots: pass')
 
-# Agent-memory reference and assessment capstone (PR #53).
-for memory_lab, args in (('agent_memory_lifecycle.py', []), ('memory_project.py', ['check'])):
-    result = subprocess.run([sys.executable, '-B', str(ROOT/'labs'/memory_lab), *args],
-                            capture_output=True, text=True, timeout=30)
-    assert result.returncode == 0, (memory_lab, result.stdout, result.stderr)
-    assert 'PASS' in result.stdout, (memory_lab, result.stdout)
-# Bounded asyncio task lifecycle and persistent effect retry (#15).
-backend_result = subprocess.run([sys.executable, '-B', str(ROOT/'labs/async_backend_failure.py')],
-                                capture_output=True, text=True, timeout=30)
-assert backend_result.returncode == 0, (backend_result.stdout, backend_result.stderr)
-assert 'PASS' in backend_result.stdout
+for spec in (
+    ('agent_memory_lifecycle.py', (), 30),
+    ('memory_project.py', ('check',), 30),
+    ('async_backend_failure.py', (), 30),
+    ('finops_budget_ledger.py', (), 15),
+    ('vector_index_migration.py', (), 10),
+    ('eval_platform_contract.py', (), 10),
+    ('ai_safety_release_gate.py', (), 10),
+    ('mcp_remote_policy.py', (), 10),
+    ('framework_contract_compare.py', (), 10),
+    ('inference_capacity.py', (), 10),
+    ('vision_grounding_geometry.py', (), 10),
+    ('video_temporal_alignment.py', (), 10),
+    ('sft_lora_contract.py', (), 10),
+    ('grounded_policy_pipeline.py', (), 10),
+):
+    lab_name, args, timeout = spec
+    run_script(ROOT / 'labs' / lab_name, *args, require_pass=True, timeout=timeout)
 assert 'Complete interview answer' in (SITE/'course-asyncio-lifecycle.html').read_text()
-
-finops_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/finops_budget_ledger.py')],
-                              capture_output=True,text=True,timeout=15)
-assert finops_result.returncode==0,(finops_result.stdout,finops_result.stderr)
-assert 'PASS' in finops_result.stdout
-
-vector_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/vector_index_migration.py')],capture_output=True,text=True,timeout=10)
-assert vector_result.returncode==0,(vector_result.stdout,vector_result.stderr)
-assert 'PASS' in vector_result.stdout
-
-platform_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/eval_platform_contract.py')],capture_output=True,text=True,timeout=10)
-assert platform_result.returncode==0,(platform_result.stdout,platform_result.stderr)
-assert 'PASS' in platform_result.stdout
-
-safety_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/ai_safety_release_gate.py')],capture_output=True,text=True,timeout=10)
-assert safety_result.returncode==0,(safety_result.stdout,safety_result.stderr)
-assert 'PASS' in safety_result.stdout
-
-mcp_policy_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/mcp_remote_policy.py')],capture_output=True,text=True,timeout=10)
-assert mcp_policy_result.returncode==0,(mcp_policy_result.stdout,mcp_policy_result.stderr)
-assert 'PASS' in mcp_policy_result.stdout
-
-framework_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/framework_contract_compare.py')],capture_output=True,text=True,timeout=10)
-assert framework_result.returncode==0,(framework_result.stdout,framework_result.stderr)
-assert 'PASS' in framework_result.stdout
-
-inference_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/inference_capacity.py')],capture_output=True,text=True,timeout=10)
-assert inference_result.returncode==0,(inference_result.stdout,inference_result.stderr)
-assert 'PASS' in inference_result.stdout
-
-vision_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/vision_grounding_geometry.py')],capture_output=True,text=True,timeout=10)
-assert vision_result.returncode==0,(vision_result.stdout,vision_result.stderr)
-assert 'PASS' in vision_result.stdout
-
-video_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/video_temporal_alignment.py')],capture_output=True,text=True,timeout=10)
-assert video_result.returncode==0,(video_result.stdout,video_result.stderr)
-assert 'PASS' in video_result.stdout
-
-sft_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/sft_lora_contract.py')],capture_output=True,text=True,timeout=10)
-assert sft_result.returncode==0,(sft_result.stdout,sft_result.stderr)
-assert 'PASS' in sft_result.stdout
-rag_pipeline_result=subprocess.run([sys.executable,'-B',str(ROOT/'labs/grounded_policy_pipeline.py')],capture_output=True,text=True,timeout=10)
-assert rag_pipeline_result.returncode==0,(rag_pipeline_result.stdout,rag_pipeline_result.stderr)
-assert 'PASS' in rag_pipeline_result.stdout
 
 expected = json.loads((ROOT/'content/simulations.json').read_text())
 actual = json.loads(subprocess.check_output(['node',str(ROOT/'scripts/simulation_fixtures.cjs')],text=True))
@@ -256,13 +222,13 @@ print('Single learning journey: retired duplicate pages absent; every unit, proj
 from check_focused_acceptance import check as check_focused_acceptance
 check_focused_acceptance()
 
-subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"policy_assistant_project.py"),"--check"],check=True,capture_output=True,text=True,timeout=30)
-
-subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"research_support_project.py"),"check"],check=True,capture_output=True,text=True,timeout=30)
-
-subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"replayable_agent_workflow.py")],check=True,capture_output=True,text=True,timeout=30)
-
-subprocess.run([sys.executable,"-B",str(ROOT/"labs"/"data_rollout_contract.py")],check=True,capture_output=True,text=True,timeout=30)
+for lab_name, args in (
+    ('policy_assistant_project.py', ('--check',)),
+    ('research_support_project.py', ('check',)),
+    ('replayable_agent_workflow.py', ()),
+    ('data_rollout_contract.py', ()),
+):
+    run_script(ROOT / 'labs' / lab_name, *args, timeout=30)
 
 from check_vector_dependency_boundary import check as check_vector_dependency_boundary
 check_vector_dependency_boundary()
@@ -274,4 +240,4 @@ print('Interview authoring contract:', check_interview_contract())
 from check_interview_contract import check_acceptance_samples
 check_acceptance_samples()
 
-subprocess.run([sys.executable, '-B', str(ROOT/'labs/memory_adversarial.py')], check=True, capture_output=True, text=True, timeout=20)
+run_script(ROOT / 'labs/memory_adversarial.py', timeout=20)

@@ -2,7 +2,7 @@
 
 The **reader begins with the chapter introduction**, not a quiz. Source order is:
 `chapter.json` goal/motivation/terms/flow/case → `lessons.json` guided explanations
-→ `questions.json` (and shards) for the deeper interview questions.
+→ `questions.md` for the deeper interview questions.
 
 ## One detailed answer, not two competing answers
 
@@ -15,9 +15,11 @@ must show concrete processes or calculations with accessible text alternatives.
 
 The historical `spoken` field remains accepted for compatibility with existing
 records and authoring schemas; the renderer no longer prints it separately.
-New deep questions use `answer_format: conceptual` and contain `A`, `Why`,
+Questions without an executable snippet use `answer_format: conceptual` and contain `A`, `Why`,
 `Risk`, `Trade`, `Try`, `worked_case`, `follow_ups`, `citations` and
-honest `reviewer_status`. A conceptual answer without useful executable code
+honest `reviewer_status`. Enriched code-backed questions include `Production Case`,
+`Execution Timeline`, `Complexity`, `citations`, and a verified example assignment in
+`content/examples/questions/<topic>/catalog.json`. A conceptual answer without useful executable code
 must not invent a useless snippet. When code is genuinely useful, use the
 existing catalog and test expected output before claiming it ran.
 

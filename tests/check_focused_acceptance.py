@@ -21,7 +21,13 @@ def check():
         assert identity not in seen, 'duplicate coverage row'
         seen.add(identity)
         assert ids[identity] == row['study_id'], 'changed study identity'
-        question = next(x for x in json.loads((ROOT / row['source']).read_text()) if x['Q'] == row['question'])
+        source_path = ROOT / row['source']
+        if row['source'].endswith('.md'):
+            from roadmap.question_markdown import loads_questions_md
+            rows = loads_questions_md(source_path.read_text(), source=row['source'])
+        else:
+            rows = json.loads(source_path.read_text())
+        question = next(x for x in rows if x['Q'] == row['question'])
         assert not validate_record(question, identity, require_review=True), identity
         assessment = practices[row['assessment']]
         assert assessment['topic'] == row['study_id'] and assessment['chapter'] == row['chapter']

@@ -12,7 +12,7 @@ import subprocess
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
-CHAPTER_PATH = re.compile(r'^content/chapters/([a-z0-9-]+)/(questions(?:-[a-z0-9-]+)?|lessons)\.json$')
+CHAPTER_PATH = re.compile(r'^content/chapters/([a-z0-9-]+)/(questions(?:-[a-z0-9-]+)?\.json|lessons\.json|questions\.md)$')
 COURSE_PATH = re.compile(r'^content/courses/[a-z0-9-]+\.json$')
 PLACEHOLDERS = ('lorem ipsum', 'todo: write', 'tbd answer', 'as an ai language model')
 
@@ -87,6 +87,16 @@ def _json_at(revision, path):
     return json.loads(result.stdout) if result.returncode == 0 else None
 
 
+def _records_at(revision, path):
+    result = _git('show', f'{revision}:{path}', check=False)
+    if result.returncode != 0:
+        return None
+    if path.endswith('.md'):
+        from roadmap.question_markdown import loads_questions_md
+        return loads_questions_md(result.stdout, source=f'{revision}:{path}')
+    return json.loads(result.stdout)
+
+
 def snapshot(revision):
     registry = _json_at(revision, 'content/shared/study_ids.json') or {}
     records = {}
@@ -94,9 +104,10 @@ def snapshot(revision):
     for path in paths:
         match = CHAPTER_PATH.fullmatch(path)
         if match:
-            slug, group = match.groups()
-            kind = 'lesson' if group == 'lessons' else 'interview'
-            for row in _json_at(revision, path):
+            slug, filename = match.groups()
+            kind = 'lesson' if filename == 'lessons.json' else 'interview'
+            rows = _records_at(revision, path) or []
+            for row in rows:
                 identity = f'{kind}/{slug}/{row["Q"]}'
                 key = (kind, registry.get(identity, identity))
                 if key in records:

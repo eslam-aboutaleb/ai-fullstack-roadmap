@@ -1,13 +1,19 @@
-"""Read editable chapter teaching files instead of embedding code in the builder."""
-from pathlib import Path
-import json
+"""Load editable chapter-level teaching examples declared in catalog.json."""
+from roadmap.examples import CHAPTER_EXAMPLES_DIR as DIRECTORY, load_chapter_examples
 
-DIRECTORY = Path(__file__).resolve().parent.parent / 'content/examples/chapters'
-CATALOG = json.loads((DIRECTORY / 'catalog.json').read_text())
-EXAMPLES = {}
-for slug, entry in CATALOG.items():
-    filename = entry['file']
-    if Path(filename).name != filename:
-        raise ValueError('Chapter example filename must stay inside its source folder')
-    EXAMPLES[slug] = {'scope': entry['scope'], 'language': entry['language'],
-                      'code': (DIRECTORY / filename).read_text()}
+CATALOG, EXAMPLES = load_chapter_examples(DIRECTORY)
+
+
+def slug(item):
+    """Return canonical filename slug for a chapter key."""
+    return item
+
+
+def entry(key):
+    """Return catalog metadata for a chapter key."""
+    return CATALOG[key]
+
+
+def filename(key):
+    """Return filename for a chapter key."""
+    return CATALOG[key]['file']

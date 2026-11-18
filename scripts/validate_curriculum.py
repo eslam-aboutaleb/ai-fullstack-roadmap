@@ -116,8 +116,14 @@ def validate(course=None, curriculum=None):
     if coverage.get('tracks_mapped') != len(tracks):
         raise ValueError(f'Coverage tracks_mapped {coverage.get("tracks_mapped")} != actual {len(tracks)}')
 
-    question_rows = [q for path in (CONTENT/'chapters').glob('*/questions*.json') for q in json.loads(path.read_text())]
-    lesson_rows = [q for path in (CONTENT/'chapters').glob('*/lessons.json') for q in json.loads(path.read_text())]
+    from roadmap.content import load_chapter_questions
+    question_rows = [
+        q
+        for chapter_dir in sorted((CONTENT / 'chapters').iterdir())
+        if chapter_dir.is_dir() and (chapter_dir / 'chapter.json').is_file()
+        for q in load_chapter_questions(chapter_dir)
+    ]
+    lesson_rows = [q for path in sorted((CONTENT / 'chapters').glob('*/lessons.json')) for q in json.loads(path.read_text())]
     for key, expected in [('questions_with_spoken_answer', sum('spoken' in q for q in question_rows)),
                           ('total_questions', len(question_rows) + len(lesson_rows))]:
         if coverage.get(key) != expected:
