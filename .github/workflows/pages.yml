@@ -15,9 +15,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  commit-messages:
+    name: Commit message format
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/commit-messages.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
+    permissions:
+      contents: read
+      pull-requests: read
+
   quality:
     name: Static content and examples
-    uses: eslam-aboutaleb/ci-workflows/.github/workflows/project-check.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/project-check.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
     with:
       project-dir: .
       target: ci-quality
@@ -25,10 +32,10 @@ jobs:
       node-version: '22'
 
   workflow-lint:
-    uses: eslam-aboutaleb/ci-workflows/.github/workflows/workflow-lint.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/workflow-lint.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
 
   security:
-    uses: eslam-aboutaleb/ci-workflows/.github/workflows/security.yml@46c9653ee6c35c498c56e297dfb0a1a06a7c1958
+    uses: eslam-aboutaleb/ci-workflows/.github/workflows/security.yml@4c4fe5ab336debb608fcee263a875d58bd14acc3
     permissions:
       contents: read
       actions: read
@@ -47,7 +54,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
       - name: Set up Node.js for example checks
@@ -104,7 +111,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
       - name: Verify NumPy and CPU autograd bridge
@@ -122,7 +129,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
       - name: Install pinned optional engineering dependencies
@@ -169,7 +176,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
       - name: Validate all changed published learning records and review evidence
@@ -185,7 +192,7 @@ jobs:
   gate:
     name: Quality gate
     if: always()
-    needs: [quality, browser-check, model-check, advanced-check, workflow-lint, security, editorial-revisions]
+    needs: [commit-messages, quality, browser-check, model-check, advanced-check, workflow-lint, security, editorial-revisions]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
